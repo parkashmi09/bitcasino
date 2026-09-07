@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 480 270" width="480" height="270" role="img" aria-label="House Exclusives">
+  <defs>
+    <linearGradient id="t" x1="0" y1="0" x2="0.4" y2="1">
+      <stop offset="0" stop-color="hsl(210 58% 20%)"/><stop offset="1" stop-color="hsl(210 62% 7%)"/>
+    </linearGradient>
+    <radialGradient id="tg" cx="0.5" cy="0.35" r="0.62">
+      <stop offset="0" stop-color="hsl(210 78% 46%)" stop-opacity="0.8"/>
+      <stop offset="1" stop-color="hsl(210 78% 46%)" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="tf" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="hsl(210 62% 7%)" stop-opacity="0"/><stop offset="1" stop-color="hsl(210 62% 7%)"/>
+    </linearGradient>
+  </defs>
+  <rect width="480" height="270" fill="url(#t)"/>
+  <rect width="480" height="270" fill="url(#tg)"/>
+  <g transform="translate(140 -6) scale(1)"><path d="M100 104 L166.0 104.0 A66 66 0 0 1 146.7 150.7 Z" fill="#FFB319" opacity="0.85"/><path d="M100 104 L146.7 150.7 A66 66 0 0 1 100.0 170.0 Z" fill="hsl(59 88% 62%)" opacity="0.95"/><path d="M100 104 L100.0 170.0 A66 66 0 0 1 53.3 150.7 Z" fill="#FFB319" opacity="0.85"/><path d="M100 104 L53.3 150.7 A66 66 0 0 1 34.0 104.0 Z" fill="hsl(59 88% 62%)" opacity="0.95"/><path d="M100 104 L34.0 104.0 A66 66 0 0 1 53.3 57.3 Z" fill="#FFB319" opacity="0.85"/><path d="M100 104 L53.3 57.3 A66 66 0 0 1 100.0 38.0 Z" fill="hsl(59 88% 62%)" opacity="0.95"/><path d="M100 104 L100.0 38.0 A66 66 0 0 1 146.7 57.3 Z" fill="#FFB319" opacity="0.85"/><path d="M100 104 L146.7 57.3 A66 66 0 0 1 166.0 104.0 Z" fill="hsl(59 88% 62%)" opacity="0.95"/>
+    <circle cx="100" cy="104" r="66" fill="none" stroke="#fff" stroke-width="5" opacity="0.85"/>
+    <circle cx="100" cy="104" r="16" fill="#fff"/>
+    <path d="M100 24l12 20h-24l12-20Z" fill="#fff"/></g>
+  <path d="M95 59v22M84 70h22" stroke="#fff" stroke-width="2.5" stroke-linecap="round" opacity="0.30"/><path d="M84 85v22M73 96h22" stroke="#fff" stroke-width="2.5" stroke-linecap="round" opacity="0.22"/><path d="M413 98v20M403 108h20" stroke="#fff" stroke-width="2.5" stroke-linecap="round" opacity="0.33"/><path d="M399 38v16M391 46h16" stroke="#fff" stroke-width="2.5" stroke-linecap="round" opacity="0.39"/><path d="M342 96v18M333 105h18" stroke="#fff" stroke-width="2.5" stroke-linecap="round" opacity="0.27"/>
+  <rect y="130" width="480" height="140" fill="url(#tf)"/>
+  <text x="240" y="222" text-anchor="middle" font-family="'Space Grotesk',system-ui,sans-serif" font-size="34" font-weight="700" letter-spacing="0.5" fill="#fff">HOUSE EXCLUSIVES</text>
+</svg>

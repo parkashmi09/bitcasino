@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 420 564" width="420" height="564" role="img" aria-label="Silver Meridian">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0.35" y2="1">
+      <stop offset="0" stop-color="hsl(32 58% 20%)"/>
+      <stop offset="0.55" stop-color="hsl(32 58% 20%)"/>
+      <stop offset="1" stop-color="hsl(32 62% 7%)"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="0.5" cy="0.34" r="0.6">
+      <stop offset="0" stop-color="hsl(32 78% 46%)" stop-opacity="0.85"/>
+      <stop offset="1" stop-color="hsl(32 78% 46%)" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="foot" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="hsl(32 62% 7%)" stop-opacity="0"/>
+      <stop offset="0.55" stop-color="hsl(32 62% 7%)" stop-opacity="0.85"/>
+      <stop offset="1" stop-color="hsl(32 62% 7%)"/>
+    </linearGradient>
+  </defs>
+  <rect width="420" height="564" fill="url(#bg)"/>
+  <rect width="420" height="564" fill="url(#glow)"/>
+  <path d="M92 113v18M83 122h18" stroke="#fff" stroke-width="2.5" stroke-linecap="round" opacity="0.37"/><path d="M266 217v12M260 223h12" stroke="#fff" stroke-width="2.5" stroke-linecap="round" opacity="0.41"/><path d="M240 290v10M235 295h10" stroke="#fff" stroke-width="2.5" stroke-linecap="round" opacity="0.28"/><path d="M237 118v12M231 124h12" stroke="#fff" stroke-width="2.5" stroke-linecap="round" opacity="0.21"/><path d="M94 216v14M87 223h14" stroke="#fff" stroke-width="2.5" stroke-linecap="round" opacity="0.18"/>
+  <g transform="translate(60.0 41.8) scale(1.5)"><path d="M100 104 L166.0 104.0 A66 66 0 0 1 146.7 150.7 Z" fill="#FFB319" opacity="0.85"/><path d="M100 104 L146.7 150.7 A66 66 0 0 1 100.0 170.0 Z" fill="hsl(218 88% 62%)" opacity="0.95"/><path d="M100 104 L100.0 170.0 A66 66 0 0 1 53.3 150.7 Z" fill="#FFB319" opacity="0.85"/><path d="M100 104 L53.3 150.7 A66 66 0 0 1 34.0 104.0 Z" fill="hsl(218 88% 62%)" opacity="0.95"/><path d="M100 104 L34.0 104.0 A66 66 0 0 1 53.3 57.3 Z" fill="#FFB319" opacity="0.85"/><path d="M100 104 L53.3 57.3 A66 66 0 0 1 100.0 38.0 Z" fill="hsl(218 88% 62%)" opacity="0.95"/><path d="M100 104 L100.0 38.0 A66 66 0 0 1 146.7 57.3 Z" fill="#FFB319" opacity="0.85"/><path d="M100 104 L146.7 57.3 A66 66 0 0 1 166.0 104.0 Z" fill="hsl(218 88% 62%)" opacity="0.95"/>
+    <circle cx="100" cy="104" r="66" fill="none" stroke="#fff" stroke-width="5" opacity="0.85"/>
+    <circle cx="100" cy="104" r="16" fill="#fff"/>
+    <path d="M100 24l12 20h-24l12-20Z" fill="#fff"/></g>
+  <rect y="282" width="420" height="282" fill="url(#foot)"/>
+  <text x="210" y="420.15999999999997" text-anchor="middle" font-family="'Space Grotesk',system-ui,sans-serif" font-size="52" font-weight="700" letter-spacing="1" fill="#fff">SILVER</text><text x="210" y="468" text-anchor="middle" font-family="'Space Grotesk',system-ui,sans-serif" font-size="52" font-weight="700" letter-spacing="1" fill="#fff">MERIDIAN</text>
+  <text x="210" y="512" text-anchor="middle" font-family="'DM Sans',system-ui,sans-serif" font-size="24" font-weight="500" fill="#fff" opacity="0.62">Nine Peaks</text>
+</svg>

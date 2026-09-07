@@ -1,0 +1,34 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 420 564" width="420" height="564" role="img" aria-label="Amber Lodge">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0.35" y2="1">
+      <stop offset="0" stop-color="hsl(172 58% 20%)"/>
+      <stop offset="0.55" stop-color="hsl(172 58% 20%)"/>
+      <stop offset="1" stop-color="hsl(172 62% 7%)"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="0.5" cy="0.34" r="0.6">
+      <stop offset="0" stop-color="hsl(172 78% 46%)" stop-opacity="0.85"/>
+      <stop offset="1" stop-color="hsl(172 78% 46%)" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="foot" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="hsl(172 62% 7%)" stop-opacity="0"/>
+      <stop offset="0.55" stop-color="hsl(172 62% 7%)" stop-opacity="0.85"/>
+      <stop offset="1" stop-color="hsl(172 62% 7%)"/>
+    </linearGradient>
+  </defs>
+  <rect width="420" height="564" fill="url(#bg)"/>
+  <rect width="420" height="564" fill="url(#glow)"/>
+  <path d="M-262 -244v4M-264 -242h4" stroke="#fff" stroke-width="2.5" stroke-linecap="round" opacity="0.13"/><path d="M-111 -218v4M-113 -216h4" stroke="#fff" stroke-width="2.5" stroke-linecap="round" opacity="0.14"/><path d="M-187 -17v0M-187 -17h0" stroke="#fff" stroke-width="2.5" stroke-linecap="round" opacity="0.14"/><path d="M-149 -119v10M-154 -114h10" stroke="#fff" stroke-width="2.5" stroke-linecap="round" opacity="0.14"/><path d="M-334 -79v6M-337 -76h6" stroke="#fff" stroke-width="2.5" stroke-linecap="round" opacity="-0.01"/>
+  <g transform="translate(60.0 41.8) scale(1.5)">
+    <circle cx="88" cy="94" r="62" fill="none" stroke="hsl(20 88% 62%)" stroke-width="9"/>
+    <circle cx="88" cy="94" r="34" fill="none" stroke="#fff" stroke-width="4" opacity="0.5"/>
+    <path d="M88 32 A62 62 0 0 1 150 94 L88 94 Z" fill="#FFB319" opacity="0.9"/>
+    <circle cx="88" cy="94" r="10" fill="#fff"/>
+    <g>
+      <ellipse cx="148" cy="150" rx="34" ry="12" fill="hsl(20 78% 44%)"/>
+      <ellipse cx="148" cy="140" rx="34" ry="12" fill="hsl(20 88% 62%)"/>
+      <ellipse cx="148" cy="130" rx="34" ry="12" fill="#fff" opacity="0.92"/>
+    </g></g>
+  <rect y="282" width="420" height="282" fill="url(#foot)"/>
+  <text x="210" y="420.15999999999997" text-anchor="middle" font-family="'Space Grotesk',system-ui,sans-serif" font-size="52" font-weight="700" letter-spacing="1" fill="#fff">AMBER</text><text x="210" y="468" text-anchor="middle" font-family="'Space Grotesk',system-ui,sans-serif" font-size="52" font-weight="700" letter-spacing="1" fill="#fff">LODGE</text>
+  <text x="210" y="512" text-anchor="middle" font-family="'DM Sans',system-ui,sans-serif" font-size="24" font-weight="500" fill="#fff" opacity="0.62">Tidewater Gaming</text>
+</svg>

@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 464 150" width="464" height="150" role="img" aria-label="Loyalty league promotion">
+  <defs>
+    <linearGradient id="sp" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#F2590D"/><stop offset="0.62" stop-color="#B4380E"/><stop offset="1" stop-color="#6D28D9"/>
+    </linearGradient>
+  </defs>
+  <rect width="464" height="150" fill="url(#sp)"/>
+  <circle cx="378" cy="42" r="76" fill="#fff" opacity="0.12"/>
+  <circle cx="66" cy="132" r="58" fill="#000" opacity="0.14"/>
+  <g>
+    <ellipse cx="356" cy="112" rx="62" ry="20" fill="#4C1D95" opacity="0.75"/>
+    <circle cx="356" cy="66" r="42" fill="#FFD980"/>
+    <circle cx="356" cy="66" r="30" fill="none" stroke="#B4380E" stroke-width="5" opacity="0.55"/>
+    <path d="M344 46h14a10 10 0 0 1 0 20h-14V46Zm0 20h17a11 11 0 0 1 0 22h-17V66Z" fill="#B4380E"/>
+  </g>
+  <text x="28" y="58" font-family="'Space Grotesk',system-ui,sans-serif" font-size="26" font-weight="700" fill="#fff">LEAGUE</text>
+  <text x="28" y="90" font-family="'DM Sans',system-ui,sans-serif" font-size="17" font-weight="500" fill="#fff" opacity="0.9">Climb the ranks</text>
+  <rect x="28" y="104" width="120" height="6" rx="3" fill="#fff" opacity="0.35"/>
+  <rect x="28" y="104" width="74" height="6" rx="3" fill="#fff"/>
+</svg>

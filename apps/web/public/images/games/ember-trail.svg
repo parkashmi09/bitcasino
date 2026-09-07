@@ -1,0 +1,34 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 420 564" width="420" height="564" role="img" aria-label="Ember Trail">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0.35" y2="1">
+      <stop offset="0" stop-color="hsl(12 58% 20%)"/>
+      <stop offset="0.55" stop-color="hsl(12 58% 20%)"/>
+      <stop offset="1" stop-color="hsl(12 62% 7%)"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="0.5" cy="0.34" r="0.6">
+      <stop offset="0" stop-color="hsl(12 78% 46%)" stop-opacity="0.85"/>
+      <stop offset="1" stop-color="hsl(12 78% 46%)" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="foot" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="hsl(12 62% 7%)" stop-opacity="0"/>
+      <stop offset="0.55" stop-color="hsl(12 62% 7%)" stop-opacity="0.85"/>
+      <stop offset="1" stop-color="hsl(12 62% 7%)"/>
+    </linearGradient>
+  </defs>
+  <rect width="420" height="564" fill="url(#bg)"/>
+  <rect width="420" height="564" fill="url(#glow)"/>
+  <path d="M193 197v12M187 203h12" stroke="#fff" stroke-width="2.5" stroke-linecap="round" opacity="0.38"/><path d="M89 179v10M84 184h10" stroke="#fff" stroke-width="2.5" stroke-linecap="round" opacity="0.41"/><path d="M218 131v16M210 139h16" stroke="#fff" stroke-width="2.5" stroke-linecap="round" opacity="0.43"/><path d="M139 107v14M132 114h14" stroke="#fff" stroke-width="2.5" stroke-linecap="round" opacity="0.44"/><path d="M224 261v10M219 266h10" stroke="#fff" stroke-width="2.5" stroke-linecap="round" opacity="0.29"/>
+  <g transform="translate(60.0 41.8) scale(1.5)">
+    <path d="M14 176 C 62 172 104 138 134 76" stroke="hsl(207 88% 62%)" stroke-width="10" fill="none" stroke-linecap="round"/>
+    <path d="M14 176 C 62 172 104 138 134 76 L134 176 Z" fill="hsl(207 88% 62%)" opacity="0.18"/>
+    <g transform="rotate(38 148 58)">
+      <path d="M148 26c14 12 20 28 20 44 0 8-8 14-20 14s-20-6-20-14c0-16 6-32 20-44Z" fill="#fff"/>
+      <circle cx="148" cy="58" r="8" fill="hsl(207 78% 44%)"/>
+      <path d="M132 78l-10 20 18-8Zm32 0l10 20-18-8Z" fill="#FFB319"/>
+    </g>
+    <circle cx="42" cy="60" r="4" fill="#fff" opacity="0.6"/>
+    <circle cx="66" cy="34" r="3" fill="#fff" opacity="0.4"/></g>
+  <rect y="282" width="420" height="282" fill="url(#foot)"/>
+  <text x="210" y="420.15999999999997" text-anchor="middle" font-family="'Space Grotesk',system-ui,sans-serif" font-size="52" font-weight="700" letter-spacing="1" fill="#fff">EMBER</text><text x="210" y="468" text-anchor="middle" font-family="'Space Grotesk',system-ui,sans-serif" font-size="52" font-weight="700" letter-spacing="1" fill="#fff">TRAIL</text>
+  <text x="210" y="512" text-anchor="middle" font-family="'DM Sans',system-ui,sans-serif" font-size="24" font-weight="500" fill="#fff" opacity="0.62">Nine Peaks</text>
+</svg>

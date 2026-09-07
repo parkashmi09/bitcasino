@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 732 564" width="732" height="564" role="img" aria-label="Sunken Vault">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0.35" y2="1">
+      <stop offset="0" stop-color="hsl(288 58% 20%)"/>
+      <stop offset="0.55" stop-color="hsl(288 58% 20%)"/>
+      <stop offset="1" stop-color="hsl(288 62% 7%)"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="0.5" cy="0.34" r="0.6">
+      <stop offset="0" stop-color="hsl(288 78% 46%)" stop-opacity="0.85"/>
+      <stop offset="1" stop-color="hsl(288 78% 46%)" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="foot" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="hsl(288 62% 7%)" stop-opacity="0"/>
+      <stop offset="0.55" stop-color="hsl(288 62% 7%)" stop-opacity="0.85"/>
+      <stop offset="1" stop-color="hsl(288 62% 7%)"/>
+    </linearGradient>
+  </defs>
+  <rect width="732" height="564" fill="url(#bg)"/>
+  <rect width="732" height="564" fill="url(#glow)"/>
+  <path d="M16 -258v0M16 -258h0" stroke="#fff" stroke-width="2.5" stroke-linecap="round" opacity="-0.03"/><path d="M-327 -22v4M-329 -20h4" stroke="#fff" stroke-width="2.5" stroke-linecap="round" opacity="-0.09"/><path d="M-24 -267v0M-24 -267h0" stroke="#fff" stroke-width="2.5" stroke-linecap="round" opacity="-0.12"/><path d="M-332 -266v10M-337 -261h10" stroke="#fff" stroke-width="2.5" stroke-linecap="round" opacity="-0.14"/><path d="M-457 -309v10M-462 -304h10" stroke="#fff" stroke-width="2.5" stroke-linecap="round" opacity="0.15"/>
+  <g transform="translate(181.0 6.8) scale(1.85)"><circle cx="100.0" cy="46" r="5" fill="hsl(110 88% 62%)" opacity="0.9"/><circle cx="85.0" cy="73" r="5" fill="hsl(110 88% 62%)" opacity="0.9"/><circle cx="115.0" cy="73" r="5" fill="hsl(110 88% 62%)" opacity="0.9"/><circle cx="70.0" cy="100" r="5" fill="hsl(110 88% 62%)" opacity="0.9"/><circle cx="100.0" cy="100" r="5" fill="hsl(110 88% 62%)" opacity="0.9"/><circle cx="130.0" cy="100" r="5" fill="hsl(110 88% 62%)" opacity="0.9"/><circle cx="55.0" cy="127" r="5" fill="hsl(110 88% 62%)" opacity="0.9"/><circle cx="85.0" cy="127" r="5" fill="hsl(110 88% 62%)" opacity="0.9"/><circle cx="115.0" cy="127" r="5" fill="hsl(110 88% 62%)" opacity="0.9"/><circle cx="145.0" cy="127" r="5" fill="hsl(110 88% 62%)" opacity="0.9"/><circle cx="40.0" cy="154" r="5" fill="hsl(110 88% 62%)" opacity="0.9"/><circle cx="70.0" cy="154" r="5" fill="hsl(110 88% 62%)" opacity="0.9"/><circle cx="100.0" cy="154" r="5" fill="hsl(110 88% 62%)" opacity="0.9"/><circle cx="130.0" cy="154" r="5" fill="hsl(110 88% 62%)" opacity="0.9"/><circle cx="160.0" cy="154" r="5" fill="hsl(110 88% 62%)" opacity="0.9"/>
+    <circle cx="70" cy="40" r="15" fill="#fff"/>
+    <circle cx="65" cy="35" r="5" fill="#fff" opacity="0.6"/>
+    <path d="M70 40 L104 96 L88 158" stroke="#FFB319" stroke-width="4" fill="none" stroke-linecap="round" opacity="0.7" stroke-dasharray="10 9"/></g>
+  <rect y="282" width="732" height="282" fill="url(#foot)"/>
+  <text x="366" y="409.12" text-anchor="middle" font-family="'Space Grotesk',system-ui,sans-serif" font-size="64" font-weight="700" letter-spacing="1" fill="#fff">SUNKEN</text><text x="366" y="468" text-anchor="middle" font-family="'Space Grotesk',system-ui,sans-serif" font-size="64" font-weight="700" letter-spacing="1" fill="#fff">VAULT</text>
+  <text x="366" y="512" text-anchor="middle" font-family="'DM Sans',system-ui,sans-serif" font-size="24" font-weight="500" fill="#fff" opacity="0.62">Northlight Studio</text>
+</svg>

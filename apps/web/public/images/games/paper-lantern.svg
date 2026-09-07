@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 420 564" width="420" height="564" role="img" aria-label="Paper Lantern">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0.35" y2="1">
+      <stop offset="0" stop-color="hsl(268 58% 20%)"/>
+      <stop offset="0.55" stop-color="hsl(268 58% 20%)"/>
+      <stop offset="1" stop-color="hsl(268 62% 7%)"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="0.5" cy="0.34" r="0.6">
+      <stop offset="0" stop-color="hsl(268 78% 46%)" stop-opacity="0.85"/>
+      <stop offset="1" stop-color="hsl(268 78% 46%)" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="foot" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="hsl(268 62% 7%)" stop-opacity="0"/>
+      <stop offset="0.55" stop-color="hsl(268 62% 7%)" stop-opacity="0.85"/>
+      <stop offset="1" stop-color="hsl(268 62% 7%)"/>
+    </linearGradient>
+  </defs>
+  <rect width="420" height="564" fill="url(#bg)"/>
+  <rect width="420" height="564" fill="url(#glow)"/>
+  <path d="M-12 -314v4M-14 -312h4" stroke="#fff" stroke-width="2.5" stroke-linecap="round" opacity="0.03"/><path d="M-127 -263v-2M-126 -264h-2" stroke="#fff" stroke-width="2.5" stroke-linecap="round" opacity="0.09"/><path d="M-284 -327v2M-285 -326h2" stroke="#fff" stroke-width="2.5" stroke-linecap="round" opacity="0.12"/><path d="M-18 20v0M-18 20h0" stroke="#fff" stroke-width="2.5" stroke-linecap="round" opacity="-0.02"/><path d="M-270 -48v4M-272 -46h4" stroke="#fff" stroke-width="2.5" stroke-linecap="round" opacity="-0.09"/>
+  <g transform="translate(60.0 41.8) scale(1.5)"><circle cx="100.0" cy="46" r="5" fill="hsl(78 88% 62%)" opacity="0.9"/><circle cx="85.0" cy="73" r="5" fill="hsl(78 88% 62%)" opacity="0.9"/><circle cx="115.0" cy="73" r="5" fill="hsl(78 88% 62%)" opacity="0.9"/><circle cx="70.0" cy="100" r="5" fill="hsl(78 88% 62%)" opacity="0.9"/><circle cx="100.0" cy="100" r="5" fill="hsl(78 88% 62%)" opacity="0.9"/><circle cx="130.0" cy="100" r="5" fill="hsl(78 88% 62%)" opacity="0.9"/><circle cx="55.0" cy="127" r="5" fill="hsl(78 88% 62%)" opacity="0.9"/><circle cx="85.0" cy="127" r="5" fill="hsl(78 88% 62%)" opacity="0.9"/><circle cx="115.0" cy="127" r="5" fill="hsl(78 88% 62%)" opacity="0.9"/><circle cx="145.0" cy="127" r="5" fill="hsl(78 88% 62%)" opacity="0.9"/><circle cx="40.0" cy="154" r="5" fill="hsl(78 88% 62%)" opacity="0.9"/><circle cx="70.0" cy="154" r="5" fill="hsl(78 88% 62%)" opacity="0.9"/><circle cx="100.0" cy="154" r="5" fill="hsl(78 88% 62%)" opacity="0.9"/><circle cx="130.0" cy="154" r="5" fill="hsl(78 88% 62%)" opacity="0.9"/><circle cx="160.0" cy="154" r="5" fill="hsl(78 88% 62%)" opacity="0.9"/>
+    <circle cx="70" cy="40" r="15" fill="#fff"/>
+    <circle cx="65" cy="35" r="5" fill="#fff" opacity="0.6"/>
+    <path d="M70 40 L104 96 L88 158" stroke="#FFB319" stroke-width="4" fill="none" stroke-linecap="round" opacity="0.7" stroke-dasharray="10 9"/></g>
+  <rect y="282" width="420" height="282" fill="url(#foot)"/>
+  <text x="210" y="420.15999999999997" text-anchor="middle" font-family="'Space Grotesk',system-ui,sans-serif" font-size="52" font-weight="700" letter-spacing="1" fill="#fff">PAPER</text><text x="210" y="468" text-anchor="middle" font-family="'Space Grotesk',system-ui,sans-serif" font-size="52" font-weight="700" letter-spacing="1" fill="#fff">LANTERN</text>
+  <text x="210" y="512" text-anchor="middle" font-family="'DM Sans',system-ui,sans-serif" font-size="24" font-weight="500" fill="#fff" opacity="0.62">Lumen Games</text>
+</svg>

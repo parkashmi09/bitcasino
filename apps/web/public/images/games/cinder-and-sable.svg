@@ -1,0 +1,35 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 420 564" width="420" height="564" role="img" aria-label="Cinder and Sable">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0.35" y2="1">
+      <stop offset="0" stop-color="hsl(268 58% 20%)"/>
+      <stop offset="0.55" stop-color="hsl(268 58% 20%)"/>
+      <stop offset="1" stop-color="hsl(268 62% 7%)"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="0.5" cy="0.34" r="0.6">
+      <stop offset="0" stop-color="hsl(268 78% 46%)" stop-opacity="0.85"/>
+      <stop offset="1" stop-color="hsl(268 78% 46%)" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="foot" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="hsl(268 62% 7%)" stop-opacity="0"/>
+      <stop offset="0.55" stop-color="hsl(268 62% 7%)" stop-opacity="0.85"/>
+      <stop offset="1" stop-color="hsl(268 62% 7%)"/>
+    </linearGradient>
+  </defs>
+  <rect width="420" height="564" fill="url(#bg)"/>
+  <rect width="420" height="564" fill="url(#glow)"/>
+  <path d="M-316 -118v4M-318 -116h4" stroke="#fff" stroke-width="2.5" stroke-linecap="round" opacity="0.09"/><path d="M-70 -294v-2M-69 -295h-2" stroke="#fff" stroke-width="2.5" stroke-linecap="round" opacity="-0.03"/><path d="M8 -333v10M3 -328h10" stroke="#fff" stroke-width="2.5" stroke-linecap="round" opacity="0.06"/><path d="M-124 -45v-2M-123 -46h-2" stroke="#fff" stroke-width="2.5" stroke-linecap="round" opacity="-0.05"/><path d="M-236 -313v0M-236 -313h0" stroke="#fff" stroke-width="2.5" stroke-linecap="round" opacity="-0.10"/>
+  <g transform="translate(60.0 41.8) scale(1.5)">
+    <rect x="18" y="34" width="52" height="132" rx="10" fill="#000" opacity="0.45"/>
+    <rect x="74" y="34" width="52" height="132" rx="10" fill="#000" opacity="0.45"/>
+    <rect x="130" y="34" width="52" height="132" rx="10" fill="#000" opacity="0.45"/>
+    <circle cx="44" cy="76" r="17" fill="#FFB319"/>
+    <path d="M100 60 l9 18 20 3-14.5 14 3.5 20-18-9.5-18 9.5 3.5-20L71 81l20-3 9-18Z" fill="hsl(98 88% 62%)"/>
+    <path d="M156 60 l16 28h-32l16-28Z" fill="#fff" opacity="0.9"/>
+    <rect x="18" y="100" width="164" height="4" fill="hsl(98 88% 62%)" opacity="0.55"/>
+    <circle cx="44" cy="134" r="13" fill="#fff" opacity="0.55"/>
+    <circle cx="100" cy="134" r="13" fill="#FFB319" opacity="0.7"/>
+    <circle cx="156" cy="134" r="13" fill="hsl(98 88% 62%)" opacity="0.75"/></g>
+  <rect y="282" width="420" height="282" fill="url(#foot)"/>
+  <text x="210" y="420.15999999999997" text-anchor="middle" font-family="'Space Grotesk',system-ui,sans-serif" font-size="52" font-weight="700" letter-spacing="1" fill="#fff">CINDER AND</text><text x="210" y="468" text-anchor="middle" font-family="'Space Grotesk',system-ui,sans-serif" font-size="52" font-weight="700" letter-spacing="1" fill="#fff">SABLE</text>
+  <text x="210" y="512" text-anchor="middle" font-family="'DM Sans',system-ui,sans-serif" font-size="24" font-weight="500" fill="#fff" opacity="0.62">Northlight Studio</text>
+</svg>

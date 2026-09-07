@@ -1,0 +1,83 @@
+/* ---------------------------------------------------------------------------
+ * Moon-style design tokens.
+ *
+ * Palette names follow the Moon Design System convention (open-source, MIT,
+ * github.com/coingaming/moon-design) which the reference site also uses.
+ * Values are stored as space-separated RGB channels so they can be swapped at
+ * runtime by theme class, and consumed through `@theme inline` below.
+ * ------------------------------------------------------------------------- */
+
+:root,
+.theme-light {
+  /* Brand */
+  --piccolo: 242 89 13;      /* primary / brand            #F2590D */
+  --piccolo-80: 250 100 46;  /* brand hover                #FA642E */
+  --piccolo-120: 245 65 0;   /* brand pressed              #F54100 */
+
+  /* Surfaces */
+  --goku: 255 255 255;       /* app background             #FFFFFF */
+  --goku-40: 216 224 227;
+  --goku-80: 234 238 240;
+  --gohan: 249 247 246;      /* raised surface / card      #F9F7F6 */
+  --beerus: 224 224 224;     /* border                     #E0E0E0 */
+  --hit: 233 233 233;        /* subtle fill                #E9E9E9 */
+
+  /* Text */
+  --bulma: 0 0 0;            /* primary text               #000000 */
+  --trunks: 126 117 114;     /* secondary / muted text     #7E7572 */
+  --goten: 255 255 255;      /* inverse text               #FFFFFF */
+  --popo: 0 0 0;             /* pure black surface         #000000 */
+
+  /* Overlays */
+  --heles: 0 0 0 / 0.08;     /* hover veil */
+  --zeno: 0 0 0 / 0.4;       /* modal backdrop */
+  --jiren: 242 89 13 / 0.12; /* brand tint */
+
+  /* Semantic */
+  --krillin: 255 179 25;     /* caution                    #FFB319 */
+  --chichi: 255 78 100;      /* negative                   #FF4E64 */
+  --roshi: 73 179 86;        /* positive                   #49B356 */
+  --dodoria: 211 48 48;      /* critical                   #D33030 */
+  --whis: 52 72 240;         /* info                       #3448F0 */
+  --cell: 149 241 213;
+  --raditz: 179 128 74;
+  --frieza: 92 51 207;
+  --nappa: 114 85 80;
+
+  /* Jackpot accent ramp */
+  --jackpot-primary: 120 16 245;
+  --jackpot-secondary: 50 11 159;
+  --jackpot-tertiary: 127 39 255 / 0.21;
+}
+
+.theme-dark {
+  --piccolo: 242 89 13;
+  --piccolo-80: 250 100 46;
+  --piccolo-120: 245 65 0;
+
+  --goku: 26 33 42;
+  --goku-40: 44 50 58;
+  --goku-80: 44 50 58;
+  --gohan: 44 50 58;
+  --beerus: 55 61 69;
+  --hit: 76 81 90;
+
+  --bulma: 255 255 255;
+  --trunks: 141 157 168;
+  --goten: 255 255 255;
+  --popo: 0 0 0;
+
+  --heles: 255 255 255 / 0.12;
+  --zeno: 25 30 37 / 0.4;
+  --jiren: 242 89 13 / 0.12;
+
+  --krillin: 248 193 0;
+  --chichi: 255 78 100;
+  --roshi: 74 209 95;
+  --dodoria: 255 138 1;
+  --whis: 46 105 255;
+  --cell: 27 210 154;
+  --raditz: 179 128 74;
+  --frieza: 111 59 255;
+  --nappa: 0 142 173;
+}

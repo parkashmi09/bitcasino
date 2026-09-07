@@ -1,0 +1,21 @@
+{
+  "name": "bitcasino-clone",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "workspaces": ["apps/web", "apps/api"],
+  "engines": { "node": ">=20.19" },
+  "scripts": {
+    "dev": "concurrently -n web,api -c cyan,magenta \"npm:dev:web\" \"npm:dev:api\"",
+    "dev:web": "npm run dev -w @bc/web",
+    "dev:api": "npm run dev -w @bc/api",
+    "build": "npm run build -w @bc/web",
+    "preview": "npm run preview -w @bc/web",
+    "lint": "npm run lint -w @bc/web",
+    "assets:gen": "node scripts/generate-assets.mjs",
+    "fonts:fetch": "node scripts/fetch-fonts.mjs"
+  },
+  "devDependencies": {
+    "concurrently": "^9.2.1"
+  }
+}

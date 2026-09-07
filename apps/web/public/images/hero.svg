@@ -1,0 +1,66 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 580" width="800" height="580" role="img" aria-label="Crypto casino illustration">
+  <defs>
+    <linearGradient id="disc" x1="0" y1="0" x2="0.4" y2="1">
+      <stop offset="0" stop-color="#FFB067"/><stop offset="1" stop-color="#F2590D"/>
+    </linearGradient>
+    <linearGradient id="sweep" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#8B5CF6"/><stop offset="1" stop-color="#5B21B6"/>
+    </linearGradient>
+    <linearGradient id="coin" x1="0.2" y1="0" x2="0.8" y2="1">
+      <stop offset="0" stop-color="#FFD980"/><stop offset="0.5" stop-color="#F0A32A"/><stop offset="1" stop-color="#C77A0B"/>
+    </linearGradient>
+    <linearGradient id="tower" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#A78BFA"/><stop offset="1" stop-color="#6D28D9"/>
+    </linearGradient>
+    <linearGradient id="fade" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#7C3AED" stop-opacity="0.55"/>
+      <stop offset="1" stop-color="#7C3AED" stop-opacity="0"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Orange disc, clipped by the frame on the end side. -->
+  <circle cx="676" cy="278" r="212" fill="url(#disc)" opacity="0.92"/>
+  <circle cx="676" cy="278" r="212" fill="#fff" opacity="0.08"/>
+
+  <!-- Purple sweep across the foot. -->
+  <path d="M92 580 C 150 430 330 470 430 400 C 520 338 610 372 800 336 V580 Z" fill="url(#sweep)"/>
+  <path d="M92 580 C 150 430 330 470 430 400 C 520 338 610 372 800 336 V580 Z" fill="url(#fade)"/>
+
+  <!-- Stylised chip tower rising out of the sweep. -->
+  <g>
+    <ellipse cx="404" cy="470" rx="132" ry="42" fill="#4C1D95" opacity="0.55"/>
+    <rect x="272" y="300" width="264" height="170" fill="url(#tower)"/>
+    <ellipse cx="404" cy="300" rx="132" ry="42" fill="#C4B5FD"/>
+    <ellipse cx="404" cy="300" rx="82" ry="26" fill="#7C3AED" opacity="0.55"/>
+    <path d="M272 300v170" stroke="#fff" stroke-width="3" opacity="0.25"/>
+    <path d="M536 300v170" stroke="#000" stroke-width="3" opacity="0.15"/>
+  </g>
+
+  <!-- Coin held above the tower, with a radiating burst. -->
+  <g>
+    <path d="M508.0 178.0L546.0 178.0" stroke="#8B5CF6" stroke-width="11" stroke-linecap="round"/>
+    <path d="M488.1 239.1L518.9 261.5" stroke="#8B5CF6" stroke-width="11" stroke-linecap="round"/>
+    <path d="M436.1 276.9L447.9 313.1" stroke="#8B5CF6" stroke-width="11" stroke-linecap="round"/>
+    <path d="M371.9 276.9L360.1 313.1" stroke="#8B5CF6" stroke-width="11" stroke-linecap="round"/>
+    <path d="M319.9 239.1L289.1 261.5" stroke="#8B5CF6" stroke-width="11" stroke-linecap="round"/>
+    <path d="M300.0 178.0L262.0 178.0" stroke="#8B5CF6" stroke-width="11" stroke-linecap="round"/>
+    <path d="M319.9 116.9L289.1 94.5" stroke="#8B5CF6" stroke-width="11" stroke-linecap="round"/>
+    <path d="M371.9 79.1L360.1 42.9" stroke="#8B5CF6" stroke-width="11" stroke-linecap="round"/>
+    <path d="M436.1 79.1L447.9 42.9" stroke="#8B5CF6" stroke-width="11" stroke-linecap="round"/>
+    <path d="M488.1 116.9L518.9 94.5" stroke="#8B5CF6" stroke-width="11" stroke-linecap="round"/>
+    <circle cx="404" cy="178" r="86" fill="url(#coin)"/>
+    <circle cx="404" cy="178" r="70" fill="none" stroke="#fff" stroke-width="5" opacity="0.45"/>
+    <path d="M378 132h30a22 22 0 0 1 0 44h-30v-44Zm0 44h36a23 23 0 0 1 0 46h-36v-46Z" fill="#fff" opacity="0.95"/>
+    <path d="M392 118v18M414 118v18M392 222v18M414 222v18" stroke="#fff" stroke-width="8" stroke-linecap="round" opacity="0.95"/>
+  </g>
+
+  <!-- Sparkles. -->
+  <g stroke="#7C3AED" stroke-width="7" stroke-linecap="round">
+    <path d="M690 108v40M670 128h40"/>
+    <path d="M596 470v26M583 483h26" opacity="0.8"/>
+  </g>
+  <g stroke="#F2590D" stroke-width="6" stroke-linecap="round" opacity="0.85">
+    <path d="M754 452v30M739 467h30"/>
+    <path d="M214 250v22M203 261h22"/>
+  </g>
+</svg>

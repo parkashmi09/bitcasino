@@ -1,0 +1,35 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 420 564" width="420" height="564" role="img" aria-label="Northern Gate">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0.35" y2="1">
+      <stop offset="0" stop-color="hsl(210 58% 20%)"/>
+      <stop offset="0.55" stop-color="hsl(210 58% 20%)"/>
+      <stop offset="1" stop-color="hsl(210 62% 7%)"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="0.5" cy="0.34" r="0.6">
+      <stop offset="0" stop-color="hsl(210 78% 46%)" stop-opacity="0.85"/>
+      <stop offset="1" stop-color="hsl(210 78% 46%)" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="foot" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="hsl(210 62% 7%)" stop-opacity="0"/>
+      <stop offset="0.55" stop-color="hsl(210 62% 7%)" stop-opacity="0.85"/>
+      <stop offset="1" stop-color="hsl(210 62% 7%)"/>
+    </linearGradient>
+  </defs>
+  <rect width="420" height="564" fill="url(#bg)"/>
+  <rect width="420" height="564" fill="url(#glow)"/>
+  <path d="M-127 -279v4M-129 -277h4" stroke="#fff" stroke-width="2.5" stroke-linecap="round" opacity="0.08"/><path d="M-141 -25v8M-145 -21h8" stroke="#fff" stroke-width="2.5" stroke-linecap="round" opacity="0.11"/><path d="M-48 -266v-2M-47 -267h-2" stroke="#fff" stroke-width="2.5" stroke-linecap="round" opacity="0.13"/><path d="M-274 -222v10M-279 -217h10" stroke="#fff" stroke-width="2.5" stroke-linecap="round" opacity="0.14"/><path d="M-17 -175v10M-22 -170h10" stroke="#fff" stroke-width="2.5" stroke-linecap="round" opacity="0.14"/>
+  <g transform="translate(60.0 41.8) scale(1.5)">
+    <rect x="18" y="34" width="52" height="132" rx="10" fill="#000" opacity="0.45"/>
+    <rect x="74" y="34" width="52" height="132" rx="10" fill="#000" opacity="0.45"/>
+    <rect x="130" y="34" width="52" height="132" rx="10" fill="#000" opacity="0.45"/>
+    <circle cx="44" cy="76" r="17" fill="#FFB319"/>
+    <path d="M100 60 l9 18 20 3-14.5 14 3.5 20-18-9.5-18 9.5 3.5-20L71 81l20-3 9-18Z" fill="hsl(29 88% 62%)"/>
+    <path d="M156 60 l16 28h-32l16-28Z" fill="#fff" opacity="0.9"/>
+    <rect x="18" y="100" width="164" height="4" fill="hsl(29 88% 62%)" opacity="0.55"/>
+    <circle cx="44" cy="134" r="13" fill="#fff" opacity="0.55"/>
+    <circle cx="100" cy="134" r="13" fill="#FFB319" opacity="0.7"/>
+    <circle cx="156" cy="134" r="13" fill="hsl(29 88% 62%)" opacity="0.75"/></g>
+  <rect y="282" width="420" height="282" fill="url(#foot)"/>
+  <text x="210" y="420.15999999999997" text-anchor="middle" font-family="'Space Grotesk',system-ui,sans-serif" font-size="52" font-weight="700" letter-spacing="1" fill="#fff">NORTHERN</text><text x="210" y="468" text-anchor="middle" font-family="'Space Grotesk',system-ui,sans-serif" font-size="52" font-weight="700" letter-spacing="1" fill="#fff">GATE</text>
+  <text x="210" y="512" text-anchor="middle" font-family="'DM Sans',system-ui,sans-serif" font-size="24" font-weight="500" fill="#fff" opacity="0.62">Copperline</text>
+</svg>

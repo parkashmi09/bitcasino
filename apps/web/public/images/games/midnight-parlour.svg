@@ -1,0 +1,35 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 420 564" width="420" height="564" role="img" aria-label="Midnight Parlour">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0.35" y2="1">
+      <stop offset="0" stop-color="hsl(190 58% 20%)"/>
+      <stop offset="0.55" stop-color="hsl(190 58% 20%)"/>
+      <stop offset="1" stop-color="hsl(190 62% 7%)"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="0.5" cy="0.34" r="0.6">
+      <stop offset="0" stop-color="hsl(190 78% 46%)" stop-opacity="0.85"/>
+      <stop offset="1" stop-color="hsl(190 78% 46%)" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="foot" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="hsl(190 62% 7%)" stop-opacity="0"/>
+      <stop offset="0.55" stop-color="hsl(190 62% 7%)" stop-opacity="0.85"/>
+      <stop offset="1" stop-color="hsl(190 62% 7%)"/>
+    </linearGradient>
+  </defs>
+  <rect width="420" height="564" fill="url(#bg)"/>
+  <rect width="420" height="564" fill="url(#glow)"/>
+  <path d="M41 71v20M31 81h20" stroke="#fff" stroke-width="2.5" stroke-linecap="round" opacity="0.36"/><path d="M117 192v12M111 198h12" stroke="#fff" stroke-width="2.5" stroke-linecap="round" opacity="0.25"/><path d="M32 220v16M24 228h16" stroke="#fff" stroke-width="2.5" stroke-linecap="round" opacity="0.20"/><path d="M164 22v22M153 33h22" stroke="#fff" stroke-width="2.5" stroke-linecap="round" opacity="0.32"/><path d="M133 229v20M123 239h20" stroke="#fff" stroke-width="2.5" stroke-linecap="round" opacity="0.23"/>
+  <g transform="translate(60.0 41.8) scale(1.5)">
+    <path d="M46 74l18 22 36-44 36 44 18-22v50H46V74Z" fill="#FFB319"/>
+    <circle cx="46" cy="70" r="9" fill="#fff"/>
+    <circle cx="154" cy="70" r="9" fill="#fff"/>
+    <circle cx="100" cy="46" r="10" fill="#fff"/>
+    <g>
+      <ellipse cx="100" cy="170" rx="52" ry="16" fill="hsl(37 78% 44%)"/>
+      <ellipse cx="100" cy="158" rx="52" ry="16" fill="hsl(37 88% 62%)"/>
+      <ellipse cx="100" cy="146" rx="52" ry="16" fill="#FFB319"/>
+      <ellipse cx="100" cy="146" rx="30" ry="9" fill="#fff" opacity="0.35"/>
+    </g></g>
+  <rect y="282" width="420" height="282" fill="url(#foot)"/>
+  <text x="210" y="420.15999999999997" text-anchor="middle" font-family="'Space Grotesk',system-ui,sans-serif" font-size="52" font-weight="700" letter-spacing="1" fill="#fff">MIDNIGHT</text><text x="210" y="468" text-anchor="middle" font-family="'Space Grotesk',system-ui,sans-serif" font-size="52" font-weight="700" letter-spacing="1" fill="#fff">PARLOUR</text>
+  <text x="210" y="512" text-anchor="middle" font-family="'DM Sans',system-ui,sans-serif" font-size="24" font-weight="500" fill="#fff" opacity="0.62">Copperline</text>
+</svg>

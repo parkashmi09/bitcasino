@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 732 564" width="732" height="564" role="img" aria-label="Cobalt Sky">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0.35" y2="1">
+      <stop offset="0" stop-color="hsl(288 58% 20%)"/>
+      <stop offset="0.55" stop-color="hsl(288 58% 20%)"/>
+      <stop offset="1" stop-color="hsl(288 62% 7%)"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="0.5" cy="0.34" r="0.6">
+      <stop offset="0" stop-color="hsl(288 78% 46%)" stop-opacity="0.85"/>
+      <stop offset="1" stop-color="hsl(288 78% 46%)" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="foot" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="hsl(288 62% 7%)" stop-opacity="0"/>
+      <stop offset="0.55" stop-color="hsl(288 62% 7%)" stop-opacity="0.85"/>
+      <stop offset="1" stop-color="hsl(288 62% 7%)"/>
+    </linearGradient>
+  </defs>
+  <rect width="732" height="564" fill="url(#bg)"/>
+  <rect width="732" height="564" fill="url(#glow)"/>
+  <path d="M-38 -97v10M-43 -92h10" stroke="#fff" stroke-width="2.5" stroke-linecap="round" opacity="-0.07"/><path d="M12 -229v2M11 -228h2" stroke="#fff" stroke-width="2.5" stroke-linecap="round" opacity="0.04"/><path d="M19 -42v4M17 -40h4" stroke="#fff" stroke-width="2.5" stroke-linecap="round" opacity="-0.06"/><path d="M-413 -5v-2M-412 -6h-2" stroke="#fff" stroke-width="2.5" stroke-linecap="round" opacity="-0.11"/><path d="M-640 -180v2M-641 -179h2" stroke="#fff" stroke-width="2.5" stroke-linecap="round" opacity="-0.13"/>
+  <g transform="translate(181.0 6.8) scale(1.85)"><circle cx="100.0" cy="46" r="5" fill="hsl(100 88% 62%)" opacity="0.9"/><circle cx="85.0" cy="73" r="5" fill="hsl(100 88% 62%)" opacity="0.9"/><circle cx="115.0" cy="73" r="5" fill="hsl(100 88% 62%)" opacity="0.9"/><circle cx="70.0" cy="100" r="5" fill="hsl(100 88% 62%)" opacity="0.9"/><circle cx="100.0" cy="100" r="5" fill="hsl(100 88% 62%)" opacity="0.9"/><circle cx="130.0" cy="100" r="5" fill="hsl(100 88% 62%)" opacity="0.9"/><circle cx="55.0" cy="127" r="5" fill="hsl(100 88% 62%)" opacity="0.9"/><circle cx="85.0" cy="127" r="5" fill="hsl(100 88% 62%)" opacity="0.9"/><circle cx="115.0" cy="127" r="5" fill="hsl(100 88% 62%)" opacity="0.9"/><circle cx="145.0" cy="127" r="5" fill="hsl(100 88% 62%)" opacity="0.9"/><circle cx="40.0" cy="154" r="5" fill="hsl(100 88% 62%)" opacity="0.9"/><circle cx="70.0" cy="154" r="5" fill="hsl(100 88% 62%)" opacity="0.9"/><circle cx="100.0" cy="154" r="5" fill="hsl(100 88% 62%)" opacity="0.9"/><circle cx="130.0" cy="154" r="5" fill="hsl(100 88% 62%)" opacity="0.9"/><circle cx="160.0" cy="154" r="5" fill="hsl(100 88% 62%)" opacity="0.9"/>
+    <circle cx="70" cy="40" r="15" fill="#fff"/>
+    <circle cx="65" cy="35" r="5" fill="#fff" opacity="0.6"/>
+    <path d="M70 40 L104 96 L88 158" stroke="#FFB319" stroke-width="4" fill="none" stroke-linecap="round" opacity="0.7" stroke-dasharray="10 9"/></g>
+  <rect y="282" width="732" height="282" fill="url(#foot)"/>
+  <text x="366" y="468" text-anchor="middle" font-family="'Space Grotesk',system-ui,sans-serif" font-size="64" font-weight="700" letter-spacing="1" fill="#fff">COBALT SKY</text>
+  <text x="366" y="512" text-anchor="middle" font-family="'DM Sans',system-ui,sans-serif" font-size="24" font-weight="500" fill="#fff" opacity="0.62">Lumen Games</text>
+</svg>

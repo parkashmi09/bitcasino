@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 732 564" width="732" height="564" role="img" aria-label="Golden Thicket">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0.35" y2="1">
+      <stop offset="0" stop-color="hsl(12 58% 20%)"/>
+      <stop offset="0.55" stop-color="hsl(12 58% 20%)"/>
+      <stop offset="1" stop-color="hsl(12 62% 7%)"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="0.5" cy="0.34" r="0.6">
+      <stop offset="0" stop-color="hsl(12 78% 46%)" stop-opacity="0.85"/>
+      <stop offset="1" stop-color="hsl(12 78% 46%)" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="foot" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="hsl(12 62% 7%)" stop-opacity="0"/>
+      <stop offset="0.55" stop-color="hsl(12 62% 7%)" stop-opacity="0.85"/>
+      <stop offset="1" stop-color="hsl(12 62% 7%)"/>
+    </linearGradient>
+  </defs>
+  <rect width="732" height="564" fill="url(#bg)"/>
+  <rect width="732" height="564" fill="url(#glow)"/>
+  <path d="M257 71v16M249 79h16" stroke="#fff" stroke-width="2.5" stroke-linecap="round" opacity="0.44"/><path d="M482 124v18M473 133h18" stroke="#fff" stroke-width="2.5" stroke-linecap="round" opacity="0.29"/><path d="M683 239v12M677 245h12" stroke="#fff" stroke-width="2.5" stroke-linecap="round" opacity="0.37"/><path d="M621 357v10M616 362h10" stroke="#fff" stroke-width="2.5" stroke-linecap="round" opacity="0.41"/><path d="M268 319v12M262 325h12" stroke="#fff" stroke-width="2.5" stroke-linecap="round" opacity="0.28"/>
+  <g transform="translate(181.0 6.8) scale(1.85)"><path d="M100 104 L166.0 104.0 A66 66 0 0 1 146.7 150.7 Z" fill="#FFB319" opacity="0.85"/><path d="M100 104 L146.7 150.7 A66 66 0 0 1 100.0 170.0 Z" fill="hsl(167 88% 62%)" opacity="0.95"/><path d="M100 104 L100.0 170.0 A66 66 0 0 1 53.3 150.7 Z" fill="#FFB319" opacity="0.85"/><path d="M100 104 L53.3 150.7 A66 66 0 0 1 34.0 104.0 Z" fill="hsl(167 88% 62%)" opacity="0.95"/><path d="M100 104 L34.0 104.0 A66 66 0 0 1 53.3 57.3 Z" fill="#FFB319" opacity="0.85"/><path d="M100 104 L53.3 57.3 A66 66 0 0 1 100.0 38.0 Z" fill="hsl(167 88% 62%)" opacity="0.95"/><path d="M100 104 L100.0 38.0 A66 66 0 0 1 146.7 57.3 Z" fill="#FFB319" opacity="0.85"/><path d="M100 104 L146.7 57.3 A66 66 0 0 1 166.0 104.0 Z" fill="hsl(167 88% 62%)" opacity="0.95"/>
+    <circle cx="100" cy="104" r="66" fill="none" stroke="#fff" stroke-width="5" opacity="0.85"/>
+    <circle cx="100" cy="104" r="16" fill="#fff"/>
+    <path d="M100 24l12 20h-24l12-20Z" fill="#fff"/></g>
+  <rect y="282" width="732" height="282" fill="url(#foot)"/>
+  <text x="366" y="409.12" text-anchor="middle" font-family="'Space Grotesk',system-ui,sans-serif" font-size="64" font-weight="700" letter-spacing="1" fill="#fff">GOLDEN</text><text x="366" y="468" text-anchor="middle" font-family="'Space Grotesk',system-ui,sans-serif" font-size="64" font-weight="700" letter-spacing="1" fill="#fff">THICKET</text>
+  <text x="366" y="512" text-anchor="middle" font-family="'DM Sans',system-ui,sans-serif" font-size="24" font-weight="500" fill="#fff" opacity="0.62">Northlight Studio</text>
+</svg>

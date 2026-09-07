@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 480 270" width="480" height="270" role="img" aria-label="Megaways">
+  <defs>
+    <linearGradient id="t" x1="0" y1="0" x2="0.4" y2="1">
+      <stop offset="0" stop-color="hsl(12 58% 20%)"/><stop offset="1" stop-color="hsl(12 62% 7%)"/>
+    </linearGradient>
+    <radialGradient id="tg" cx="0.5" cy="0.35" r="0.62">
+      <stop offset="0" stop-color="hsl(12 78% 46%)" stop-opacity="0.8"/>
+      <stop offset="1" stop-color="hsl(12 78% 46%)" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="tf" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="hsl(12 62% 7%)" stop-opacity="0"/><stop offset="1" stop-color="hsl(12 62% 7%)"/>
+    </linearGradient>
+  </defs>
+  <rect width="480" height="270" fill="url(#t)"/>
+  <rect width="480" height="270" fill="url(#tg)"/>
+  <g transform="translate(140 -6) scale(1)"><path d="M100 104 L166.0 104.0 A66 66 0 0 1 146.7 150.7 Z" fill="#FFB319" opacity="0.85"/><path d="M100 104 L146.7 150.7 A66 66 0 0 1 100.0 170.0 Z" fill="hsl(197 88% 62%)" opacity="0.95"/><path d="M100 104 L100.0 170.0 A66 66 0 0 1 53.3 150.7 Z" fill="#FFB319" opacity="0.85"/><path d="M100 104 L53.3 150.7 A66 66 0 0 1 34.0 104.0 Z" fill="hsl(197 88% 62%)" opacity="0.95"/><path d="M100 104 L34.0 104.0 A66 66 0 0 1 53.3 57.3 Z" fill="#FFB319" opacity="0.85"/><path d="M100 104 L53.3 57.3 A66 66 0 0 1 100.0 38.0 Z" fill="hsl(197 88% 62%)" opacity="0.95"/><path d="M100 104 L100.0 38.0 A66 66 0 0 1 146.7 57.3 Z" fill="#FFB319" opacity="0.85"/><path d="M100 104 L146.7 57.3 A66 66 0 0 1 166.0 104.0 Z" fill="hsl(197 88% 62%)" opacity="0.95"/>
+    <circle cx="100" cy="104" r="66" fill="none" stroke="#fff" stroke-width="5" opacity="0.85"/>
+    <circle cx="100" cy="104" r="16" fill="#fff"/>
+    <path d="M100 24l12 20h-24l12-20Z" fill="#fff"/></g>
+  <path d="M-321 -70v6M-324 -67h6" stroke="#fff" stroke-width="2.5" stroke-linecap="round" opacity="0.04"/><path d="M-353 -9v4M-355 -7h4" stroke="#fff" stroke-width="2.5" stroke-linecap="round" opacity="-0.06"/><path d="M-247 16v4M-249 18h4" stroke="#fff" stroke-width="2.5" stroke-linecap="round" opacity="-0.11"/><path d="M-289 5v8M-293 9h8" stroke="#fff" stroke-width="2.5" stroke-linecap="round" opacity="0.02"/><path d="M-184 -55v2M-185 -54h2" stroke="#fff" stroke-width="2.5" stroke-linecap="round" opacity="0.08"/>
+  <rect y="130" width="480" height="140" fill="url(#tf)"/>
+  <text x="240" y="222" text-anchor="middle" font-family="'Space Grotesk',system-ui,sans-serif" font-size="34" font-weight="700" letter-spacing="0.5" fill="#fff">MEGAWAYS</text>
+</svg>
