@@ -27,6 +27,9 @@
  * @property {string} thumb Portrait tile (0.745:1) under /images/games, used by every rail.
  * @property {string} thumbWide Landscape tile (1.3:1), used by the featured rail.
  * @property {'new' | 'hot' | 'exclusive' | 'jackpot'} [badge]
+ * @property {number} rtp Return to player, as a percentage.
+ * @property {'low' | 'medium' | 'high'} volatility
+ * @property {number} hitRatio Winning spins, as a percentage.
  * @property {number} [players] Seats taken, for live-dealer tables only.
  * @property {number} [jackpot]
  */

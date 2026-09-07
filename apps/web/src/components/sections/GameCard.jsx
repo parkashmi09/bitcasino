@@ -33,7 +33,6 @@ export function GameCard({ game, wide = false, className }) {
       className={cn(
         'group relative block shrink-0 overflow-hidden rounded-i-sm bg-gohan',
         wide ? 'aspect-[244/188]' : 'aspect-[140/188]',
-        'transition-transform duration-200 will-change-transform hover:-translate-y-1',
         className,
       )}
     >
@@ -42,7 +41,7 @@ export function GameCard({ game, wide = false, className }) {
         alt={game.title}
         loading="lazy"
         decoding="async"
-        className="size-full object-cover transition-transform duration-300 group-hover:scale-105"
+        className="size-full object-cover"
       />
 
       {game.badge && (
@@ -71,11 +70,17 @@ export function GameCard({ game, wide = false, className }) {
         </span>
       )}
 
-      {/* Hover affordance: darken artwork and reveal a play control. */}
-      <div className="absolute inset-0 z-1 bg-popo/0 transition-colors duration-200 group-hover:bg-popo/45" />
-      <span className="absolute inset-0 z-2 grid place-items-center opacity-0 transition-opacity duration-200 group-hover:opacity-100">
-        <span className="grid size-11 place-items-center rounded-full bg-piccolo text-goten shadow-lg">
-          <Icon name="play" size={20} className="ms-0.5" />
+      {/*
+        Hover affordance, matched to the reference: a single veil that fades in
+        over the *whole* tile — badges and jackpot included, hence z-3 — with a
+        translucent, blurred play disc at its centre. The artwork itself never
+        moves: the reference carries no scale and no lift on any of its tiles,
+        so neither does this one. That fade is the only hover state on the
+        reference home page, and it is identical for every game.
+      */}
+      <span className="pointer-events-none absolute inset-0 z-3 grid place-items-center bg-popo/60 opacity-0 transition-opacity duration-150 group-hover:opacity-90">
+        <span className="grid size-12 place-items-center rounded-full bg-goten/50 backdrop-blur-sm">
+          <Icon name="play" solid size={20} className="ms-0.5 text-goten" />
         </span>
       </span>
     </Link>

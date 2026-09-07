@@ -44,7 +44,38 @@ translucent black with a backdrop blur, for sitting over artwork.
 
 ### `Chip`
 
-Pill filter used above category grids. Takes `active`, sets `aria-pressed`.
+Pill filter. Takes `active`, sets `aria-pressed`. Two variants, both the
+reference's: `solid` (brand fill on selection) and `tint` (a 12% brand wash
+under brand text — the form the search dialog's category pills use). Game
+lists filter through `Select` rather than chips, because that is what the
+reference uses there.
+
+### `Select`
+
+```tsx
+<Select label="Providers" placeholder="All Game Providers"
+        options={options} value={value} onChange={setValue} />
+<Select variant="outline" label="Sort by" options={SORTS} … />
+```
+
+The game-list filter dropdown. A button plus a popover listbox rather than a
+native `<select>`, matching the reference — which means it also carries the
+keyboard contract a native select would have given for free: Arrow/Home/End
+move the active option, Enter or Space commits, Escape closes and returns
+focus to the button, an outside press dismisses. Focus moves to the list and
+options are tracked with `aria-activedescendant`.
+
+Two variants, both the reference's own: `filled` (Categories / Providers —
+`goku`, inset ring, rotating caret) and `outline` (Sort — transparent, paired
+chevrons). Options are `[{ value, label }]`; the "All …" entry is a real
+option with an empty `value`, since it is the only way back to an unfiltered
+list, and an empty value renders the button text in `trunks`.
+
+### `Breadcrumb`
+
+Trail under a game list. `items` is `[{ label, to }]`, outermost first, and
+the last entry renders unlinked. The reference puts this **below** the grid,
+not above it, and opens it with the brand mark rather than a "Home" label.
 
 ### `Icon`
 
@@ -52,11 +83,12 @@ Pill filter used above category grids. Takes `active`, sets `aria-pressed`.
 <Icon name="search" size={20} className="text-trunks" />
 ```
 
-26 glyphs on a 24x24 grid, 1.75 stroke, drawn with `currentColor` so they
+31 glyphs on a 24x24 grid, 1.75 stroke, drawn with `currentColor` so they
 inherit text colour and theme automatically. Inline SVG — no icon font, no
 package. `aria-hidden` by default; label the interactive parent instead.
 
-Adding one: append a path to the `PATHS` map and its key to `IconName`.
+Adding one: append a path to the `PATHS` map and its key to `IconName`. Pass
+`solid` to fill the glyph with `currentColor` instead of stroking it.
 
 ### `Skeleton`
 
@@ -66,9 +98,14 @@ Pulsing `bg-beerus` block for loading states.
 
 ### `Layout`
 
-App shell and the only stateful layout piece. Owns the mobile menu and the
-sidebar collapse, locks body scroll while the drawer is open, closes it on
-route change and on `Escape`, and renders the skip-to-content link.
+App shell and the only stateful layout piece. Owns the mobile menu, the search
+dialog and the sidebar collapse, locks body scroll while the drawer is open,
+and closes it on route change and on `Escape`.
+
+There is no skip-to-content link. It was the first focusable node in the
+document, so it took the first Tab after every load and route change and
+painted itself over the brand — and the reference ships none. `main` keeps its
+id, so `#main` still resolves.
 
 The shape is the reference's: a full-height sidebar column on the start side
 and, to the right of it, a column holding the header above `<Outlet />` and the
@@ -81,8 +118,8 @@ the footer is always last and supplies its own.
 ### `Header`
 
 Starts to the right of the sidebar, `h-16`, `px-4`. From `md` the sidebar owns
-the logo and the collapse toggle, so the header carries only search, theme and
-auth; below `md` the sidebar's brand block is hidden and the header shows the
+the logo and the collapse toggle, so the header carries only search and auth;
+below `md` the sidebar's brand block is hidden and the header shows the
 logo and the hamburger instead. Collapsing narrows the sidebar to an icon rail
 rather than removing it, so the toggle never leaves the column and the header
 needs no copy of it.
@@ -90,15 +127,109 @@ needs no copy of it.
 Search is a 329x42 pill — `gohan` on a 0.8px `hit` hairline, a 12px glyph
 inset 16px, and 16px text starting at 37px. The reference reserves 56px of
 right padding for a control it never renders; we use `pe-4` instead, because
-at 56px our placeholder clips.
+at 56px our label clips.
+
+The pill is a **button, not an input**: pressing it opens `SearchDialog`, which
+owns the field. That is the reference's own behaviour — its header field never
+receives the query. Below `sm` the pill does not fit beside the brand, so it
+collapses to the search icon on the right, which opens the same dialog.
 
 There is no horizontal nav — the reference puts every destination in the
 sidebar, and duplicating it here is what made the header feel like a generic
 template.
 
-> The theme toggle is **ours, not the reference's** — bitcasino.io ships light
-> only. It stays because it is the only control for the dark theme this project
-> implements; drop the button here if you want the header pixel-exact.
+The actions are the reference's two and nothing else: Login and Sign Up. There
+is **no theme toggle** — bitcasino.io ships light only. The dark palette still
+exists and `main.jsx` still applies whatever `lib/theme` has stored, so setting
+`bc.theme` switches the app; it simply has no control in the UI.
+
+### `RouteProgress`
+
+The top-of-page loading bar, mounted in `App` beside `ScrollToTop` so it covers
+every internal navigation, auth screens included.
+
+The reference runs stock **NProgress** with the brand colour swapped in. Read
+off the live site, its stylesheet is:
+
+```css
+#nprogress .bar  { position: fixed; top: 0; left: 0; width: 100%;
+                   height: 3px; background: rgb(var(--piccolo)); z-index: 1600 }
+#nprogress .peg  { position: absolute; right: 0; width: 100px; height: 100%;
+                   box-shadow: 0 0 10px …, 0 0 5px …;
+                   transform: rotate(3deg) translate(0, -4px) }
+#nprogress .spinner-icon { 18px, 2px border, top + left in brand,
+                   border-radius: 50%, spin 400ms linear infinite }
+```
+
+Not a media query in it, and both pieces are fixed to the viewport, so a phone
+gets exactly what a desktop does — which is why this component carries no
+breakpoints. The spinner is at `top: 15px; right: 15px`, which on both sites
+puts it over the Sign Up button, where an orange ring on an orange fill is
+effectively invisible. It is reproduced anyway, because the reference has it.
+
+Motion is the reference's: mount at `-100%`, slide to 8% over 200ms, creep
+forward in small steps that shrink as the bar fills, then on arrival run to
+100% over 200ms and fade out over another 200ms before unmounting.
+
+`FLOOR_MS` is **ours**. The reference is Next.js, so a route change waits on an
+RSC payload and the bar has something real to measure; this is a Vite SPA with
+every route in one bundle, so navigation is synchronous and the bar would mount
+and complete inside a single frame. The floor holds it on screen for 500ms
+first, so the whole run reads at about 900ms. It delays nothing — the new page
+is already painted underneath it.
+
+Nothing is shown on the first paint: a hard load has the browser's own progress
+UI, and the reference does not double it.
+
+### `SearchDialog`
+
+```tsx
+<SearchDialog open={searchOpen} onClose={() => setSearchOpen(false)} />
+```
+
+Search, opened from the header. There is no `/search` route: the reference 404s
+on one and runs search as a dialog over whatever page you are on, so this does
+too.
+
+Its geometry is the reference's, breakpoint for breakpoint — a full-bleed sheet
+below `md`, then `85vw x 56vw` capped at `90vh`, then a fixed 1096px card whose
+height steps 640 → 700 → 744 as the viewport passes 1280, 1440 and 1536. Those
+three are raw media queries rather than `xl:` / `2xl:`, because this project
+remaps `--breakpoint-xl` to 1200 and the reference's steps sit on Tailwind's
+stock values. The grid steps 3 → 5 → 7 → 8 columns on the same widths, and
+reuses `GameCard`.
+
+Inside: the field row (field, "Random Game", close), the category pills
+(`Chip variant="tint"` — All / Slots / Live Casino / Originals), then a
+scrolling area holding the count heading and the grid. Typing swaps the heading
+from "Most Popular Games" to "Results"; the badge beside it counts the whole
+list, not the loaded page. A search matching nothing shows the reference's
+empty state — stacked-tile illustration, "Nothing found", a "Random Game"
+button — with the popular list still running underneath it, uncounted.
+
+Three pieces move between breakpoints, all of them the reference's:
+
+- **Random Game** sits beside the field from `md`, and becomes a pill fixed
+  above the safe area on a phone. While the empty state is up it leaves the
+  row, because the empty state carries its own.
+- **Load more** is desktop-only. Below `md` the reference drops the button and
+  pages the list in as you reach the end of the scroller.
+- The empty-state illustration is hidden on a phone.
+
+Over the last row sits the reference's fade — `popo` to transparent at 50%,
+300ms — up while the scroller has further to go or a page is still unloaded,
+which is also what keeps the white "Load more" pill legible.
+
+Enter and leave are the reference's fade plus 95% zoom over 150ms
+(`animate-dialog-in` / `-out` in `styles/index.css`); the panel stays mounted
+for that last frame so the leave actually plays. Focus moves to the field on
+open and back to whatever opened it on close, `Escape` closes, body scroll is
+locked while it is up, and choosing a game closes it on the way to the play
+page.
+
+Search matches game titles **and** studio names, so typing a provider returns
+its catalogue — the reference behaves the same way, and shows no separate
+providers section.
 
 ### `Sidebar` / `MobileSidebar`
 
@@ -188,12 +319,41 @@ The tile carries **no caption**: title and studio are part of the artwork, as
 they are on the reference site. That is what lets a rail read as one uniform
 band rather than a row of images with ragged text beneath them.
 
-Composition, bottom to top: artwork (`scale-105` on hover) → dark veil → play
-button (fades in on hover) → badge (end/top) → live player count (start/top,
-with a green dot) → jackpot amount (bottom, over a gradient).
+Composition, bottom to top: artwork → badge (end/top) → live player count
+(start/top, with a green dot) → jackpot amount (bottom, over a gradient) →
+hover veil, on top of all of it at `z-3`.
 
-Images are `loading="lazy" decoding="async"`. Hover transforms are on the
-group, so the whole tile lifts as one.
+The hover state is a single element and is **identical on every tile**: a
+`bg-popo/60` veil that fades `opacity-0` → `opacity-90` in 150ms, carrying a
+48px `bg-goten/50 backdrop-blur-sm` disc with a filled white play triangle.
+Nothing moves — the reference home page has no `group-hover:scale` and no
+`hover:-translate-y` on any of its 71 tiles, so neither does this component.
+The veil is `pointer-events-none`, so it never intercepts the link.
+
+Images are `loading="lazy" decoding="async"`.
+
+### `GameList`
+
+```tsx
+<GameList title="Slots" games={games} filter={{…}} breadcrumb={[…]} />
+```
+
+The chrome every game-listing page shares, in the reference's order: title and
+filter bar on one line, then the grid, then the breadcrumb — which sits *below*
+the grid, not above it.
+
+The filter bar is always the same pair. One dropdown narrows the list by the
+axis the page is **not** already fixed to (a category page filters by provider,
+a provider page by category); `filter` carries it as
+`{ label, placeholder, options, value, onChange }`. The other sorts, and is
+owned here because every list sorts identically — the reference's own five
+options, from its payload: Popularity, A-Z, Volatility, Hit Ratio, RTP.
+`popular` has no comparator on purpose: popularity *is* the catalogue order the
+list arrives in, so picking it restores that order.
+
+The grid is the reference's auto-fitting one, its track floor stepping
+6.5rem → 7.75rem → 8.75rem, so the column count follows the viewport rather
+than a breakpoint.
 
 ### `Rail`
 
@@ -250,11 +410,20 @@ gradient panel with a decorative circle that scales on hover.
 Greyscale wordmark strip directly under the hero — no cards, no borders, no
 game counts. Marks are generated placeholders, not real studio logos.
 
+Marks rest at `opacity-40` and snap to full on hover with no transition —
+the reference's `h-10 opacity-40 hover:opacity-100` verbatim.
+
 ### `ThemeRail`
 
 Curated-collection row. Tiles are landscape (16:9) rather than the portrait
 ratio used for games, because they link to collection pages, not titles. Sits
 between "Exclusives" and "Crash" on the home page, matching the reference.
+
+**No hover treatment**, matching the reference: its theme cards wrap a bare
+`absolute inset-0` link over the artwork and carry no hover class, on the card
+or on any thumbnail inside it. The `GameCard` veil is the only hover state on
+the reference home page, and keeping it exclusive to game tiles is what makes
+it read as "this one is playable".
 
 ### `TrustSection`
 
@@ -325,8 +494,9 @@ project, not collected from real players.
 | Page | Responsibility |
 | --- | --- |
 | `Home` | Section order; splits `HOME_RAILS` at `THEME_RAIL_INDEX` to slot in `ThemeRail`. All game rails run consecutively, then `TrustSection` (the single collapsed editorial panel) and `Testimonials`. `CategoryStrip`, `SeoContent`, `PromoGrid`, `VipBanner`, `CryptoFeatures`, `AccessAnywhere` and `GettingStarted` still exist but are not rendered here |
-| `Category` | Filters by route slug + provider chip; derives available studios from the games actually present |
+| `Category` | Game list for a category or a `COLLECTIONS` slug; owns the provider filter, derived from the studios actually present |
 | `Providers` | Studio index grid |
+| `Provider` | One studio's catalogue; owns the category filter, derived from the categories actually present |
 | `Play` | Breadcrumb, 16:9 frame placeholder, fun/real controls, similar-games rail; handles unknown slugs |
 | `Login` | Split screen, outside `Layout` — see `AuthShell` |
 | `SignUp` | Same shell, longer form — see `AuthShell` |

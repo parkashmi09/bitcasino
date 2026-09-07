@@ -3,16 +3,21 @@ import { Layout } from '@/components/layout/Layout';
 import { Home } from '@/pages/Home';
 import { Category } from '@/pages/Category';
 import { Providers } from '@/pages/Providers';
+import { Provider } from '@/pages/Provider';
 import { Play } from '@/pages/Play';
 import { Login } from '@/pages/Login';
 import { SignUp } from '@/pages/SignUp';
 import { NotFound } from '@/pages/NotFound';
 import { ScrollToTop } from '@/components/layout/ScrollToTop';
+import { RouteProgress } from '@/components/layout/RouteProgress';
 
 export default function App() {
   return (
     <BrowserRouter>
       <ScrollToTop />
+      {/* Route-change loading bar. Outside Routes on purpose: the reference
+          shows it on every internal navigation, auth screens included. */}
+      <RouteProgress />
       <Routes>
         {/* Outside `Layout` on purpose: the reference drops the whole app
             shell on these two and splits the viewport instead. */}
@@ -29,7 +34,9 @@ export default function App() {
           <Route path="categories/:slug" element={<Category />} />
           <Route path="games/:slug" element={<Category />} />
           <Route path="providers" element={<Providers />} />
-          <Route path="providers/:slug" element={<Providers />} />
+          {/* The studio index and one studio's catalogue are different pages
+              on the reference — the detail view is a filterable game list. */}
+          <Route path="providers/:slug" element={<Provider />} />
           <Route path="play/:category/:slug" element={<Play />} />
           {/* Marketing routes are stubbed against the category view for now. */}
           <Route path="promotions" element={<Navigate to="/" replace />} />

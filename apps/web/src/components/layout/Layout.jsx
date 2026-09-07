@@ -3,9 +3,11 @@ import { Outlet, useLocation } from 'react-router-dom';
 import { Header } from './Header';
 import { Footer } from './Footer';
 import { Sidebar, MobileSidebar } from './Sidebar';
+import { SearchDialog } from './SearchDialog';
 
 export function Layout() {
   const [menuOpen, setMenuOpen] = useState(false);
+  const [searchOpen, setSearchOpen] = useState(false);
   const [railCollapsed, setRailCollapsed] = useState(false);
   const { pathname } = useLocation();
 
@@ -27,14 +29,15 @@ export function Layout() {
 
   return (
     <div className="min-h-dvh bg-goku">
-      <a
-        href="#main"
-        className="sr-only focus:not-sr-only focus:absolute focus:start-4 focus:top-4 focus:z-50 focus:rounded-i-sm focus:bg-piccolo focus:px-4 focus:py-2 focus:text-goten"
-      >
-        Skip to content
-      </a>
-
+      {/* No skip link. It is the first focusable thing in the document, so it
+          takes the first Tab after every load and route change and paints
+          itself over the brand — and the reference does not ship one. `main`
+          keeps its id, so `#main` still works as a target. */}
       <MobileSidebar open={menuOpen} onClose={() => setMenuOpen(false)} />
+
+      {/* Search is a dialog over the current page, not a route — the reference
+          has no `/search`, and the field in the header opens this instead. */}
+      <SearchDialog open={searchOpen} onClose={() => setSearchOpen(false)} />
 
       {/* The sidebar is a full-height column that owns the brand, and the
           header starts to the right of it — the reference's shape, not a
@@ -46,7 +49,10 @@ export function Layout() {
         />
 
         <div className="flex min-w-0 flex-1 flex-col">
-          <Header onOpenMenu={() => setMenuOpen(true)} />
+          <Header
+            onOpenMenu={() => setMenuOpen(true)}
+            onOpenSearch={() => setSearchOpen(true)}
+          />
           {/* `md:pt-10` is the reference's gap between the header and the first
               block — it has none below `md`. No bottom padding: the footer is
               always last here and carries its own. */}

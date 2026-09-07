@@ -21,7 +21,7 @@ BitCasino/
 │   │   │   │                       ProviderRail, PromoGrid, VipBanner,
 │   │   │   │                       CryptoFeatures, AccessAnywhere,
 │   │   │   │                       GettingStarted, Testimonials
-│   │   │   ├── pages/              Home, Category, Providers, Play, NotFound
+│   │   │   ├── pages/              Home, Category, Providers, Provider, Play, NotFound
 │   │   │   ├── data/               types.js, catalog.js (seed content)
 │   │   │   ├── hooks/              useTheme, useMediaQuery
 │   │   │   ├── lib/                cn, theme, format
@@ -62,10 +62,10 @@ The rule: dependencies point inward — `pages` → `sections` → `ui`, never b
 | Path | Page | Notes |
 | --- | --- | --- |
 | `/` | `Home` | Hero + provider strip + rails + editorial blocks |
-| `/categories/:slug` | `Category` | Grid with provider filter chips |
-| `/games/:slug` | `Category` | Curated collection, same view |
+| `/categories/:slug` | `Category` | Game list, filtered by provider |
+| `/games/:slug` | `Category` | Curated collection (`COLLECTIONS`), same view |
 | `/providers` | `Providers` | Studio index |
-| `/providers/:slug` | `Providers` | Detail view is stubbed to the index |
+| `/providers/:slug` | `Provider` | One studio, game list filtered by category |
 | `/play/:category/:slug` | `Play` | Game frame placeholder + similar rail |
 | `/login` | `Login` | Split screen — **outside `Layout`** |
 | `/register` | `SignUp` | Split screen — **outside `Layout`** |
@@ -75,8 +75,12 @@ The rule: dependencies point inward — `pages` → `sections` → `ui`, never b
 | `*` | `NotFound` | |
 
 Every route but the two auth screens renders inside `Layout`, which owns the
-header, sidebar, footer and the mobile slide-over. `ScrollToTop` resets scroll
-on navigation. `/login` and `/register` sit outside it because the reference
+header, sidebar, footer, the mobile slide-over and the search dialog.
+`ScrollToTop` resets scroll on navigation.
+
+Search is deliberately **not** a route. The reference 404s on `/search` and
+runs search as a dialog over the current page, so `SearchDialog` is mounted in
+`Layout` and opened from the header rather than navigated to. `/login` and `/register` sit outside it because the reference
 drops the whole app shell on both and splits the viewport instead.
 
 Since this is a client-side SPA, **any static host must rewrite unknown paths
@@ -90,7 +94,8 @@ There is no state library, and none is needed yet:
 | --- | --- |
 | Theme | `useTheme` → `localStorage` + `<html>` class |
 | Mobile nav open | `useState` in `Layout` |
-| Category provider filter | `useState` in `Category` |
+| Game-list filter | `useState` in `Category` / `Provider` |
+| Game-list sort | `useState` in `GameList` |
 | Rail scroll affordances | `useState` + `ResizeObserver` in `GameRail` |
 
 Add TanStack Query when the data layer becomes remote — it fits the

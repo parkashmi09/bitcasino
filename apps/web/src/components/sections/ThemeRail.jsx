@@ -4,6 +4,12 @@ import { THEMES } from '@/data/catalog';
 /**
  * Curated-collection row. Tiles are landscape (16:9) rather than the portrait
  * ratio used for games, because these link to collection pages, not titles.
+ *
+ * These take no hover treatment, matching the reference: its theme cards wrap
+ * a bare `absolute inset-0` link over the artwork and carry no hover class on
+ * the card or on any thumbnail inside it. The fading play veil on `GameCard`
+ * is the only hover state on the reference home page, and reserving it for
+ * game tiles is what makes it read as "this one is playable".
  */
 export function ThemeRail() {
   return (
@@ -25,7 +31,7 @@ export function ThemeRail() {
           <li key={theme.id}>
             <Link
               to={theme.href}
-              className="group block w-[200px] overflow-hidden rounded-i-md md:w-[260px]"
+              className="block w-[200px] overflow-hidden rounded-i-md md:w-[260px]"
             >
               <div className="aspect-video overflow-hidden">
                 <img
@@ -33,7 +39,7 @@ export function ThemeRail() {
                   alt={theme.label}
                   loading="lazy"
                   decoding="async"
-                  className="size-full object-cover transition-transform duration-300 group-hover:scale-105"
+                  className="size-full object-cover"
                 />
               </div>
             </Link>

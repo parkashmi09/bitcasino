@@ -36,6 +36,8 @@ const PATHS = {
   'grid': 'M4.5 4.5h6v6h-6v-6ZM13.5 4.5h6v6h-6v-6ZM4.5 13.5h6v6h-6v-6ZM13.5 13.5h6v6h-6v-6Z',
   'sparkle': 'M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8L12 3ZM18.5 15.5l.8 2.2 2.2.8-2.2.8-.8 2.2-.8-2.2-2.2-.8 2.2-.8.8-2.2Z',
   'chevron-up': 'M6 14.5l6-6 6 6',
+  /* Paired chevrons, the reference's sort affordance — not a caret. */
+  'sort': 'M8 10l4-4 4 4M8 14l4 4 4-4',
   'menu-collapse':
     'M3 6H17M3 12H13M3 18H17M21 8L19.8462 8.87652C17.9487 10.318 17 11.0388 17 12C17 12.9612 17.9487 13.682 19.8462 15.1235L21 16',
   'headset': 'M5 14v-2a7 7 0 0 1 14 0v2M4 13.5h2.5v5H5a1 1 0 0 1-1-1v-4Zm16 0h-2.5v5H19a1 1 0 0 0 1-1v-4ZM17.5 18.5v.5a2.5 2.5 0 0 1-2.5 2.5h-2',
@@ -44,15 +46,19 @@ const PATHS = {
 /**
  * Props: `name` (a key of PATHS), `size` in px — 20 by default, to match the
  * reference site's nav — plus any native svg attribute.
+ *
+ * `solid` fills the glyph with `currentColor` instead of stroking it, for the
+ * few places the reference uses a filled shape — the play triangle on a game
+ * tile's hover veil.
  */
-export function Icon({ name, size = 20, className, ...props }) {
+export function Icon({ name, size = 20, solid = false, className, ...props }) {
   return (
     <svg
       width={size}
       height={size}
       viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
+      fill={solid ? 'currentColor' : 'none'}
+      stroke={solid ? 'none' : 'currentColor'}
       strokeWidth={1.75}
       strokeLinecap="round"
       strokeLinejoin="round"

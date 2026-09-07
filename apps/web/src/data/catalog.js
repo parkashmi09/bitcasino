@@ -63,6 +63,9 @@ const TITLES = [
 
 const BADGES = ['new', 'hot', 'exclusive', 'jackpot', undefined, undefined];
 
+/** Ranked low → high, so a sort can order on the index. */
+export const VOLATILITY = ['low', 'medium', 'high'];
+
 /** Deterministic pseudo-random, so the seed catalog is stable across renders. */
 function seeded(n) {
   const x = Math.sin(n * 12.9898) * 43758.5453;
@@ -88,6 +91,12 @@ export const GAMES = TITLES.map(([title, category], i) => {
     thumb: `/images/games/${slug}.svg`,
     thumbWide: `/images/games/${slug}-wide.svg`,
     badge: BADGES[i % BADGES.length],
+    // The reference's sort control offers RTP, volatility and hit ratio, so
+    // the seed carries all three rather than leaving those options inert.
+    // Seeded, so a given title always reports the same numbers.
+    rtp: Math.round((93 + seeded(i + 11) * 5.4) * 10) / 10,
+    volatility: VOLATILITY[Math.floor(seeded(i + 17) * VOLATILITY.length)],
+    hitRatio: Math.round((18 + seeded(i + 23) * 28) * 10) / 10,
     ...(isLive ? { players: Math.floor(seeded(i + 1) * 900) + 40 } : {}),
     ...(isJackpot ? { jackpot: Math.floor(seeded(i + 7) * 900_000) + 100_000 } : {}),
   };
@@ -95,6 +104,27 @@ export const GAMES = TITLES.map(([title, category], i) => {
 
 export const byCategory = (category) =>
   GAMES.filter((game) => game.category === category);
+
+/**
+ * The `/games/:slug` lists — collections cut from the catalogue by something
+ * other than category, which is what the sidebar's "New Releases" and
+ * "Live RTP" rows and the home rails' "See all" links point at. Without these
+ * those routes resolve to no category and render an empty grid.
+ */
+export const COLLECTIONS = {
+  new: {
+    label: 'New Releases',
+    select: (games) => games.filter((game) => game.badge === 'new'),
+  },
+  exclusives: {
+    label: 'BitCasino Exclusives',
+    select: (games) => games.filter((game) => game.badge === 'exclusive'),
+  },
+  'live-rtp': {
+    label: 'Live RTP',
+    select: (games) => [...games].sort((a, b) => b.rtp - a.rtp),
+  },
+};
 
 /** Pad a short rail with filler so every row scrolls, as on the reference site. */
 const rail = (category, from) => {

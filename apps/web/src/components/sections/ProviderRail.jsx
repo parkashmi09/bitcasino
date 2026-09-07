@@ -7,6 +7,11 @@ import { PROVIDERS } from '@/data/catalog';
  * The reference deliberately gives these no card, no border and no game count:
  * they are a credibility signal read at a glance, and boxing each one turns
  * the strip into a second navigation row competing with the sidebar.
+ *
+ * Each wordmark sits at `opacity-40` and snaps to full on hover, with no
+ * transition — that is the reference's `h-10 opacity-40 hover:opacity-100`
+ * verbatim. The deep rest state is what keeps the strip reading as texture
+ * under the hero rather than as a row of live links.
  */
 export function ProviderRail() {
   return (
@@ -16,7 +21,7 @@ export function ProviderRail() {
           <li key={provider.id}>
             <Link
               to={`/providers/${provider.slug}`}
-              className="grid h-10 place-items-center opacity-70 transition-opacity hover:opacity-100"
+              className="grid h-10 place-items-center opacity-40 hover:opacity-100"
             >
               <img
                 src={provider.logo}

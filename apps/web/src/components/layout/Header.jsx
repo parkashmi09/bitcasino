@@ -1,10 +1,8 @@
-import { useState } from 'react';
 import { NavLink } from 'react-router-dom';
 import { Button } from '@/components/ui/Button';
 import { Icon } from '@/components/ui/Icon';
 import { Logo } from './Logo';
 import { cn } from '@/lib/cn';
-import { useTheme } from '@/hooks/useTheme';
 
 /**
  * Top bar, 64px tall on the reference site.
@@ -18,13 +16,19 @@ import { useTheme } from '@/hooks/useTheme';
  * There is no horizontal nav — the reference puts every destination in the
  * sidebar, and duplicating it here is what made the header feel like a generic
  * template.
+ *
+ * The search field is a button, not an input. Typing happens in `SearchDialog`
+ * — as on the reference, where pressing this pill opens the dialog with an
+ * empty field rather than carrying the query up here. Below `sm` the pill does
+ * not fit beside the brand, so it collapses to the icon on the right, which
+ * opens the same dialog.
+ *
+ * The actions are the reference's two and nothing else: Login and Sign Up.
+ * There is no theme toggle — the reference ships light only. The dark palette
+ * still exists and `main.jsx` still applies whatever `lib/theme` has stored,
+ * so setting `bc.theme` switches the app; it simply has no control in the UI.
  */
-export function Header({ onOpenMenu }) {
-  const { theme, toggle } = useTheme();
-  // Below `sm` the pill does not fit beside the brand, so it collapses to an
-  // icon that reveals a full-width field on its own row.
-  const [searchOpen, setSearchOpen] = useState(false);
-
+export function Header({ onOpenMenu, onOpenSearch }) {
   return (
     <header className="sticky top-0 z-40 w-full bg-goku">
       <div className="flex h-16 items-center px-4">
@@ -45,44 +49,36 @@ export function Header({ onOpenMenu }) {
         </div>
 
         {/* Search — a 329x42 pill on a hairline, 12px glyph, 16px text. */}
-        <label className="relative ms-2 hidden h-[42px] min-w-0 max-w-[329px] flex-1 items-center sm:flex md:ms-0">
-          <span className="sr-only">Search for games and providers</span>
+        <button
+          type="button"
+          onClick={onOpenSearch}
+          aria-haspopup="dialog"
+          className={cn(
+            'relative ms-2 hidden h-[42px] min-w-0 max-w-[329px] flex-1 items-center sm:flex md:ms-0',
+            'cursor-pointer rounded-full border-[0.8px] border-hit bg-gohan',
+            // `truncate` keeps the label on one line as the pill narrows,
+            // the way a placeholder clips rather than wrapping.
+            'ps-[37px] pe-4 truncate text-start text-base text-trunks transition-colors',
+            'hover:bg-beerus/60 focus-visible:ring-2 focus-visible:ring-piccolo',
+          )}
+        >
           <Icon
             name="search"
             size={12}
             className="pointer-events-none absolute start-4 text-trunks"
           />
-          <input
-            type="search"
-            placeholder="Search for games and providers"
-            className={cn(
-              'h-[42px] w-full rounded-full border-[0.8px] border-hit bg-gohan',
-              'ps-[37px] pe-4 text-base text-bulma',
-              'placeholder:text-trunks outline-none transition-colors',
-              'hover:bg-beerus/60 focus-visible:ring-2 focus-visible:ring-piccolo',
-            )}
-          />
-        </label>
+          Search for games and providers
+        </button>
 
         <div className="ms-auto flex items-center gap-1.5 ps-2">
           <button
             type="button"
-            onClick={() => setSearchOpen((open) => !open)}
+            onClick={onOpenSearch}
             aria-label="Search"
-            aria-expanded={searchOpen}
+            aria-haspopup="dialog"
             className="grid size-10 place-items-center rounded-i-sm text-trunks hover:bg-heles hover:text-bulma sm:hidden"
           >
             <Icon name="search" />
-          </button>
-
-          <button
-            type="button"
-            onClick={toggle}
-            aria-label={`Switch to ${theme === 'light' ? 'dark' : 'light'} theme`}
-            title={`Switch to ${theme === 'light' ? 'dark' : 'light'} theme`}
-            className="grid size-10 shrink-0 place-items-center rounded-i-sm text-trunks hover:bg-heles hover:text-bulma"
-          >
-            <Icon name={theme === 'light' ? 'moon' : 'sun'} />
           </button>
 
           <Button as={NavLink} to="/login" variant="secondary" size="lg" className="max-sm:hidden">
@@ -93,25 +89,6 @@ export function Header({ onOpenMenu }) {
           </Button>
         </div>
       </div>
-
-      {searchOpen && (
-        <div className="px-4 pb-3 sm:hidden">
-          <label className="relative flex h-11 items-center">
-            <span className="sr-only">Search for games and providers</span>
-            <Icon
-              name="search"
-              size={12}
-              className="pointer-events-none absolute start-4 text-trunks"
-            />
-            <input
-              type="search"
-              autoFocus
-              placeholder="Search for games and providers"
-              className="h-[42px] w-full rounded-full border-[0.8px] border-hit bg-gohan ps-[37px] pe-4 text-base text-bulma placeholder:text-trunks outline-none focus-visible:ring-2 focus-visible:ring-piccolo"
-            />
-          </label>
-        </div>
-      )}
     </header>
   );
 }

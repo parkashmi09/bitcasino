@@ -126,6 +126,28 @@
   }
 }
 
+/* ---------------------------------------------------------------------------
+ * Dialog transitions.
+ *
+ * The reference fades its overlay and pairs a fade with a 95% zoom on the
+ * panel, both over 150ms, in and out. Written as keyframes rather than a
+ * transition so the leaving state can finish playing before React unmounts.
+ * ------------------------------------------------------------------------- */
+@keyframes bc-fade-in  { from { opacity: 0 } to { opacity: 1 } }
+@keyframes bc-fade-out { from { opacity: 1 } to { opacity: 0 } }
+@keyframes bc-zoom-in  { from { opacity: 0; transform: scale(0.95) } to { opacity: 1; transform: scale(1) } }
+@keyframes bc-zoom-out { from { opacity: 1; transform: scale(1) } to { opacity: 0; transform: scale(0.95) } }
+
+/* Spinner beside the route-loading bar — NProgress's own 400ms turn. */
+@keyframes bc-spin { from { transform: rotate(0deg) } to { transform: rotate(360deg) } }
+
+@layer utilities {
+  .animate-overlay-in  { animation: bc-fade-in 150ms ease-out; }
+  .animate-overlay-out { animation: bc-fade-out 150ms ease-in forwards; }
+  .animate-dialog-in   { animation: bc-zoom-in 150ms ease-out; }
+  .animate-dialog-out  { animation: bc-zoom-out 150ms ease-in forwards; }
+}
+
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {
     animation-duration: 0.01ms !important;
