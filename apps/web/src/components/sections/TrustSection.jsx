@@ -98,7 +98,7 @@ export function TrustSection() {
   const contentId = useId();
 
   return (
-    <section className="group/collapsed mb-6 rounded-i-xs bg-gohan px-4 py-2 sm:p-8 sm:pb-5">
+    <section className="group/collapsed rounded-i-xs bg-gohan px-4 py-2 sm:p-8 sm:pb-5">
       <div
         id={contentId}
         className={cn(

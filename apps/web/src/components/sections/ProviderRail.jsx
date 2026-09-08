@@ -2,33 +2,49 @@ import { Link } from 'react-router-dom';
 import { PROVIDERS } from '@/data/catalog';
 
 /**
- * Studio wordmarks, run as a single greyscale strip directly under the hero.
+ * Studio wordmarks, run as a single greyscale strip.
  *
- * The reference deliberately gives these no card, no border and no game count:
- * they are a credibility signal read at a glance, and boxing each one turns
- * the strip into a second navigation row competing with the sidebar.
+ * Where the strip sits depends on the session, and `pages/Home.jsx` is what
+ * decides — this component only draws the band. Signed out the reference puts
+ * it directly under the hero, backing the pitch the hero just made. Signed in
+ * it is the last section in the column, an 80px band immediately below the
+ * collapsed editorial panel, with the banner row followed directly by the
+ * first game rail — that is the measured column in `pages/Home.jsx`, and the
+ * reason the strip is never a band between the promo cards and Originals.
  *
- * Each wordmark sits at `opacity-40` and snaps to full on hover, with no
- * transition — that is the reference's `h-10 opacity-40 hover:opacity-100`
- * verbatim. The deep rest state is what keeps the strip reading as texture
- * under the hero rather than as a row of live links.
+ * The reference deliberately gives these no card, no border, no game count and
+ * no heading: they are a credibility footnote read at a glance, and boxing
+ * each one turns the strip into a second navigation row competing with the
+ * sidebar.
+ *
+ * Geometry is the reference's, measured from its own DOM:
+ *
+ * | | |
+ * | --- | --- |
+ * | Section | 80px tall, no heading, snap-scrolling on x |
+ * | Tile | `h-20 w-40` (160x80), `px-4` — the spacing is padding, not a gap |
+ * | Wordmark | 40px tall, `opacity-40`, full on hover, no transition |
+ *
+ * Fixed 160px tiles rather than a gap matter: they keep every wordmark on the
+ * same rhythm however wide its own artwork is, which is what stops a strip of
+ * mixed-width logos from reading as ragged.
  */
 export function ProviderRail() {
   return (
-    <section aria-label="Software providers" className="py-6">
-      <ul className="rail items-center gap-6 md:gap-10">
+    <section aria-label="Software providers">
+      <ul className="rail items-center">
         {PROVIDERS.map((provider) => (
           <li key={provider.id}>
             <Link
               to={`/providers/${provider.slug}`}
-              className="grid h-10 place-items-center opacity-40 hover:opacity-100"
+              className="flex h-20 w-40 items-center justify-center px-4"
             >
               <img
                 src={provider.logo}
                 alt={provider.name}
                 loading="lazy"
                 decoding="async"
-                className="h-9 w-auto max-w-[160px] object-contain"
+                className="h-10 w-auto max-w-full object-contain opacity-40 hover:opacity-100"
               />
             </Link>
           </li>

@@ -41,9 +41,14 @@ and nothing else has to change.
 
 ## Status
 
-The UI shell, design system, routing, asset pipeline and read-only API are
-complete and building. Accounts, wallets, real game launches and payments are
-out of scope — see [09 — Roadmap](./09-roadmap.md).
+The UI shell, design system, routing and asset pipeline are complete and
+building. **Accounts are real**: the app talks to the iBitPlay platform in
+`backend/` over its gateway, and a visitor can register, log in — with 2FA
+where the account has it — stay signed in across a reload, and log out. The
+catalogue is still the static module; wallets, game launches and payments are
+not built yet. See [10 — Backend integration](./10-backend-integration.md) for
+what has landed and what is next, and [09 — Roadmap](./09-roadmap.md) for the
+rest.
 
 ## A note on the domain
 

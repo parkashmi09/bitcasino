@@ -258,3 +258,48 @@ export const PROMOTIONS = [
     tone: 'positive',
   },
 ];
+
+/**
+ * The three cards of the signed-in home banner.
+ *
+ * The reference swaps its whole above-the-fold block once you have an
+ * account: the acquisition hero ("Join the world's first licensed Bitcoin
+ * casino", benefit list, Join Us button) is replaced by this row, which sells
+ * what is running *now* rather than the sign-up offer. The shapes differ too —
+ * the hero is one two-column band, this is three equal cards.
+ *
+ * One editorial rule is worth keeping: each card points somewhere different in
+ * kind — a running promotion, a single game, and the deposit offer — so the
+ * row never reads as three versions of the same ask. `emblem` selects the
+ * motif the generated art draws; see `bannerArt` in scripts/art.mjs.
+ *
+ * @type {import('./types').HomeBanner[]}
+ */
+export const HOME_BANNERS = [
+  {
+    id: 'banner-league',
+    title: 'League of Bitcasino',
+    blurb:
+      'A four week race where every qualifying spin climbs the board. 50,000 USDT a week.',
+    href: '/promotions/league',
+    art: '/images/banners/league.png',
+    emblem: 'game-shows',
+  },
+  {
+    id: 'banner-game-of-the-week',
+    title: 'Game of the week',
+    blurb:
+      'This week the spotlight is on one game only — play it before it moves on.',
+    href: '/play/video-slots/tidal-crown',
+    art: '/images/banners/game-of-the-week.webp',
+    emblem: 'video-slots',
+  },
+  {
+    id: 'banner-deposit-rewards',
+    title: 'Get up to 5,000 USDT in deposit rewards',
+    blurb: 'Three bonuses worth up to 5,000 USDT are waiting — redeem yours.',
+    href: '/promotions/welcome',
+    art: '/images/banners/deposit-rewards.webp',
+    emblem: 'jackpots',
+  },
+];

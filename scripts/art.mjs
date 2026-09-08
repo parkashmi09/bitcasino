@@ -419,6 +419,58 @@ export const HERO_ART = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 80
 </svg>
 `;
 
+/* ---------------------------------------------------------- banner art --- */
+
+/**
+ * Portrait card art for the signed-in home banner, at the reference's own
+ * 496x514 card box.
+ *
+ * The reference's three cards are one full-bleed image each, with the heading
+ * and blurb laid over the bottom of it — so the art has to do two jobs at
+ * once. It carries the subject in the upper two thirds, then hands the lower
+ * third over to colour dark enough for white 32px copy to sit on it unaided.
+ * That is why the foot here is a scrim baked into the image rather than an
+ * overlay in the component: the card renders the art as a `background-image`,
+ * and a separate scrim element would need its own stacking context over it.
+ *
+ * `emblem` picks the motif; everything else is derived from the slug hash, so
+ * the three cards differ from each other but never re-roll between runs.
+ */
+export function bannerArt(title, slug, emblem = 'game-shows') {
+  const p = palette(slug);
+  const W = 496;
+  const H = 514;
+
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" role="img" aria-label="${escapeXml(title)}">
+  <defs>
+    <linearGradient id="bb" x1="0" y1="0" x2="0.35" y2="1">
+      <stop offset="0" stop-color="${p.base}"/><stop offset="1" stop-color="${p.foot}"/>
+    </linearGradient>
+    <radialGradient id="bg" cx="0.5" cy="0.3" r="0.7">
+      <stop offset="0" stop-color="${p.glow}" stop-opacity="0.85"/>
+      <stop offset="1" stop-color="${p.glow}" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="bs" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="${p.foot}" stop-opacity="0"/>
+      <stop offset="0.45" stop-color="${p.foot}" stop-opacity="0.72"/>
+      <stop offset="1" stop-color="${p.foot}"/>
+    </linearGradient>
+  </defs>
+  <rect width="${W}" height="${H}" fill="url(#bb)"/>
+  <rect width="${W}" height="${H}" fill="url(#bg)"/>
+
+  <!-- Accent sweep across the shoulder of the card, clipped by the frame. -->
+  <path d="M-40 319 C 120 257 260 380 536 288 V514 H-40 Z" fill="${p.accent}" opacity="0.28"/>
+
+  <g transform="translate(148 44) scale(1.08)">${EMBLEMS[emblem](p)}</g>
+  ${sparkles(slug, W, H, 7)}
+
+  <!-- Copy sits in the bottom 48%; this is what keeps it legible. -->
+  <rect y="267" width="${W}" height="247" fill="url(#bs)"/>
+</svg>
+`;
+}
+
 /* ------------------------------------------------------- sidebar promo --- */
 
 /** 232x75 banner card pinned above the sidebar navigation. */
@@ -452,3 +504,97 @@ export const FAVICON = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 28 
   <circle cx="19.5" cy="9" r="2.2" fill="#FFB319"/>
 </svg>
 `;
+
+/* ------------------------------------------------------ tournament art --- */
+
+/**
+ * Tier colours for the tournament plaque.
+ *
+ * These do NOT come from `palette()`. Every other piece of art here derives its
+ * colour from a hash of the slug, which is what keeps a catalogue of a hundred
+ * games from repeating itself. A tournament tier is the opposite problem: gold
+ * has to look like gold and bronze like bronze, and two tournaments of the same
+ * tier have to match. So the ramp is named, not hashed.
+ */
+const TIERS = {
+  gold: { lo: '#7A4B04', mid: '#FFC53D', hi: '#FFF1C4', ribbon: '#B3231C' },
+  silver: { lo: '#4A5560', mid: '#D6DEE6', hi: '#FFFFFF', ribbon: '#B3231C' },
+  bronze: { lo: '#5C2F12', mid: '#C97B3F', hi: '#F3C79A', ribbon: '#B3231C' },
+};
+
+/**
+ * The wide banner across the top of a tournament card — 546x182 in the layout,
+ * drawn at 3x so it stays sharp on a retina panel.
+ *
+ * The reference's own art is a photographed metal plaque on a dark smoky field
+ * with a red ribbon sashed across it, the tier name embossed into the plate.
+ * This is that composition in vector: a radial haze, a bevelled plate built
+ * from three stops of the tier ramp, the ribbon, and the title cut out of the
+ * plate in the display face.
+ *
+ * `finished` is NOT handled here. The reference greys its finished art with a
+ * CSS `grayscale(1)` filter on the same image rather than shipping a second
+ * file, so one asset serves both states and the card decides.
+ */
+export function tournamentArt(title, slug, tier = 'silver') {
+  const t = TIERS[tier] ?? TIERS.silver;
+  const W = 1638;
+  const H = 546;
+  const label = escapeXml(title.replace(/\s*#\d+$/, '').toUpperCase());
+
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" role="img" aria-label="${escapeXml(title)}">
+  <defs>
+    <linearGradient id="plate" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="${t.hi}"/>
+      <stop offset="0.42" stop-color="${t.mid}"/>
+      <stop offset="0.58" stop-color="${t.lo}"/>
+      <stop offset="1" stop-color="${t.mid}"/>
+    </linearGradient>
+    <linearGradient id="ribbon" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="${t.ribbon}"/>
+      <stop offset="1" stop-color="#7C120E"/>
+    </linearGradient>
+    <radialGradient id="haze" cx="0.5" cy="0.5" r="0.62">
+      <stop offset="0" stop-color="#2B4B87" stop-opacity="0.85"/>
+      <stop offset="0.62" stop-color="#4A1C6B" stop-opacity="0.45"/>
+      <stop offset="1" stop-color="#05070C" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+
+  <rect width="${W}" height="${H}" fill="#05070C"/>
+  <rect width="${W}" height="${H}" fill="url(#haze)"/>
+
+  <!-- Sash first, so the plate lands on top of it and it reads as passing
+       behind the plaque. It crosses the LOWER third rather than the middle:
+       through the centre it cuts the engraved title in half and the whole
+       banner reads as struck through. -->
+  <path d="M64 470 L1574 300 l0 118 L64 588 Z" fill="url(#ribbon)"/>
+
+  <g transform="translate(${W / 2} ${H / 2})">
+    <rect x="-500" y="-118" width="1000" height="236" rx="14" fill="url(#plate)"/>
+    <rect x="-500" y="-118" width="1000" height="236" rx="14" fill="none" stroke="${t.hi}" stroke-width="5" opacity="0.55"/>
+    <rect x="-464" y="-86" width="928" height="172" rx="8" fill="none" stroke="${t.lo}" stroke-width="4" opacity="0.5"/>
+    <text x="0" y="30" text-anchor="middle" font-family="'Space Grotesk',system-ui,sans-serif" font-size="${plateFontSize(label)}" font-weight="700" letter-spacing="6" fill="${t.lo}" opacity="0.9">${label}</text>
+  </g>
+
+  <!-- The sash again, clipped below the plate's foot, so it crosses in front
+       on the way out and the plaque looks threaded onto it. -->
+  <path d="M64 470 L1574 300 l0 118 L64 588 Z" fill="url(#ribbon)" clip-path="inset(72% 0 0 0)"/>
+</svg>
+`;
+}
+
+/**
+ * Fit the engraved title inside the plate's 928px inner border.
+ *
+ * `Space Grotesk` bold averages ~0.62em per glyph, and the tracking adds a
+ * flat 6px on top of every one. Solving that for the width the plate has is
+ * cheaper and more reliable than measuring text in a build script with no DOM
+ * — and the failure it prevents is not subtle: at a flat 104px, anything
+ * longer than `GOLD CHALLENGE` runs straight through the bevel and off the
+ * plate.
+ */
+function plateFontSize(label) {
+  const perGlyph = 880 / Math.max(label.length, 1);
+  return Math.round(Math.min(104, Math.max(44, (perGlyph - 6) / 0.62)));
+}

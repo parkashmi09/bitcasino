@@ -1,0 +1,37 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 496 514" width="496" height="514" role="img" aria-label="Get up to 5,000 USDT in deposit rewards">
+  <defs>
+    <linearGradient id="bb" x1="0" y1="0" x2="0.35" y2="1">
+      <stop offset="0" stop-color="hsl(344 58% 20%)"/><stop offset="1" stop-color="hsl(344 62% 7%)"/>
+    </linearGradient>
+    <radialGradient id="bg" cx="0.5" cy="0.3" r="0.7">
+      <stop offset="0" stop-color="hsl(344 78% 46%)" stop-opacity="0.85"/>
+      <stop offset="1" stop-color="hsl(344 78% 46%)" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="bs" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="hsl(344 62% 7%)" stop-opacity="0"/>
+      <stop offset="0.45" stop-color="hsl(344 62% 7%)" stop-opacity="0.72"/>
+      <stop offset="1" stop-color="hsl(344 62% 7%)"/>
+    </linearGradient>
+  </defs>
+  <rect width="496" height="514" fill="url(#bb)"/>
+  <rect width="496" height="514" fill="url(#bg)"/>
+
+  <!-- Accent sweep across the shoulder of the card, clipped by the frame. -->
+  <path d="M-40 319 C 120 257 260 380 536 288 V514 H-40 Z" fill="hsl(158 88% 62%)" opacity="0.28"/>
+
+  <g transform="translate(148 44) scale(1.08)">
+    <path d="M46 74l18 22 36-44 36 44 18-22v50H46V74Z" fill="#FFB319"/>
+    <circle cx="46" cy="70" r="9" fill="#fff"/>
+    <circle cx="154" cy="70" r="9" fill="#fff"/>
+    <circle cx="100" cy="46" r="10" fill="#fff"/>
+    <g>
+      <ellipse cx="100" cy="170" rx="52" ry="16" fill="hsl(158 78% 44%)"/>
+      <ellipse cx="100" cy="158" rx="52" ry="16" fill="hsl(158 88% 62%)"/>
+      <ellipse cx="100" cy="146" rx="52" ry="16" fill="#FFB319"/>
+      <ellipse cx="100" cy="146" rx="30" ry="9" fill="#fff" opacity="0.35"/>
+    </g></g>
+  <path d="M48 140v12M42 146h12" stroke="#fff" stroke-width="2.5" stroke-linecap="round" opacity="0.25"/><path d="M251 60v14M244 67h14" stroke="#fff" stroke-width="2.5" stroke-linecap="round" opacity="0.35"/><path d="M162 92v20M152 102h20" stroke="#fff" stroke-width="2.5" stroke-linecap="round" opacity="0.40"/><path d="M37 315v18M28 324h18" stroke="#fff" stroke-width="2.5" stroke-linecap="round" opacity="0.42"/><path d="M136 269v18M127 278h18" stroke="#fff" stroke-width="2.5" stroke-linecap="round" opacity="0.28"/><path d="M148 228v14M141 235h14" stroke="#fff" stroke-width="2.5" stroke-linecap="round" opacity="0.36"/><path d="M150 84v18M141 93h18" stroke="#fff" stroke-width="2.5" stroke-linecap="round" opacity="0.25"/>
+
+  <!-- Copy sits in the bottom 48%; this is what keeps it legible. -->
+  <rect y="267" width="496" height="247" fill="url(#bs)"/>
+</svg>

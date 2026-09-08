@@ -3,6 +3,7 @@ import { Link, NavLink } from 'react-router-dom';
 import { Icon } from '@/components/ui/Icon';
 import { NavIcon } from '@/components/ui/NavIcon';
 import { Logo } from './Logo';
+import { useAuth } from '@/auth/AuthProvider';
 import { cn } from '@/lib/cn';
 
 /**
@@ -66,6 +67,18 @@ const ROW = cn(
 const ROW_LABEL = 'truncate group-data-[collapsed=true]/rail:hidden';
 
 /**
+ * The rule between the column's blocks.
+ *
+ * It fades rather than running flat, which is measurable in a capture of the
+ * reference: across the 232px it is `hit` (`#E9E9E9`) at the start and a clean
+ * linear ramp to the column background by the end. This was a flat `bg-hit`,
+ * which reads as a harder division than the reference draws — the fade is what
+ * keeps the promo card and the shortcuts row feeling like one column rather
+ * than three boxed sections.
+ */
+const HAIRLINE = 'mx-3 h-px bg-linear-to-r from-hit to-transparent';
+
+/**
  * The reference replaces each label with a tooltip once the column is a rail.
  * It portals a Radix tooltip to the body; we get the same result from a fixed
  * span positioned off the row's own box, which keeps it clear of the scroll
@@ -101,6 +114,92 @@ function RailTip({ tip, children }) {
     >
       {children}
     </span>
+  );
+}
+
+/* -------------------------------------------------------------------------
+ * Player shortcuts — the `[★ 0] [Recents n]` row a session adds to the column
+ * ---------------------------------------------------------------------- */
+
+/** White disc holding the count. Empty, not `0`, until the number is known. */
+function ShortcutBadge({ children }) {
+  return (
+    <span className="grid size-5 shrink-0 place-items-center rounded-full bg-goku text-xs font-medium text-bulma">
+      {children}
+    </span>
+  );
+}
+
+/**
+ * The two pills a signed-in session adds between the promo card and the links.
+ *
+ * Measured off the reference's own signed-in column (the capture was at 125%
+ * browser zoom, so every figure below is the raster divided by 1.25):
+ *
+ * | | |
+ * | --- | --- |
+ * | Row | the column's full 232px, two pills, 10px between them |
+ * | Pill | 36px tall, `gohan` fill, ~5px radius — tighter than the 12px on the promo card and the Live Games group |
+ * | Favourites | content-sized: solid star, then the disc |
+ * | Recents | takes the rest: history glyph, label, disc pushed to the end |
+ * | Disc | 20px, `goku`, the count in `bulma` |
+ * | Icons + label | `bulma` at 70%, which is the measured `#4A4A4A` over `gohan` |
+ *
+ * The small radius is the load-bearing one: at 12px these read as two more
+ * cards stacked under the promo banner, and the reference clearly wants them
+ * to read as controls sitting on top of it.
+ *
+ * Note the labels are lighter than the links below them, which measure pure
+ * `bulma`. The row is a shortcut strip, and it says so by not competing with
+ * the navigation proper.
+ *
+ * ## One half navigates, one half does not
+ *
+ * `Recents` is a real link, to the same `/games/recent` the header's
+ * `RecentsLink` points at — the reference wires both controls to one page, and
+ * so does this. Its count comes from the same `useRecentlyPlayed` list that
+ * page renders, so the badge can never disagree with what opening it shows.
+ *
+ * The star has nowhere to go: there is no favourites feature, which is the
+ * half of this row `docs/11` has carried as a known gap. It is therefore a
+ * plain element with no role, no tab stop and no hover — a number you can read
+ * rather than a control that swallows the click, which is the same call the
+ * account tab bar makes for `Tournaments`. Its `0` is a literal, and a true
+ * one: with no way to favourite a game, nobody has any.
+ *
+ * The rail drops the row outright, like the promo card above it: there is no
+ * 56px form of two labelled pills, and the trailing hairline goes with it so
+ * the collapsed column does not show two rules in a row.
+ */
+function PlayerShortcuts({ recentsCount, onNavigate }) {
+  const { status } = useAuth();
+
+  if (status !== 'authenticated') return null;
+
+  const pill = 'flex h-9 items-center gap-2 rounded-i-xs bg-gohan px-3 text-bulma/70';
+
+  return (
+    <>
+      <div className="flex gap-2.5 px-3 pt-2 pb-4 group-data-[collapsed=true]/rail:hidden">
+        <div className={pill}>
+          <span className="sr-only">Favourites</span>
+          <Icon name="star" solid />
+          <ShortcutBadge>0</ShortcutBadge>
+        </div>
+
+        <NavLink
+          to="/games/recent"
+          onClick={onNavigate}
+          className={cn(pill, 'min-w-0 flex-1 transition-colors hover:bg-beerus')}
+        >
+          <Icon name="history" />
+          <span className="flex-1 truncate text-sm font-medium">Recents</span>
+          <ShortcutBadge>{recentsCount}</ShortcutBadge>
+        </NavLink>
+      </div>
+
+      <div className={cn(HAIRLINE, 'group-data-[collapsed=true]/rail:hidden')} />
+    </>
   );
 }
 
@@ -159,7 +258,7 @@ function SidebarHeader({ collapsed, onToggle }) {
   );
 }
 
-export function SidebarNav({ onNavigate }) {
+export function SidebarNav({ onNavigate, recentsCount }) {
   const [liveOpen, setLiveOpen] = useState(true);
   const [tip, handlers] = useRailTip();
 
@@ -184,7 +283,9 @@ export function SidebarNav({ onNavigate }) {
         </Link>
       </div>
 
-      <div className="mx-3 h-px bg-hit" />
+      <div className={HAIRLINE} />
+
+      <PlayerShortcuts recentsCount={recentsCount} onNavigate={onNavigate} />
 
       <nav aria-label="Main" className="p-2 px-3">
         <ul className="flex w-full flex-col gap-3 font-medium">
@@ -293,7 +394,7 @@ function SidebarFooter() {
  * against it, so one 200ms linear tween carries the whole column and the page
  * content reflowing beside it.
  */
-export function Sidebar({ collapsed, onToggle }) {
+export function Sidebar({ collapsed, onToggle, recentsCount }) {
   return (
     <aside
       data-collapsed={collapsed}
@@ -305,7 +406,7 @@ export function Sidebar({ collapsed, onToggle }) {
     >
       <SidebarHeader collapsed={collapsed} onToggle={onToggle} />
       <div className="no-scrollbar min-h-0 flex-1 overflow-y-auto group-data-[collapsed=true]/rail:overflow-hidden">
-        <SidebarNav />
+        <SidebarNav recentsCount={recentsCount} />
       </div>
       <SidebarFooter />
     </aside>
@@ -313,7 +414,7 @@ export function Sidebar({ collapsed, onToggle }) {
 }
 
 /** Slide-over variant used below the `md` breakpoint. */
-export function MobileSidebar({ open, onClose }) {
+export function MobileSidebar({ open, onClose, recentsCount }) {
   return (
     <div
       className={cn('fixed inset-0 z-50 md:hidden', !open && 'pointer-events-none')}
@@ -348,7 +449,7 @@ export function MobileSidebar({ open, onClose }) {
           </button>
         </div>
         <div className="no-scrollbar min-h-0 flex-1 overflow-y-auto">
-          <SidebarNav onNavigate={onClose} />
+          <SidebarNav onNavigate={onClose} recentsCount={recentsCount} />
         </div>
         <SidebarFooter />
       </div>

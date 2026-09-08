@@ -36,7 +36,14 @@ export const ASSETS = {
     "blog": "/images/categories/blog.svg",
     "help-centre": "/images/categories/help-centre.svg",
     "promo": "/images/categories/promo.svg",
-    "video-slots": "/images/categories/video-slots.svg"
+    "video-slots": "/images/categories/video-slots.svg",
+    "loyalty": "/images/categories/loyalty.png",
+    "bonus-buys": "/images/categories/bonus-buys.png",
+    "boosts": "/images/categories/boosts.png",
+    "account": "/images/categories/account.png",
+    "security": "/images/categories/security.png",
+    "refer-a-friend": "/images/categories/refer-a-friend.png",
+    "logout": "/images/categories/logout.png"
   },
   "providers": {
     "155": "/images/providers/155.svg",
@@ -142,7 +149,8 @@ export const ASSETS = {
     "quotes": "/images/ui/quotes.svg",
     "crown": "/images/ui/crown.png",
     "flagEn": "/images/ui/flag-en.svg",
-    "heroBanner": "/images/hero/main-banner.png"
+    "heroBanner": "/images/hero/main-banner.png",
+    "loyaltyBeginner": "/images/ui/loyalty-beginner.png"
   },
   "originals": {
     "baccarat": "/images/originals/baccarat.png",

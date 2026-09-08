@@ -78,8 +78,29 @@ export function AuthLabel({ htmlFor, children, inGrid }) {
   );
 }
 
-/** Label over control as one grid row — the shape most of both forms is made of. */
-export function AuthField({ id, label, type = 'text', value, onChange, autoComplete }) {
+/**
+ * Label over control as one grid row — the shape most of both forms is made of.
+ *
+ * `error` is a per-field message, which on this platform means a 422: the
+ * validators answer with `details.fields`, one entry per field that failed, so
+ * "password must be at least 10 characters" can sit under the password rather
+ * than in the banner with everything else. It is wired through
+ * `aria-describedby` so screen readers announce it with the field.
+ */
+export function AuthField({
+  id,
+  label,
+  type = 'text',
+  value,
+  onChange,
+  autoComplete,
+  error,
+  hint,
+  disabled,
+  ...props
+}) {
+  const messageId = error || hint ? `${id}-message` : undefined;
+
   return (
     <div>
       <AuthLabel htmlFor={id}>{label}</AuthLabel>
@@ -90,9 +111,70 @@ export function AuthField({ id, label, type = 'text', value, onChange, autoCompl
         value={value}
         onChange={(event) => onChange(event.target.value)}
         autoComplete={autoComplete}
-        className={AUTH_INPUT}
+        disabled={disabled}
+        aria-invalid={error ? true : undefined}
+        aria-describedby={messageId}
+        className={cn(
+          AUTH_INPUT,
+          error && 'border-chichi focus-visible:border-chichi focus-visible:ring-chichi/40',
+        )}
+        {...props}
       />
+      {(error || hint) && (
+        <p
+          id={messageId}
+          className={cn('pt-1 text-xs leading-4', error ? 'text-chichi' : 'text-trunks')}
+        >
+          {error || hint}
+        </p>
+      )}
     </div>
+  );
+}
+
+/**
+ * The form-level failure — the one that is about the attempt rather than about
+ * a field. Wrong password, locked account, too many attempts.
+ *
+ * The caller passes `attempt`, and it is the `key`: React remounts the element
+ * when it changes, which restarts `animate-shake`. Without that, entering the
+ * same wrong password twice would leave an identical message sitting still and
+ * the second rejection would look like the button had not fired.
+ */
+export function AuthError({ children, attempt = 0 }) {
+  if (!children) return null;
+  return (
+    <p
+      key={attempt}
+      role="alert"
+      className={cn(
+        'animate-shake rounded-i-sm border-[0.8px] border-chichi/40 bg-chichi/10',
+        'px-3 py-2 text-xs leading-4 text-chichi',
+      )}
+    >
+      {children}
+    </p>
+  );
+}
+
+/**
+ * In-button progress. 16px on a 2px ring with one side cleared.
+ *
+ * The reference runs two spinners and this is the second one:
+ * `1.2s cubic-bezier(.5, 0, .5, 1) infinite`, which is what it puts inside
+ * controls. The 400ms linear turn `RouteProgress` draws belongs to NProgress
+ * and stays beside the loading bar.
+ */
+export function Spinner({ className }) {
+  return (
+    <span
+      aria-hidden="true"
+      className={cn(
+        'animate-loader inline-block size-4 shrink-0 rounded-full',
+        'border-2 border-current border-t-transparent',
+        className,
+      )}
+    />
   );
 }
 
@@ -192,6 +274,7 @@ function MoreProviders() {
       {open && (
         <ul
           className={cn(
+            'animate-menu-in origin-top-right',
             'absolute end-0 top-[calc(100%+8px)] z-10 w-72 overflow-hidden',
             'rounded-i-sm border-[0.8px] border-beerus bg-goku py-2 shadow-lg',
           )}
@@ -271,6 +354,12 @@ function MarketingPanel({ image, title, benefits }) {
 /**
  * Props: `heading` (the h1), `image`, `title` and `benefits` for the marketing
  * panel, `children` for the form, `footer` for the block of links under it.
+ *
+ * Nothing here animates in. That was checked rather than assumed: the
+ * reference's served stylesheet emits no entrance utility for this panel, and
+ * its login document paints the form with the page. The motion on these two
+ * screens is the shake on a refused credential and the spinner in the submit,
+ * both of which are reactions to something the visitor did.
  */
 export function AuthShell({ heading, image, title, benefits, footer, children }) {
   return (

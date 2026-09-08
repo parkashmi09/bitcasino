@@ -1,0 +1,37 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 496 514" width="496" height="514" role="img" aria-label="Game of the week">
+  <defs>
+    <linearGradient id="bb" x1="0" y1="0" x2="0.35" y2="1">
+      <stop offset="0" stop-color="hsl(288 58% 20%)"/><stop offset="1" stop-color="hsl(288 62% 7%)"/>
+    </linearGradient>
+    <radialGradient id="bg" cx="0.5" cy="0.3" r="0.7">
+      <stop offset="0" stop-color="hsl(288 78% 46%)" stop-opacity="0.85"/>
+      <stop offset="1" stop-color="hsl(288 78% 46%)" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="bs" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="hsl(288 62% 7%)" stop-opacity="0"/>
+      <stop offset="0.45" stop-color="hsl(288 62% 7%)" stop-opacity="0.72"/>
+      <stop offset="1" stop-color="hsl(288 62% 7%)"/>
+    </linearGradient>
+  </defs>
+  <rect width="496" height="514" fill="url(#bb)"/>
+  <rect width="496" height="514" fill="url(#bg)"/>
+
+  <!-- Accent sweep across the shoulder of the card, clipped by the frame. -->
+  <path d="M-40 319 C 120 257 260 380 536 288 V514 H-40 Z" fill="hsl(130 88% 62%)" opacity="0.28"/>
+
+  <g transform="translate(148 44) scale(1.08)">
+    <rect x="18" y="34" width="52" height="132" rx="10" fill="#000" opacity="0.45"/>
+    <rect x="74" y="34" width="52" height="132" rx="10" fill="#000" opacity="0.45"/>
+    <rect x="130" y="34" width="52" height="132" rx="10" fill="#000" opacity="0.45"/>
+    <circle cx="44" cy="76" r="17" fill="#FFB319"/>
+    <path d="M100 60 l9 18 20 3-14.5 14 3.5 20-18-9.5-18 9.5 3.5-20L71 81l20-3 9-18Z" fill="hsl(130 88% 62%)"/>
+    <path d="M156 60 l16 28h-32l16-28Z" fill="#fff" opacity="0.9"/>
+    <rect x="18" y="100" width="164" height="4" fill="hsl(130 88% 62%)" opacity="0.55"/>
+    <circle cx="44" cy="134" r="13" fill="#fff" opacity="0.55"/>
+    <circle cx="100" cy="134" r="13" fill="#FFB319" opacity="0.7"/>
+    <circle cx="156" cy="134" r="13" fill="hsl(130 88% 62%)" opacity="0.75"/></g>
+  <path d="M368 238v10M363 243h10" stroke="#fff" stroke-width="2.5" stroke-linecap="round" opacity="0.33"/><path d="M120 248v10M115 253h10" stroke="#fff" stroke-width="2.5" stroke-linecap="round" opacity="0.39"/><path d="M89 84v20M79 94h20" stroke="#fff" stroke-width="2.5" stroke-linecap="round" opacity="0.42"/><path d="M142 113v22M131 124h22" stroke="#fff" stroke-width="2.5" stroke-linecap="round" opacity="0.43"/><path d="M92 178v16M84 186h16" stroke="#fff" stroke-width="2.5" stroke-linecap="round" opacity="0.29"/><path d="M428 141v18M419 150h18" stroke="#fff" stroke-width="2.5" stroke-linecap="round" opacity="0.22"/><path d="M356 57v22M345 68h22" stroke="#fff" stroke-width="2.5" stroke-linecap="round" opacity="0.18"/>
+
+  <!-- Copy sits in the bottom 48%; this is what keeps it legible. -->
+  <rect y="267" width="496" height="247" fill="url(#bs)"/>
+</svg>

@@ -53,15 +53,28 @@ export function RouteProgress() {
   // `null` when idle, otherwise 0–1. Rendering is driven entirely by this.
   const [progress, setProgress] = useState(null);
   const [fading, setFading] = useState(false);
-  const firstRender = useRef(true);
+
+  /**
+   * The location the bar has already run for, seeded with the one this
+   * component mounted at.
+   *
+   * It used to be a `firstRender` boolean, and that counted effect RUNS rather
+   * than navigations — which StrictMode doubles. The first run flipped the flag
+   * and returned no cleanup, so the second run read "not the first render" and
+   * started the bar on a hard load, then had its interval and timeout torn down
+   * by the next teardown: a 3px orange bar frozen at 8% across the top of every
+   * page, with the spinner parked over the account control in the header. Keyed
+   * on the location instead, a repeated run is a no-op no matter how many times
+   * React chooses to run it.
+   */
+  const shownFor = useRef(`${pathname}${search}`);
 
   useEffect(() => {
     // Nothing was navigated *to* on the first paint — a hard load has the
     // browser's own progress UI, and the reference does not double it.
-    if (firstRender.current) {
-      firstRender.current = false;
-      return undefined;
-    }
+    const key = `${pathname}${search}`;
+    if (shownFor.current === key) return undefined;
+    shownFor.current = key;
 
     const timers = [];
     setFading(false);

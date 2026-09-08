@@ -13,6 +13,8 @@ Project documentation for the casino UI study built in this repository.
 | [07 — Assets and licensing](./07-assets.md) | Where every image and font came from, and what you may ship |
 | [08 — Setup and scripts](./08-setup.md) | Install, run, build, troubleshoot |
 | [09 — Roadmap](./09-roadmap.md) | What is stubbed and what to build next |
+| [10 — Backend integration](./10-backend-integration.md) | Wiring the front end onto the iBitPlay platform, phase by phase |
+| [11 — Comparing against the reference](./11-comparing-against-the-reference.md) | **Read before calling any screen done.** Open both sites in Chrome and measure, do not eyeball |
 
 ## Quick start
 

@@ -10,25 +10,32 @@ What exists, what is stubbed, and what a real deployment would need.
 - Sections: hero, provider strip, scroll-snap game rails, category strip, promo grid
 - Pages: home, category (with provider filters), providers, game detail, 404
 - Self-hosted open fonts + fully generated placeholder asset pipeline
-- Express 5 read-only API with Zod validation, verified by an endpoint smoke test
+- Real accounts against the iBitPlay platform: register, log in, 2FA, rotating
+  refresh tokens, session survival across a reload, log out
+- `lib/api.js` + `lib/endpoints.js` — the API seam, with the registry checked
+  against the backend's own route table by `backend/tools/verify-frontend-routes.js`
 - Documentation
 
 ## Stubbed
 
 | Area | Current state | Next step |
 | --- | --- | --- |
-| Data source | Web app reads a local module; API is separate | Point web at `/api`, delete the duplicated seed |
+| Data source | Web app reads a local module; the platform serves the real catalogue | Phase 2 of [10 — Backend integration](./10-backend-integration.md) |
 | `/providers/:slug` | Renders the index | Build a real detail page |
-| `/promotions`, `/tournaments`, `/vip` | Redirect to `/` | Build the pages |
+| `/promotions`, `/vip` | Redirect to `/` | Build the pages |
+| `/tournaments` | ✅ Index plus `/tournaments/all/current` and `/tournaments/all/past`, over `data/tournaments.js` | The per-tournament detail page behind each card, and an `Opt in` that posts — both wait on the `bonus` service |
 | Search input | Renders, does nothing | Wire to `GET /api/games?q=` with debounce |
-| Log in / Register | Buttons only | See *Accounts* below |
+| Log in / Register | ✅ Real, against `POST /api/v1/user/auth/*` | — |
+| Account area | The account menu, plus `/profile/notifications`, `/profile/rewards`, `/profile/boosts`, `/profile/account`, `/profile/security`, `/profile/settings` and `/profile/refer-a-friend` behind it — `ProfileLayout` already carries the reference's nine-tab bar, and `Loyalty` leaves it for `/loyalty` as the reference does | Phase 6: the KYC document upload, transactions, and the 2FA enable/disable routes the security page is waiting on |
+| Balance chip / Deposit | Not built — no made-up numbers | Phase 4: wallet drawer over `/user/wallet/*` |
 | Game frame | Placeholder panel | Provider launch iframe |
 | Skeleton | Component exists, unused | Add to rails and grids once data is async |
 
 ## Near-term
 
-1. **Wire the API.** Replace `data/catalog.js` imports with TanStack Query
-   hooks. This is the change the `data/` seam exists for.
+1. **Wire the catalogue.** Replace `data/catalog.js` imports with TanStack
+   Query hooks over `/api/v1/casino/games*`. This is the change the `data/`
+   seam exists for, and `lib/api.js` is already the thing that will make them.
 2. **Loading and error states.** Every rail and grid needs a skeleton and a
    retry path once data is remote.
 3. **Search.** Debounced, with an empty state.

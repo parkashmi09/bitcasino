@@ -246,6 +246,21 @@ carries no padding of its own so it spans the full 232px column — the buttons
 inside supply it. Locale and support sit in a `p-2 px-3` block at the bottom,
 with no top border.
 
+The hairlines **fade** — `hit` at the start, transparent by the end of the
+232px — which is what the reference draws. Flat, they read as three boxed
+sections rather than one column.
+
+**A session adds a row.** Between the promo card and the links, a signed-in
+visitor gets the reference's two shortcut pills and a second hairline under
+them: 36px tall, `gohan`, a ~5px radius (tighter than the 12px on the cards, so
+they read as controls rather than a third card), each ending in a 20px `goku`
+disc holding a count. `Recents` is a link to `/games/recent` — the same page the
+header's `RecentsLink` opens — and its badge is the length of that page's own
+list, fetched once in `Layout` and passed down, since `SidebarNav` is mounted
+twice at every width. The star is a readout: no favourites feature exists, so it
+has no role, no tab stop and no hover, and its `0` is true. The rail drops the
+whole row, second hairline included.
+
 **Collapsing** narrows the column to the reference's 56px icon rail — it never
 hides it. `width` is the only animated property, 256px → 56px over 200ms
 linear, and the page content reflows against it on the same tween. The rail
@@ -351,6 +366,21 @@ options, from its payload: Popularity, A-Z, Volatility, Hit Ratio, RTP.
 `popular` has no comparator on purpose: popularity *is* the catalogue order the
 list arrives in, so picking it restores that order.
 
+`filter` is OPTIONAL, and it carries the sort control with it — both dropdowns
+or neither. `/games/recent` is the page with neither: the reference draws it as
+a bare heading, because a play history has no second axis to narrow by and
+"most recent first" is the only order that means anything. With no `filter`
+the list is also left in the order it arrived rather than sorted.
+
+`empty` replaces the "No games match this filter yet." line for a page where
+that sentence would be wrong — Recently played says nothing has been played,
+which is a different thing from a filter matching nothing.
+
+The heading is DM Sans at 24/32 weight 400, the same as the account pages'.
+It was Space Grotesk at `font-light` until it was checked against the
+reference, whose `h1` on every listing page computes to `24px/32px`,
+weight `400`, `"DM Sans"`.
+
 The grid is the reference's auto-fitting one, its track floor stepping
 6.5rem → 7.75rem → 8.75rem, so the column count follows the viewport rather
 than a breakpoint.
@@ -394,6 +424,11 @@ display type and a single orange call to action on the start side, artwork
 bleeding past the gutter on the end side. Below `md` the artwork moves above
 the copy and runs full-bleed.
 
+The home page renders it only for a signed-out visitor; once there is a session
+`HomeBanner`'s three promo cards take the slot instead. While the session is
+still resolving, `Home` holds the space empty rather than picking one, so a
+returning player never sees the acquisition pitch flash.
+
 ### `CategoryStrip`
 
 Scrollable category shortcuts. Fixed 96/112px tiles. Sits below the game rails
@@ -407,8 +442,13 @@ gradient panel with a decorative circle that scales on hover.
 
 ### `ProviderRail`
 
-Greyscale wordmark strip directly under the hero — no cards, no borders, no
-game counts. Marks are generated placeholders, not real studio logos.
+Greyscale wordmark strip — no cards, no borders, no game counts. Marks are
+generated placeholders, not real studio logos.
+
+Its position on the home page follows the session: directly under the hero for
+a signed-out visitor, at the foot of the column below the editorial panel once
+there is a session. `Home` owns that ordering; the component only draws the
+band.
 
 Marks rest at `opacity-40` and snap to full on hover with no transition —
 the reference's `h-10 opacity-40 hover:opacity-100` verbatim.
@@ -498,6 +538,10 @@ project, not collected from real players.
 | `Providers` | Studio index grid |
 | `Provider` | One studio's catalogue; owns the category filter, derived from the categories actually present |
 | `Play` | Breadcrumb, 16:9 frame placeholder, fun/real controls, similar-games rail; handles unknown slugs |
+| `Refer` | `/profile/refer-a-friend` — the invite banner, the three-step explainer with its dotted connector, and a split between the referral list and a column of statistics and FAQ. The link, `Total Referrals` and `Total earned` are real: `GET /profile/referral`, `GET /affiliate/team`, `GET /affiliate/rewards` |
+| `Security` | `/profile/security` — the password card and the two-factor card, both measured off the reference. `Update` opens a `Change password` dialog wired to `POST /auth/change-password`; the 2FA switch reports `two_fa_status` off `/auth/me` and is inert, because the platform has no route to change it |
+| `Boosts` | `/profile/boosts` — the Casino Boost list. The reference's empty state is reproduced exactly and is what renders whenever nothing is live; the boost card itself is ours, because the account measured had no boost to copy. `Read more` opens the help-centre article on the page rather than pointing at a help centre this project does not have |
+| `Loyalty` | `/loyalty` — the Loyalty Club sheet: full-bleed hero, six benefits, the seven-tier table, a three-way profits picker and four progress cards. Reached from the account menu's `Loyalty` row and the account tab bar's `Loyalty` tab, both of which leave `/profile` behind exactly as the reference does |
 | `Login` | Split screen, outside `Layout` — see `AuthShell` |
 | `SignUp` | Same shell, longer form — see `AuthShell` |
 | `NotFound` | 404 |

@@ -28,6 +28,20 @@ const SRC = {
   crash: ASSETS.navIcons['crash-instant-win'],
   'game-shows': ASSETS.navIcons['game-shows'],
   jackpots: ASSETS.navIcons.jackpots,
+
+  /* The account menu's rows. Same CMS directory as everything above —
+     `cms/icons/icon_*.png`, read off the reference's own account panel — so
+     they are the same 20px full-colour illustrations at the same weight, not
+     a second icon style bolted onto the first. `notifications` is their
+     `icon_promotions`, which the reference uses for both. */
+  loyalty: ASSETS.navIcons.loyalty,
+  rewards: ASSETS.navIcons['bonus-buys'],
+  boosts: ASSETS.navIcons.boosts,
+  account: ASSETS.navIcons.account,
+  security: ASSETS.navIcons.security,
+  notifications: ASSETS.navIcons.promotions,
+  'refer-a-friend': ASSETS.navIcons['refer-a-friend'],
+  logout: ASSETS.navIcons.logout,
 };
 
 /** `size` is the rendered size in px; 20 matches the reference's nav. */

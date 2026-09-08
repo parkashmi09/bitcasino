@@ -52,7 +52,20 @@ where data came from. Everything arrives via props.
 **`pages/`** — reads from the data layer and composes sections. This is the
 only place that decides *what* appears on a screen.
 
-**`data/`** — the seam. Today it exports static arrays; swapping it for
+**`lib/api.js` + `lib/endpoints.js`** — the platform seam. Every request to
+the iBitPlay gateway goes through `api()`, which unwraps `{success, data, meta}`,
+throws a typed `ApiError` carrying the machine-readable `code`, and refreshes a
+rotated token single-flight. `endpoints.js` is the path registry, and
+`backend/tools/verify-frontend-routes.js` reads it — a renamed backend route
+fails CI rather than a page.
+
+**`auth/`** — `tokenStore` (access token in memory, refresh token in
+`localStorage`), `AuthProvider` (`user`, `status`, `login`, `register`,
+`logout`) and the two route guards. `status` has a third value, `loading`, for
+the round trip after a reload where nobody yet knows whether there is a
+session; rendering it as "signed out" is what makes a header flicker.
+
+**`data/`** — the catalogue seam. Today it exports static arrays; swapping it for
 `fetch('/api/...')` calls is the single change needed to go live.
 
 The rule: dependencies point inward — `pages` → `sections` → `ui`, never back.
@@ -61,7 +74,7 @@ The rule: dependencies point inward — `pages` → `sections` → `ui`, never b
 
 | Path | Page | Notes |
 | --- | --- | --- |
-| `/` | `Home` | Hero + provider strip + rails + editorial blocks |
+| `/` | `Home` | Hero signed out / promo banners signed in, then rails + editorial blocks |
 | `/categories/:slug` | `Category` | Game list, filtered by provider |
 | `/games/:slug` | `Category` | Curated collection (`COLLECTIONS`), same view |
 | `/providers` | `Providers` | Studio index |
@@ -69,7 +82,9 @@ The rule: dependencies point inward — `pages` → `sections` → `ui`, never b
 | `/play/:category/:slug` | `Play` | Game frame placeholder + similar rail |
 | `/login` | `Login` | Split screen — **outside `Layout`** |
 | `/register` | `SignUp` | Split screen — **outside `Layout`** |
-| `/promotions`, `/tournaments`, `/vip` | redirect | Stubs — redirect to `/` |
+| `/tournaments` | `Tournaments` | Active / Coming soon / Finished, over `data/tournaments.js` |
+| `/tournaments/all/:filter` | `TournamentList` | `current` and `past` — the index's two `See all` targets |
+| `/promotions`, `/vip` | redirect | Stubs — redirect to `/` |
 | `/forgot-password` | redirect | Stub — redirects to `/login` |
 | `/terms`, `/privacy` | redirect | Stubs — redirect to `/register` |
 | `*` | `NotFound` | |

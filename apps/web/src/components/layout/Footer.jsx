@@ -3,6 +3,9 @@ import { Link } from 'react-router-dom';
 import { Icon } from '@/components/ui/Icon';
 import { cn } from '@/lib/cn';
 import { useMediaQuery } from '@/hooks/useMediaQuery';
+import { useFiatCurrency } from '@/hooks/useWallet';
+import { useExchangeRates } from '@/hooks/usePreferences';
+import { fiatPair } from '@/lib/format';
 
 /**
  * Fat footer, laid out to the reference site's measurements.
@@ -194,6 +197,11 @@ function MarkRow({ items }) {
 
 export function Footer() {
   const wide = useMediaQuery(UNFOLD_AT);
+  // The quoted pair. Both are shared preferences/reads rather than props: the
+  // footer is rendered once per page by `Layout` and nothing above it knows
+  // or should know which currency the player reads balances in.
+  const [fiat] = useFiatCurrency();
+  const { rates } = useExchangeRates();
 
   return (
     // Negative margins cancel `main`'s padding so the footer supplies its own,
@@ -249,8 +257,12 @@ export function Footer() {
                 />
               </span>
 
+              {/* The pair the settings page's `Preferred FIAT currency` sets,
+                  quoted against real rates from the public exchange-rate
+                  route. This was a hardcoded `1 USDT = 1 USD`, which is what
+                  the new setting now has something to change. */}
               <div className="flex h-10 items-center justify-center rounded-lg bg-gohan px-4 text-base text-trunks">
-                1 USDT = 1 USD
+                {fiatPair(fiat, rates[fiat])}
               </div>
             </div>
           </div>

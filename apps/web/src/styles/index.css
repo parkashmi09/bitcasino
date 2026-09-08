@@ -55,9 +55,26 @@
   --radius-s-md: 0.75rem;
   --radius-s-lg: 1rem;
 
-  /* Reference site breakpoints */
+  /* Reference site breakpoints. Only `md` and `xl` actually differ from
+   * Tailwind's defaults; `sm`, `lg` and `2xl` are the default widths
+   * restated in px.
+   *
+   * That restating is load-bearing, not tidiness. Tailwind v4 emits every
+   * breakpoint the theme overrides *before* the ones left at their defaults,
+   * rather than in numeric order. Overriding `md` and `xl` alone therefore
+   * emitted 768px and 1200px first, then the untouched 640/1024/1536 — which
+   * put `xl` (1200px) ahead of `lg` (1024px) in the cascade, so `lg:` beat
+   * `xl:` on any element setting both.
+   *
+   * A value only counts as an override if it differs from the default *as
+   * written*: `40rem` is ignored as a no-op, `640px` is not. Writing all
+   * five in px puts the whole scale in the overridden group, where it emits
+   * in the order below — so keep these ascending. */
+  --breakpoint-sm: 640px;
   --breakpoint-md: 768px;
+  --breakpoint-lg: 1024px;
   --breakpoint-xl: 1200px;
+  --breakpoint-2xl: 1536px;
 }
 
 @layer base {
@@ -138,6 +155,15 @@
 @keyframes bc-zoom-in  { from { opacity: 0; transform: scale(0.95) } to { opacity: 1; transform: scale(1) } }
 @keyframes bc-zoom-out { from { opacity: 1; transform: scale(1) } to { opacity: 0; transform: scale(0.95) } }
 
+/* A drawer is not a dialog: the reference's wallet panel comes in from the
+   end edge over the same 150ms rather than zooming from the middle. Written
+   against the logical edge so it still arrives from the correct side in RTL. */
+@keyframes bc-sheet-in  { from { transform: translateX(100%) } to { transform: none } }
+@keyframes bc-sheet-out { from { transform: none } to { transform: translateX(100%) } }
+
+@keyframes bc-sheet-in-rtl  { from { transform: translateX(-100%) } to { transform: none } }
+@keyframes bc-sheet-out-rtl { from { transform: none } to { transform: translateX(-100%) } }
+
 /* Spinner beside the route-loading bar — NProgress's own 400ms turn. */
 @keyframes bc-spin { from { transform: rotate(0deg) } to { transform: rotate(360deg) } }
 
@@ -146,6 +172,70 @@
   .animate-overlay-out { animation: bc-fade-out 150ms ease-in forwards; }
   .animate-dialog-in   { animation: bc-zoom-in 150ms ease-out; }
   .animate-dialog-out  { animation: bc-zoom-out 150ms ease-in forwards; }
+  .animate-sheet-in    { animation: bc-sheet-in 150ms ease-out; }
+  .animate-sheet-out   { animation: bc-sheet-out 150ms ease-in forwards; }
+  [dir='rtl'] .animate-sheet-in  { animation-name: bc-sheet-in-rtl; }
+  [dir='rtl'] .animate-sheet-out { animation-name: bc-sheet-out-rtl; }
+}
+
+/* ---------------------------------------------------------------------------
+ * Auth motion.
+ *
+ * Both of these are the reference's own, lifted from its served stylesheet
+ * (chunk `30mu6el6wreps.css`, read 2026-09-08) rather than approximated:
+ *
+ *   @keyframes error { 10%,90% { translate(-1px) } 20%,80% { translate(2px) }
+ *                      30%,50%,70% { translate(-4px) } 40%,60% { translate(4px) } }
+ *   animation: .82s cubic-bezier(.36,.07,.19,.97) both error
+ *   animation: 1.2s cubic-bezier(.5,0,.5,1) infinite spin
+ *
+ * The shake is deliberately not symmetrical — it starts and ends at 1px and
+ * peaks at 4px in the middle, which reads as a head-shake rather than a
+ * vibration. The easing is the same curve, and both are why a hand-rolled
+ * `translateX(±4px)` over 400ms does not feel like the reference's.
+ *
+ * `spin` is the button loader's turn, and it is NOT the 400ms one
+ * `RouteProgress` draws — the reference runs two, NProgress's beside the
+ * loading bar and this one inside controls. Both are here for that reason.
+ *
+ * What the reference does NOT have, checked in the same stylesheet and in the
+ * login document itself: any entrance animation on the auth panel. No
+ * `animate-*` class is emitted for one, and the form is painted with the page.
+ * So there is no fade-in or stagger here either.
+ * ------------------------------------------------------------------------- */
+@keyframes bc-error {
+  10%, 90%      { transform: translateX(-1px) }
+  20%, 80%      { transform: translateX(2px) }
+  30%, 50%, 70% { transform: translateX(-4px) }
+  40%, 60%      { transform: translateX(4px) }
+}
+
+/* Surfaces that open. The dialog above pairs a fade with a 95% zoom over
+   150ms; a menu is the same gesture anchored to a corner, plus the 4px drop
+   that comes from it hanging off its trigger. */
+@keyframes bc-menu-in {
+  from { opacity: 0; transform: scale(0.95) translateY(-4px) }
+  to   { opacity: 1; transform: none }
+}
+
+@layer utilities {
+  .animate-shake { animation: bc-error 0.82s cubic-bezier(0.36, 0.07, 0.19, 0.97) both; }
+  .animate-loader { animation: bc-spin 1.2s cubic-bezier(0.5, 0, 0.5, 1) infinite; }
+  .animate-menu-in { animation: bc-menu-in 150ms ease-out; }
+
+  /* A height transition needs a definite value at both ends, and `auto` is not
+     one. A 0fr -> 1fr grid row is: the track resolves against the child's own
+     height, so the reveal measures itself and nothing has to be done in JS.
+     150ms on cubic-bezier(.4, 0, .2, 1) is the reference's transition default
+     (`--default-transition-duration` / `-timing-function`), which every other
+     transition on this site already inherits. */
+  .reveal {
+    display: grid;
+    grid-template-rows: 0fr;
+    transition: grid-template-rows 150ms cubic-bezier(0.4, 0, 0.2, 1);
+  }
+  .reveal[data-open='true'] { grid-template-rows: 1fr; }
+  .reveal > * { min-height: 0; overflow: hidden; }
 }
 
 @media (prefers-reduced-motion: reduce) {

@@ -79,6 +79,13 @@ const brand = {
 // --- navigation / category icons ------------------------------------------
 // cms/icons carries the lobby nav artwork; strip the `icon_` prefix and the
 // `_png` suffix the CMS bakes into those filenames.
+//
+// The same directory holds the account menu's row icons — icon_loyalty,
+// icon_bonus_buys, icon_boosts, icon_account, icon_security,
+// icon_refer_a_friend and icon_logout, plus icon_promotions, which the
+// reference reuses for the Notifications row. They land here under the same
+// rule and `NavIcon` maps them; a scrape taken without opening the account
+// menu simply will not contain them.
 const navIcons = placeDir(join(HM, 'cms/icons'), 'images/categories', (name) =>
   slugify(name.replace(/^icon[-_]?/i, '').replace(/[-_]?png$/i, '')),
 );
@@ -130,6 +137,13 @@ const ui = {
   crown: place(join(HM, 'cms/icons/crown.png'), 'images/ui/crown.png'),
   flagEn: place(join(HM, 'cms/icons/en.svg'), 'images/ui/flag-en.svg'),
   heroBanner: place(join(HM, 'bitcasino/images/promotions/2024/main-page.png'), 'images/hero/main-banner.png'),
+  // The tier emblem in the account menu's loyalty card. One per tier on the
+  // reference; only the entry tier is reproduced, because `data/loyalty.js`
+  // is fixed at Beginner until a loyalty endpoint exists.
+  loyaltyBeginner: place(
+    join(CG, 'bitcasino/images/loyalty-beginner-avatar.png'),
+    'images/ui/loyalty-beginner.png',
+  ),
 };
 
 // --- in-house "originals" tiles -------------------------------------------

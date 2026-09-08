@@ -13,7 +13,7 @@ import { THEMES } from '@/data/catalog';
  */
 export function ThemeRail() {
   return (
-    <section className="py-4">
+    <section>
       <div className="mb-3 flex items-center justify-between gap-3">
         <h2 className="font-secondary text-xl font-light leading-8 text-bulma md:text-2xl">
           Themes

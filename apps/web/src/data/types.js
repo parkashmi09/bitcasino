@@ -61,4 +61,16 @@
  * @property {'brand' | 'jackpot' | 'positive'} tone
  */
 
+/**
+ * One card of the signed-in home banner.
+ *
+ * @typedef {object} HomeBanner
+ * @property {string} id
+ * @property {string} title
+ * @property {string} blurb Hidden below md, where the card is too narrow for it.
+ * @property {string} href
+ * @property {string} art Portrait 496x514 card art under /images/banners.
+ * @property {GameCategory} emblem Motif the generated art draws.
+ */
+
 export {};

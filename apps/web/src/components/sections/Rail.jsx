@@ -15,8 +15,17 @@ import { cn } from '@/lib/cn';
  * The paging controls are circular buttons floated over the ends of the row —
  * the reference only shows the one you can actually use, and hides both while
  * the row fits, which keeps quiet rails visually silent.
+ *
+ * `headingClassName` is the one escape hatch, and it exists for exactly one
+ * caller. The tournaments page runs the same chrome under a page `h1`, so its
+ * rail titles are subheadings there — 18px `trunks` rather than the 24px
+ * display `bulma` a lobby rail uses. That is a type change, not a structural
+ * one, so it is a class override rather than a second component; `cn` is
+ * `twMerge`, so what is passed genuinely replaces the defaults instead of
+ * fighting them. The element stays an `h2` either way, which the reference's
+ * own `<span>` is not — a section under a heading should be one.
  */
-export function Rail({ title, href, children, className }) {
+export function Rail({ title, href, children, className, headingClassName }) {
   const railRef = useRef(null);
   const [canScroll, setCanScroll] = useState({ start: false, end: false });
 
@@ -45,9 +54,14 @@ export function Rail({ title, href, children, className }) {
   };
 
   return (
-    <section className={cn('flex flex-col gap-5 pb-6', className)}>
+    <section className={cn('flex flex-col gap-5', className)}>
       <div className="grid grid-flow-col items-center justify-between gap-4">
-        <h2 className="font-secondary text-xl font-light leading-8 text-bulma md:text-2xl">
+        <h2
+          className={cn(
+            'font-secondary text-xl font-light leading-8 text-bulma md:text-2xl',
+            headingClassName,
+          )}
+        >
           {title}
         </h2>
         <Link

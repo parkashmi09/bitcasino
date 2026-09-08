@@ -1,0 +1,39 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1638 546" width="1638" height="546" role="img" aria-label="Weekend Wager Race #3">
+  <defs>
+    <linearGradient id="plate" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#FFFFFF"/>
+      <stop offset="0.42" stop-color="#D6DEE6"/>
+      <stop offset="0.58" stop-color="#4A5560"/>
+      <stop offset="1" stop-color="#D6DEE6"/>
+    </linearGradient>
+    <linearGradient id="ribbon" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#B3231C"/>
+      <stop offset="1" stop-color="#7C120E"/>
+    </linearGradient>
+    <radialGradient id="haze" cx="0.5" cy="0.5" r="0.62">
+      <stop offset="0" stop-color="#2B4B87" stop-opacity="0.85"/>
+      <stop offset="0.62" stop-color="#4A1C6B" stop-opacity="0.45"/>
+      <stop offset="1" stop-color="#05070C" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+
+  <rect width="1638" height="546" fill="#05070C"/>
+  <rect width="1638" height="546" fill="url(#haze)"/>
+
+  <!-- Sash first, so the plate lands on top of it and it reads as passing
+       behind the plaque. It crosses the LOWER third rather than the middle:
+       through the centre it cuts the engraved title in half and the whole
+       banner reads as struck through. -->
+  <path d="M64 470 L1574 300 l0 118 L64 588 Z" fill="url(#ribbon)"/>
+
+  <g transform="translate(819 273)">
+    <rect x="-500" y="-118" width="1000" height="236" rx="14" fill="url(#plate)"/>
+    <rect x="-500" y="-118" width="1000" height="236" rx="14" fill="none" stroke="#FFFFFF" stroke-width="5" opacity="0.55"/>
+    <rect x="-464" y="-86" width="928" height="172" rx="8" fill="none" stroke="#4A5560" stroke-width="4" opacity="0.5"/>
+    <text x="0" y="30" text-anchor="middle" font-family="'Space Grotesk',system-ui,sans-serif" font-size="69" font-weight="700" letter-spacing="6" fill="#4A5560" opacity="0.9">WEEKEND WAGER RACE</text>
+  </g>
+
+  <!-- The sash again, clipped below the plate's foot, so it crosses in front
+       on the way out and the plaque looks threaded onto it. -->
+  <path d="M64 470 L1574 300 l0 118 L64 588 Z" fill="url(#ribbon)" clip-path="inset(72% 0 0 0)"/>
+</svg>

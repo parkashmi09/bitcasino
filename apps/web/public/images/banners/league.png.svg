@@ -1,0 +1,30 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 496 514" width="496" height="514" role="img" aria-label="League of Bitcasino">
+  <defs>
+    <linearGradient id="bb" x1="0" y1="0" x2="0.35" y2="1">
+      <stop offset="0" stop-color="hsl(258 58% 20%)"/><stop offset="1" stop-color="hsl(258 62% 7%)"/>
+    </linearGradient>
+    <radialGradient id="bg" cx="0.5" cy="0.3" r="0.7">
+      <stop offset="0" stop-color="hsl(258 78% 46%)" stop-opacity="0.85"/>
+      <stop offset="1" stop-color="hsl(258 78% 46%)" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="bs" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="hsl(258 62% 7%)" stop-opacity="0"/>
+      <stop offset="0.45" stop-color="hsl(258 62% 7%)" stop-opacity="0.72"/>
+      <stop offset="1" stop-color="hsl(258 62% 7%)"/>
+    </linearGradient>
+  </defs>
+  <rect width="496" height="514" fill="url(#bb)"/>
+  <rect width="496" height="514" fill="url(#bg)"/>
+
+  <!-- Accent sweep across the shoulder of the card, clipped by the frame. -->
+  <path d="M-40 319 C 120 257 260 380 536 288 V514 H-40 Z" fill="hsl(69 88% 62%)" opacity="0.28"/>
+
+  <g transform="translate(148 44) scale(1.08)"><path d="M100 104 L166.0 104.0 A66 66 0 0 1 146.7 150.7 Z" fill="#FFB319" opacity="0.85"/><path d="M100 104 L146.7 150.7 A66 66 0 0 1 100.0 170.0 Z" fill="hsl(69 88% 62%)" opacity="0.95"/><path d="M100 104 L100.0 170.0 A66 66 0 0 1 53.3 150.7 Z" fill="#FFB319" opacity="0.85"/><path d="M100 104 L53.3 150.7 A66 66 0 0 1 34.0 104.0 Z" fill="hsl(69 88% 62%)" opacity="0.95"/><path d="M100 104 L34.0 104.0 A66 66 0 0 1 53.3 57.3 Z" fill="#FFB319" opacity="0.85"/><path d="M100 104 L53.3 57.3 A66 66 0 0 1 100.0 38.0 Z" fill="hsl(69 88% 62%)" opacity="0.95"/><path d="M100 104 L100.0 38.0 A66 66 0 0 1 146.7 57.3 Z" fill="#FFB319" opacity="0.85"/><path d="M100 104 L146.7 57.3 A66 66 0 0 1 166.0 104.0 Z" fill="hsl(69 88% 62%)" opacity="0.95"/>
+    <circle cx="100" cy="104" r="66" fill="none" stroke="#fff" stroke-width="5" opacity="0.85"/>
+    <circle cx="100" cy="104" r="16" fill="#fff"/>
+    <path d="M100 24l12 20h-24l12-20Z" fill="#fff"/></g>
+  <path d="M1 -185v2M0 -184h2" stroke="#fff" stroke-width="2.5" stroke-linecap="round" opacity="-0.10"/><path d="M-97 -175v4M-99 -173h4" stroke="#fff" stroke-width="2.5" stroke-linecap="round" opacity="-0.13"/><path d="M-337 -272v0M-337 -272h0" stroke="#fff" stroke-width="2.5" stroke-linecap="round" opacity="-0.14"/><path d="M-253 -39v0M-253 -39h0" stroke="#fff" stroke-width="2.5" stroke-linecap="round" opacity="0.00"/><path d="M-357 -187v6M-360 -184h6" stroke="#fff" stroke-width="2.5" stroke-linecap="round" opacity="-0.08"/><path d="M-199 -276v8M-203 -272h8" stroke="#fff" stroke-width="2.5" stroke-linecap="round" opacity="0.03"/><path d="M-236 -3v8M-240 1h8" stroke="#fff" stroke-width="2.5" stroke-linecap="round" opacity="-0.06"/>
+
+  <!-- Copy sits in the bottom 48%; this is what keeps it legible. -->
+  <rect y="267" width="496" height="247" fill="url(#bs)"/>
+</svg>

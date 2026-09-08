@@ -17,11 +17,13 @@ import path from 'node:path';
 import {
   FAVICON,
   HERO_ART,
+  bannerArt,
   SIDEBAR_PROMO,
   gameThumb,
   promoArt,
   providerLogo,
   themeArt,
+  tournamentArt,
 } from './art.mjs';
 
 const PUBLIC = path.resolve(import.meta.dirname, '../apps/web/public');
@@ -158,9 +160,16 @@ try {
   );
   process.exit(1);
 }
-const { GAMES, PROVIDERS, PROMOTIONS, THEMES } = catalog;
+const { GAMES, PROVIDERS, PROMOTIONS, THEMES, HOME_BANNERS } = catalog;
 
-for (const dir of ['images/games', 'images/providers', 'images/promos', 'images/themes', 'icons']) {
+// Tournaments live in their own module rather than the catalog, so they are
+// imported separately. Same contract: the data file owns the list, this file
+// only draws it.
+const { TOURNAMENTS } = await import(
+  new URL('../apps/web/src/data/tournaments.js', import.meta.url).href
+);
+
+for (const dir of ['images/games', 'images/providers', 'images/promos', 'images/themes', 'images/banners', 'images/tournaments', 'icons']) {
   await mkdir(path.join(PUBLIC, dir), { recursive: true });
 }
 
@@ -193,9 +202,29 @@ for (const theme of THEMES) {
   count++;
 }
 
+// One file per tournament, not one per tier: the title is baked into the
+// plate, so `Gold Challenge #1` and `#2` are different drawings even though
+// they share a ramp. The finished state is a CSS filter on the same file.
+for (const tournament of TOURNAMENTS) {
+  await writeFile(
+    path.join(PUBLIC, 'images/tournaments', `${tournament.slug}.svg`),
+    tournamentArt(tournament.title, tournament.slug, tournament.tier),
+  );
+  count++;
+}
+
 for (const promo of PROMOTIONS) {
   const slug = promo.art.split('/').pop().replace('.svg', '');
   await writeFile(path.join(PUBLIC, 'images/promos', `${slug}.svg`), promoArt(promo.title, slug));
+  count++;
+}
+
+for (const banner of HOME_BANNERS) {
+  const slug = banner.art.split('/').pop().replace('.svg', '');
+  await writeFile(
+    path.join(PUBLIC, 'images/banners', `${slug}.svg`),
+    bannerArt(banner.title, slug, banner.emblem),
+  );
   count++;
 }
 
