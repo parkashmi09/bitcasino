@@ -26,7 +26,7 @@ What exists, what is stubbed, and what a real deployment would need.
 | `/tournaments` | ✅ Index plus `/tournaments/all/current` and `/tournaments/all/past`, over `data/tournaments.js` | The per-tournament detail page behind each card, and an `Opt in` that posts — both wait on the `bonus` service |
 | Search input | Renders, does nothing | Wire to `GET /api/games?q=` with debounce |
 | Log in / Register | ✅ Real, against `POST /api/v1/user/auth/*` | — |
-| Account area | The account menu, plus `/profile/notifications`, `/profile/rewards`, `/profile/boosts`, `/profile/account`, `/profile/security`, `/profile/settings` and `/profile/refer-a-friend` behind it — `ProfileLayout` already carries the reference's nine-tab bar, and `Loyalty` leaves it for `/loyalty` as the reference does | Phase 6: the KYC document upload, transactions, and the 2FA enable/disable routes the security page is waiting on |
+| Account area | The account menu, plus `/profile/notifications`, `/profile/rewards`, `/profile/boosts`, `/profile/account`, `/profile/security`, `/profile/settings` and `/profile/refer-a-friend` behind it — `ProfileLayout` carries the reference's nine-tab bar and every tab now leads somewhere, with `Loyalty` leaving it for `/loyalty` and `Tournaments` for `/tournaments`, both as the reference does | Phase 6: the KYC document upload, transactions, and the 2FA enable/disable routes the security page is waiting on |
 | Balance chip / Deposit | Not built — no made-up numbers | Phase 4: wallet drawer over `/user/wallet/*` |
 | Game frame | Placeholder panel | Provider launch iframe |
 | Skeleton | Component exists, unused | Add to rails and grids once data is async |

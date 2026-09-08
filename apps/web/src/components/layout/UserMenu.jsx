@@ -59,11 +59,15 @@ import { cn } from '@/lib/cn';
  * the same `cms/icons` illustrations at the same 20px, through `NavIcon`, so
  * the panel is the same object rather than a monochrome sketch of it.
  *
- * The destinations are not: `Loyalty`, `Rewards`, `Tournaments` and
- * `Notifications` are the four this app has routes for, and the rest are the
- * account area in Phase 6 (see `docs/09-roadmap.md`).
- * Those rows paint exactly as the reference draws them and are inert — see
- * `MenuRow`. `docs/11` records that as a deliberate difference.
+ * Every row now has a route behind it. `Tournaments` was the last to get one
+ * and, like `Loyalty`, it leaves the account area entirely — both go to a page
+ * of their own rather than a `/profile` tab, which is where the reference
+ * points them too.
+ *
+ * `MenuRow` still renders a row with no `to` as inert — painting exactly as the
+ * reference draws it, with no hover fill and no tab stop. Nothing uses that
+ * path today; it stays because it is the rule this project applies whenever a
+ * destination is not built yet, and `docs/11` records it.
  *
  * The reference carries unread counts on `Rewards` and `Tournaments`. Nothing
  * here counts anything, and a badge over a number we invented is the same lie

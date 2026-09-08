@@ -18,6 +18,7 @@ from so you can audit it before shipping.
 | `images/providers/*.svg` | 8 | Generated | Yours |
 | `images/promos/*.svg` | 3 | Generated | Yours |
 | `images/themes/*.svg` | 6 | Generated | Yours |
+| `images/tournaments/*.svg` | 8 | Generated — one per tournament, 1638x546 | Yours |
 | `icons/*.png` | 3 | Generated (180 / 192 / 512) | Yours |
 | `images/footer/crypto/*` | 12 | Coin marks, 40x40 | Public-domain / issuer marks |
 | `images/footer/social/*` | 5 | Network marks, 40x40 — `x.svg` drawn here | Yours / network marks |
@@ -90,8 +91,16 @@ signed-distance function for antialiased edges, so there is **no native image
 dependency** anywhere in the toolchain.
 
 Replacing them: overwrite the files, or edit `scripts/art.mjs` (`gameThumb` /
-`providerLogo` / `promoArt` / `themeArt`, or the `EMBLEMS` table) and re-run
-`npm run assets:gen`. Generated output is committed, so a fresh clone works
+`providerLogo` / `promoArt` / `themeArt` / `tournamentArt`, or the `EMBLEMS`
+table) and re-run `npm run assets:gen`.
+
+`tournamentArt` is the one drawing whose colour is **not** hashed from the slug.
+Every other piece here derives its palette from `palette(slug)`, which is what
+keeps a catalogue of fifty games from repeating itself; a tournament tier is the
+opposite problem — gold has to look like gold, and two gold tournaments have to
+match — so it reads a named `TIERS` ramp instead. There is one file per
+tournament rather than one per tier, because the title is engraved into the
+plate; the finished state is a CSS `grayscale(1)` over the same file. Generated output is committed, so a fresh clone works
 without running either script.
 
 ## What was deliberately not taken

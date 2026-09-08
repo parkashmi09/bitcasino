@@ -391,10 +391,16 @@ than a breakpoint.
 <Rail title="Best Slot games" href="/categories/video-slots">{cards}</Rail>
 ```
 
-The shell every horizontal row goes through — `GameRail` and `Testimonials`
-both render into it, because the reference site gives them identical chrome: a
-32px header line carrying the title and a "See all" link, a 20px gap, then the
-scroller.
+The shell every horizontal row goes through — `GameRail`, `Testimonials` and
+the tournaments page all render into it, because the reference site gives them
+identical chrome: a 32px header line carrying the title and a "See all" link, a
+20px gap, then the scroller.
+
+`headingClassName` overrides the title's type, and `className` its gap — `cn`
+is `twMerge`, so both genuinely replace the defaults. That is how `/tournaments`
+runs the same chrome as a subheading under its own `h1`: 18px `trunks` on an
+8px gap rather than 24px display `bulma` on 20px. The element stays an `h2`
+either way, which the reference's own `<span>` is not.
 
 Scrolling is **native** CSS scroll-snap, so touch, trackpad and keyboard all
 behave normally — the arrow buttons only call `scrollBy`. Arrow state is
@@ -452,6 +458,25 @@ band.
 
 Marks rest at `opacity-40` and snap to full on hover with no transition —
 the reference's `h-10 opacity-40 hover:opacity-100` verbatim.
+
+### `TournamentCard`
+
+One tournament on `/tournaments`. Values are read off the reference's own DOM,
+not a screenshot: `h-[24.625rem]` and `max-w-[36.125rem]`, `p-4`, 12px radius,
+`gohan`; `grid-rows-[1fr_1fr]` puts a `h-[11.375rem]` `object-cover` banner over
+a two-column body; the prize panel is `goku` at `h-44`, `px-4 py-5`, and the
+countdown tiles are 40px `gohan` squares under 8px captions.
+
+Fixed height, not content height, so a rail of them stays on one baseline —
+which is also why the title is `line-clamp-2`. The finished state is
+`grayscale(1)` over the **same** artwork plus a `popo` badge in place of the
+`roshi` one; there is no second image per tournament.
+
+Neither control works yet, and they are inert differently. `Opt in` is a real
+`disabled` button — there is no `bonus` service to post an entry to. The arrow
+would open `/tournaments/<slug>`, a detail page this project has not built, so
+it is a `span` with no role and no tab stop rather than a link to a 404. See
+`docs/11`.
 
 ### `ThemeRail`
 
