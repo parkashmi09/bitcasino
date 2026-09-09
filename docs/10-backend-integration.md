@@ -61,8 +61,8 @@ each one:
 
 | Phase | State |
 | --- | --- |
-| 0 — Environment and data foundation | Part done. `apps/api` retired from the workspace and the dev scripts; `vite.config.js` proxies `/api` to the gateway and `/socket.io` to user-service; `backend/.env` carries `CORS_ORIGIN` and `SOCKET_ALLOWED_ORIGINS`. **The catalogue seeder is not written and the sports kill switch is not flipped** — neither is needed for accounts. |
-| 1 — The API seam | **Done.** `lib/endpoints.js`, `lib/api.js`, and the registry wired into `backend/tools/verify-frontend-routes.js`, which passes. No adapters or query layer yet — those arrive with the catalogue in Phase 2, which is what needs them. |
+| 0 — Environment and data foundation | **Done.** `apps/api` deleted; `vite.config.js` proxies `/api` to the gateway and `/socket.io` to user-service; `backend/.env` carries `CORS_ORIGIN` and `SOCKET_ALLOWED_ORIGINS`; the `catalogue` seeder fills `gisgamesnew`, `gis_providers` and the five collection tables; the sportsbook kill switch is seeded off. See *What Phase 0 actually landed* below. |
+| 1 — The API seam | **Done in full.** `lib/endpoints.js` (25 paths), `lib/api.js`, `data/adapters/`, `queries/` on `@tanstack/react-query`, `useSiteConfig`, and the skeleton/error/empty states in `components/ui/QueryState.jsx`. 68 unit tests, plus `npm run verify:api` — a live contract check against a running gateway. See *What Phase 1 actually landed* below. |
 | 2 — Public catalogue | Not started. Pages still read `data/catalog.js`. |
 | 3 — Auth and session | **Done.** Register, log in, 2FA, refresh, logout, `/me`, route guards, and the full signed-in header cluster — wallet, recents, notifications, account. |
 | 4 — Socket transport and the wallet | Started early, from the header down. `GET /user/wallet/balances` is live behind the balance chip and the deposit drawer; the socket client, deposit addresses, withdrawals and history are not. |
@@ -216,6 +216,12 @@ Goal: the platform runs beside the web app, with a catalogue in it.
 - PostgreSQL ≥ 14 running; `npm run setup` writes `.env`, generates the eight
   secrets, creates the DB, migrates and seeds. `npm run setup:demo` adds staff,
   players with balances, and prints credentials.
+- **On an environment that is already configured, do not run `setup`.** It
+  writes `.env` and regenerates the secrets, which invalidates every token the
+  running deployment issued. Seed in place instead:
+  `node scripts/seed-data.js` for the config sets and
+  `node scripts/seed-data.js --demo` for staff and funded players. Both are
+  idempotent; `--only <set>` runs one.
 - Confirm `CORS_ORIGIN` in `backend/.env` contains `http://localhost:5173`
   (the shipped `.env.example` already lists it) and set
   `SOCKET_ALLOWED_ORIGINS` to the same — it has **no default**, and an unset
@@ -255,6 +261,71 @@ each service's own port, not to the gateway.
 **Done when:** `curl localhost:4000/api/v1/casino/games?limit=5` returns seeded
 rows through the gateway, and `npm run dev` from the repo root brings up the web
 app alone.
+
+### What Phase 0 actually landed
+
+Everything above, plus three things the plan did not anticipate. Landed
+2026-09-09; measured, not assumed.
+
+**The database was migrated but never seeded.** 36 migrations applied, 0
+pending — and `gisgamesnew` 0 rows, all five collection tables 0 rows,
+`siteconfig` **0 rows**, `js_games` 4 of 20, `wallets` 0. The `catalogue`
+seeder had in fact been written; it had simply never been run. So the honest
+reading of the phase table before this ran is that Phases 3 and 4 were done in
+*code* against a platform with no data in it — the balance chip could not have
+shown a real balance, because no wallet existed to hold one.
+
+Now: 44 games in `gisgamesnew` (24 from `catalog.js` + the 20 in-house),
+9 providers, 7 types, all five collections filled, 5 demo players funded
+10 000 INR each.
+
+**`gis_providers` is a second catalogue, and nothing derived it from the
+first.** `GET /casino/games/providers` reads the `gis_providers` table;
+`GET /casino/games/stats` counts `DISTINCT provider` on `gisgamesnew`. Seeding
+only the games left the two disagreeing — stats reporting nine providers while
+the providers list returned `{rows: [], total: 0}`, which is Phase 2's
+`/providers` page rendering empty on a catalogue that visibly has providers in
+it. The `catalogue` set now fills it.
+
+The table is one `text` column with **no primary key and no enforced unique
+index** (the generated model says so in its own header), so `ON CONFLICT` has
+no arbiter to name. Re-runnability there is `INSERT … WHERE NOT EXISTS`.
+
+**The sports kill switch is seeded, not clicked.** `sportsEnabled()` reads a
+*missing* `siteconfig` row as `true`, so an unconfigured deployment is one
+where sports is ON and only a stopped process hides it. Flipping it through
+`PUT /api/v1/admin/site-config/sports` is also not available on a fresh
+install: the seeded super-admin is role 1, and role 1 is refused at login with
+`STAFF_AUTH_TWO_FACTOR_ENROLMENT_REQUIRED` until somebody enrols 2FA.
+
+So the `siteconfig` set writes `sports` on every run, existing row included —
+it is the one flag whose value here is a deployment decision rather than a
+default to leave alone. `SEED_SPORTS_ENABLED=true` turns the board back on,
+which is step 4 of *Sports: excluded, and how to switch it on* below.
+
+`home_livesports` is left at its default `true`. It gates a home-page section
+this front end does not have, so nothing reads it; it becomes meaningful only
+if the sportsbook is switched on.
+
+**Two corrections to this document, from the running platform:**
+
+- `GET /user/wallet/balances` answers a **flat `{CURRENCY: "0.00000000"}` map**
+  of 28 currencies, not the `{userId, balances}` in the Phase 4 table.
+  `WalletMenu.jsx` already reads the flat shape, so the code was right and the
+  table was wrong.
+- `POST /api/v1/admin/auth/login` takes **`email`**, not the `identifier` that
+  the *player* login takes. They are different validators; only `user/auth`
+  accepts one field for username-or-email-or-phone.
+
+**Verified:** `npm run verify:modules`, `node tools/verify-frontend-routes.js`
+(18/517), `npm run db:verify` (163 models match), `npm run build`. Player login
+→ `/auth/me` → `/wallet/balances` returns `INR = 10000.00000000` over the
+gateway. The seeder is idempotent — a second `--only catalogue` run leaves 44
+games and 9 providers, not 88 and 18.
+
+**Still true and still cosmetic:** `GET /health` on the gateway answers `503
+degraded`, because the aggregator probes all four service targets and
+sports-service is deliberately stopped.
 
 ---
 
@@ -321,6 +392,105 @@ registry.
 > running. Reading `error.message` off that yields "Request failed", so
 > `api.js` maps unenveloped 5xx to `GATEWAY_UNAVAILABLE` / `SERVER_ERROR`
 > with a message that says what is actually wrong.
+
+### What Phase 1 actually landed
+
+The rest of it, on 2026-09-09: `data/adapters/`, `queries/` on
+`@tanstack/react-query`, `useSiteConfig`, and the loading/error/empty states.
+No page was migrated — that is Phase 2 — so nothing here changed a screen.
+
+**New:** `data/adapters/{categories,games,providers,siteConfig,index}.js`,
+`queries/{client,keys,params,games,providers,siteConfig,index}.js`,
+`components/ui/QueryState.jsx`, `scripts/verify-api-contract.mjs`, and three
+test files.
+**Modified:** `lib/endpoints.js` (7 catalogue paths + site-config, 25 total),
+`lib/api.js` (one fix, below), `main.jsx` (`QueryClientProvider`),
+`vite.config.js` (a `test` block), both `package.json`s.
+
+#### Three decisions worth recording
+
+**Provider slugs are derived, and resolved by lookup rather than inversion.**
+`gis_providers` is one `text` column — no id, no slug — and
+`GET /games/provider/:provider` takes the **name**. The static catalogue had
+hand-written slugs (`Northlight Studio` → `northlight`), which cannot survive a
+sync that brings several hundred studios. So the slug is derived
+(`northlight-studio`) and `/providers/:slug` resolves it by searching the
+providers list it already fetches. Inverting `slugify` would have to guess at
+capitalisation, which breaks on `In-House` and `NetEnt`. **Provider URLs
+therefore change** — `/providers/northlight` becomes
+`/providers/northlight-studio`. Nothing links to the old ones.
+
+**The query parameters are a module, not inline in the hooks.** Every
+catalogue validator is `.strict()` and they do not accept the same keys — a
+collection takes `page`+`limit` and refuses `type`; search takes `q`+`limit`
+and refuses `page`; the per-provider route refuses `provider`, which is in its
+path. Wrong key means **422 before the handler runs**, and a 422 on a list
+renders as an empty rail, so the mistake is invisible. `queries/params.js`
+holds all five builders, and `scripts/verify-api-contract.mjs` sends **those
+exact objects** to a live gateway — a script with its own hand-rolled params
+would verify the script rather than the app.
+
+**`useSiteConfig` never has a loading state, and fails open.** It returns a
+usable config immediately with every flag ON, matching what the backend answers
+for a missing row. Defaulting off would assemble the home page in front of the
+player. The failure path defaults the same way — losing the config must not
+hide the site — which is also why anything that has to be OFF when unknown does
+not belong in this flag set.
+
+#### Bugs found and fixed while building it
+
+**`apiWithMeta` bypassed the envelope check.** It has to read the raw body to
+see `meta`, and `raw: true` skips the `success !== true` guard that `send()`
+applies to unwrapped calls. A 200 carrying something that is not the envelope —
+the dev server answering `index.html` for an unmatched proxy path is the one
+that happens — returned `{data: null, meta: null}`, so every list in the app
+would have rendered its empty state instead of an error. An empty catalogue and
+a broken one must not look the same.
+
+**Deriving an asset path from a slug 404s, silently.** Two instances, both
+found by the contract check rather than by looking:
+
+- Five of nine provider logos. The slug is `northlight-studio`; the file is
+  `northlight.svg`. `assets.generated.js` was no help — it indexes the 68
+  reference studios, and our eight placeholder logos are written by a different
+  script and are not in it.
+- Three of seven category placeholders. `crash` is served from
+  `crash-instant-win.png`, `live-casino` from `live-games.png`, and
+  `video-slots` is an `.svg` where the rest are `.png`.
+
+A missing image reaches nothing — the browser draws its broken-image glyph and
+no error is logged — so both are now explicit tables, and the contract check
+asserts every path they can emit exists under `public/`. `logo` is **`null`**
+for a studio we have no art for, rather than a plausible-looking path: a real
+sync brings hundreds, and inventing a path just moves the 404 somewhere harder
+to find. That makes `Provider.logo` `string | null`, where `data/types.js`
+still declares `string` — Phase 2's renderer must handle it.
+
+#### Verification
+
+    npm test                    # 68 unit tests
+    npm run verify:api          # 35 live checks, needs the gateway up
+    npm run build
+    cd backend && node tools/verify-frontend-routes.js   # 25/517
+
+`npm run verify:api` is the one worth knowing about. It imports the app's own
+param builders and adapters, runs them against a live gateway, and asserts
+things the other three cannot:
+
+- every category and all five collections answer without a 422;
+- every row adapts to something **renderable** — a missing field produces
+  `undefined`, which renders as nothing rather than as an error;
+- `gis_providers` and `gisgamesnew` still agree on the provider count, which is
+  the Phase 0 defect that would return the moment a sync filled only one;
+- every catalogue `type` still maps to one of our seven;
+- a wrong parameter is still **refused** — it sends `offset` to `/games`,
+  `type` to a collection and `page` to search, and fails if any is accepted,
+  because the guarantee that a mistake is loud disappears silently if the
+  platform ever stops being `.strict()`.
+
+Confirmed in a browser as well: the app boots with no console output beyond
+Vite's own, the real modules fetch through the Vite proxy and adapt correctly,
+and all 58 distinct image URLs the adapters emit return 200.
 
 ---
 

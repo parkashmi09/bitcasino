@@ -27,4 +27,16 @@ export default defineConfig({
     },
   },
   build: { outDir: 'dist', sourcemap: true },
+  /**
+   * Most of what is tested here is a pure function over a JSON shape and needs
+   * no DOM. The exception is the query layer's React wiring — that a hook
+   * really does carry a platform response through `api.js` and an adapter and
+   * out as a renderable object — which needs a renderer, so the environment is
+   * `jsdom` for everything rather than split per file.
+   */
+  test: {
+    environment: 'jsdom',
+    include: ['src/**/*.test.{js,jsx}'],
+    restoreMocks: true,
+  },
 });

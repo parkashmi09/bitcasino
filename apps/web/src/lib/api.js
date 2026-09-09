@@ -227,11 +227,32 @@ async function send(url, { method, body, raw, auth, signal }, mayRefresh) {
   return parsed.data;
 }
 
-/** `meta` as well as `data` — pagination lives there, never in `data`. */
+/**
+ * `meta` as well as `data` — pagination lives there, never in `data`.
+ *
+ * It has to ask for the raw body to see `meta` at all, which means it also has
+ * to do the envelope check `send` does for unwrapped calls. Without it a 200
+ * carrying something that is not the envelope — the dev server answering
+ * `index.html` for a proxy path it did not match is the one that happens —
+ * would return `{data: null, meta: null}`, and every list in the app would
+ * render its empty state instead of an error. An empty catalogue and a broken
+ * one must not look the same.
+ */
 export async function apiWithMeta(path, options = {}) {
   const { query, ...rest } = options;
   const parsed = await api(buildUrl(path, query), { ...rest, raw: true });
-  return { data: parsed?.data ?? null, meta: parsed?.meta ?? null };
+
+  if (parsed === null) return { data: null, meta: null };
+
+  if (typeof parsed !== 'object' || parsed.success !== true) {
+    throw new ApiError({
+      code: 'MALFORMED_RESPONSE',
+      message: 'The server returned an unexpected response.',
+      status: 200,
+    });
+  }
+
+  return { data: parsed.data ?? null, meta: parsed.meta ?? null };
 }
 
 export { refreshSession };

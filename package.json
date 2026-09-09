@@ -3,8 +3,12 @@
   "private": true,
   "version": "0.1.0",
   "type": "module",
-  "workspaces": ["apps/web"],
-  "engines": { "node": ">=20.19" },
+  "workspaces": [
+    "apps/web"
+  ],
+  "engines": {
+    "node": ">=20.19"
+  },
   "scripts": {
     "dev": "npm run dev -w @bc/web",
     "dev:web": "npm run dev -w @bc/web",
@@ -14,7 +18,9 @@
     "preview": "npm run preview -w @bc/web",
     "lint": "npm run lint -w @bc/web",
     "assets:gen": "node scripts/generate-assets.mjs",
-    "fonts:fetch": "node scripts/fetch-fonts.mjs"
+    "fonts:fetch": "node scripts/fetch-fonts.mjs",
+    "test": "npm run test -w @bc/web",
+    "verify:api": "npm run verify:api -w @bc/web"
   },
   "devDependencies": {
     "concurrently": "^9.2.1"
