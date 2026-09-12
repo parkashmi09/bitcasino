@@ -10,20 +10,29 @@
     "lint": "eslint .",
     "test": "vitest run",
     "test:watch": "vitest",
-    "verify:api": "node scripts/verify-api-contract.mjs"
+    "verify:api": "node scripts/verify-api-contract.mjs",
+    "verify:socket-events": "node scripts/verify-socket-events.mjs"
   },
   "dependencies": {
     "@tanstack/react-query": "^5.102.8",
     "clsx": "^2.1.1",
+    "qrcode": "^1.5.4",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
     "react-router-dom": "^7.9.1",
+    "socket.io-client": "^4.8.3",
     "tailwind-merge": "^3.3.1"
   },
   "devDependencies": {
+    "@eslint/js": "^9.39.5",
     "@tailwindcss/vite": "^4.1.13",
     "@testing-library/react": "^16.3.3",
     "@vitejs/plugin-react": "^5.0.4",
+    "eslint": "^9.39.5",
+    "eslint-plugin-react": "^7.37.5",
+    "eslint-plugin-react-hooks": "^7.1.1",
+    "eslint-plugin-react-refresh": "^0.5.6",
+    "globals": "^17.12.0",
     "jsdom": "^29.1.1",
     "tailwindcss": "^4.1.13",
     "vite": "^7.1.7",

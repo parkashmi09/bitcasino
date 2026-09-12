@@ -40,6 +40,19 @@ import { cn } from '@/lib/cn';
  * the same page the sidebar link and the account menu's own Tournaments row
  * open, which is what the reference's tab points at. The other seven are
  * siblings under `/profile`.
+ *
+ * ## `Transactions` is a TENTH tab, and the reference has nine
+ *
+ * A deliberate divergence, recorded in `docs/11`. Phase 6 built the
+ * transactions screen over `GET /user/history`, and a page nothing links to
+ * is a page nobody finds. The reference reaches its own money history from
+ * inside the wallet drawer; this build has the drawer too, but the page is
+ * account-shaped — it is the player's record rather than a step in a deposit
+ * — so it sits with the rest of the account.
+ *
+ * Placed after `Security` rather than at the end, because the bar reads
+ * roughly outward from the account itself and `Refer a Friend` is the tail of
+ * that order on the reference.
  */
 const TABS = [
   { label: 'Loyalty', to: '/loyalty' },
@@ -48,6 +61,7 @@ const TABS = [
   { label: 'Boosts', to: '/profile/boosts' },
   { label: 'Account', to: '/profile/account' },
   { label: 'Security', to: '/profile/security' },
+  { label: 'Transactions', to: '/profile/transactions' },
   { label: 'Settings', to: '/profile/settings' },
   { label: 'Notifications', to: '/profile/notifications' },
   { label: 'Refer a Friend', to: '/profile/refer-a-friend' },

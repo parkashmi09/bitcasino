@@ -126,7 +126,7 @@ export function UserMenu() {
         <MenuPanel
           label="Account"
           sheet
-          className="border-0 p-1 shadow-md ring-1 ring-bulma/10 sm:w-72"
+          className="border-0 p-1 shadow-md ring-1 ring-bulma/10 rounded-b-i-sm sm:w-72 sm:rounded-i-sm"
         >
           {/* The greeting band. `truncate` because a display name is free text
               and the panel is 288px wide. */}

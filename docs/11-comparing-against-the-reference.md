@@ -40,6 +40,39 @@ so measuring pixels off a screenshot measures the screenshot.
 
 Look at the two images, list what differs, then go and **measure** each one.
 
+### When a screenshot is all there is
+
+Sometimes there is no DOM to ask. The wallet panel is the case: it is behind
+somebody else's session on a site that cannot be framed, and all that exists is
+a phone screenshot of it. Do not eyeball that. Put the image through a canvas
+in a tab of THIS app — same origin, so `getImageData` is allowed — and read the
+pixels:
+
+```js
+const img = await new Promise((r) => { const i = new Image(); i.onload = () => r(i); i.src = '/ref.png'; });
+const c = document.createElement('canvas');
+c.width = img.naturalWidth; c.height = img.naturalHeight;
+c.getContext('2d').drawImage(img, 0, 0);
+const px = c.getContext('2d').getImageData(0, 0, c.width, c.height);
+const at = (x, y) => { const i = (y * px.width + x) * 4; return [px.data[i], px.data[i+1], px.data[i+2]]; };
+
+// Then print RUNS of colour along one line. Every edge in the design is a
+// transition in this list, and the numbers are exact:
+//   37-245:249,247,246   the row card, gohan
+//   246-257:255,255,255  the panel's own gutter
+```
+
+Two rules make it trustworthy:
+
+- **Find the scale from something whose size you already know.** A 40px header
+  control measuring 26px in the image gives 0.644, and every other number
+  divides by it. The wallet panel came out at 360px wide, 40px rows on a 4px
+  pitch, a 48px footer — all round numbers, which is the check that the scale
+  is right. If the results are not round, the scale is wrong.
+- **Colours come back as tokens.** `249,247,246` is `gohan`, `232,232,232` is
+  `hit`, `245,128,70` is `piccolo` under antialiasing. That is how we know the
+  reference's rows are filled and its selected row is only outlined.
+
 ## 3. Measure, from both DOMs
 
 This is the part that actually settles a question. Run the same expression on
@@ -169,6 +202,37 @@ Two cautions:
 - The reference sends `X-Frame-Options`, so this technique is for **our** app
   only. The reference's mobile behaviour comes from step 4.
 
+### Open every panel while you are down there
+
+`documentElement.scrollWidth` catches a header that overflows. It does **not**
+catch a dropdown that hangs off the screen, because an absolutely positioned
+panel overhanging the LEFT edge adds no scroll width at all — it is simply not
+there. Open each one and read its own rect:
+
+```js
+p.getBoundingClientRect();          // x >= 0 and right <= innerWidth, or it is off-screen
+```
+
+That is how the wallet panel was found sitting at **`x = -162` on a 215px
+viewport** with two thirds of the currency list outside the window. It is the
+one header control in the middle slot, so its `end-0` anchor points at the
+middle of the bar and a 300px card grows off the left. Both panels are
+`MenuPanel`'s `sheet` below `sm` now; the assertion to keep is `inView` at 360,
+390 and 639, and the 300px/288px cards back at 640.
+
+Two things the measurement itself will lie about:
+
+- **A background tab freezes CSS animations at their first keyframe.** These
+  panels open with `animate-menu-in`, whose `from` is `scale(0.95)
+  translateY(-4px)`, so every rect comes back 5% small and 4px high — a 200px
+  sheet measures 190 at `x = 10`. Set `p.style.animation = 'none'` before
+  reading anything.
+- **`getComputedStyle().borderRadius` is the only way to check a radius**,
+  because `tailwind-merge` does not know this project's `i-` scale and will
+  keep both `sm:rounded-i-sm` and `sm:rounded-i-md` on one element. The class
+  list looks right and the stylesheet's emit order decides. `sheet` therefore
+  ships no radius of its own — see `HeaderMenu.jsx`.
+
 ## 6. Write the numbers down where the code is
 
 Every measurement that decides a value belongs in the component's own comment,
@@ -188,7 +252,7 @@ signed-in header:
 | The reference | Here | Why |
 | --- | --- | --- |
 | Real coin artwork from `cashier-module.imgix.net` | A tinted disc with the ticker's initial | Those are the coins' trademarks |
-| A live notification feed behind the bell | Three fixed rows from `data/notifications.js` | No feed route exists in user-service — `club-broadcasts` and the `social` socket are neither of them this. Same seam as `catalog.js`. The pip is real either way: it counts unread rows and `Mark all as read` puts it out for good |
+| A live notification feed behind the bell | ✅ The platform's own feed, over the public `C.NOTIFICATION` socket event | This row used to say no feed route existed in user-service. There is no *route* — it is a socket event, and it had answered `SOCKET_HANDLER_FAILED` to every caller since it was written, because the handler ordered by an `id` column the `notifications` table does not have. Phase 8 fixed the backend and deleted the fixture. The pip counts unread rows against a read set in `localStorage`, keyed on a derived `date\|title` because the row has no id of its own |
 | The account menu's nine rows all lead somewhere | ✅ They all do, and so do the account tab bar's nine tabs | `Tournaments` was the last gap in both, and closing it closed them. The inert form — `aria-disabled`, no hover fill, no tab stop, painting exactly as the reference draws a live row, since greying them made the panel read as half broken — is still what `MenuRow` and `ProfileTab` fall back to; nothing uses it today |
 | A live loyalty tier, multiplier and points total in the card | Fixed values from `data/loyalty.js` | The platform in `backend/` has no loyalty service — `modules/club` is the affiliate club, not a player tier. Same seam as `catalog.js` |
 | Unread counts on `Rewards` and `Tournaments` | No badges | Nothing here counts anything. `MenuRow` takes a `badge`; no caller passes one yet |
@@ -215,7 +279,9 @@ signed-in header:
 | `Opt in` enters you into the tournament | A `disabled` button | There is no `bonus` service to post an entry to yet (`docs/10`). `disabled` is a state a button really has, so this one is honest rather than inert |
 | `Coming soon` is `bulma` while `Active now` and `Finished` beside it are `trunks` | Reproduced as measured | It reads like a slip on their side, but it is what `getComputedStyle` returns on all three headings. Fidelity is the default; harmonising them is a change worth making deliberately, not by assuming a transcription error |
 | No header search below `md` | A search icon stays | The reference puts search in a bottom tab bar this project does not have |
-| The balance stays visible at every width | Drops below `sm` | Same reason: six 40px controls plus the amount overflow a 360px phone, and the amount is one tap away in the panel |
+| The balance stays visible at every width | Drops below 399px | Same reason: this header's three slots measure `32 + 78 + 144 + 132 = 386px` with the amount in, and the brand block is what gives when they do not fit — its 40px hamburger will not shrink, so it sits under the wallet box instead. 399 is that measurement, not a breakpoint; every phone from an iPhone 12 up keeps the number. It was `sm` (640) until the panel was measured, which hid it on phones that had room |
+| The wallet panel's rows are `BTC` over `Bitcoin` in two lines, eight decimal places, and a `Show all currencies` step | One line of `Bitcoin (BTC)`, two places in the currency's display unit, every currency listed, and the reference's `Hide 0 balances` switch | All of it measured off the reference's own phone panel — pixel runs read out of a screenshot, since the panel cannot be framed. `WalletMenu.jsx` carries the table. The two-line row and the eight zeroes were this project's, and they were the loudest thing wrong with the panel on a phone |
+| A Bitcoin balance reads `0.00 mBTC` | Reproduced — `shift: 3` on the currency and a `unit` beside the number | The reference's wallet is denominated in milli-BTC by default. `walletBalance` moves the decimal point on the STRING, the way `formatBalance` already refuses to parse one. `formatBalance` is still what the deposit drawer and the ledger use, where the eight stored places are the point |
 | `shrink-0` on the search pill | It shrinks | Theirs overflows at the `md` boundary; ours does not |
 | The refer page’s split band has no responsive classes at all — `flex gap-4` with a `w-2/5` column and a `min-w-[402px]` FAQ card | It stacks below `xl` and is their two columns above it | Measured at a 767px viewport the reference’s own statistics column sits outside the viewport. Two columns is the design; overflowing off the screen is not |
 | The dotted step connector is a sibling above the list, with a fixed `h-52` on its vertical run | Inset off the list — `start-4` and `top-10` | Positioned their way the rule lands 24px above the badge centres instead of through them, and the fixed height is tied to the exact length of their step copy |
@@ -237,6 +303,11 @@ signed-in header:
 | The benefit and progress rows ship twice — a carousel and a grid, one of them `hidden` | One row that changes `display` at `xl` | Same result, half the DOM, and the two cannot drift apart |
 | The whole `/loyalty` page is forced light (`theme-bitcasino-light`) | Only the hero is (`theme-light`) | Only the hero needs it: its type sits on a pale photograph. The rest is drawn from tokens and follows the app theme |
 | The three promise lines under the banner are 16px at every width | 14px below `sm` | Three columns of 16px on a 390px phone breaks "Real money rewards for everybody & no wagering requirement" over seven lines |
+| The home banner row keeps `flex justify-between gap-4` at every width, and below `sm` its three cards shrink to three *different* min-content widths (149, 104 and 132px at a 215px viewport) and overflow the column | A carousel below `sm` — one card at 63% of the viewport, its neighbours peeking, three dots, auto-advancing and looping | The row is the reference's desktop markup and is reproduced from `sm` up. What its phone site actually shows in that slot is the carousel, which is what `HomeBanner` now draws; the overflowing row was the bug being fixed, not a thing to copy |
+| The featured rail's tile is a 104x140 box on a phone with the **wide** crop inside it, so it renders 104x80 and that rail is 60px shorter than every other | The portrait crop below `sm`, so the tile fills its 104x140 box | Same box, different asset — a phone session was seen serving the portrait crop into it, and 104x140 is the portrait ratio. Filling the box keeps every rail on one baseline, which is what `GameCard` promises |
+| `/profile/security` has two cards and no session list | A third card, `Where you are signed in`, over `GET /auth/sessions` | The sessions are real, and an account page that can change a password but cannot show where the account is signed in is missing the half of the story that matters after a password is stolen. It is drawn in the page's own idiom — same `Card`, same `Row`, same measured heading — rather than invented chrome. There is no per-session revoke route on the platform, so it offers sign-out-everywhere and does not draw a per-row button that could not work |
+| Their 2FA switch is the whole of the two-factor card | The same switch, plus a line when a setup was begun and never confirmed | `GET /2fa/status` answers `hasInitiated` alongside `isEnabled`, so an abandoned setup is a state the platform can name and the card can too. A player whose authenticator is showing codes for a secret the account is not using should not have to discover that by failing to sign in |
+| The account tab bar has nine tabs | Ten — `Transactions` sits after `Security` | Phase 6 built the transactions screen, and a page nothing links to is a page nobody finds. The reference reaches its own money history from inside the wallet drawer; this one is account-shaped — the player's record rather than a step in a deposit — so it sits with the rest of the account |
 
 ## The state as of the last comparison
 
@@ -331,3 +402,30 @@ put it "under the hero" — it does not, anywhere, and one `Array.from(col.child
 dump settled it. Ours carries one band the reference's column does not
 (`Testimonials`); the rail heights differ by 24px and `Themes` by 110px, both
 still open.
+
+And the same column **at a phone width**, which is where the sizes were wrong
+for longest. Measured on the reference signed in, in a device-emulated tab at
+215px — `resize_window` cannot move an emulated viewport either, so this is
+whatever DevTools is set to, and the numbers below hold at every width under
+`sm` anyway:
+
+```
+main             px-4 (16), md:px-8              gutter 16
+column           flex flex-col gap-8             32px between every section
+banner row       flex justify-between gap-4      168x410, three children at
+                                                 149 / 104 / 132 wide —
+                                                 min-content, and overflowing
+rail section     flex flex-col gap-5             header 32 (56 when it wraps)
+rail scroller    snap-x snap-mandatory
+  track          flex -ml-3                      the 12px gap, as -ml/pl
+  slide          shrink-0 snap-start pl-3        116 = 104 + 12
+  tile           w-[104px] md:w-[124px] lg:w-[140px]
+                 [&_img]:aspect-[210/282]        = 140/188
+  featured tile  max-w-26 max-h-35               104x140 …
+                 sm:max-w-61 sm:max-h-47         … then 244x188
+```
+
+`w-[104px] md:w-[124px] lg:w-[140px]` is the line worth keeping in mind: this
+project had `w-[124px] md:w-[140px]`, the same ladder one breakpoint early, so
+every tile on every phone was a fifth too wide. It is not visible at 1536px,
+which is why it survived several passes.

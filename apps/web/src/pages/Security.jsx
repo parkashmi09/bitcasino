@@ -1,8 +1,18 @@
-import { useCallback, useEffect, useId, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/Button';
-import { Icon } from '@/components/ui/Icon';
+import { Dialog } from '@/components/ui/Dialog';
+import { Skeleton } from '@/components/ui/Skeleton';
+import { Switch } from '@/components/ui/Switch';
+import { CodeField, PasswordField } from '@/components/ui/PasswordField';
 import { useAuth } from '@/auth/AuthProvider';
+import {
+  useBeginTwoFactor,
+  useCompleteTwoFactor,
+  useDisableTwoFactor,
+  useSessions,
+  useTwoFactorStatus,
+} from '@/queries';
 import { api, ApiError } from '@/lib/api';
 import { ENDPOINTS } from '@/lib/endpoints';
 import { cn } from '@/lib/cn';
@@ -10,9 +20,10 @@ import { cn } from '@/lib/cn';
 /**
  * `/profile/security`.
  *
- * Two cards under the account tab bar: the password, and two-factor
- * authentication. That is the whole page on the reference — no sessions list,
- * no device history, nothing else.
+ * Three cards under the account tab bar: the password, two-factor
+ * authentication, and the account's active sessions. The reference has the
+ * first two and stops there — no session list, no device history — so the
+ * third is a deliberate addition, argued below.
  *
  * Every number below was read off `bitcasino.io/profile/security` itself, with
  * `getBoundingClientRect` and `getComputedStyle` on each piece, by the
@@ -42,31 +53,31 @@ import { cn } from '@/lib/cn';
  * "fix" the pair into one component should know it is a difference in the
  * reference, not a mistake here — `docs/11` records it.
  *
- * ## What is real
+ * ## What is real — all of it, as of Phase 6
  *
  * `Update` opens a dialog that calls `POST /api/v1/user/auth/change-password`
- * with `{currentPassword, newPassword}` — a live endpoint, already registered
- * in `lib/endpoints.js`. The 2FA row reads `two_fa_status` off `/auth/me`, so
- * `Active` / `Inactive` is the account's real state.
+ * with `{currentPassword, newPassword}`.
  *
- * **The toggle does not toggle.** The platform in `backend/` has no route to
- * turn 2FA on or off: `modules/auth` serves `me`, `sessions`, `logout` and
- * `change-password` and nothing else, and the only 2FA path anywhere is
- * `POST /email/2fa/reset`, which is a public *recovery* flow, not a setting.
- * `docs/10` lists `POST /2fa/enable` under Phase 6 as work still to do. So the
- * switch paints exactly as the reference draws it and is `aria-disabled` with
- * a title saying why — the rule the account menu's unbuilt rows and the
- * account page's `Start verification` both follow. When those routes land,
- * this is a `useState` and an `api()` call away.
+ * **The toggle now toggles.** An earlier version of this file said the
+ * platform had no route to turn 2FA on or off — "the only 2FA path anywhere
+ * is `POST /email/2fa/reset`". That was wrong: `modules/twofa` mounts five
+ * player routes at `/api/v1/user/2fa/*`, and the switch drives four of them
+ * through a two-step setup dialog and a disable dialog. The state comes from
+ * `GET /2fa/status` rather than from `/auth/me`, because `status` is the
+ * module's own answer and carries `hasInitiated` besides — an abandoned setup
+ * is a real state and `two_fa_status` cannot express it.
+ *
+ * ## The third card is NOT on the reference
+ *
+ * `bitcasino.io/profile/security` has two cards and no session list. This
+ * build adds one, because `GET /auth/sessions` exists, the sessions are real,
+ * and an account page that can change a password but cannot show where the
+ * account is signed in is missing the half of the story that matters after a
+ * password is stolen. It is drawn in the page's own idiom rather than invented
+ * chrome, and `docs/11` records it as a deliberate divergence.
  */
 export function Security() {
-  const { user } = useAuth();
   const [dialogOpen, setDialogOpen] = useState(false);
-
-  // `/auth/me` answers `two_fa_status`; the session payload the login response
-  // carries calls the same flag `twoFactorEnabled`. Either can be the one that
-  // landed first, so both are read — see `AuthProvider`, which merges them.
-  const twoFactorOn = Boolean(user?.two_fa_status ?? user?.twoFactorEnabled);
 
   return (
     <div className="grid gap-2">
@@ -99,33 +110,213 @@ export function Security() {
       {/* The page divider, at the column's full width rather than the card's. */}
       <hr className="h-px border-0 bg-beerus" />
 
-      <Card>
-        {/* 18/28 weight 500 — the reference's `h3.text-lg` here. See above. */}
-        <h2 className="font-primary text-lg leading-7 font-medium tracking-normal text-bulma">
-          Two-factor authentication
-        </h2>
-        <hr className="h-px border-0 bg-beerus" />
-        <Row
-          label={
-            <>
-              <span className="text-sm leading-5 text-bulma">App Authentication</span>{' '}
-              <span className="text-sm leading-5 text-trunks">
-                {twoFactorOn ? 'Active' : 'Inactive'}
-              </span>
-            </>
-          }
-        >
-          <Switch
-            checked={twoFactorOn}
-            label="App Authentication"
-            reason="Turning two-factor authentication on or off is not available yet."
-          />
-        </Row>
-      </Card>
+      <TwoFactorCard />
+
+      <hr className="h-px border-0 bg-beerus" />
+
+      <SessionsCard />
 
       <ChangePasswordDialog open={dialogOpen} onClose={() => setDialogOpen(false)} />
     </div>
   );
+}
+
+/**
+ * Two-factor authentication, over the four `/2fa/*` routes.
+ *
+ * The switch is the reference's, and what sits behind it is a state machine
+ * with three positions rather than two:
+ *
+ *   isEnabled: false, hasInitiated: false   never set up
+ *   isEnabled: false, hasInitiated: true    a secret was minted, never confirmed
+ *   isEnabled: true                         on
+ *
+ * The middle one is why `hasInitiated` is read at all. A player who scanned a
+ * QR and then closed the tab has an authenticator showing codes for a secret
+ * the account is not using, and a card that said only "Inactive" would leave
+ * them to discover that by trying to sign in. It says so instead, and the
+ * setup dialog mints a fresh secret when they come back — which is correct,
+ * because `POST /2fa/enable` overwrites the stored one and the old entry in
+ * their app is already dead.
+ */
+function TwoFactorCard() {
+  const { data, isPending, isError } = useTwoFactorStatus();
+  const [setupOpen, setSetupOpen] = useState(false);
+  const [disableOpen, setDisableOpen] = useState(false);
+
+  const enabled = Boolean(data?.isEnabled);
+  const halfSet = !enabled && Boolean(data?.hasInitiated);
+
+  return (
+    <Card>
+      {/* 18/28 weight 500 — the reference's `h3.text-lg` here. See above. */}
+      <h2 className="font-primary text-lg leading-7 font-medium tracking-normal text-bulma">
+        Two-factor authentication
+      </h2>
+      <hr className="h-px border-0 bg-beerus" />
+
+      <Row
+        label={
+          <>
+            <span className="text-sm leading-5 text-bulma">App Authentication</span>{' '}
+            <span className="text-sm leading-5 text-trunks">
+              {isPending ? '…' : isError ? 'Unavailable' : enabled ? 'Active' : 'Inactive'}
+            </span>
+          </>
+        }
+      >
+        {isPending ? (
+          <Skeleton className="h-6 w-11 rounded-full" />
+        ) : (
+          <Switch
+            checked={enabled}
+            label="App Authentication"
+            /**
+             * A failed status read drops `onChange`, which is what turns the
+             * switch back into the reporting `div` — see the component. It is
+             * the one case it must not act on: flipping it would begin a
+             * setup on an account whose real state is unknown, and
+             * `POST /2fa/enable` answers 409 on one already enabled.
+             */
+            {...(isError
+              ? { reason: 'Could not read your two-factor status. Reload the page.' }
+              : { onChange: () => (enabled ? setDisableOpen(true) : setSetupOpen(true)) })}
+          />
+        )}
+      </Row>
+
+      {halfSet && (
+        <p className="text-sm leading-5 text-trunks">
+          You started setting this up but never confirmed a code, so it is not
+          protecting your account yet. Turning it on issues a new QR code —
+          delete the old entry from your authenticator app.
+        </p>
+      )}
+
+      <TwoFactorSetupDialog open={setupOpen} onClose={() => setSetupOpen(false)} />
+      <TwoFactorDisableDialog open={disableOpen} onClose={() => setDisableOpen(false)} />
+    </Card>
+  );
+}
+
+/**
+ * Where the account is signed in.
+ *
+ * `GET /auth/sessions` answers every unrevoked, unexpired refresh session.
+ * There is **no per-session revoke route** — `POST /auth/logout` takes a
+ * `refreshToken` for one or `{allSessions: true}` for all, and nothing
+ * addresses a session by id — so this offers the one action that exists and
+ * does not draw a per-row button that could not work.
+ *
+ * The current session is not marked, and cannot be: the list carries no
+ * session id the client can match its own token against, and guessing from
+ * the user-agent would mark every tab in the same browser. Rather than
+ * labelling the wrong row, the button says plainly that it signs this device
+ * out too.
+ */
+function SessionsCard() {
+  const { logout } = useAuth();
+  const navigate = useNavigate();
+  const { data, isPending, isError } = useSessions();
+  const [busy, setBusy] = useState(false);
+
+  const sessions = Array.isArray(data) ? data : [];
+
+  async function signOutEverywhere() {
+    setBusy(true);
+    try {
+      await api(ENDPOINTS.logout, { method: 'POST', body: { allSessions: true } });
+    } catch {
+      // The local session is cleared regardless. A failed call leaves the
+      // OTHER devices signed in, which is worse — but staying signed in here
+      // as well helps nobody, and `logout()` below is what the player asked
+      // for on this device.
+    } finally {
+      await logout();
+      navigate('/login', { replace: true });
+    }
+  }
+
+  return (
+    <Card>
+      <h2 className="font-primary text-lg leading-7 font-medium tracking-normal text-bulma">
+        Where you are signed in
+      </h2>
+      <hr className="h-px border-0 bg-beerus" />
+
+      {isPending ? (
+        <div className="grid gap-2">
+          {[0, 1].map((row) => (
+            <Skeleton key={row} className="h-12 rounded-i-sm" />
+          ))}
+        </div>
+      ) : isError ? (
+        <p className="text-sm leading-5 text-trunks">
+          Could not load your sessions. Reload the page to try again.
+        </p>
+      ) : sessions.length === 0 ? (
+        /* Not reachable in practice — reading this list requires a session,
+           so there is always at least one. Rendered anyway rather than
+           crashing on an empty array if the server ever disagrees. */
+        <p className="text-sm leading-5 text-trunks">No active sessions.</p>
+      ) : (
+        <ul className="grid gap-2">
+          {sessions.map((session) => (
+            <li
+              key={session.id}
+              className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 rounded-i-sm bg-goku px-3 py-2.5"
+            >
+              <span className="text-sm leading-5 text-bulma">
+                {/* `device_label` is the server's own summary of the
+                    user-agent and is null for a client it cannot summarise,
+                    such as curl. The raw agent is not printed in its place —
+                    it is 120 characters of version numbers. */}
+                {session.device_label || 'Unrecognised device'}
+              </span>
+              <span className="text-xs leading-4 text-trunks tabular-nums">
+                {session.ip_address ?? 'unknown IP'} · last used{' '}
+                {formatWhen(session.last_used_at ?? session.created_at)}
+              </span>
+            </li>
+          ))}
+        </ul>
+      )}
+
+      <Row label={`${sessions.length || 'No'} active session${sessions.length === 1 ? '' : 's'}`}>
+        <Button
+          variant="secondary"
+          onClick={signOutEverywhere}
+          disabled={busy || isPending}
+          className="text-base"
+        >
+          {busy ? 'Signing out…' : 'Sign out everywhere'}
+        </Button>
+      </Row>
+
+      <p className="text-xs leading-4 text-trunks">
+        This signs out every device, including this one.
+      </p>
+    </Card>
+  );
+}
+
+/**
+ * A timestamp as something a person reads.
+ *
+ * Relative under a day because "3 hours ago" is what tells somebody whether a
+ * session is theirs; absolute beyond that, because "14 days ago" is not.
+ */
+function formatWhen(value) {
+  if (!value) return 'unknown';
+  const then = new Date(value);
+  if (Number.isNaN(then.getTime())) return 'unknown';
+
+  const seconds = Math.round((Date.now() - then.getTime()) / 1000);
+  if (seconds < 90) return 'just now';
+  if (seconds < 3600) return `${Math.round(seconds / 60)} min ago`;
+  if (seconds < 86_400) return `${Math.round(seconds / 3600)} h ago`;
+
+  return then.toLocaleDateString(undefined, { day: 'numeric', month: 'short' });
 }
 
 /**
@@ -165,56 +356,17 @@ function Row({ label, children }) {
   );
 }
 
-/**
- * The 2FA switch: a 44x24 track on a 100px radius with a 16px knob inset 4px,
- * exactly the reference's. `beerus` off, `piccolo` on.
- *
- * `role="switch"` on a `div` rather than a `<button>`: this one has nothing to
- * press. A `<button disabled>` is skipped by a screen reader, so the state it
- * is reporting — which is the whole point of the control — would be
- * unreachable. `aria-disabled` announces both the state and the fact that it
- * cannot be changed, and `title` says why on hover. Same rule `MenuRow` uses
- * for the account menu's unbuilt rows.
- */
-function Switch({ checked, label, reason }) {
-  return (
-    <div
-      role="switch"
-      aria-checked={checked}
-      aria-disabled="true"
-      aria-label={label}
-      title={reason}
-      className={cn(
-        'relative h-6 w-11 shrink-0 rounded-full p-1 transition-colors',
-        checked ? 'bg-piccolo' : 'bg-beerus',
-      )}
-    >
-      <span
-        aria-hidden="true"
-        className={cn(
-          'absolute top-1 block size-4 rounded-full bg-gohan transition-all duration-200',
-          checked ? 'start-6' : 'start-1',
-        )}
-      />
-    </div>
-  );
-}
-
-/** Matches the dialog enter/leave animations in index.css. */
-const ANIMATION_MS = 150;
-
 /** The backend's rule, from `auth.validators.js`: 10-200, no composition rule. */
 const MIN_LENGTH = 10;
+
 
 /**
  * What `Update` opens.
  *
- * Same chrome as `ClaimRewardDialog` on the rewards page — one card, an
- * overlay that closes on click, Escape to dismiss, focus returned to the
- * opener, body scroll locked while it is up. Built here rather than shared
- * because the two differ in everything below the frame, and a `Dialog`
- * abstraction over two callers would be one indirection for no reuse; if a
- * third lands, extract it then.
+ * The chrome — overlay, panel, Escape, focus return, scroll lock — is
+ * `components/ui/Dialog.jsx` now. An earlier version of this file built it
+ * inline and said "if a third lands, extract it then"; Phase 6 landed three
+ * more, so it did.
  *
  * ## The copy is NOT the reference's, deliberately
  *
@@ -243,59 +395,18 @@ function ChangePasswordDialog({ open, onClose }) {
   const [fieldErrors, setFieldErrors] = useState({});
   const [busy, setBusy] = useState(false);
   const [done, setDone] = useState(false);
-  // The panel stays mounted for one animation after `open` goes false, so the
-  // zoom-out is not cut off by React unmounting the tree.
-  const [closing, setClosing] = useState(false);
 
   const firstFieldRef = useRef(null);
-  const openerRef = useRef(null);
 
   useEffect(() => {
-    if (!open) return undefined;
-
-    openerRef.current = document.activeElement;
-    setClosing(false);
+    if (!open) return;
     setCurrent('');
     setNext('');
     setConfirm('');
     setError(null);
     setFieldErrors({});
     setDone(false);
-
-    const { overflow } = document.body.style;
-    document.body.style.overflow = 'hidden';
-    const id = window.setTimeout(() => firstFieldRef.current?.focus(), 0);
-
-    return () => {
-      window.clearTimeout(id);
-      document.body.style.overflow = overflow;
-    };
   }, [open]);
-
-  const close = useCallback(() => {
-    setClosing(true);
-    window.setTimeout(() => {
-      setClosing(false);
-      onClose();
-      openerRef.current?.focus?.();
-    }, ANIMATION_MS);
-  }, [onClose]);
-
-  useEffect(() => {
-    if (!open) return undefined;
-    const onKey = (event) => {
-      if (event.key === 'Escape') {
-        event.stopPropagation();
-        close();
-      }
-    };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [open, close]);
-
-  if (!open && !closing) return null;
-
-  const leaving = closing || !open;
 
   /**
    * Checked here as well as on the server, because every one of these can be
@@ -360,167 +471,310 @@ function ChangePasswordDialog({ open, onClose }) {
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      <div
-        role="presentation"
-        onClick={close}
-        className={cn(
-          'absolute inset-0 bg-popo/50',
-          leaving ? 'animate-overlay-out' : 'animate-overlay-in',
-        )}
-      />
-
-      <div
-        role="dialog"
-        aria-modal="true"
-        aria-label="Change password"
-        className={cn(
-          'relative grid w-full max-w-[448px] gap-4 rounded-i-md bg-goku p-4',
-          'shadow-lg ring-1 ring-bulma/10 outline-none',
-          leaving ? 'animate-dialog-out' : 'animate-dialog-in',
-        )}
-      >
-        <div className="flex items-start justify-between gap-3 border-b-[0.5px] border-beerus pb-4">
-          <h2 className="font-primary text-lg leading-7 font-medium tracking-normal text-bulma">
-            Change password
-          </h2>
-          <button
-            type="button"
-            onClick={close}
-            aria-label="Close"
-            className="-me-1 -mt-1 grid size-8 shrink-0 cursor-pointer place-items-center rounded-i-sm text-bulma transition-colors hover:bg-heles"
-          >
-            <Icon name="close" size={18} />
-          </button>
+    <Dialog open={open} onClose={onClose} title="Change password" initialFocus={firstFieldRef}>
+      {done ? (
+        <div className="grid gap-4">
+          <p className="text-base leading-6 text-bulma">Your password has been changed.</p>
+          {/* Not a nicety: `changePassword` revokes every session for the
+              account, this one included, so the tab is already holding a dead
+              refresh token. Saying so beats a 401 five minutes later. */}
+          <p className="text-sm leading-5 text-trunks">
+            Every device signed in to this account has been signed out, including
+            this one. Sign in again with your new password.
+          </p>
+          <Button size="lg" fullWidth onClick={signInAgain}>
+            Sign in again
+          </Button>
         </div>
+      ) : (
+        <form onSubmit={submit} className="grid gap-4">
+          <p className="text-base leading-6 text-trunks">
+            Let&apos;s make this strong together! Your password must be at least{' '}
+            {MIN_LENGTH} characters.
+          </p>
 
-        {done ? (
-          <div className="grid gap-4">
-            <p className="text-base leading-6 text-bulma">
-              Your password has been changed.
-            </p>
-            {/* Not a nicety: `changePassword` revokes every session for the
-                account, this one included, so the tab is already holding a
-                dead refresh token. Saying so beats a 401 five minutes later. */}
-            <p className="text-sm leading-5 text-trunks">
-              Every device signed in to this account has been signed out, including
-              this one. Sign in again with your new password.
-            </p>
-            <Button size="lg" fullWidth onClick={signInAgain}>
-              Sign in again
-            </Button>
-          </div>
-        ) : (
-          <form onSubmit={submit} className="grid gap-4">
-            <p className="text-base leading-6 text-trunks">
-              Let&apos;s make this strong together! Your password must be at least{' '}
-              {MIN_LENGTH} characters.
-            </p>
+          <PasswordField
+            ref={firstFieldRef}
+            label="Current password"
+            value={current}
+            onChange={setCurrent}
+            autoComplete="current-password"
+            error={fieldErrors.current}
+          />
+          <PasswordField
+            label="New password"
+            value={next}
+            onChange={setNext}
+            autoComplete="new-password"
+            error={fieldErrors.next}
+          />
+          <PasswordField
+            label="Confirm password"
+            value={confirm}
+            onChange={setConfirm}
+            autoComplete="new-password"
+            error={fieldErrors.confirm}
+          />
 
-            <PasswordField
-              ref={firstFieldRef}
-              label="Current password"
-              value={current}
-              onChange={setCurrent}
-              autoComplete="current-password"
-              error={fieldErrors.current}
-            />
-            <PasswordField
-              label="New password"
-              value={next}
-              onChange={setNext}
-              autoComplete="new-password"
-              error={fieldErrors.next}
-            />
-            <PasswordField
-              label="Confirm password"
-              value={confirm}
-              onChange={setConfirm}
-              autoComplete="new-password"
-              error={fieldErrors.confirm}
-            />
+          <p
+            aria-live="polite"
+            className={cn('min-h-5 text-sm leading-5', error && 'text-chichi')}
+          >
+            {error}
+          </p>
 
-            <p
-              aria-live="polite"
-              className={cn('min-h-5 text-sm leading-5', error && 'text-chichi')}
-            >
-              {error}
-            </p>
+          {/* The reference prints a 48-hour withdrawal hold here. That is the
+              operator's policy and not this build's; what this build really
+              does is revoke every session. */}
+          <p className="text-center text-xs leading-4 text-trunks">
+            Changing your password signs you out on every device.
+          </p>
 
-            {/* The reference prints a 48-hour withdrawal hold here. That is the
-                operator's policy and not this build's; what this build really
-                does is revoke every session. */}
-            <p className="text-center text-xs leading-4 text-trunks">
-              Changing your password signs you out on every device.
-            </p>
-
-            <Button type="submit" size="lg" fullWidth disabled={busy}>
-              {busy ? 'Changing…' : 'Change password'}
-            </Button>
-          </form>
-        )}
-      </div>
-    </div>
+          <Button type="submit" size="lg" fullWidth disabled={busy}>
+            {busy ? 'Changing…' : 'Change password'}
+          </Button>
+        </form>
+      )}
+    </Dialog>
   );
 }
 
 /**
- * A password field with the reference's `Show` control inside it.
+ * Turning two-factor authentication ON — a three-step handshake, in two
+ * screens.
  *
- * `Show` is a `<button>`, not a link: it changes what is on screen and goes
- * nowhere. It carries `aria-pressed` so the state is announced, and it is
- * `tabIndex={-1}` — tabbing from one password field should reach the next
- * field, not a visibility toggle in between, and the control stays reachable
- * by pointer and by the screen reader's own navigation.
+ * ═════════════════════════════════════════════════════════════════════════
+ * `POST /2fa/enable` IS NOT IDEMPOTENT, AND THAT SHAPES THIS WHOLE COMPONENT.
  *
- * `ref` goes to the input so the dialog can focus the first field on open.
+ * It mints a NEW secret and overwrites the stored one every time it is
+ * called. So a second call after the player has scanned the first QR leaves
+ * their authenticator showing codes for a secret the server has discarded —
+ * every code they type is then correct in their app and wrong here, with
+ * nothing on screen to explain it.
+ *
+ * Hence: fired ONCE, from the effect on open, and the answer held in the
+ * mutation's own state for the life of the dialog. Not a query — a query
+ * would refetch on window focus, on remount, on cache invalidation, and each
+ * of those is a fresh secret. Not called on render. Not retried.
+ * ═════════════════════════════════════════════════════════════════════════
+ *
+ * The secret is shown as text beside the QR because a player setting this up
+ * on the same device they are reading it on cannot photograph their own
+ * screen. That is what `secret` is in the response for — the service comments
+ * say it is "returned once, for manual entry when a camera is not available".
  */
-function PasswordField({ ref, label, value, onChange, autoComplete, error }) {
-  const id = useId();
-  const [shown, setShown] = useState(false);
-  const messageId = error ? `${id}-error` : undefined;
+function TwoFactorSetupDialog({ open, onClose }) {
+  const begin = useBeginTwoFactor();
+  const complete = useCompleteTwoFactor();
+
+  const [code, setCode] = useState('');
+  const [done, setDone] = useState(false);
+  const codeRef = useRef(null);
+
+  // `open` is the only input that may fire this. Anything else in the
+  // dependency list is another secret minted — see the block above.
+  useEffect(() => {
+    if (!open) return;
+    setCode('');
+    setDone(false);
+    complete.reset();
+    begin.reset();
+    begin.mutate();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open]);
+
+  async function submit(event) {
+    event.preventDefault();
+    try {
+      await complete.mutateAsync({ code });
+      setDone(true);
+    } catch {
+      // `complete.error` carries it and the form renders from that. The code
+      // is kept so the player can correct a digit rather than retype six.
+    }
+  }
 
   return (
-    <div className="grid gap-2">
-      <label htmlFor={id} className="text-base leading-6 text-trunks">
-        {label}
-      </label>
+    <Dialog
+      open={open}
+      onClose={onClose}
+      title="Two-factor authentication"
+      initialFocus={codeRef}
+    >
+      {done ? (
+        <div className="grid gap-4">
+          <p className="text-base leading-6 text-bulma">
+            Two-factor authentication is on.
+          </p>
+          <p className="text-sm leading-5 text-trunks">
+            You will be asked for a code from your authenticator app the next
+            time you sign in. Keep the app — without it, and without the
+            account email, you cannot get back in.
+          </p>
+          <Button size="lg" fullWidth onClick={onClose}>
+            Done
+          </Button>
+        </div>
+      ) : begin.isPending ? (
+        <div className="grid justify-items-center gap-3 py-6">
+          <Skeleton className="size-40 rounded-i-sm" />
+          <Skeleton className="h-4 w-56" />
+        </div>
+      ) : begin.isError ? (
+        <div className="grid gap-4">
+          <p role="alert" className="text-sm leading-5 text-chichi">
+            {/* `ALREADY_ENABLED` is worth its own sentence: it means the card
+                behind this dialog is showing a stale state, and reloading is
+                the fix rather than retrying. */}
+            {begin.error?.code === 'TWOFA_ALREADY_ENABLED'
+              ? 'Two-factor authentication is already on for this account. Reload the page.'
+              : begin.error?.message || 'Could not start the setup.'}
+          </p>
+          <Button variant="secondary" size="lg" fullWidth onClick={onClose}>
+            Close
+          </Button>
+        </div>
+      ) : (
+        <form onSubmit={submit} className="grid gap-4">
+          <p className="text-base leading-6 text-trunks">
+            Scan this with an authenticator app, then enter the six-digit code
+            it shows.
+          </p>
 
-      <div
-        className={cn(
-          'flex h-10 items-center gap-2 rounded-i-sm border-[1.6px] bg-transparent px-2.5',
-          'transition-colors focus-within:border-piccolo',
-          error ? 'border-chichi' : 'border-hit',
-        )}
-      >
-        <input
-          ref={ref}
-          id={id}
-          name={id}
-          type={shown ? 'text' : 'password'}
-          value={value}
-          onChange={(event) => onChange(event.target.value)}
-          autoComplete={autoComplete}
-          aria-invalid={error ? true : undefined}
-          aria-describedby={messageId}
-          className="h-full w-full min-w-0 bg-transparent text-base leading-6 text-bulma outline-none placeholder:text-trunks"
-        />
-        <button
-          type="button"
-          tabIndex={-1}
-          aria-pressed={shown}
-          onClick={() => setShown((value_) => !value_)}
-          className="shrink-0 cursor-pointer text-sm font-medium text-bulma underline underline-offset-2 transition-colors hover:text-piccolo"
-        >
-          {shown ? 'Hide' : 'Show'}
-        </button>
-      </div>
+          {begin.data?.qrCode && (
+            <img
+              src={begin.data.qrCode}
+              alt="Two-factor setup QR code"
+              width={160}
+              height={160}
+              className="mx-auto size-40 rounded-i-sm bg-goten p-1"
+            />
+          )}
 
-      {error && (
-        <p id={messageId} className="text-xs leading-4 text-chichi">
-          {error}
-        </p>
+          {/* For a player setting this up on the device they are reading it
+              on, who cannot photograph their own screen. */}
+          {begin.data?.secret && (
+            <div className="grid gap-1 rounded-i-sm bg-gohan px-3 py-2.5">
+              <span className="text-xs leading-4 text-trunks">
+                Or enter this key by hand
+              </span>
+              <code className="font-mono text-sm break-all text-bulma">
+                {begin.data.secret}
+              </code>
+            </div>
+          )}
+
+          <CodeField
+            ref={codeRef}
+            value={code}
+            onChange={setCode}
+            error={complete.isError ? complete.error?.message : undefined}
+            hint="Ten attempts every fifteen minutes."
+          />
+
+          <Button
+            type="submit"
+            size="lg"
+            fullWidth
+            disabled={code.length !== 6 || complete.isPending}
+          >
+            {complete.isPending ? 'Verifying…' : 'Turn on'}
+          </Button>
+        </form>
       )}
-    </div>
+    </Dialog>
+  );
+}
+
+/**
+ * Turning it OFF — the code AND the account password.
+ *
+ * Both, because this is the one action on the page that lowers the account's
+ * security: it needs the second factor itself and the thing that factor
+ * protects. `twofa.service.js` checks the password first and answers
+ * `TWOFA_PASSWORD_REQUIRED` before it looks at the code, which is why the
+ * error lands on the password field rather than the code one.
+ *
+ * The password lives in component state for the duration of the form and
+ * nowhere else — not in a query key, not in the cache — the same rule the
+ * withdrawal form follows.
+ *
+ * Worth knowing, and said on screen: disabling CLEARS the secret rather than
+ * flagging it off, so turning it back on issues a new QR and the old entry in
+ * the authenticator app is dead. A player who expected to re-enable with the
+ * same entry would otherwise find out by being locked out of the setup.
+ */
+function TwoFactorDisableDialog({ open, onClose }) {
+  const disable = useDisableTwoFactor();
+
+  const [code, setCode] = useState('');
+  const [password, setPassword] = useState('');
+  const codeRef = useRef(null);
+
+  useEffect(() => {
+    if (!open) return;
+    setCode('');
+    setPassword('');
+    disable.reset();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open]);
+
+  async function submit(event) {
+    event.preventDefault();
+    try {
+      await disable.mutateAsync({ code, password });
+      // Cleared the moment it is no longer needed, before anything renders.
+      setPassword('');
+      onClose();
+    } catch {
+      // `disable.error` carries it. The password is kept so the player can
+      // correct whichever of the two was wrong.
+    }
+  }
+
+  const wrongPassword = disable.error?.code === 'TWOFA_PASSWORD_REQUIRED';
+
+  return (
+    <Dialog
+      open={open}
+      onClose={onClose}
+      title="Turn off two-factor authentication"
+      initialFocus={codeRef}
+    >
+      <form onSubmit={submit} className="grid gap-4">
+        <p className="text-base leading-6 text-trunks">
+          Enter a code from your authenticator app and your account password.
+        </p>
+
+        <CodeField
+          ref={codeRef}
+          value={code}
+          onChange={setCode}
+          error={disable.isError && !wrongPassword ? disable.error?.message : undefined}
+        />
+
+        <PasswordField
+          label="Account password"
+          value={password}
+          onChange={setPassword}
+          autoComplete="current-password"
+          error={wrongPassword ? disable.error?.message : undefined}
+        />
+
+        <p className="text-xs leading-4 text-trunks">
+          Turning this off clears the key. If you turn it back on later you will
+          scan a new QR code, and the old entry in your app stops working.
+        </p>
+
+        <Button
+          type="submit"
+          size="lg"
+          fullWidth
+          disabled={code.length !== 6 || password.length === 0 || disable.isPending}
+        >
+          {disable.isPending ? 'Turning off…' : 'Turn off'}
+        </Button>
+      </form>
+    </Dialog>
   );
 }

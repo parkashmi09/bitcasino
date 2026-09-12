@@ -106,6 +106,24 @@ export function ProviderGridSkeleton({ count = 12 }) {
 }
 
 /**
+ * `retryAfter` seconds as something worth reading.
+ *
+ * Rounded UP at every boundary: a wait announced as shorter than it is
+ * produces a second refusal, which is the one outcome this message exists to
+ * prevent. `null` in, `null` out — the caller renders the wait-less copy.
+ */
+export function formatWait(seconds) {
+  if (!Number.isFinite(seconds) || seconds <= 0) return null;
+  if (seconds < 60) return `${Math.ceil(seconds)} second${Math.ceil(seconds) === 1 ? '' : 's'}`;
+
+  const minutes = Math.ceil(seconds / 60);
+  if (minutes < 60) return `${minutes} minute${minutes === 1 ? '' : 's'}`;
+
+  const hours = Math.ceil(minutes / 60);
+  return `${hours} hour${hours === 1 ? '' : 's'}`;
+}
+
+/**
  * A failed read, with a retry.
  *
  * `onRetry` should be a query's `refetch`. Without one the block still
@@ -114,8 +132,30 @@ export function ProviderGridSkeleton({ count = 12 }) {
  */
 export function QueryError({ error, onRetry, title = 'Could not load this', compact = false }) {
   const requestId = error?.requestId ?? null;
-  const message =
-    error?.message || 'Something went wrong while loading. Please try again.';
+
+  /**
+   * A rate limit is not a failure, and saying so changes what the player does.
+   *
+   * `TOO_MANY_REQUESTS` arrives with the platform's own copy — "Too many
+   * requests, please slow down" — which reads like a scolding and, worse,
+   * gives no idea whether to wait two seconds or an hour. The buckets vary by
+   * three orders of magnitude (60s on the catalogue, an hour on registration),
+   * so the number is the only part of this that helps. `Try again` is still
+   * offered: the window may have rolled over while the message was read.
+   */
+  const rateLimited = error?.status === 429;
+  const wait = rateLimited ? formatWait(error?.retryAfter) : null;
+
+  const message = rateLimited
+    ? wait
+      ? `You have made too many requests. Try again in ${wait}.`
+      : 'You have made too many requests. Give it a moment and try again.'
+    : error?.message || 'Something went wrong while loading. Please try again.';
+
+  // The default heading is about a read that failed, which this is not. A
+  // caller that passed its own heading keeps it — it is more specific than
+  // either of these.
+  const heading = rateLimited && title === 'Could not load this' ? 'Too many requests' : title;
 
   return (
     <div
@@ -130,7 +170,7 @@ export function QueryError({ error, onRetry, title = 'Could not load this', comp
       </span>
 
       <div>
-        <p className="text-sm font-medium text-bulma">{title}</p>
+        <p className="text-sm font-medium text-bulma">{heading}</p>
         <p className="mt-0.5 max-w-md text-xs text-trunks">{message}</p>
       </div>
 

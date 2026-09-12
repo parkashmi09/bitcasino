@@ -32,8 +32,37 @@ function shouldRetry(failureCount, error) {
   if (failureCount >= 2) return false;
   if (!(error instanceof ApiError)) return true;
   if (RETRYABLE.has(error.code)) return true;
-  if (error.status === 429) return true;
+  /**
+   * A 429 gets ONE more attempt, not two.
+   *
+   * The limiter's window is a whole minute on most buckets and an hour on
+   * registration, so a second and third attempt are both refused by
+   * construction — they cost a round trip each, count against the same
+   * bucket, and delay the error the player needs to read by however long the
+   * backoff took. One attempt covers the case worth covering: a window that
+   * was about to roll over anyway.
+   */
+  if (error.status === 429) return failureCount < 1;
   return error.status >= 500 || error.status === 0;
+}
+
+/**
+ * How long to wait before the retry `shouldRetry` allowed.
+ *
+ * Exponential for everything except a rate limit, where the SERVER has said
+ * how long its window is and guessing shorter is what turns one refusal into
+ * two. `retryAfter` is seconds; a limiter that sent none falls back to the
+ * curve, and both are capped at 30s so a query cannot sit invisible behind a
+ * long window — past that the error state, with the wait written on it, is
+ * more use than a spinner.
+ */
+const MAX_DELAY_MS = 30_000;
+
+function retryDelay(attempt, error) {
+  if (error instanceof ApiError && error.retryAfter != null) {
+    return Math.min(error.retryAfter * 1000, MAX_DELAY_MS);
+  }
+  return Math.min(1000 * 2 ** attempt, MAX_DELAY_MS);
 }
 
 export function createQueryClient() {
@@ -41,7 +70,7 @@ export function createQueryClient() {
     defaultOptions: {
       queries: {
         retry: shouldRetry,
-        retryDelay: (attempt) => Math.min(1000 * 2 ** attempt, 30_000),
+        retryDelay,
         /**
          * The catalogue changes when an operator edits it or a sync runs —
          * minutes apart, not seconds. Five minutes of freshness means moving
@@ -78,4 +107,4 @@ export function createQueryClient() {
   });
 }
 
-export { shouldRetry };
+export { shouldRetry, retryDelay };

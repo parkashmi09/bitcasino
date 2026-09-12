@@ -3,6 +3,7 @@ import { createRoot } from 'react-dom/client';
 import { QueryClientProvider } from '@tanstack/react-query';
 import App from './App';
 import { createQueryClient } from '@/queries';
+import { ErrorBoundary } from '@/components/layout/ErrorBoundary';
 import { applyTheme, readStoredTheme } from '@/lib/theme';
 import './styles/index.css';
 
@@ -24,7 +25,16 @@ if (!container) throw new Error('Root element #root not found');
 createRoot(container).render(
   <StrictMode>
     <QueryClientProvider client={queryClient}>
-      <App />
+      {/* The outer boundary, for what the routed one cannot reach: the
+          auth screens, which render outside `Layout`, and `AuthProvider`
+          and the router themselves. It is not re-keyed on the route
+          because it sits ABOVE the router — there is no location to read
+          up here — so a catch at this level is caught until a reload.
+          That is the right trade for the thing it guards: if the router
+          or the session provider threw, navigation is what is broken. */}
+      <ErrorBoundary>
+        <App />
+      </ErrorBoundary>
     </QueryClientProvider>
   </StrictMode>,
 );

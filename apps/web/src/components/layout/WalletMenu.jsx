@@ -1,11 +1,12 @@
 import { useState } from 'react';
 import { Icon } from '@/components/ui/Icon';
 import { Skeleton } from '@/components/ui/Skeleton';
-import { MenuDivider, MenuHeading, MenuPanel } from './HeaderMenu';
+import { Switch } from '@/components/ui/Switch';
+import { MenuPanel } from './HeaderMenu';
 import { usePopover } from '@/hooks/usePopover';
 import { useBalances, useDisplayCurrency } from '@/hooks/useWallet';
 import { CURRENCY_ORDER, currencyMeta } from '@/data/currencies';
-import { formatBalance } from '@/lib/format';
+import { walletBalance } from '@/lib/format';
 import { cn } from '@/lib/cn';
 
 /**
@@ -28,10 +29,11 @@ import { cn } from '@/lib/cn';
  * that happen to touch.
  *
  * The number is real: `GET /user/wallet/balances`, formatted as a string all
- * the way to the screen (`formatBalance`). It is never invented and never
- * parsed — the currency's display precision decides how much of the stored
- * eight decimal places is shown, and a wallet that has not answered yet shows
- * a skeleton rather than a zero, because a false zero beside a real account is
+ * the way to the screen (`walletBalance`). It is never invented and never
+ * parsed — two places in the currency's DISPLAY unit, which is the reference's
+ * own wallet denomination and why a Bitcoin balance reads `0.00 mBTC` here
+ * rather than `0.00000000`. A wallet that has not answered yet shows a
+ * skeleton rather than a zero, because a false zero beside a real account is
  * worse than no number.
  *
  * ## What goes at narrow widths
@@ -40,14 +42,60 @@ import { cn } from '@/lib/cn';
  * own `hidden md:block`, and it is the opposite of the obvious choice, since
  * the balance is why a player looks at the header at all.
  *
- * The amount then drops at `sm`, which is NOT the reference's; there it stays
- * down to the narrowest width. The reason is a control count this project
- * cannot match: the reference's phone header holds four things because its
- * search and its nav trigger live in a bottom tab bar, while this one holds
- * six. Six 40px controls plus a 29px amount overflow a 360px phone, and of the
- * two ways out — dropping a control a player needs, or moving the number one
- * tap into the panel this button already opens — the number is the one that
- * survives being moved.
+ * The amount goes at **389px**, not at `sm`, and the number is measured rather
+ * than picked. This header's three slots need
+ *
+ *   32 padding + 78 brand + 144 wallet + 132 actions = 386px
+ *
+ * with the amount in, and 356 without it. Below 386 the brand block is the
+ * piece that gives — it is `min-w-0 flex-1` and its 40px hamburger will not
+ * shrink, so it stops shrinking and starts sitting UNDER the wallet box. So
+ * the amount shows from 400px up, which covers every phone from an iPhone 12
+ * onwards, and leaves 14px for a balance wider than `0.00`.
+ *
+ * That is still not the reference, which keeps the amount to its narrowest
+ * width — it can afford to, because its phone header holds four things where
+ * this one holds six: its search and its nav trigger live in a bottom tab bar
+ * this project does not have. Below 400px the number is one tap away, in the
+ * panel this button already opens.
+ *
+ * ## The panel
+ *
+ * Measured off a screenshot of the reference's own phone panel — pixel runs
+ * read from the image rather than eyeballed, because the panel cannot be
+ * framed and the account it belongs to is not ours. The screenshot is 277px
+ * wide against a 40px header control that measures 26px in it, so everything
+ * below is image pixels ÷ 0.644, and the source viewport works out at ~430px:
+ *
+ *   panel      360px wide, radius 8px, `goku`, top hairline, NO side border
+ *              — centred in the viewport, not anchored to this trigger
+ *   height     568px of an 877px viewport, i.e. it stops well short of the
+ *              fold: `min(65dvh, 36rem)` is that cap at both readings
+ *   list       16px gutter, rows 40px on a 4px pitch
+ *   row        `gohan` fill on an 8px radius, 8px inner gutter, 24px coin,
+ *              12px gap, one line of `Name (CODE)`, the amount at the end
+ *   selected   a `piccolo` hairline round the row — the fill does NOT change
+ *   footer     48px, a 20px gutter, `Hide 0 balances` in `trunks` and a
+ *              44x24 switch, and it does not scroll with the list
+ *
+ * There is no heading: the first row starts 18px under the panel's own top
+ * edge, where a 48px `Balances` band used to be here.
+ *
+ * ## Why it is centred below `sm`
+ *
+ * This is the ONE header control that does not live in the actions slot — it
+ * sits in the middle one, between the two `flex-1` halves — so a card anchored
+ * `end-0` to it hangs off the LEFT of the screen, not the right: it measured
+ * `x = -162` on a 215px viewport, two thirds of the list outside the window
+ * with no way to scroll to it. The reference's is centred in the viewport
+ * (23px and 19px of image either side of a 235px card), which is what a
+ * dropdown looks like once it is wider than the room its trigger leaves.
+ *
+ * So below `sm` the panel is `MenuPanel`'s `sheet` — `fixed`, so it measures
+ * against the viewport rather than the header — pulled back to the middle with
+ * `start-1/2 -translate-x-1/2` and narrowed to `100vw - 40px` where 360 will
+ * not fit. From `sm` up it is the 360px card anchored to the trigger, which is
+ * where the reference's sits too.
  */
 
 /**
@@ -79,29 +127,36 @@ export function CoinMark({ code, size = 24, className }) {
 }
 
 /**
- * Which coins the picker offers. Everything the wallet actually holds first —
- * a player with money in a currency must be able to find it without hunting —
- * then the four the platform defaults to, so a brand-new empty wallet still
- * has something to choose between. `Show all currencies` opens the rest.
+ * Which coins the picker offers: ALL of them, which is what the reference's
+ * panel lists — twelve rows visible on a phone and the rest under the scroll.
+ * There is no `Show all currencies` step on the reference and there is none
+ * here; the only filter is its `Hide 0 balances` switch, and that is off by
+ * default.
+ *
+ * The selected currency survives the filter. Every balance on a new account is
+ * zero, so a strict filter empties the panel the moment the switch goes on and
+ * takes the row saying which currency you are actually on with it.
  */
-const BASE = ['BTC', 'ETH', 'USDT', 'INR'];
+function pickList(balances, selected, hideZero) {
+  if (!hideZero) return CURRENCY_ORDER;
 
-function pickList(balances, selected, all) {
-  if (all) return CURRENCY_ORDER;
-
-  const held = CURRENCY_ORDER.filter((code) => /[1-9]/.test(String(balances[code] ?? '')));
-  return [...new Set([...held, ...BASE, selected])].filter((code) => CURRENCY_ORDER.includes(code));
+  return CURRENCY_ORDER.filter(
+    (code) => code === selected || /[1-9]/.test(String(balances[code] ?? '')),
+  );
 }
 
 export function WalletMenu({ onOpenDeposit }) {
   const { open, toggle, close, ref } = usePopover();
   const [currency, setCurrency] = useDisplayCurrency();
   const { balances, status, reload } = useBalances();
-  const [showAll, setShowAll] = useState(false);
+  // Lives out here rather than in the panel: the panel unmounts on close, and
+  // a filter that reset every time you looked at it would be a switch that
+  // never stays where it was put.
+  const [hideZero, setHideZero] = useState(false);
 
   const meta = currencyMeta(currency);
-  const amount = formatBalance(balances[currency] ?? '0', meta.decimals);
-  const list = pickList(balances, currency, showAll);
+  const balance = walletBalance(balances[currency] ?? '0', meta);
+  const list = pickList(balances, currency, hideZero);
 
   return (
     <div ref={ref} className="relative">
@@ -131,10 +186,11 @@ export function WalletMenu({ onOpenDeposit }) {
               a lone value has nothing to line up with. The panel's column of
               balances keeps it, which is what tabular figures are for. */}
           {status === 'loading' ? (
-            <Skeleton className="h-3.5 w-12 max-sm:hidden" />
+            <Skeleton className="h-3.5 w-12 max-[399px]:hidden" />
           ) : (
-            <span className="text-sm leading-none font-medium tracking-tight text-bulma max-sm:hidden">
-              {amount}
+            <span className="text-sm leading-none font-medium tracking-tight text-bulma max-[399px]:hidden">
+              {balance.amount}
+              {balance.unit && <span className="text-trunks"> {balance.unit}</span>}
             </span>
           )}
           <Icon
@@ -162,11 +218,19 @@ export function WalletMenu({ onOpenDeposit }) {
         </button>
       </div>
 
+      {/* The panel, measured off the reference's own phone screenshot — see
+          the note above the component. */}
       {open && (
-        <MenuPanel label="Wallet balances" className="w-[300px]">
-          <MenuHeading>Balances</MenuHeading>
-          <MenuDivider />
-
+        <MenuPanel
+          label="Wallet balances"
+          sheet
+          className={cn(
+            'flex flex-col overflow-y-hidden rounded-i-sm',
+            'max-h-[min(65dvh,36rem)] w-[min(360px,calc(100vw-40px))]',
+            'max-sm:start-1/2 max-sm:end-auto max-sm:-translate-x-1/2',
+            'sm:w-[360px]',
+          )}
+        >
           {status === 'error' && (
             <div className="grid gap-2 px-4 py-6 text-center">
               <p className="text-sm text-bulma">Balances could not be loaded.</p>
@@ -181,19 +245,31 @@ export function WalletMenu({ onOpenDeposit }) {
           )}
 
           {status === 'loading' && (
-            <div className="grid gap-1 p-2">
-              {[0, 1, 2, 3].map((row) => (
-                <Skeleton key={row} className="h-11 rounded-i-sm" />
+            <div className="grid gap-1 p-4">
+              {[0, 1, 2, 3, 4, 5].map((row) => (
+                <Skeleton key={row} className="h-10 rounded-i-sm" />
               ))}
             </div>
           )}
 
           {status === 'ready' && (
             <>
-              <ul className="grid gap-0.5 p-2">
+              {/* The list is the only part that scrolls, so the switch below
+                  stays put while it does — the reference's own phone panel
+                  clips a row against a footer that does not move.
+
+                  `min-h-0` because a flex child's floor is its content height:
+                  without it the column grows past the panel's `max-h` and puts
+                  the footer off the bottom of the screen instead of scrolling.
+                  `grid-cols-1` is `minmax(0, 1fr)`, where a bare `grid` sizes
+                  its one column to max-content — which gives the panel a
+                  HORIZONTAL scrollbar and clips the balances the moment it is
+                  narrower than a row. */}
+              <ul className="grid min-h-0 flex-1 grid-cols-1 gap-1 overflow-y-auto p-4">
                 {list.map((code) => {
                   const row = currencyMeta(code);
                   const active = code === currency;
+                  const held = walletBalance(balances[code] ?? '0', row);
 
                   return (
                     <li key={code}>
@@ -206,18 +282,21 @@ export function WalletMenu({ onOpenDeposit }) {
                           close();
                         }}
                         className={cn(
-                          'flex h-11 w-full cursor-pointer items-center gap-2.5 rounded-i-sm px-2',
-                          'text-start transition-colors',
-                          active ? 'bg-jiren' : 'hover:bg-heles',
+                          'flex h-10 w-full cursor-pointer items-center gap-3 rounded-i-sm px-2',
+                          // The transparent border is `Button.jsx`'s trick, and
+                          // it is what keeps the selected row exactly as tall
+                          // as the eleven others instead of 2px taller.
+                          'border border-transparent bg-gohan text-start transition-colors',
+                          active ? 'border-piccolo' : 'hover:bg-heles',
                         )}
                       >
                         <CoinMark code={code} size={24} />
-                        <span className="min-w-0 flex-1">
-                          <span className="block text-sm font-medium text-bulma">{code}</span>
-                          <span className="block truncate text-xs text-trunks">{row.name}</span>
+                        <span className="min-w-0 flex-1 truncate text-sm text-bulma">
+                          {row.name} ({code})
                         </span>
                         <span className="shrink-0 text-sm tabular-nums text-bulma">
-                          {formatBalance(balances[code] ?? '0', row.decimals)}
+                          {held.amount}
+                          {held.unit && <span className="text-trunks"> {held.unit}</span>}
                         </span>
                       </button>
                     </li>
@@ -225,22 +304,16 @@ export function WalletMenu({ onOpenDeposit }) {
                 })}
               </ul>
 
-              <MenuDivider />
-              <button
-                type="button"
-                onClick={() => setShowAll((value) => !value)}
-                className={cn(
-                  'flex h-11 w-full cursor-pointer items-center justify-between px-4',
-                  'text-sm font-medium text-bulma transition-colors hover:bg-heles',
-                )}
-              >
-                {showAll ? 'Show fewer currencies' : 'Show all currencies'}
-                <Icon
-                  name="chevron-down"
-                  size={16}
-                  className={cn('text-trunks transition-transform duration-150', showAll && 'rotate-180')}
+              {/* 48px, and its 20px gutter is wider than the list's 16px —
+                  both measured, and the difference is the reference's. */}
+              <div className="flex h-12 shrink-0 items-center justify-between gap-3 px-5">
+                <span className="text-sm text-trunks">Hide 0 balances</span>
+                <Switch
+                  checked={hideZero}
+                  onChange={setHideZero}
+                  label="Hide 0 balances"
                 />
-              </button>
+              </div>
             </>
           )}
         </MenuPanel>

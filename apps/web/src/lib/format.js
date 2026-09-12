@@ -1,3 +1,5 @@
+import { WALLET_DECIMALS } from '@/data/currencies';
+
 /** Compact currency used by jackpot counters and balance chips. */
 export function formatCurrency(value, currency = 'USDT') {
   const n = new Intl.NumberFormat('en-US', {
@@ -38,6 +40,46 @@ export function formatBalance(value, decimals = 2) {
   return `${negative && /[1-9]/.test(digits + scaled) ? '-' : ''}${grouped}${
     decimals > 0 ? `.${scaled}` : ''
   }`;
+}
+
+/**
+ * Move a decimal STRING's point `places` to the right, without parsing it.
+ *
+ * Same rule as `formatBalance`: a balance is `NUMERIC(30,8)` and `Number()`
+ * cannot carry one, so `0.00012345` becomes `0.12345` by moving digits between
+ * the two halves rather than by multiplying. Only the display unit needs this
+ * — `shift: 3` on Bitcoin is what turns a BTC balance into the mBTC the
+ * reference's wallet is denominated in.
+ */
+export function shiftPoint(value, places = 0) {
+  const text = String(value ?? '0').trim();
+  if (!places) return text;
+
+  const sign = text.startsWith('-') ? '-' : '';
+  const [whole = '0', fraction = ''] = text.replace(/^[-+]/, '').split('.');
+  const digits = (whole.replace(/\D/g, '') || '0') + fraction.replace(/\D/g, '').padEnd(places, '0');
+  const point = (whole.replace(/\D/g, '') || '0').length + places;
+
+  return `${sign}${digits.slice(0, point).replace(/^0+(?=\d)/, '')}.${digits.slice(point) || '0'}`;
+}
+
+/**
+ * A balance as the wallet's own surfaces print it: the header chip and the
+ * balances panel.
+ *
+ * Two places for every currency, in the currency's DISPLAY unit — which is the
+ * reference's own panel, where a Bitcoin balance reads `0.00 mBTC` and every
+ * other row reads `0.00`. `unit` comes back separately because the reference
+ * sets it in `trunks` beside a `bulma` number rather than as one string.
+ *
+ * `formatBalance` is still what the deposit drawer and the ledger use: those
+ * are surfaces where the eight stored places are the point.
+ */
+export function walletBalance(value, meta = {}) {
+  return {
+    amount: formatBalance(shiftPoint(value, meta.shift), WALLET_DECIMALS),
+    unit: meta.unit ?? null,
+  };
 }
 
 /**
@@ -104,4 +146,69 @@ export function formatFiat(value, fromRate, toRate, fiat) {
     // An ISO code `Intl` does not know. The number is still worth showing.
     return `${((amount / from) * to).toFixed(2)} ${fiat}`;
   }
+}
+
+/**
+ * Split a decimal string into a sign and a digit string scaled to `decimals`.
+ *
+ * The shared front half of `compareDecimal` and `percentOf`. Both need the
+ * value as an INTEGER string of minor units — `"12.5"` at 8 decimals is
+ * `"1250000000"` — because integer strings can be compared and divided by
+ * hand, and floats cannot hold a `NUMERIC(30,8)` at all.
+ */
+function minorUnits(value, decimals) {
+  const text = String(value ?? '0').trim();
+  const negative = text.startsWith('-');
+  const [whole = '0', fraction = ''] = text.replace(/^[-+]/, '').split('.');
+  const digits =
+    (whole.replace(/\D/g, '') || '0') +
+    fraction.replace(/\D/g, '').slice(0, decimals).padEnd(decimals, '0');
+  return { negative, digits: digits.replace(/^0+(?=\d)/, '') };
+}
+
+/**
+ * Compare two decimal STRINGS. `-1`, `0` or `1`, like a comparator.
+ *
+ * Never parses. `Number("123456789012345678.00000001")` loses the last digits
+ * silently, and this is used to decide whether a withdrawal exceeds a balance
+ * — the one comparison where being quietly wrong hands out money.
+ *
+ * Compares at 8 decimals, the platform's `NUMERIC(30,8)` scale.
+ */
+export function compareDecimal(a, b, decimals = 8) {
+  const left = minorUnits(a, decimals);
+  const right = minorUnits(b, decimals);
+
+  if (left.negative !== right.negative) return left.negative ? -1 : 1;
+
+  // Same sign: longer digit string is larger in magnitude, then lexical.
+  const flip = left.negative ? -1 : 1;
+  if (left.digits.length !== right.digits.length) {
+    return left.digits.length > right.digits.length ? flip : -flip;
+  }
+  if (left.digits === right.digits) return 0;
+  return (left.digits > right.digits ? 1 : -1) * flip;
+}
+
+/**
+ * A percentage of a decimal STRING, as a decimal string.
+ *
+ * Long division on the digit string rather than `value * percent / 100`, for
+ * the same reason as above. Truncates rather than rounding — the "50%" button
+ * on a withdrawal must never produce more than half, and rounding up at the
+ * last decimal is how a "max" button asks for a hundredth more than the
+ * player holds and is refused by the server.
+ */
+export function percentOf(value, percent, decimals = 8) {
+  const { negative, digits } = minorUnits(value, decimals);
+
+  // Multiply then divide, both on the string, so nothing becomes a float.
+  const scaled = (BigInt(digits || '0') * BigInt(Math.round(percent))) / 100n;
+
+  const text = scaled.toString().padStart(decimals + 1, '0');
+  const whole = text.slice(0, text.length - decimals) || '0';
+  const fraction = decimals > 0 ? text.slice(text.length - decimals) : '';
+
+  const out = decimals > 0 ? `${whole}.${fraction}` : whole;
+  return negative && /[1-9]/.test(text) ? `-${out}` : out;
 }

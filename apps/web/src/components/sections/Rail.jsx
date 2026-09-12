@@ -24,8 +24,24 @@ import { cn } from '@/lib/cn';
  * `twMerge`, so what is passed genuinely replaces the defaults instead of
  * fighting them. The element stays an `h2` either way, which the reference's
  * own `<span>` is not — a section under a heading should be one.
+ *
+ * ## The header line has three shapes, and two of them are not `See all`
+ *
+ * A rail over a catalogue list has somewhere to send the player, so it gets
+ * the link. A LIVE rail does not — there is no page listing every bet ever
+ * settled — and one that rendered `See all` anyway would be pointing at
+ * nothing. `href` is therefore optional, and the link is omitted when it is
+ * absent rather than rendered with an undefined destination: `<Link>` with
+ * no `to` resolves to the CURRENT route, so the control would look real and
+ * do nothing, which is worse than not being there.
+ *
+ * `action` is the third shape — arbitrary controls in the link's place, for
+ * the live ticker's `Latest / Biggest` switch. It replaces the link rather
+ * than sitting beside it: the reference never shows both, and a row with a
+ * tab group AND a `See all` reads as two different affordances for the same
+ * thing.
  */
-export function Rail({ title, href, children, className, headingClassName }) {
+export function Rail({ title, href, action, children, className, headingClassName }) {
   const railRef = useRef(null);
   const [canScroll, setCanScroll] = useState({ start: false, end: false });
 
@@ -64,12 +80,15 @@ export function Rail({ title, href, children, className, headingClassName }) {
         >
           {title}
         </h2>
-        <Link
-          to={href}
-          className="flex min-h-6 shrink-0 items-center text-sm text-bulma underline underline-offset-2 hover:text-piccolo"
-        >
-          See all
-        </Link>
+        {action ??
+          (href ? (
+            <Link
+              to={href}
+              className="flex min-h-6 shrink-0 items-center text-sm text-bulma underline underline-offset-2 hover:text-piccolo"
+            >
+              See all
+            </Link>
+          ) : null)}
       </div>
 
       <div className="relative">

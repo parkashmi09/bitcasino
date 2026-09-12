@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react';
 import { GameCard } from './GameCard';
 import { Breadcrumb } from '@/components/ui/Breadcrumb';
 import { Select } from '@/components/ui/Select';
-import { VOLATILITY } from '@/data/catalog';
+import { sortValue } from '@/data/adapters';
 
 /**
  * The reference's five sort options, in its order and with its labels.
@@ -21,16 +21,37 @@ const SORTS = [
 /**
  * `popular` has no comparator on purpose: popularity *is* the catalogue's own
  * order — the house ranking the list already arrives in — so choosing it puts
- * the list back exactly as the page handed it over. The other four read the
- * seeded stat fields, all of them best-first.
+ * the list back exactly as the page handed it over.
+ *
+ * The other three sort on stats the platform **does not carry a column for**.
+ * `rtp`, `volatility` and `hitRatio` are this site's own fields; Phase 0 seeds
+ * them into the `parameters` JSONB for the placeholder catalogue, and anything
+ * a real Slotegrator sync writes has none of them.
+ *
+ * That is why they go through `sortValue` rather than reading the field. A
+ * bare `b.rtp - a.rtp` over a game with no RTP is `NaN`, and a comparator that
+ * returns `NaN` is not a valid comparator — `Array.prototype.sort` is free to
+ * leave the array in ANY order, so one unrated game can scramble a whole page
+ * rather than merely misplacing itself. `byStat` gives the unrated games a
+ * defined position instead: last, whichever way the list is sorted, because
+ * "we do not know this game's RTP" is never a reason to rank it first.
  */
+const byStat = (field) => (a, b) => {
+  const left = sortValue(a, field);
+  const right = sortValue(b, field);
+
+  if (left === undefined && right === undefined) return 0;
+  if (left === undefined) return 1;
+  if (right === undefined) return -1;
+  return right - left;
+};
+
 const COMPARE = {
   popular: null,
   name: (a, b) => a.title.localeCompare(b.title),
-  volatility: (a, b) =>
-    VOLATILITY.indexOf(b.volatility) - VOLATILITY.indexOf(a.volatility),
-  hitRatio: (a, b) => b.hitRatio - a.hitRatio,
-  rtp: (a, b) => b.rtp - a.rtp,
+  volatility: byStat('volatility'),
+  hitRatio: byStat('hitRatio'),
+  rtp: byStat('rtp'),
 };
 
 /**

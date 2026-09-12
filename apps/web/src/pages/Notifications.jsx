@@ -34,7 +34,7 @@ import { cn } from '@/lib/cn';
  * does and why this does not copy it.
  */
 export function Notifications() {
-  const { items, unread, markAllRead } = useNotifications();
+  const { items, unread, markAllRead, isPending, isError } = useNotifications();
 
   return (
     // 750px is the reference's reading column for this page. It lives here
@@ -67,7 +67,27 @@ export function Notifications() {
         </button>
       </div>
 
-      {items.length === 0 ? (
+      {/**
+        * Three states that all render as no rows, told apart.
+        *
+        * Until Phase 8 the list came from a fixture and could only ever be
+        * full, so one empty line covered everything. A real read can be
+        * mid-flight, refused, or genuinely empty, and "Nothing here yet" is
+        * a lie in the first two — the second especially, where a player would
+        * conclude the operator has said nothing when in fact the feed is
+        * down.
+        *
+        * No skeleton: this is a short list of plain lines, and a shimmer
+        * standing in for three sentences is more motion than the wait
+        * deserves.
+        */}
+      {isPending ? (
+        <p className="pt-2 text-sm text-trunks">Loading…</p>
+      ) : isError ? (
+        <p className="pt-2 text-sm text-trunks">
+          Could not load your notifications. Try again in a moment.
+        </p>
+      ) : items.length === 0 ? (
         <p className="pt-2 text-sm text-trunks">Nothing here yet.</p>
       ) : (
         <ul>
@@ -108,10 +128,27 @@ export function Notifications() {
  * `en-US` is pinned rather than left to the visitor's locale: the reference
  * serves this format to everyone, and a browser set to `en-GB` would otherwise
  * render `03 September 2026` here and nowhere else on the site.
+ *
+ * ═══════════════════════════════════════════════════════════════════════
+ * THE STRING IS A FULL TIMESTAMP NOW, AND IT USED TO BE A DATE.
+ *
+ * This read `new Date(`${iso}T00:00:00`)` while the rows came from a fixture
+ * whose `at` was `'2026-09-07'`. The platform's `date` column is
+ * `timestamptz` and arrives as `2026-09-07T13:19:06.538Z`, so appending the
+ * midnight suffix produced `…538ZT00:00:00`, which is an Invalid Date — and
+ * the guard below turned every date on the page into an empty line rather
+ * than an error anybody would notice.
+ *
+ * `Date` parses both forms unaided, so nothing is appended. The one thing
+ * that changes is the timezone rule: a bare `YYYY-MM-DD` is parsed as UTC and
+ * a full timestamp is converted to the viewer's zone, which is right — a
+ * notice posted at 23:30 UTC should read as the next day for a player who is
+ * three hours ahead of it.
+ * ═══════════════════════════════════════════════════════════════════════
  */
 function formatDate(iso) {
-  const date = new Date(`${iso}T00:00:00`);
-  if (Number.isNaN(date.getTime())) return '';
+  const date = new Date(iso);
+  if (!iso || Number.isNaN(date.getTime())) return '';
   return date.toLocaleDateString('en-US', {
     weekday: 'long',
     year: 'numeric',

@@ -42,13 +42,39 @@ and nothing else has to change.
 ## Status
 
 The UI shell, design system, routing and asset pipeline are complete and
-building. **Accounts are real**: the app talks to the iBitPlay platform in
-`backend/` over its gateway, and a visitor can register, log in — with 2FA
-where the account has it — stay signed in across a reload, and log out. The
-catalogue is still the static module; wallets, game launches and payments are
-not built yet. See [10 — Backend integration](./10-backend-integration.md) for
-what has landed and what is next, and [09 — Roadmap](./09-roadmap.md) for the
-rest.
+building, and the app now runs on the iBitPlay platform in `backend/` rather
+than on static data. **Accounts are real**: a visitor can register, log in —
+with 2FA where the account has it — stay signed in across a reload, and log
+out. **The catalogue is real**: every rail, grid, provider list and search
+reads the platform. **The wallet is real**: the header chip is
+`GET /user/wallet/balances`, and the drawer's deposit address is a live
+socket read. **And one game is real**: Limbo plays a round against
+casino-service that debits, resolves and pays out in one transaction, and the
+balance moves.
+
+**And the account is real**: two-factor authentication enables and disables
+against the platform, the security page lists where the account is signed in,
+identity documents upload for review, and `/profile/transactions` reads every
+deposit and withdrawal across all seven payment rails.
+
+**And the marketing side is real**: the blog reads the platform, the spin
+wheel spins, the VIP page reports the account's real standing, home banner
+art comes from the admin content module, and the footer quotes a live
+exchange rate. **And the lobby is live**: the wins ticker and each game's
+recent rounds are public socket feeds, and the notification bell reads the
+platform's own announcements.
+
+What is not built: the other nineteen in-house originals; the vault, bonuses,
+rakeback, gift cards and bank details screens (their routes are live, the
+pages are not); chat, which the platform implements and the reference site
+does not have; and an end-to-end browser test. Tournaments is a real page
+over a local fixture, because the platform has no tournaments table at all.
+Aggregator titles are wired but have no provider credentials on this
+deployment, so they render "provider not configured" rather than a game.
+There is no sportsbook, deliberately.
+
+See [10 — Backend integration](./10-backend-integration.md) for what has
+landed and what is next, and [09 — Roadmap](./09-roadmap.md) for the rest.
 
 ## A note on the domain
 

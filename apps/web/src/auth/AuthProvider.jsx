@@ -2,6 +2,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 import { ApiError, api, refreshSession } from '@/lib/api';
 import { ENDPOINTS } from '@/lib/endpoints';
 import { tokenStore } from './tokenStore';
+import { bindSession } from '@/lib/socket';
 
 /**
  * Session state for the whole app.
@@ -96,6 +97,27 @@ export function AuthProvider({ children }) {
       }),
     [],
   );
+
+  /**
+   * Keep the socket's identity in step with the session's.
+   *
+   * A visitor who signs in without reloading has a socket that was opened with
+   * no token, and **every `player` event is refused for the life of that
+   * connection** — the deposit address, the withdrawal, the wallet history —
+   * until it is rebound. `bindSession` sends `ONLINE_LOGGED`, which also moves
+   * the connection out of the previous player's room; on a shared device,
+   * skipping that leaves one player receiving the other's private pushes.
+   *
+   * Keyed on `status` rather than on the token: a rotation does not change who
+   * the connection belongs to, and the socket's own `auth` callback re-reads
+   * the token on every reconnect. `loading` is skipped because the answer is
+   * not known yet and binding to a token that is about to be replaced would
+   * announce the session twice.
+   */
+  useEffect(() => {
+    if (status === 'loading') return;
+    bindSession();
+  }, [status]);
 
   /** Turn a `{accessToken, refreshToken, user}` payload into a live session. */
   const adopt = useCallback(async (session) => {

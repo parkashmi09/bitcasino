@@ -50,6 +50,15 @@ import { toGames, toProviders, toProviderCounts, toSiteConfig } from '../src/dat
 import { CATEGORY_SLUGS, categoryFromType } from '../src/data/adapters/categories.js';
 import { CATEGORY_ART } from '../src/data/adapters/games.js';
 import { KNOWN_LOGOS } from '../src/data/adapters/providers.js';
+import {
+  PLATFORM_COLLECTIONS,
+  CUT_COLLECTIONS,
+  resolveCollection,
+} from '../src/data/adapters/collections.js';
+import { HOME_RAILS } from '../src/data/homeRails.js';
+import { EVENTS } from '../src/lib/socketEvents.js';
+
+import { io } from 'socket.io-client';
 
 /** `public/` — every path the adapters emit is served from here. */
 const PUBLIC_DIR = join(dirname(fileURLToPath(import.meta.url)), '..', 'public');
@@ -60,6 +69,17 @@ const asset = (url) => join(PUBLIC_DIR, url.replace(/^\//, ''));
 const BASE = process.env.API_BASE ?? 'http://127.0.0.1:4000';
 const CASINO = `${BASE}/api/v1/casino`;
 const ADMIN = `${BASE}/api/v1/admin`;
+const USER = `${BASE}/api/v1/user`;
+
+/**
+ * The socket base, which is NOT the gateway.
+ *
+ * user-service attaches its own Socket.io server on its own port; the
+ * gateway proxies HTTP only. In the browser this is same-origin because
+ * `vite.config.js` proxies `/socket.io` to :4001; a script has no proxy, so
+ * it names the service directly.
+ */
+const SOCKET_BASE = process.env.SOCKET_BASE ?? 'http://127.0.0.1:4001';
 
 let failures = 0;
 let checks = 0;
@@ -411,6 +431,60 @@ console.log('\nPlayer-scoped routes  (must refuse an anonymous read)');
   if (res.error) ok('recently-played needs a token', `${res.status}`);
   else fail('recently-played needs a token', 'answered 200 without one');
 }
+{
+  const res = await get(`${CASINO}/bet-history`, { page: 1, limit: 5 });
+  if (res.error) ok('bet-history needs a token', `${res.status}`);
+  else fail('bet-history needs a token', 'answered 200 without one');
+}
+
+/**
+ * The account area's reads, added with Phase 6.
+ *
+ * Every one is `player`, so the check without a token is that the route
+ * EXISTS and is guarded. A 404 is the failure worth catching: a renamed or
+ * unmounted route would render as an empty security card or an empty
+ * transactions table, neither of which looks like a missing endpoint.
+ */
+for (const [label, path_, query] of [
+  ['GET /2fa/status', `${USER}/2fa/status`, undefined],
+  ['GET /auth/sessions', `${USER}/auth/sessions`, undefined],
+  ['GET /kyc/status', `${USER}/kyc/status`, undefined],
+  ['GET /history', `${USER}/history`, { limit: 5, offset: 0 }],
+  ['GET /history/transfers', `${USER}/history/transfers`, { limit: 5, offset: 0 }],
+]) {
+  const res = await get(path_, query);
+  if (res.status === 404) fail(label, 'answered 404 — the route is not mounted');
+  else if (res.error) ok(`${label} needs a token`, `${res.status}`);
+  else fail(label, 'answered 200 without one');
+}
+
+/**
+ * The two aggregator launch routes.
+ *
+ * Unauthenticated POSTs, so the only thing checkable without a session is that
+ * the routes EXIST and are guarded — which is exactly the failure worth
+ * catching, because a renamed or unmounted route answers 404 and `Play.jsx`
+ * would render that as "the provider refused" rather than "the route is gone".
+ *
+ * A 404 here fails the check; a 401/403 passes it. `GIS_NOT_CONFIGURED` (503)
+ * would also pass — it means the route ran — but the guard sits in front of
+ * the service, so it should not be reached.
+ */
+console.log('\nAggregator launch  (routes exist and are guarded)');
+for (const [label, url] of [
+  ['POST /gis/launch', `${CASINO}/gis/launch`],
+  ['POST /gis/launch-demo', `${CASINO}/gis/launch-demo`],
+]) {
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ gameUuid: 'cobalt-sky' }),
+  });
+
+  if (response.status === 404) fail(label, 'answered 404 — the route is not mounted');
+  else if (response.status === 200 || response.status === 201) fail(label, 'launched without a token');
+  else ok(label, `${response.status}`);
+}
 
 // ── Art the adapters point at must exist ───────────────────────────────
 /**
@@ -476,6 +550,351 @@ console.log('\nArt the adapters emit  (a missing image 404s silently)');
       ok('seeded game art exists', `${games.length} tile(s)`);
     }
   }
+}
+
+// ── Every home rail resolves to games ──────────────────────────────────
+/**
+ * The seven rails, each through the source it actually uses.
+ *
+ * A rail whose source stopped resolving renders nothing at all — `GameRail`
+ * returns null for an empty list, which is right for a collection an operator
+ * emptied and indistinguishable from a rail that broke. This is what tells
+ * them apart.
+ */
+console.log('\nHome rails  (a rail with no source renders nothing at all)');
+for (const rail of HOME_RAILS) {
+  const { kind, slug } = rail.source;
+
+  let rows;
+  if (kind === 'collection') {
+    const res = await get(`${CASINO}/games/collections/${slug}`, collectionQuery({ limit: 12 }));
+    if (res.error) {
+      fail(`"${rail.title}"`, res.error);
+      continue;
+    }
+    rows = res.data;
+  } else if (kind === 'category') {
+    const res = await get(`${CASINO}/games`, gamesQuery({ category: slug, page: 1, limit: 12 }));
+    if (res.error) {
+      fail(`"${rail.title}"`, res.error);
+      continue;
+    }
+    rows = res.data;
+  } else {
+    const res = await get(`${CASINO}/games`, gamesQuery({ page: 1, limit: 100 }));
+    if (res.error) {
+      fail(`"${rail.title}"`, res.error);
+      continue;
+    }
+    rows = res.data;
+  }
+
+  const games = kind === 'cut' ? resolveCollection(slug).cut(toGames(rows)) : toGames(rows);
+
+  if (games.length === 0) {
+    fail(`"${rail.title}"`, `${kind} "${slug}" resolved to 0 games — the rail draws nothing`);
+  } else {
+    ok(`"${rail.title}"`, `${kind} "${slug}" — ${games.length}`);
+  }
+}
+
+// ── The Themes strip links somewhere real ──────────────────────────────
+/**
+ * Every tile in the old strip was a 404: the six static `THEMES` linked to
+ * `/themes/:slug` and there has never been a `/themes` route. The five here
+ * link to `/games/:collection`, so each has to be a slug the platform serves
+ * AND one `resolveCollection` reads as a collection.
+ */
+console.log('\nThemes strip');
+{
+  const artMissing = PLATFORM_COLLECTIONS.filter((c) => !existsSync(asset(c.art)));
+  if (artMissing.length) {
+    fail('theme art exists', artMissing.map((c) => `${c.slug} -> ${c.art}`).join(', '));
+  } else {
+    ok('theme art exists', `${PLATFORM_COLLECTIONS.length} tile(s)`);
+  }
+
+  const badLink = PLATFORM_COLLECTIONS.filter(
+    (c) => resolveCollection(c.slug)?.kind !== 'collection',
+  );
+  if (badLink.length) {
+    fail('every tile links to a real list', badLink.map((c) => c.slug).join(', '));
+  } else {
+    ok('every tile links to a real list', '/games/<collection>');
+  }
+}
+
+// ── The client-side cuts still find something ──────────────────────────
+/**
+ * `new`, `exclusives` and `live-rtp` are cut out of one fetched page because
+ * the browse route has no `label` filter and no sort — see
+ * `data/adapters/collections.js`. They are the surfaces that will break first
+ * against a real catalogue, so an empty cut is reported rather than passed
+ * over as "the operator curated nothing".
+ */
+console.log('\nClient-side cuts  (no label filter upstream — see collections.js)');
+{
+  const res = await get(`${CASINO}/games`, gamesQuery({ page: 1, limit: 100 }));
+  if (res.error) {
+    fail('cut source', res.error);
+  } else {
+    const games = toGames(res.data);
+    for (const [slug, meta] of Object.entries(CUT_COLLECTIONS)) {
+      const cut = meta.cut(games);
+      if (cut.length === 0) {
+        fail(`"${slug}"`, `cut 0 of ${games.length} — the rail and /games/${slug} are both empty`);
+      } else {
+        ok(`"${slug}"`, `${cut.length} of ${games.length}`);
+      }
+    }
+  }
+}
+
+// ── The live surfaces ──────────────────────────────────────────────────
+/**
+ * The four public socket events behind the ticker, the game-page feed and
+ * the notification list.
+ *
+ * ═══════════════════════════════════════════════════════════════════════
+ * THIS SECTION DOES NOT GO THROUGH THE GATEWAY.
+ *
+ * The gateway proxies HTTP only — `proxy.js` strips `upgrade` with the
+ * other hop-by-hop headers — so a websocket handshake sent at :4000 never
+ * reaches a service. These connect straight to user-service, which is what
+ * `vite.config.js` points the browser's `/socket.io` at.
+ *
+ * The event NAMES come from the app's own table, for the same reason the
+ * HTTP checks import `queries/params.js`: a script with its own copy of a
+ * hash would verify the script. `verify:socket-events` proves those names
+ * match the backend byte for byte; this proves the replies have the fields
+ * the adapters read, which is the failure that presents as an empty rail.
+ * ═══════════════════════════════════════════════════════════════════════
+ */
+console.log('\nSocket live surfaces  (LatestWins, RecentRounds, Notifications)');
+{
+  const socket = io(SOCKET_BASE, { path: '/socket.io', transports: ['polling', 'websocket'] });
+
+  /** The wire format: JSON in a byte array. Same as `lib/socket.js`. */
+  const encoder = new TextEncoder();
+  const decoder = new TextDecoder();
+
+  const ask = (event, payload = {}) =>
+    new Promise((resolve) => {
+      socket.timeout(10_000).emit(event, encoder.encode(JSON.stringify(payload)), (timeout, frame) => {
+        if (timeout) return resolve({ error: 'no reply within 10s' });
+        try {
+          const body =
+            frame instanceof ArrayBuffer
+              ? JSON.parse(decoder.decode(new Uint8Array(frame)))
+              : ArrayBuffer.isView(frame)
+                ? JSON.parse(decoder.decode(frame))
+                : frame;
+          // `status === true` and nothing else — a refusal sets `status` to
+          // the error MESSAGE, which is truthy. See `lib/socket.js`.
+          if (body?.status !== true) {
+            return resolve({ error: body?.error?.code ?? body?.msg ?? 'refused' });
+          }
+          return resolve({ data: body });
+        } catch (error) {
+          return resolve({ error: `unreadable frame: ${error.message}` });
+        }
+      });
+    });
+
+  const connected = await new Promise((resolve) => {
+    socket.once('connect', () => resolve(true));
+    socket.once('connect_error', () => resolve(false));
+  });
+
+  if (!connected) {
+    fail('socket connects to user-service', `nothing accepted a handshake at ${SOCKET_BASE}`);
+  } else {
+    ok('socket connects to user-service', SOCKET_BASE);
+
+    /**
+     * Every row the two feeds answer must carry the six fields the ticker
+     * renders. A renamed field upstream makes `toBet` produce `undefined`,
+     * and `undefined` renders as nothing — the strip goes blank rather than
+     * throwing, which is exactly the failure this whole script exists for.
+     */
+    const ROW_FIELDS = ['name', 'game', 'coin', 'amount', 'profit', 'at'];
+
+    const checkFeed = async (label, event, payload, field) => {
+      const res = await ask(event, payload);
+      if (res.error) return fail(label, res.error);
+
+      const rows = res.data[field];
+      if (!Array.isArray(rows)) {
+        return fail(`${label} answers \`${field}\``, `got ${typeof rows}`);
+      }
+      if (rows.length === 0) {
+        return ok(label, 'empty — nothing settled yet, which the ticker renders as no section');
+      }
+
+      const missing = ROW_FIELDS.filter((key) => rows[0][key] === undefined);
+      if (missing.length) return fail(`${label} row shape`, `missing ${missing.join(", ")}`);
+
+      ok(label, `${rows.length} row(s)`);
+    };
+
+    await checkFeed('LAST_BETS  (Live wins, Latest)', EVENTS.LAST_BETS, {}, 'bets');
+    await checkFeed('TOP_WINNERS  (Live wins, Biggest)', EVENTS.TOP_WINNERS, {}, 'winners');
+
+    /**
+     * `LAST_BETS_BY_GAME` takes the ENGINE key, not a catalogue slug.
+     *
+     * The refusal boundary is pinned here because it is not where it looks:
+     * the handler guards the EMPTY string only, so an unknown game answers a
+     * perfectly ordinary empty list. That is the shape a caller sending a
+     * provider slug would get — silence, indistinguishable from a game nobody
+     * has played — and it is worth failing this script if it ever changes,
+     * because the game page's feed would then start throwing where it used to
+     * render nothing.
+     */
+    await checkFeed('LAST_BETS_BY_GAME  (RecentRounds)', EVENTS.LAST_BETS_BY_GAME, { game: 'limbo' }, 'bets');
+
+    const unknown = await ask(EVENTS.LAST_BETS_BY_GAME, { game: 'not-a-game' });
+    if (unknown.error) fail('an unknown game answers an empty feed', unknown.error);
+    else if (!Array.isArray(unknown.data?.bets) || unknown.data.bets.length) {
+      fail('an unknown game answers an empty feed', 'answered rows');
+    } else {
+      ok('an unknown game answers an empty feed', 'not a refusal — the caller must know the key');
+    }
+
+    const nameless = await ask(EVENTS.LAST_BETS_BY_GAME, { game: '' });
+    if (nameless.error) ok('an empty game name IS refused', nameless.error);
+    else fail('an empty game name IS refused', 'answered a list');
+
+    /**
+     * The notification feed. It answered `SOCKET_HANDLER_FAILED` for every
+     * caller until Phase 8 — the handler ordered by an `id` column the
+     * `notifications` table does not have. This is the check that would
+     * have caught it.
+     */
+    const notices = await ask(EVENTS.NOTIFICATION);
+    if (notices.error) fail('NOTIFICATION  (the announcements feed)', notices.error);
+    else if (!Array.isArray(notices.data.notifications)) {
+      fail('NOTIFICATION answers `notifications`', `got ${typeof notices.data.notifications}`);
+    } else {
+      const rows = notices.data.notifications;
+      const missing = rows.length ? ['title', 'content', 'date'].filter((k) => rows[0][k] === undefined) : [];
+      if (missing.length) fail('notification row shape', `missing ${missing.join(', ')}`);
+      else ok('NOTIFICATION  (the announcements feed)', `${rows.length} notice(s)`);
+    }
+  }
+
+  socket.close();
+}
+
+// ── Content and promotions ─────────────────────────────────────────────
+/**
+ * The Phase 7 surfaces. Unlike the account routes above, most of these are
+ * **public**, so this checks the shapes the pages actually render rather than
+ * only that the guard bites.
+ *
+ * Two of them are legitimately empty on this deployment and are reported as
+ * such rather than failed: nobody has uploaded a banner and nobody has
+ * scheduled a promotion. An empty list and a broken fetch look identical in a
+ * rendered page, which is exactly why the distinction is worth printing here.
+ */
+console.log('\nGET /admin/blogs  (Blog)');
+{
+  const res = await get(`${ADMIN}/blogs`, { page: 1, limit: 12 });
+
+  if (res.error) {
+    fail('blog index', res.error);
+  } else if (!Array.isArray(res.data)) {
+    fail('blog index answers a list', `got ${typeof res.data}`);
+  } else if (res.data.length === 0) {
+    fail('blog index has posts', 'empty — run `npm run db:seed:demo` for the `content` set');
+  } else {
+    ok('blog index', `${res.data.length} post(s)`);
+
+    // Page-based, so `meta.pagination` — not `meta.total` and not absent.
+    if (typeof res.meta?.pagination?.totalPages !== 'number') {
+      fail('meta.pagination', `got ${JSON.stringify(res.meta)}`);
+    } else {
+      ok('meta.pagination', `${res.meta.pagination.totalPages} page(s)`);
+    }
+
+    /**
+     * The index must NOT ship the body — that is why the detail page fetches
+     * by slug. If this ever starts arriving, the extra request can go.
+     */
+    const withBody = res.data.filter((row) => row.description);
+    if (withBody.length) {
+      ok('index carries no body', `NOTE: ${withBody.length} row(s) now include one`);
+    } else {
+      ok('index carries no body', 'metadata only, as expected');
+    }
+
+    // The detail read, on a slug the index actually returned.
+    const [first] = res.data;
+    const detail = await get(`${ADMIN}/blogs/slug/${encodeURIComponent(first.slug)}`);
+
+    if (detail.error) {
+      fail(`blogs/slug/${first.slug}`, detail.error);
+    } else if (!detail.data?.description) {
+      fail(`blogs/slug/${first.slug}`, 'no `description` — the detail page would render empty');
+    } else {
+      ok(`blogs/slug/${first.slug}`, `${detail.data.description.length} chars of body`);
+    }
+  }
+}
+
+console.log('\nGET /admin/banners  (HomeBanner art)');
+{
+  const res = await get(`${ADMIN}/banners`);
+
+  if (res.error) {
+    fail('banners', res.error);
+  } else if (!Array.isArray(res.data)) {
+    fail('banners answers a list', `got ${typeof res.data}`);
+  } else {
+    // Empty is the normal state — the copy is local either way, and only the
+    // ART would come from here. See `HomeBanner.jsx`.
+    ok(
+      'banners answers a list',
+      res.data.length === 0 ? 'empty — the fixture art renders' : `${res.data.length} placement(s)`,
+    );
+  }
+}
+
+console.log('\nGET /user/spin-wheel/slices  (Promotions)');
+{
+  const res = await get(`${USER}/spin-wheel/slices`);
+
+  if (res.error) {
+    fail('spin wheel slices', res.error);
+  } else if (!Array.isArray(res.data?.slices)) {
+    fail('slices answers `{slices, disabled}`', `got ${JSON.stringify(res.data)?.slice(0, 80)}`);
+  } else if (res.data.disabled) {
+    ok('spin wheel', 'disabled by the operator — the page says so');
+  } else if (res.data.slices.length === 0) {
+    fail('spin wheel has segments', 'enabled with no slices — the page cannot draw a wheel');
+  } else {
+    ok('spin wheel slices', `${res.data.slices.length} segment(s)`);
+
+    /**
+     * The public route must NOT expose the weights. They are the odds, and a
+     * client that had them could compute the house edge off the wheel.
+     */
+    const leaked = res.data.slices.filter((slice) => slice.weight !== undefined);
+    if (leaked.length) fail('weights stay server-side', `${leaked.length} slice(s) expose one`);
+    else ok('weights stay server-side', 'no `weight` on the public route');
+  }
+}
+
+console.log('\nPlayer-scoped promotions  (must refuse an anonymous read)');
+for (const [label, path_] of [
+  ['GET /user/bonus', `${USER}/bonus`],
+  ['GET /user/bonus/events', `${USER}/bonus/events`],
+  ['GET /spin-wheel/eligibility', `${USER}/spin-wheel/eligibility`],
+]) {
+  const res = await get(path_, undefined);
+  if (res.status === 404) fail(label, 'answered 404 — the route is not mounted');
+  else if (res.error) ok(`${label} needs a token`, `${res.status}`);
+  else fail(label, 'answered 200 without one');
 }
 
 // ── Result ─────────────────────────────────────────────────────────────

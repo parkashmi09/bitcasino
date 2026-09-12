@@ -317,6 +317,31 @@ has none.
 
 Renders nothing; resets scroll on pathname change.
 
+### `ErrorBoundary` / `RouteErrorBoundary`
+
+```tsx
+<RouteErrorBoundary><Outlet /></RouteErrorBoundary>
+```
+
+The one class component in the app, because `componentDidCatch` has no hook
+equivalent and React 19 has not changed that.
+
+**It is not where failed requests go.** A read that fails is a STATE, drawn by
+`QueryState` next to a page that still works. What lands here is a component
+that threw while RENDERING — a field that was an object where a string was
+expected, a `.map` on something that turned out to be null. Without a boundary
+React unmounts the whole tree on one of those, and a blank page on a site whose
+header carries the balance is indistinguishable from an outage.
+
+Two are mounted. `Layout` wraps the routed outlet, so a page that throws leaves
+the shell navigable; `main.jsx` wraps everything, for the auth screens (which
+render outside `Layout`) and for the router and session provider themselves.
+
+`RouteErrorBoundary` re-keys the boundary on the pathname, and that is the part
+worth guarding. React never clears a caught boundary on its own, so without it
+one broken page poisons the whole session: the player presses Home, the URL
+changes, and the same apology stays on screen. It is pinned by a test.
+
 ## Sections — `components/sections/`
 
 ### `GameCard`
@@ -329,6 +354,16 @@ Renders nothing; resets scroll on pathname change.
 Locked to `aspect-[140/188]`, or `aspect-[244/188]` with `wide` — the two
 ratios the reference site uses. Both resolve to the same rendered height at a
 given breakpoint, so a mixed rail stays aligned.
+
+`wide` only takes effect **from `sm`**. The reference's featured tile is
+`max-w-26 max-h-35 sm:max-w-61 sm:max-h-47` — a 104x140 box on a phone and a
+244x188 one from `sm` — and 104x140 is the portrait ratio, not the wide one. So
+below `sm` the tile takes the portrait crop and the featured rail sits on the
+same baseline as every other rail. That is why the artwork goes through
+`<picture>` with a `(min-width: 640px)` source rather than a `src`: the two
+crops are separate files, and loading both to hide one would cost a phone an
+image it never shows. `block size-full` on the `<picture>` is load-bearing —
+it is an inline box by default, and the image's `h-full` resolves against it.
 
 The tile carries **no caption**: title and studio are part of the artwork, as
 they are on the reference site. That is what lets a rail read as one uniform
@@ -391,10 +426,20 @@ than a breakpoint.
 <Rail title="Best Slot games" href="/categories/video-slots">{cards}</Rail>
 ```
 
-The shell every horizontal row goes through — `GameRail`, `Testimonials` and
-the tournaments page all render into it, because the reference site gives them
-identical chrome: a 32px header line carrying the title and a "See all" link, a
-20px gap, then the scroller.
+The shell every horizontal row goes through — `GameRail`, `Testimonials`,
+`LatestWins` and the tournaments page all render into it, because the reference
+site gives them identical chrome: a 32px header line, a 20px gap, then the
+scroller.
+
+That header line has **three** shapes. A rail over a catalogue list has
+somewhere to send the player and gets the `See all` link. A LIVE rail does not
+— there is no page listing every bet ever settled — so `href` is optional and
+the link is omitted rather than rendered with an undefined destination: a
+`<Link>` with no `to` resolves to the CURRENT route, which looks real and does
+nothing. `action` is the third: arbitrary controls in the link’s place, for
+`LatestWins`’ `Latest / Biggest` switch. It replaces the link rather than
+sitting beside it — the reference never shows both, and a row with a tab group
+AND a `See all` reads as two affordances for one thing.
 
 `headingClassName` overrides the title's type, and `className` its gap — `cn`
 is `twMerge`, so both genuinely replace the defaults. That is how `/tournaments`
@@ -421,6 +466,11 @@ disabled — a rail that fits should carry no visible controls at all.
 `Rail` plus a row of `GameCard`s. `featured` switches the row to the wide
 artwork; the home page uses it for the first rail only.
 
+Tile widths are the reference's own, read off its tile: `w-[104px]
+md:w-[124px] lg:w-[140px]` on a 12px gap, and `w-[104px] sm:w-[244px]` for the
+featured row. Ours used to be a breakpoint ahead of that — 124px where the
+reference is at 104 — which is a fifth too wide on every phone.
+
 Returns `null` for an empty list rather than rendering an empty heading.
 
 ### `Hero`
@@ -434,6 +484,43 @@ The home page renders it only for a signed-out visitor; once there is a session
 `HomeBanner`'s three promo cards take the slot instead. While the session is
 still resolving, `Home` holds the space empty rather than picking one, so a
 returning player never sees the acquisition pitch flash.
+
+### `HomeBanner`
+
+Three promo cards for a signed-in visitor: **a row on a desktop, a carousel on
+a phone**.
+
+From `sm` it is the reference's own markup — `flex justify-between gap-4`, each
+card `w-full`, `min-h-[514px] max-w-[496px]` at `xl`. Below `sm` three cards
+cannot share a 390px line: they shrink to their min-content width, which is set
+by the longest word in each title, so they come out at three *different* widths
+(149, 104 and 132px at a 215px viewport, measured on the reference itself) and
+still overflow the column. The reference shows one card there instead, ~63% of
+the viewport wide (270px on the 428px capture it was measured from) and 410px
+tall, its neighbours peeking into the page gutter either side, with three dots
+under it — 8px on a 16px pitch, `trunks` for the current one and `trunks/40`
+for the rest — advancing every 5s and wrapping round for ever.
+
+One DOM serves both. The scroller stops scrolling at `sm`
+(`sm:overflow-x-visible`, `sm:snap-none`), the dots go `sm:hidden`, and what is
+left is the reference's row.
+
+Three things are worth knowing before touching it:
+
+- **The loop is three copies of the set**, not one, and the scroller rests in
+  the middle one. Anything that leaves that copy — a swipe, an advance — is
+  walked back by one copy's width once the scrolling stops, which is invisible
+  because the copies are identical. The two spare copies are `aria-hidden` and
+  out of the tab order, so assistive technology sees three cards.
+- **Every measurement goes through `getBoundingClientRect`**, never `scrollLeft`
+  against `offsetLeft`: under RTL `scrollLeft` runs negative, and offsets from
+  the scroller's own centre need no sign.
+- **A `ResizeObserver` owns the resting position.** The track's width is not
+  settled when the mount effect runs — the page grows a scrollbar as the rails
+  below render, taking 15px off it — and under `snap-mandatory` the browser
+  then re-snaps to whatever is nearest in the new layout, which lands a whole
+  card out. Re-centring on every size change is what fixes that, and it covers
+  rotation and the `sm` boundary for free.
 
 ### `CategoryStrip`
 
@@ -458,6 +545,47 @@ band.
 
 Marks rest at `opacity-40` and snap to full on hover with no transition —
 the reference's `h-10 opacity-40 hover:opacity-100` verbatim.
+
+### `LatestWins`
+
+```tsx
+<LatestWins />   // takes nothing; reads two public socket events
+```
+
+The live wins ticker, over `LAST_BETS` and `TOP_WINNERS`. Two tabs in the
+`Rail` header, and they are genuinely two lists rather than one sorted twice:
+each is twenty rows off a much longer table, so the biggest win of the day is
+very unlikely to be among the twenty most recent.
+
+Both feeds are read even though one is shown. `enabled: tab === …` would make
+the first press of the other tab a cold fetch with an empty rail under it, on a
+strip whose whole job is ambient movement — and two twenty-row reads on a
+twenty-second poll sit well inside the public bucket’s forty-per-ten-seconds.
+
+**It renders nothing until somebody wins**, and treats a failure the same way,
+for the reason `ProviderRail` does: this is ambient colour on a lobby page, and
+an alert where a ticker should be draws far more attention to the outage than a
+missing strip does. That includes a socket that never connects.
+
+It shows the player’s name, which is why it reads the socket rather than
+`GET /casino/bet-history/live` — that route deliberately carries no identity,
+and a wins strip without a name on it is a list of numbers.
+
+### `RecentRounds`
+
+```tsx
+<RecentRounds game="limbo" title="Limbo" />
+```
+
+Everyone’s recent rounds on one game, over `LAST_BETS_BY_GAME`. Same event and
+same rows as the ticker, opposite filter: this shows **losses too**, because on
+a game page a table of nothing but wins beside a Play button is a claim about
+the game.
+
+`game` is the ENGINE key from `parameters.event` — `limbo`, not `limbo-original`
+and not `Limbo`. An unknown key answers an empty list with no error anywhere, so
+the panel renders only for a game `isPlayable` has already vouched for;
+otherwise it would be a permanently empty table that looks like a quiet game.
 
 ### `TournamentCard`
 
@@ -562,9 +690,14 @@ project, not collected from real players.
 | `Category` | Game list for a category or a `COLLECTIONS` slug; owns the provider filter, derived from the studios actually present |
 | `Providers` | Studio index grid |
 | `Provider` | One studio's catalogue; owns the category filter, derived from the categories actually present |
-| `Play` | Breadcrumb, 16:9 frame placeholder, fun/real controls, similar-games rail; handles unknown slugs |
+| `Play` | Breadcrumb, similar-games rail, unknown slugs — and one of **three** frames, chosen by what the game is. A playable original renders `LimboGame` (a real socket round on casino-service against the wallet); an original this client cannot yet draw says so, because the engine plays all twenty and only the client is missing; an aggregator title renders `ProviderFrame`, whose Fun/Real pair calls `POST /casino/gis/launch{,-demo}` and shows `GIS_NOT_CONFIGURED` as a state rather than a failure. `isPlayable` in `queries/play.js` is the single place that choice is made |
+| `LimboGame` | The first in-house original. Stake and target multiplier, a string-safe ½/2×/Max, the payout preview net of the 2% house edge, the settled roll, and the player's own rounds read back from `GET /casino/bet-history?source=inhouse`. It does **not** claim provable fairness: `in-house/engine/hash.js` draws the hash alongside the result rather than committing to it beforehand, so the value is labelled as the round's identifier and nothing more |
+| `ProviderFrame` | The aggregator seam. Nothing is launched until a button is pressed — a launch writes a `gis_sessions` row and records a play. The iframe is sandboxed without `allow-same-origin`, so a provider page cannot reach this origin's storage and the access token in it |
 | `Refer` | `/profile/refer-a-friend` — the invite banner, the three-step explainer with its dotted connector, and a split between the referral list and a column of statistics and FAQ. The link, `Total Referrals` and `Total earned` are real: `GET /profile/referral`, `GET /affiliate/team`, `GET /affiliate/rewards` |
-| `Security` | `/profile/security` — the password card and the two-factor card, both measured off the reference. `Update` opens a `Change password` dialog wired to `POST /auth/change-password`; the 2FA switch reports `two_fa_status` off `/auth/me` and is inert, because the platform has no route to change it |
+| `Security` | `/profile/security` — three cards. The password card opens a `Change password` dialog over `POST /auth/change-password`. The two-factor card drives `/2fa/{status,enable,setup-verify,disable}` through a setup dialog (QR plus the base32 key, then a six-digit confirm) and a disable dialog that takes the code **and** the account password; it reads `hasInitiated` so an abandoned setup is a state it can name. The sessions card is `GET /auth/sessions` with a sign-out-everywhere over `POST /auth/logout {allSessions}` — the reference has no such card, and `docs/11` records the divergence |
+| `Transactions` | `/profile/transactions` — three tabs over `GET /user/history` (two separately-counted sides, not a flat list) and `GET /user/history/transfers`. Offset-based paging with Previous/Next, because `count` is per-side and no single total would be honest across the tabs. An unresolvable provider coin id renders as `coin #1280` rather than being guessed into a ticker |
+| `KycDialog` | The identity submission — the app's only multipart post. Which file slots appear follows the chosen document type. `api.js` omits the content-type on a `FormData` body; setting it answers 500, not a validation error |
+| `Dialog` | The shared modal shell: overlay, panel, Escape, focus return to the opener, body-scroll lock, and one animation frame of grace before unmount. Five callers. No focus trap — `aria-modal` does the part that helps, and a half-built trap that misses a control silently swallows Tab |
 | `Boosts` | `/profile/boosts` — the Casino Boost list. The reference's empty state is reproduced exactly and is what renders whenever nothing is live; the boost card itself is ours, because the account measured had no boost to copy. `Read more` opens the help-centre article on the page rather than pointing at a help centre this project does not have |
 | `Loyalty` | `/loyalty` — the Loyalty Club sheet: full-bleed hero, six benefits, the seven-tier table, a three-way profits picker and four progress cards. Reached from the account menu's `Loyalty` row and the account tab bar's `Loyalty` tab, both of which leave `/profile` behind exactly as the reference does |
 | `Login` | Split screen, outside `Layout` — see `AuthShell` |

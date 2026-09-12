@@ -1,0 +1,20 @@
+{
+  "name": "@ibitplay/sports-service",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Sports betting, exposure tracking, market settlement",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node src/index.js",
+    "start:worker": "node src/worker.js",
+    "test": "node --test --test-concurrency=1 src/modules/*/__tests__/*.test.js"
+  },
+  "dependencies": {
+    "@ibitplay/auth": "1.0.0",
+    "@ibitplay/common": "1.0.0",
+    "@ibitplay/db": "1.0.0",
+    "express": "^4.21.2",
+    "sequelize": "^6.37.5",
+    "zod": "^3.24.1"
+  }
+}

@@ -28,7 +28,7 @@ import { tokenStore } from '@/auth/tokenStore';
  */
 
 export class ApiError extends Error {
-  constructor({ code, message, status, details }) {
+  constructor({ code, message, status, details, retryAfter }) {
     super(message || 'Request failed');
     this.name = 'ApiError';
     /** Stable, e.g. `AUTH_INVALID_CREDENTIALS`. Branch on this. */
@@ -39,6 +39,24 @@ export class ApiError extends Error {
     this.requestId = details?.requestId ?? null;
     /** `[{field, message}]` on a 422. */
     this.fields = details?.fields ?? null;
+    /**
+     * Seconds to wait, on a 429 and nothing else.
+     *
+     * The platform's limiter sends it twice — as the `Retry-After` header and
+     * as `details.retryAfter` — and they are the same number, being the whole
+     * window rather than the remainder of it. The header is preferred because
+     * it is the one an intermediary in front of the platform would also set;
+     * `details` is the fallback for a 429 that arrives without it.
+     *
+     * Null on every other status. A caller that reads it as a truthy value is
+     * asking "was this rate limited", which is the right question.
+     */
+    this.retryAfter = retryAfter ?? null;
+  }
+
+  /** Was this refused for going too fast, rather than for being wrong? */
+  get isRateLimited() {
+    return this.status === 429;
   }
 
   /** The message for a named field, if the failure was a validation one. */
@@ -140,6 +158,41 @@ async function parseBody(response) {
   }
 }
 
+/**
+ * How long a 429 says to wait, in seconds.
+ *
+ * ═════════════════════════════════════════════════════════════════════════
+ * NOTHING HERE RETRIES. THIS ONLY REPORTS THE WAIT.
+ *
+ * A rate limit is the one failure where an automatic retry makes things
+ * strictly worse: every attempt inside the window is itself counted, so a
+ * client that retries immediately extends its own lockout and adds load to a
+ * service that has already said it has too much. `api.js` therefore throws,
+ * and the decision to try again belongs one layer up — to `queries/client.js`,
+ * which waits `retryAfter` before its single attempt, or to a player pressing
+ * `Try again` under a message that tells them how long it will be.
+ *
+ * `Retry-After` may be an integer of seconds or an HTTP date; the platform
+ * sends the integer, an intermediary may send the date, and both are read.
+ * Anything unparseable falls through to `null` rather than to a guess — a
+ * fabricated countdown is worse than none, because it is trusted.
+ * ═════════════════════════════════════════════════════════════════════════
+ */
+function retryAfterSeconds(response, error) {
+  const header = response.headers?.get?.('retry-after');
+
+  if (header) {
+    const seconds = Number(header);
+    if (Number.isFinite(seconds) && seconds >= 0) return Math.ceil(seconds);
+
+    const at = Date.parse(header);
+    if (Number.isFinite(at)) return Math.max(0, Math.ceil((at - Date.now()) / 1000));
+  }
+
+  const fromBody = Number(error?.details?.retryAfter);
+  return Number.isFinite(fromBody) && fromBody >= 0 ? Math.ceil(fromBody) : null;
+}
+
 function buildUrl(path, query) {
   if (!query) return path;
   const params = new URLSearchParams();
@@ -169,7 +222,32 @@ export async function api(path, options = {}) {
 
 async function send(url, { method, body, raw, auth, signal }, mayRefresh) {
   const headers = {};
-  if (body !== undefined) headers['content-type'] = 'application/json';
+
+  /**
+   * `FormData` is passed through untouched, and — critically — WITHOUT a
+   * `content-type` header.
+   *
+   * A multipart body is `multipart/form-data; boundary=----WebKitFormBoundary…`
+   * and only the browser knows the boundary it generated. Setting the header
+   * ourselves sends the type with NO boundary, and multer cannot parse a
+   * multipart body without one.
+   *
+   * Measured against the running service on 2026-09-09, posting the same
+   * `FormData` twice:
+   *
+   *     with `content-type: multipart/form-data`  ->  500 INTERNAL_ERROR
+   *                                                   "Something went wrong"
+   *     with no content-type at all               ->  201 {id, status: 'Pending'}
+   *
+   * The 500 is the point. It carries no field detail and no hint that the
+   * request never reached the validator, so it reads as a broken endpoint
+   * rather than a malformed request — and the fields it was "missing" are
+   * right there in the form.
+   *
+   * The only route this app posts multipart to is the KYC upload.
+   */
+  const multipart = typeof FormData !== 'undefined' && body instanceof FormData;
+  if (body !== undefined && !multipart) headers['content-type'] = 'application/json';
 
   const token = auth ? tokenStore.getAccess() : null;
   if (token) headers.authorization = `Bearer ${token}`;
@@ -179,7 +257,7 @@ async function send(url, { method, body, raw, auth, signal }, mayRefresh) {
     response = await fetch(url, {
       method,
       headers,
-      body: body === undefined ? undefined : JSON.stringify(body),
+      body: body === undefined ? undefined : multipart ? body : JSON.stringify(body),
       signal,
     });
   } catch (cause) {
@@ -191,8 +269,30 @@ async function send(url, { method, body, raw, auth, signal }, mayRefresh) {
    * An expired access token looks exactly like a missing one from here, so the
    * retry is attempted whenever we *had* something to send. Only once — the
    * second 401 is a real one, and `mayRefresh` is what stops a loop.
+   *
+   * ── WHY THIS CHECKS THE TOKEN BEFORE REFRESHING ─────────────────────────
+   *
+   * `refreshInFlight` alone does NOT make this single-flight, because it is
+   * cleared in a `.finally()` the moment the exchange settles. A request whose
+   * 401 comes back just after that — which is most of them, since they all
+   * 401ed together and resolve a few milliseconds apart — finds the latch
+   * already released and starts a SECOND refresh, even though the token it
+   * needs is sitting in the store.
+   *
+   * Measured, not theorised: ten concurrent reads against an expired token
+   * produced **two** refreshes before this check existed. Two is not ten and
+   * nobody was signed out, but every extra refresh rotates the chain again for
+   * no reason, and under different timing the extra exchange is what a replay
+   * looks like — which the backend answers by revoking every session the
+   * account has.
+   *
+   * So: if the access token has changed since this request was SENT, somebody
+   * else's refresh already landed. Retry with it rather than rotating again.
    */
   if (response.status === 401 && mayRefresh && auth && tokenStore.getRefresh()) {
+    if (tokenStore.getAccess() !== token) {
+      return send(url, { method, body, raw, auth, signal }, false);
+    }
     const renewed = await refreshSession();
     if (renewed) return send(url, { method, body, raw, auth, signal }, false);
   }
@@ -208,6 +308,7 @@ async function send(url, { method, body, raw, auth, signal }, mayRefresh) {
       message: error.message,
       status: response.status,
       details: error.details,
+      retryAfter: response.status === 429 ? retryAfterSeconds(response, error) : null,
     });
   }
 

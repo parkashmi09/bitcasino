@@ -1,0 +1,187 @@
+# Continuous integration.
+#
+# ─────────────────────────────────────────────────────────────────────────
+# TWO JOBS, BECAUSE TWO OF THE CHECKS NEED SOMETHING THIS REPOSITORY DOES
+# NOT CONTAIN.
+#
+# `web` is the front end on its own: lint, unit tests, production build. It
+# needs nothing but this repository and runs on every push.
+#
+# `contracts` is the seam between the web app and the platform — the checks
+# that catch a renamed backend route or a mistyped socket event before a page
+# does. Every one of them reads `backend/`, which is a VENDORED TREE THAT IS
+# NOT COMMITTED HERE (`git ls-files backend` is empty). On a fresh clone the
+# directory simply is not there.
+#
+# So the job detects it and skips with a message rather than failing, and
+# rather than passing. A green tick for a check that never ran is the failure
+# mode worth designing against: it is how a broken contract ships under a
+# clean build. The skip is loud, in the job summary, and the moment the
+# backend is available — vendored in, added as a submodule, or checked out
+# beside this repo in a self-hosted runner — the job runs with no edit here.
+# ─────────────────────────────────────────────────────────────────────────
+
+name: CI
+
+on:
+  push:
+    branches: ['**']
+  pull_request:
+  workflow_dispatch:
+
+# A second push to the same branch cancels the first. A queue of superseded
+# runs on a busy branch is wasted minutes and a stale red tick on a commit
+# nobody is looking at any more.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  web:
+    name: Web — lint, test, build
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          # `package.json` declares `>=20.19`; 22 is the active LTS and what
+          # the lockfile was resolved against.
+          node-version: 22
+          cache: npm
+
+      # `ci`, not `install`: it installs exactly what the lockfile pins and
+      # fails if `package.json` and `package-lock.json` disagree, which is the
+      # difference between a reproducible build and a hopeful one.
+      - run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Unit tests
+        run: npm test
+
+      - name: Production build
+        run: npm run build
+
+      # Kept for a human to look at when a build regresses in size — the
+      # bundle is one chunk today and the report is where that shows.
+      - name: Upload the build
+        uses: actions/upload-artifact@v4
+        with:
+          name: web-dist
+          path: apps/web/dist
+          retention-days: 7
+
+  contracts:
+    name: Contracts — routes, socket events, schema
+    runs-on: ubuntu-latest
+    needs: web
+
+    services:
+      # `db:verify` compares the live schema against the migrations. Nothing
+      # else in this job needs a database; it is here rather than in a third
+      # job because starting one costs seconds and splitting the seam checks
+      # across two jobs makes a failure harder to read, not easier.
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_USER: bitcasino
+          POSTGRES_PASSWORD: postgres123
+          POSTGRES_DB: ibitplay
+        ports: ['5433:5432']
+        options: >-
+          --health-cmd "pg_isready -U bitcasino"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - name: Is the backend tree present?
+        id: backend
+        run: |
+          if [ -d backend/packages/socket/src ]; then
+            echo "present=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "present=false" >> "$GITHUB_OUTPUT"
+            {
+              echo "### Seam checks skipped"
+              echo
+              echo 'No `backend/` in this checkout, so the four checks below did not run:'
+              echo
+              echo '- `verify:socket-events` — the client event table against the platform’s'
+              echo '- `verify:modules` — the platform’s own route table'
+              echo '- `verify-frontend-routes` — every path in `lib/endpoints.js` against a mounted route'
+              echo '- `db:verify` — the schema against the migrations'
+              echo
+              echo 'They are **not** passing. See the comment at the top of this workflow.'
+            } >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      # ── From here on, everything is conditional on that answer ──────────
+
+      # Static: it diffs two files. No server, no database.
+      - name: Socket event table
+        if: steps.backend.outputs.present == 'true'
+        run: npm run verify:socket-events
+
+      - name: Install the backend
+        if: steps.backend.outputs.present == 'true'
+        run: npm --prefix backend ci
+
+      # Also static: it parses the route table rather than calling it.
+      - name: Backend route table
+        if: steps.backend.outputs.present == 'true'
+        run: npm --prefix backend run verify:modules
+
+      # The one that catches a renamed route: every path in
+      # `apps/web/src/lib/endpoints.js` must resolve to something the backend
+      # actually mounts.
+      - name: Frontend endpoint registry
+        if: steps.backend.outputs.present == 'true'
+        run: node backend/tools/verify-frontend-routes.js
+
+      - name: Database schema
+        if: steps.backend.outputs.present == 'true'
+        working-directory: backend
+        env:
+          DB_HOST: 127.0.0.1
+          DB_PORT: 5433
+          DB_NAME: ibitplay
+          DB_USER: bitcasino
+          DB_PASSWORD: postgres123
+          DB_SCHEMA: public
+          DB_SSL: 'false'
+        run: |
+          npm run db:migrate
+          npm run db:verify
+
+# ─────────────────────────────────────────────────────────────────────────
+# NOT HERE, AND NAMED RATHER THAN QUIETLY OMITTED
+#
+# `npm run verify:api` is the live contract check — it sends the app's own
+# query objects at a running gateway and asserts the ADAPTED output is
+# renderable. It is the most valuable check in the repository and it is not in
+# this workflow, because it needs five processes, a migrated database and a
+# seeded catalogue. That is a fixture job, not a step, and standing it up
+# under Actions is its own piece of work rather than a line here.
+#
+# Run it by hand against a local platform:
+#
+#     cd backend && npm run dev user admin casino gateway
+#     npm run verify:api
+#
+# `backend/npm test` — 1095 tests — is absent for the same reason plus one
+# more: it wants its own `ibitplay_test` database, and this workflow's service
+# container hosts the development one that `db:verify` migrates.
+# ─────────────────────────────────────────────────────────────────────────

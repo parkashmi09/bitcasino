@@ -44,7 +44,7 @@ export const TOURNAMENTS = [
     status: 'active',
     prizePool: '2,000 USDT',
     leader: 'y*****f',
-    art: '/images/tournaments/silver-challenge-2.svg',
+    art: '/images/tournaments/silver-big.avif',
     endsAt: from(130.7),
   },
   {
@@ -54,7 +54,7 @@ export const TOURNAMENTS = [
     status: 'active',
     prizePool: '3,000 USDT',
     leader: 'D****r',
-    art: '/images/tournaments/gold-challenge-2.svg',
+    art: '/images/tournaments/gold-big.avif',
     endsAt: from(130.7),
   },
   {
@@ -64,7 +64,7 @@ export const TOURNAMENTS = [
     status: 'active',
     prizePool: '1,000 USDT',
     leader: 'D****r',
-    art: '/images/tournaments/bronze-challenge-2.svg',
+    art: '/images/tournaments/bronze-big.avif',
     endsAt: from(130.7),
   },
   {
@@ -74,7 +74,7 @@ export const TOURNAMENTS = [
     status: 'finished',
     prizePool: '2,000 USDT',
     leader: 't****u',
-    art: '/images/tournaments/silver-challenge-1.svg',
+    art: '/images/tournaments/silver-big.avif',
     endsAt: from(-72),
   },
   {
@@ -84,7 +84,7 @@ export const TOURNAMENTS = [
     status: 'finished',
     prizePool: '1,000 USDT',
     leader: 'j******x',
-    art: '/images/tournaments/bronze-challenge-1.svg',
+    art: '/images/tournaments/bronze-big.avif',
     endsAt: from(-72),
   },
   {
@@ -94,7 +94,7 @@ export const TOURNAMENTS = [
     status: 'finished',
     prizePool: '3,000 USDT',
     leader: 'ts*****6',
-    art: '/images/tournaments/gold-challenge-1.svg',
+    art: '/images/tournaments/gold-big.avif',
     endsAt: from(-96),
   },
   {
@@ -104,7 +104,7 @@ export const TOURNAMENTS = [
     status: 'finished',
     prizePool: '10,000 USDT + Free Spins',
     leader: 'ts*****6',
-    art: '/images/tournaments/wager-race-3.svg',
+    art: '/images/tournaments/sb_bc-wcwager-tournament-big.avif',
     endsAt: from(-168),
   },
   {
@@ -114,7 +114,7 @@ export const TOURNAMENTS = [
     status: 'finished',
     prizePool: '10,000 USDT + Free Spins',
     leader: 'ka****9',
-    art: '/images/tournaments/wager-race-2.svg',
+    art: '/images/tournaments/sb_bc-wcwager-tournament-big.avif',
     endsAt: from(-336),
   },
 ];

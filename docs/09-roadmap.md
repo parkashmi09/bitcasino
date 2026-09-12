@@ -14,34 +14,55 @@ What exists, what is stubbed, and what a real deployment would need.
   refresh tokens, session survival across a reload, log out
 - `lib/api.js` + `lib/endpoints.js` — the API seam, with the registry checked
   against the backend's own route table by `backend/tools/verify-frontend-routes.js`
+- Content and promotions: the blog, the spin wheel, the VIP standing, home
+  banner art from the admin module, a live exchange rate in the footer
+- Live surfaces: the wins ticker and each game’s recent rounds over public
+  socket feeds, and the notification bell over the platform’s announcements
+- Hardening: rate-limit handling on both transports, error boundaries on every
+  route with the request id surfaced, an ESLint flat config, and CI
+- Tests — 168 in Vitest + Testing Library, across the adapters, the query
+  layer, the token store, the socket wrapper and the error boundary
 - Documentation
 
 ## Stubbed
 
 | Area | Current state | Next step |
 | --- | --- | --- |
-| Data source | Web app reads a local module; the platform serves the real catalogue | Phase 2 of [10 — Backend integration](./10-backend-integration.md) |
+| Data source | ✅ Every page reads the platform through `queries/` and `data/adapters/`; no page imports `data/catalog.js` | — |
 | `/providers/:slug` | Renders the index | Build a real detail page |
-| `/promotions`, `/vip` | Redirect to `/` | Build the pages |
-| `/tournaments` | ✅ Index plus `/tournaments/all/current` and `/tournaments/all/past`, over `data/tournaments.js` | The per-tournament detail page behind each card, and an `Opt in` that posts — both wait on the `bonus` service |
-| Search input | Renders, does nothing | Wire to `GET /api/games?q=` with debounce |
+| `/promotions`, `/vip` | ✅ Real. The spin wheel over `/spin-wheel/*`, the VIP standing and the three periodic bonuses over `GET /user/bonus`, and the account’s own bonus log | A promotion with a *window* — the platform has no table for one, so this is a migration and an admin screen, not a front-end change |
+| `/blog` | ✅ Real. Index, category filter and detail over `GET /admin/blogs*` | The fourteen `/help-center/*` links in the footer have no routes and land on the 404. The blog is the surface that could back them |
+| `/tournaments` | ✅ Index plus `/tournaments/all/current` and `/tournaments/all/past`, over `data/tournaments.js` | **The platform has no tournaments table and no route that lists one**, and `GET /user/bonus/events` — which Phase 7 planned to compose them from — turned out to be the player’s own bonus log. This one waits on a backend feature, not on wiring |
+| Search input | ✅ Debounced, over `GET /casino/games/search`, games and providers | — |
 | Log in / Register | ✅ Real, against `POST /api/v1/user/auth/*` | — |
-| Account area | The account menu, plus `/profile/notifications`, `/profile/rewards`, `/profile/boosts`, `/profile/account`, `/profile/security`, `/profile/settings` and `/profile/refer-a-friend` behind it — `ProfileLayout` carries the reference's nine-tab bar and every tab now leads somewhere, with `Loyalty` leaving it for `/loyalty` and `Tournaments` for `/tournaments`, both as the reference does | Phase 6: the KYC document upload, transactions, and the 2FA enable/disable routes the security page is waiting on |
-| Balance chip / Deposit | Not built — no made-up numbers | Phase 4: wallet drawer over `/user/wallet/*` |
-| Game frame | Placeholder panel | Provider launch iframe |
-| Skeleton | Component exists, unused | Add to rails and grids once data is async |
+| Account area | ✅ Profile, preferences and referrals are real; two-factor enables and disables over `/2fa/*`; the security page lists active sessions; KYC is a real multipart submission; `/profile/transactions` reads `GET /user/history`; Notifications reads the platform’s own feed | Vault, bonuses, rakeback, wager progress, gift cards and bank details — all six have live routes and none has a screen; Rewards still reads a `data/` fixture |
+| Balance chip / Deposit | ✅ Real `GET /user/wallet/balances`, and a drawer whose deposit address is a live `GET_ADDRESS` read; `/profile/transactions` is the ledger view | — |
+| Game frame | ✅ Three frames: Limbo is a real socket round on casino-service, an unwired original says so, an aggregator title calls `POST /casino/gis/launch{,-demo}` and renders `GIS_NOT_CONFIGURED` as a state | The other nineteen originals, and provider credentials |
+| Skeleton | ✅ On every rail, grid and provider list, on first paint | — |
+| Live wins | ✅ `Latest` and `Biggest` over the public `LAST_BETS` and `TOP_WINNERS` socket events, plus each game’s own recent rounds | They are POLLS on a twenty-second interval — the platform answers these on request and broadcasts nothing on them |
+| Chat | Not built | `CHATS`, `ADD_CHAT`, `MY_FRIENDS` and `MESSAGES` are all implemented on the platform. The reference site has no chat surface at all, so this would be inventing a feature rather than porting one — and `ADD_CHAT` broadcasts to every connected client, which needs moderation and a report path before it needs a UI |
 
 ## Near-term
 
-1. **Wire the catalogue.** Replace `data/catalog.js` imports with TanStack
-   Query hooks over `/api/v1/casino/games*`. This is the change the `data/`
-   seam exists for, and `lib/api.js` is already the thing that will make them.
-2. **Loading and error states.** Every rail and grid needs a skeleton and a
-   retry path once data is remote.
-3. **Search.** Debounced, with an empty state.
-4. **Tests.** There are none. Vitest + Testing Library for the rail scroll
-   logic, the theme hook, and the category filter; Playwright for a smoke path.
-5. **ESLint config.** `npm run lint` is wired but no flat config exists yet.
+The first five items here are done. What is left:
+
+1. **An end-to-end test.** The unit suite covers the adapters, the query
+   layer, the token store’s single-flight refresh, the socket wrapper, the
+   rate-limit rules and the error boundary. Playwright for
+   register → log in → view balance → play a round is not there: it needs the
+   whole platform up and a browser download, which is the same fixture problem
+   `verify:api` has in CI, and it should land with that fixture.
+2. **`verify:api` in CI.** The most valuable check in the repository runs only
+   by hand, because it needs five processes, a migrated database and a seeded
+   catalogue. That is a fixture job, not a step.
+3. **A help centre.** Fourteen footer links point at `/help-center/*` and none
+   of them is a route. `GET /admin/blogs/category/:category` already serves the
+   policy posts they want.
+4. **The other nineteen originals.** Limbo establishes the pattern; each of
+   the rest is an entry in `IN_HOUSE_EVENTS`, its wire name in
+   `socketEvents.js`, and a panel. Nothing in the transport changes.
+5. **Code splitting.** One 677 KB chunk. `React.lazy` on the routes is the
+   obvious first cut, and the build already warns about it.
 6. **Font dedupe.** DM Sans ships as a variable font — one file with
    `font-weight: 400 700` replaces three identical downloads (~74 KB).
 

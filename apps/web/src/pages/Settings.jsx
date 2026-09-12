@@ -88,7 +88,6 @@ export function Settings() {
               // `autoFocus` because the press that revealed this select was the
               // player asking to change the value; landing them on the control
               // is the whole point of the press.
-              // eslint-disable-next-line jsx-a11y/no-autofocus
               autoFocus
               aria-label="Active wallet"
               value={currency}

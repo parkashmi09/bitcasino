@@ -5,6 +5,8 @@ import { Footer } from './Footer';
 import { Sidebar, MobileSidebar } from './Sidebar';
 import { SearchDialog } from './SearchDialog';
 import { DepositDialog } from './DepositDialog';
+import { RouteErrorBoundary } from './ErrorBoundary';
+import { MobileBottomNav } from './MobileBottomNav';
 import { useRecentlyPlayed } from '@/hooks/useRecentlyPlayed';
 
 export function Layout() {
@@ -63,6 +65,13 @@ export function Layout() {
           has no `/search`, and the field in the header opens this instead. */}
       <SearchDialog open={searchOpen} onClose={() => setSearchOpen(false)} />
 
+      <MobileBottomNav
+        onOpenSearch={() => setSearchOpen(true)}
+        onOpenMenu={() => setMenuOpen(true)}
+        onNavigate={() => setMenuOpen(false)}
+        menuOpen={menuOpen}
+      />
+
       {/* The header's Deposit button. Mounted only while it is open — unlike
           the search dialog it reads the wallet, and an always-mounted copy
           would fetch balances on every page load for a drawer nobody opened. */}
@@ -80,7 +89,6 @@ export function Layout() {
 
         <div className="flex min-w-0 flex-1 flex-col">
           <Header
-            onOpenMenu={() => setMenuOpen(true)}
             onOpenSearch={() => setSearchOpen(true)}
             onOpenDeposit={() => setDepositOpen(true)}
           />
@@ -97,9 +105,23 @@ export function Layout() {
               none. One gap on the parent cannot have that hole in it. */}
           <main
             id="main"
-            className="flex min-w-0 flex-1 flex-col gap-8 px-4 md:ps-8 md:pe-8 md:pt-10"
+            className="flex min-w-0 flex-1 flex-col gap-8 px-4 pb-20 md:ps-8 md:pe-8 md:pt-10 md:pb-0"
           >
-            <Outlet />
+            {/* The boundary wraps the PAGE, not the shell.
+
+                A component that throws while rendering takes its whole
+                React tree down with it, and the shell around this outlet
+                is the header carrying the balance and the deposit button.
+                Scoped here, a page that throws leaves the player somewhere
+                they can navigate out of; scoped at the root, it would
+                leave them a white document.
+
+                It does NOT catch failed requests — those are states, drawn
+                by `QueryState` beside a page that still works. See the
+                note in `ErrorBoundary.jsx`. */}
+            <RouteErrorBoundary>
+              <Outlet />
+            </RouteErrorBoundary>
             <Footer />
           </main>
         </div>

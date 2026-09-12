@@ -48,6 +48,76 @@ export const queryKeys = {
     list: () => ['providers', 'list'],
   },
 
+  /**
+   * Play surfaces. Player-scoped, so the whole prefix is cleared on sign-out.
+   *
+   * `bets` is under it rather than under `games` because a round settling
+   * invalidates the history and nothing else — invalidating `['games']` after
+   * every Limbo round would refetch every rail on the page.
+   */
+  play: {
+    all: ['play'],
+    bets: (filters) => ['play', 'bets', compact(filters)],
+  },
+
+  /**
+   * The account area. Player-scoped, so the whole prefix clears on sign-out.
+   *
+   * `twoFactor` and `kyc` are single unparameterised reads and still get a
+   * function rather than a bare array, so every call site spells them the
+   * same way — a key written as `['account','2fa']` at one site and
+   * `queryKeys.account.twoFactor()` at another is an invalidation that
+   * silently misses half the time.
+   */
+  /**
+   * Editorial content. **Not** player-scoped — every one of these is public,
+   * so it survives a sign-out and does not need clearing with the session.
+   */
+  content: {
+    all: ['content'],
+    posts: (filters) => ['content', 'posts', compact(filters)],
+    post: (slug) => ['content', 'post', slug],
+    banners: () => ['content', 'banners'],
+  },
+
+  /**
+   * Promotions. Mixed audience: `spinSlices` is public, the rest are
+   * player-scoped, and they share a prefix so a claim can invalidate the
+   * standing it changed without naming each one.
+   */
+  promotions: {
+    all: ['promotions'],
+    spinSlices: () => ['promotions', 'spin', 'slices'],
+    spinEligibility: () => ['promotions', 'spin', 'eligibility'],
+    bonus: () => ['promotions', 'bonus'],
+    events: (filters) => ['promotions', 'events', compact(filters)],
+  },
+
+  account: {
+    all: ['account'],
+    twoFactor: () => ['account', '2fa'],
+    sessions: () => ['account', 'sessions'],
+    kyc: () => ['account', 'kyc'],
+    history: (limit, offset) => ['account', 'history', limit, offset],
+    transfers: (limit, offset) => ['account', 'transfers', limit, offset],
+  },
+
+  /**
+   * The live surfaces. Public, like `content`, so they survive a sign-out —
+   * the feed is everyone's, not the caller's, and clearing it with the
+   * session would blank a ticker that never depended on one.
+   *
+   * They share the `live` prefix so a future push event can invalidate every
+   * feed at once without naming the three of them.
+   */
+  live: {
+    all: ['live'],
+    bets: () => ['live', 'bets'],
+    betsByGame: (game) => ['live', 'bets', 'game', game],
+    topWinners: () => ['live', 'top-winners'],
+    notifications: () => ['live', 'notifications'],
+  },
+
   site: {
     all: ['site'],
     config: () => ['site', 'config'],

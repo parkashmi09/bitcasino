@@ -108,6 +108,27 @@ function HeaderDot() {
  * list, read verbatim off their DOM: `w-72 rounded-lg bg-background
  * max-sm:w-screen max-sm:rounded-t-none`. `sheet` is that second form.
  *
+ * It is not the account menu's alone. Any panel with a FIXED width has to take
+ * it, because these panels are anchored `end-0` to their own trigger and the
+ * wallet's trigger sits in the header's MIDDLE slot: a 300px card anchored to
+ * the end of a control that ends at x=180 starts at x=-120. That is not a card
+ * that overhangs a little, it is a card whose left two thirds are off the
+ * screen — measured at -162 on a 215px viewport before the wallet took this
+ * variant. `absolute` cannot clamp itself, so the fix is the form that does
+ * not need to: full-bleed below `sm`, the card from `sm` up.
+ *
+ * A caller that wants its own scroller inside the sheet — the wallet again,
+ * whose currency list scrolls under a pinned footer — passes `flex flex-col`
+ * and `overflow-y-hidden`, the second of which is what takes the panel's own
+ * `overflow-y-auto` back off through `twMerge`.
+ *
+ * A sheet brings NO radius of its own; each caller passes its two — square top
+ * corners with `rounded-b-*` below `sm`, the full `sm:rounded-*` above it. Not
+ * a default worth having, because it cannot be overridden: `tailwind-merge`
+ * knows nothing about this project's `i-` radius scale, so it keeps both
+ * `sm:rounded-i-sm` and a caller's `sm:rounded-i-md` and leaves the stylesheet's
+ * emit order to pick — which silently gave the wallet the account menu's 8px.
+ *
  * It is written mobile-first — full width by default, floating from `sm` up —
  * rather than as `max-sm:` overrides on the floating form. Both would work,
  * but the overriding version leaves two unprefixed-vs-`max-sm:` `top` values
@@ -137,9 +158,8 @@ export function MenuPanel({ label, className, sheet = false, children }) {
         'border-[0.8px] border-beerus bg-goku shadow-lg',
         sheet
           ? cn(
-              'fixed inset-x-0 top-[60px] max-h-[calc(100dvh-60px)] rounded-b-i-sm',
+              'fixed inset-x-0 top-[60px] max-h-[calc(100dvh-60px)]',
               'sm:absolute sm:inset-x-auto sm:end-0 sm:top-[calc(100%+8px)]',
-              'sm:rounded-i-sm',
             )
           : 'absolute end-0 top-[calc(100%+8px)] max-h-[min(70vh,32rem)] rounded-i-md',
         'overflow-y-auto',
@@ -151,10 +171,17 @@ export function MenuPanel({ label, className, sheet = false, children }) {
   );
 }
 
-/** The title row every panel opens with — a heading, optionally an action. */
+/**
+ * The title row every panel opens with — a heading, optionally an action.
+ *
+ * `shrink-0` is for the one panel that is a flex column with a scroller in the
+ * middle of it — the wallet's. A 48px band whose height comes from a class
+ * rather than from its content is otherwise squeezed by the overflowing list
+ * beside it; the panels that are not flex containers never read the property.
+ */
 export function MenuHeading({ children, action }) {
   return (
-    <div className="flex h-12 items-center justify-between gap-2 px-4">
+    <div className="flex h-12 shrink-0 items-center justify-between gap-2 px-4">
       <h2 className="font-primary text-sm font-semibold text-bulma">{children}</h2>
       {action}
     </div>
@@ -184,5 +211,5 @@ export function MenuEmpty({ icon, title, children }) {
  * edge (`-mx-1`) instead of stopping short of it.
  */
 export function MenuDivider({ className }) {
-  return <hr className={cn('h-px border-0 bg-beerus', className)} />;
+  return <hr className={cn('h-px shrink-0 border-0 bg-beerus', className)} />;
 }

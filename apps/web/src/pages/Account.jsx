@@ -1,7 +1,9 @@
 import { useEffect, useId, useState } from 'react';
 import { Icon } from '@/components/ui/Icon';
+import { KycDialog } from '@/components/account/KycDialog';
 import { COUNTRIES, DIAL_CODES } from '@/data/countries';
-import { LOCAL_FIELDS, useKyc, useProfile } from '@/hooks/useProfile';
+import { LOCAL_FIELDS, useProfile } from '@/hooks/useProfile';
+import { useKycStatus } from '@/queries';
 import { cn } from '@/lib/cn';
 
 /**
@@ -70,15 +72,16 @@ import { cn } from '@/lib/cn';
  * seam. The one fabricated value is `emailVerified`, which no endpoint reports;
  * it is marked as a fixture where it is defined.
  *
- * `Start verification` and the resend button are the two controls with nothing
- * behind them: submitting KYC is a multipart document upload and resending a
- * verification email has no route at all. They are `aria-disabled` with a
- * title saying so, which is the rule the account menu's unbuilt rows follow —
- * told apart by what they do, not by how they look.
+ * `Start verification` opens the real multipart submission as of Phase 6 —
+ * see `components/account/KycDialog.jsx`. The resend button is the one control
+ * left with nothing behind it: no route exists to resend a verification email.
+ * It is `aria-disabled` with a title saying so, which is the rule the account
+ * menu's unbuilt rows follow — told apart by what they do, not by how they
+ * look.
  */
 export function Account() {
   const { profile, local, status, emailVerified, save, saving } = useProfile();
-  const { kyc, status: kycStatus } = useKyc();
+  const { data: kyc, isSuccess: kycRead } = useKycStatus();
 
   const [form, setForm] = useState(null);
   const [result, setResult] = useState(null);
@@ -121,7 +124,7 @@ export function Account() {
             the columns split — see the note above. */}
         <div className="grid h-max gap-2 [@media(min-width:1500px)]:order-2">
           {!emailVerified && <EmailNotice />}
-          {kycStatus === 'ready' && kyc?.status !== 'Verified' && (
+          {kycRead && kyc?.status !== 'Verified' && (
             <IdentityCard kyc={kyc} />
           )}
         </div>
@@ -291,6 +294,7 @@ function EmailNotice() {
  */
 function IdentityCard({ kyc }) {
   const state = kyc?.status ?? 'NotSubmitted';
+  const [open, setOpen] = useState(false);
 
   const closing =
     state === 'Pending'
@@ -317,16 +321,23 @@ function IdentityCard({ kyc }) {
       <p className="text-base leading-6 text-bulma">{closing}</p>
 
       <div className="flex flex-wrap items-center gap-2">
-        {/* Inert: submitting is a multipart document upload against
-            `POST /user/kyc/submit`, which is its own screen. */}
-        <span
-          role="button"
-          aria-disabled="true"
-          title="Document upload is not built yet"
-          className="rounded-i-sm bg-piccolo px-4 py-2 text-base leading-6 font-medium text-goten"
-        >
-          {state === 'Rejected' ? 'Resubmit documents' : 'Start verification'}
-        </span>
+        {/* Real as of Phase 6 — a multipart submission against
+            `POST /user/kyc/submit`. `Pending` is the one state with no button:
+            the documents are already with a human, and a second submission
+            queues the same review twice. */}
+        {state === 'Pending' ? (
+          <span className="rounded-i-sm bg-beerus px-4 py-2 text-base leading-6 font-medium text-trunks">
+            Under review
+          </span>
+        ) : (
+          <button
+            type="button"
+            onClick={() => setOpen(true)}
+            className="cursor-pointer rounded-i-sm bg-piccolo px-4 py-2 text-base leading-6 font-medium text-goten transition-opacity hover:opacity-90"
+          >
+            {state === 'Rejected' ? 'Resubmit documents' : 'Start verification'}
+          </button>
+        )}
         <a
           href="/terms"
           className="rounded-i-sm px-4 py-2 text-base leading-6 text-piccolo transition-colors hover:text-piccolo-120"
@@ -334,6 +345,8 @@ function IdentityCard({ kyc }) {
           Terms &amp; Conditions
         </a>
       </div>
+
+      <KycDialog open={open} onClose={() => setOpen(false)} />
     </div>
   );
 }

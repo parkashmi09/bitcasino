@@ -18,6 +18,11 @@ import { Security } from '@/pages/Security';
 import { Refer } from '@/pages/Refer';
 import { Loyalty } from '@/pages/Loyalty';
 import { Settings } from '@/pages/Settings';
+import { Transactions } from '@/pages/Transactions';
+import { Blog } from '@/pages/Blog';
+import { BlogPost } from '@/pages/BlogPost';
+import { Promotions } from '@/pages/Promotions';
+import { Vip } from '@/pages/Vip';
 import { Tournaments } from '@/pages/Tournaments';
 import { TournamentList } from '@/pages/TournamentList';
 import { ScrollToTop } from '@/components/layout/ScrollToTop';
@@ -93,7 +98,13 @@ export default function App() {
 
           <Route element={<Layout />}>
             <Route index element={<Home />} />
-            <Route path="categories/:slug" element={<Category />} />
+            {/* `mode` is explicit because `live-casino` and `crash` are BOTH a
+                category and one of the platform's five curated collections,
+                and they list different games — the collection is a row an
+                operator picked, the category is every game of that type.
+                Inferring from the slug would make one of these two routes
+                permanently unreachable. */}
+            <Route path="categories/:slug" element={<Category mode="category" />} />
             {/* Before the collection route in source order for readability
                 only — React Router ranks a static segment above a dynamic one
                 regardless, so `/games/recent` can never fall through to
@@ -111,7 +122,7 @@ export default function App() {
                 </RequireAuth>
               }
             />
-            <Route path="games/:slug" element={<Category />} />
+            <Route path="games/:slug" element={<Category mode="collection" />} />
             <Route path="providers" element={<Providers />} />
             {/* The studio index and one studio's catalogue are different pages
                 on the reference — the detail view is a filterable game list. */}
@@ -150,15 +161,29 @@ export default function App() {
               <Route path="boosts" element={<Boosts />} />
               <Route path="security" element={<Security />} />
               <Route path="refer-a-friend" element={<Refer />} />
+              <Route path="transactions" element={<Transactions />} />
               <Route path="settings" element={<Settings />} />
             </Route>
 
-            {/* Marketing routes are stubbed against the category view for now. */}
-            <Route path="promotions" element={<Navigate to="/" replace />} />
-            {/* The home banner links to individual promotions by slug; none of
-                those pages exists yet, so they stub back like the index does
-                rather than falling through to the 404. */}
-            <Route path="promotions/:slug" element={<Navigate to="/" replace />} />
+            {/* Real as of Phase 7 — the spin wheel over `/spin-wheel/*` and
+                the operator's scheduled events over `GET /user/bonus/events`. */}
+            <Route path="promotions" element={<Promotions />} />
+            {/**
+              * `promotions/:slug` still redirects, and now to the index rather
+              * than to home.
+              *
+              * The home banner links here by slug (`/promotions/league`), and
+              * there is nothing behind those slugs: `bonus_events` has a name
+              * and a window, no slug and no body, so a per-promotion page
+              * would have to invent everything on it. Sending the visitor to
+              * the list they came for beats a 404 or a fabricated page, and it
+              * is one route to delete when the platform grows a detail read.
+              */}
+            <Route path="promotions/:slug" element={<Navigate to="/promotions" replace />} />
+
+            {/* The blog, over `GET /api/v1/admin/blogs` — public audience. */}
+            <Route path="blog" element={<Blog />} />
+            <Route path="blog/:slug" element={<BlogPost />} />
             {/* Tournaments is a real page now. `all/:filter` is the reference's
                 own shape for the two `See all` links — `current` and `past` —
                 and it is declared BEFORE nothing else can claim it, since
@@ -167,7 +192,18 @@ export default function App() {
                 not link anywhere (see `TournamentCard`). */}
             <Route path="tournaments" element={<Tournaments />} />
             <Route path="tournaments/all/:filter" element={<TournamentList />} />
-            <Route path="vip" element={<Navigate to="/" replace />} />
+            {/* Real as of Phase 7 — `GET /user/bonus` carries the VIP level,
+                the wager progress and the three periodic bonuses. */}
+            <Route path="vip" element={<Vip />} />
+            {/**
+              * `testimonials` stays a redirect, and that is the intentional
+              * one `docs/10`'s "Done when" allows for.
+              *
+              * On the reference it is a SECTION of the home page, not a page —
+              * `Testimonials` is already rendered there. A route for it would
+              * be a second copy of a block that is on the page it redirects
+              * to.
+              */}
             <Route path="testimonials" element={<Navigate to="/" replace />} />
             <Route path="*" element={<NotFound />} />
           </Route>

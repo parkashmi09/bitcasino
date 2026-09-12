@@ -1,0 +1,14 @@
+{
+  "name": "@ibitplay/auth",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Tokens, password hashing, TOTP and the authenticate/authorize middleware",
+  "main": "src/index.js",
+  "dependencies": {
+    "@ibitplay/common": "1.0.0",
+    "bcryptjs": "^2.4.3",
+    "jsonwebtoken": "^9.0.2",
+    "qrcode": "^1.5.4",
+    "speakeasy": "^2.0.0"
+  }
+}

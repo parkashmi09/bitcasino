@@ -22,27 +22,48 @@ const BADGE_CLASS = {
  *
  * The title and studio are baked into the artwork, exactly as the reference's
  * thumbnails are, so the tile carries no caption and every rail is a single
- * uniform band. `wide` switches to the 1.3:1 featured art; both ratios resolve
- * to the same rendered height at a given breakpoint, so mixed rails stay
- * aligned.
+ * uniform band.
+ *
+ * `wide` switches to the 1.3:1 featured art — but only from `sm`. The
+ * reference's featured tile is `max-w-26 max-h-35 sm:max-w-61 sm:max-h-47`,
+ * i.e. a 104x140 box on a phone and a 244x188 one from `sm` — and 104x140 is
+ * the portrait ratio, not the wide one. So on a phone it takes the portrait
+ * crop, which puts the featured rail on the same baseline as every other rail;
+ * from `sm` the wide art fills the wider box. Hence `<picture>` rather than a
+ * `src`: the two crops are separate files, and loading both to hide one would
+ * cost a phone an image it never shows.
+ *
+ * Both ratios still resolve to the same rendered height at a given breakpoint,
+ * so mixed rails stay aligned.
  */
 export function GameCard({ game, wide = false, className }) {
   return (
     <Link
-      to={`/play/${game.category}/${game.slug}`}
+      /* `category` is null for a game whose upstream `type` we do not map —
+         `toGame` refuses to guess one, because a wrong category is worse than
+         an absent one. `Play` reads only the slug, so the segment is cosmetic;
+         without the fallback it interpolates the string "null" into the URL. */
+      to={`/play/${game.category ?? 'games'}/${game.slug}`}
       className={cn(
         'group relative block shrink-0 overflow-hidden rounded-i-sm bg-gohan',
-        wide ? 'aspect-[244/188]' : 'aspect-[140/188]',
+        wide ? 'aspect-[140/188] sm:aspect-[244/188]' : 'aspect-[140/188]',
         className,
       )}
     >
-      <img
-        src={wide ? game.thumbWide : game.thumb}
-        alt={game.title}
-        loading="lazy"
-        decoding="async"
-        className="size-full object-cover"
-      />
+      {/* `block size-full` on the picture: it is an inline box by default, and
+          the image's own `h-full` resolves against it, not against the tile. */}
+      <picture className="block size-full">
+        {/* 640px is `sm`. A media query cannot read the theme's breakpoint
+            variable, so this is the one place that number is written out. */}
+        {wide && <source media="(min-width: 640px)" srcSet={game.thumbWide} />}
+        <img
+          src={game.thumb}
+          alt={game.title}
+          loading="lazy"
+          decoding="async"
+          className="size-full object-cover"
+        />
+      </picture>
 
       {game.badge && (
         <span

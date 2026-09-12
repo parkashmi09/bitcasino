@@ -16,6 +16,12 @@ import {
   nameForSlug,
 } from './providers';
 import { toSiteConfig } from './siteConfig';
+import {
+  PLATFORM_COLLECTIONS,
+  CUT_COLLECTIONS,
+  resolveCollection,
+} from './collections';
+import { CATEGORIES } from '../categories';
 
 /**
  * The adapters, against the shapes the platform actually answers.
@@ -390,5 +396,77 @@ describe('site config', () => {
     expect(toSiteConfig({ configured: true }).configured).toBe(true);
     expect(toSiteConfig({ configured: false }).configured).toBe(false);
     expect(toSiteConfig({}).configured).toBe(false);
+  });
+});
+
+/**
+ * The `/games/:slug` collection registry.
+ *
+ * Two of the five platform slugs are ALSO category slugs, and the two name
+ * different lists. That collision is the thing most likely to be broken by a
+ * later edit, so it is asserted from both directions.
+ */
+describe('collections', () => {
+  it('resolves the five rows the platform curates', () => {
+    for (const { slug, label } of PLATFORM_COLLECTIONS) {
+      const target = resolveCollection(slug);
+      expect(target.kind).toBe('collection');
+      expect(target.label).toBe(label);
+    }
+  });
+
+  it('resolves the three this site cuts client-side', () => {
+    for (const slug of ['new', 'exclusives', 'live-rtp']) {
+      expect(resolveCollection(slug).kind).toBe('cut');
+    }
+  });
+
+  it('prefers the curated row for a slug that is also a category', () => {
+    // `/games/live-casino` is the curated row, and so is `/games/crash`. The
+    // CATEGORY versions live at `/categories/:slug`, which never calls this —
+    // App.jsx passes `mode` so the two routes cannot collide.
+    expect(resolveCollection('live-casino').kind).toBe('collection');
+    expect(resolveCollection('crash').kind).toBe('collection');
+  });
+
+  it('resolves a category-only slug reached through /games', () => {
+    expect(resolveCollection('originals').kind).toBe('category');
+    expect(resolveCollection('jackpots').kind).toBe('category');
+  });
+
+  it('answers null for a slug this site does not serve', () => {
+    expect(resolveCollection('sportsbook')).toBeNull();
+    expect(resolveCollection('')).toBeNull();
+    expect(resolveCollection(undefined)).toBeNull();
+  });
+
+  it('cuts new and exclusives by badge', () => {
+    const games = [
+      { id: '1', badge: 'new' },
+      { id: '2', badge: 'exclusive' },
+      { id: '3' },
+      { id: '4', badge: 'hot' },
+    ];
+
+    expect(CUT_COLLECTIONS.new.cut(games).map((g) => g.id)).toEqual(['1']);
+    expect(CUT_COLLECTIONS.exclusives.cut(games).map((g) => g.id)).toEqual(['2']);
+  });
+
+  it('drops games with no RTP from live-rtp rather than sorting them', () => {
+    // A list titled "Live RTP" must not contain rows whose RTP nobody knows,
+    // and sorting undefined leaves them wherever the engine happens to.
+    const games = [
+      { id: 'a', rtp: 94 },
+      { id: 'b' },
+      { id: 'c', rtp: 97.2 },
+    ];
+
+    expect(CUT_COLLECTIONS['live-rtp'].cut(games).map((g) => g.id)).toEqual(['c', 'a']);
+  });
+
+  it('every category the nav offers has a type mapping', () => {
+    // A category listed in the UI with no mapping renders a nav entry whose
+    // page can never have anything in it.
+    expect(CATEGORIES.map((c) => c.slug)).toEqual([...CATEGORY_SLUGS]);
   });
 });

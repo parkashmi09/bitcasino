@@ -71,7 +71,7 @@ import { cn } from '@/lib/cn';
  * it would show Login to somebody who is already logged in and then snatch it
  * away, so that moment gets skeletons the shape of the cluster instead.
  */
-export function Header({ onOpenMenu, onOpenSearch, onOpenDeposit }) {
+export function Header({ onOpenSearch, onOpenDeposit }) {
   const { status } = useAuth();
   const signedIn = status === 'authenticated';
   // Below 640 the brand gives way to its glyph cluster. The reference's phone
@@ -85,15 +85,6 @@ export function Header({ onOpenMenu, onOpenSearch, onOpenDeposit }) {
       {/* Slot 1 — brand (phones only) and the search pill. */}
       <div className="flex min-w-0 flex-1 items-center">
         <div className="flex items-center gap-2 md:hidden">
-          <button
-            type="button"
-            onClick={onOpenMenu}
-            aria-label="Open navigation menu"
-            className="grid size-10 place-items-center rounded-i-md text-bulma hover:bg-heles"
-          >
-            <Icon name="menu" size={22} />
-          </button>
-
           <NavLink to="/" aria-label="Home" className="flex shrink-0">
             <Logo markOnly={compact} />
           </NavLink>
@@ -134,16 +125,6 @@ export function Header({ onOpenMenu, onOpenSearch, onOpenDeposit }) {
 
       {/* Slot 3 — everything else, pushed to the end. */}
       <div className="flex flex-1 items-center justify-end gap-1.5">
-        <button
-          type="button"
-          onClick={onOpenSearch}
-          aria-label="Search"
-          aria-haspopup="dialog"
-          className="grid size-10 place-items-center rounded-i-md text-trunks hover:bg-heles hover:text-bulma sm:hidden"
-        >
-          <Icon name="search" />
-        </button>
-
         {status === 'loading' && <UserMenuSkeleton />}
 
         {signedIn && (

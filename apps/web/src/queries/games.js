@@ -27,6 +27,44 @@ import {
  */
 
 /**
+ * The ONE fetcher behind every `queryKeys.games.list(...)` entry.
+ *
+ * ═════════════════════════════════════════════════════════════════════════
+ * A shared cache key means a shared SHAPE. This is not a style rule.
+ *
+ * React Query caches by key, and `select` runs per observer. So two hooks that
+ * build the same key but whose `queryFn`s return different shapes will each
+ * see whichever shape the OTHER one fetched first — silently, and only when
+ * both happen to be mounted.
+ *
+ * That is exactly what went wrong here. `useGames` returned
+ * `{rows, pagination}` while `useCutSource`, `useRail` and `useGame`'s second
+ * step returned a bare array, and all four build `queryKeys.games.list()`. The
+ * home page's "New Releases" rail primed `{page: 1, limit: 100}` with an
+ * array; the search dialog then asked for the same list, its `select`
+ * destructured `rows` off an array, got `undefined`, and rendered
+ * "Most Popular Games — 0" with no request in the network panel at all.
+ *
+ * Nothing threw. The list was simply empty, which is indistinguishable from a
+ * catalogue with nothing in it.
+ *
+ * Every caller goes through this function so the shape cannot drift again.
+ * ═════════════════════════════════════════════════════════════════════════
+ *
+ * @param {object} query A `gamesQuery(...)` object.
+ * @param {AbortSignal} [signal]
+ * @returns {Promise<{rows: object[], pagination: object | null}>}
+ */
+export async function fetchGameList(query, signal) {
+  const { data, meta } = await apiWithMeta(ENDPOINTS.games, {
+    query,
+    auth: false,
+    signal,
+  });
+  return { rows: data ?? [], pagination: meta?.pagination ?? null };
+}
+
+/**
  * A page of the catalogue.
  *
  * Returns `{games, pagination}`. `pagination` is `meta.pagination` — the
@@ -45,14 +83,7 @@ export function useGames({ enabled = true, ...options } = {}) {
 
   return useQuery({
     queryKey: queryKeys.games.list(query),
-    queryFn: async ({ signal }) => {
-      const { data, meta } = await apiWithMeta(ENDPOINTS.games, {
-        query,
-        auth: false,
-        signal,
-      });
-      return { rows: data ?? [], pagination: meta?.pagination ?? null };
-    },
+    queryFn: ({ signal }) => fetchGameList(query, signal),
     select: ({ rows, pagination }) => ({ games: toGames(rows), pagination }),
     enabled,
   });
@@ -177,31 +208,95 @@ export function useRecentlyPlayed({ enabled = true, ...options } = {}) {
 /**
  * One game, by slug.
  *
- * **There is no `GET /games/:uuid`.** The catalogue exposes lists and search,
- * not a single-game read, so this resolves through search and then filters for
- * an exact uuid match — search is a `LIKE` over name and provider, so asking
- * for `cobalt-sky` can return several rows and only one of them is the game.
+ * **There is no `GET /games/:uuid`**, and neither search route can stand in
+ * for one on its own. This is the single most awkward gap in the catalogue
+ * API, so it is worth stating exactly:
  *
- * In practice the cache usually already holds the game from the rail the
- * player clicked, so this is the cold-load path rather than the common one.
- * Flagged in `docs/10-backend-integration.md` as a candidate backend addition
- * rather than something to work around twice.
+ * | | `GET /games?search=` | `GET /games/search?q=` |
+ * | --- | --- | --- |
+ * | Matches | `name` **only** (`iLike %q%`) | name **or uuid**, ranked |
+ * | `parameters` | **yes** | no |
+ * | `images` | **yes** | no |
+ * | `label` | **yes** | no |
  *
- * It shares a cache entry with `useGameSearch(slug, {limit: 100})` — same key,
- * same fetch, different projection.
+ * A `/play/:category/:slug` URL carries the **uuid**. So:
+ *
+ * - the browse route has the fields but cannot find the row — `cobalt-sky`
+ *   never matches the name `Cobalt Sky`, and the page reads "Game not found";
+ * - the search route finds the row but not the fields — `parameters` is where
+ *   `inHouse` lives, so Plinko was offered a "Provider frame mounts here"
+ *   placeholder when it is not waiting on a provider at all, and `rtp`,
+ *   `volatility` and `label` were all missing too.
+ *
+ * Both of those were real, and each is what you get by picking one route.
+ *
+ * So it is two steps: the search route resolves the uuid to a **name**, then
+ * the browse route fetches the full row by that name. Two requests, but only
+ * on a cold load — arriving by clicking a tile finds the game already in cache
+ * from the rail that drew it, and each step is cached separately besides.
+ *
+ * `GET /games/:uuid` would collapse this to one request that cannot be wrong.
+ * It is flagged in `docs/10-backend-integration.md` as a candidate backend
+ * addition; this is what it costs not to have it.
  *
  * @param {string} slug The game's `uuid`.
  * @param {object} [options]
  * @param {boolean} [options.enabled]
  */
 export function useGame(slug, { enabled = true } = {}) {
-  const query = searchQuery({ q: slug, limit: MAX_LIMIT });
+  const term = String(slug ?? '').trim();
+  const on = enabled && term.length > 0;
 
-  return useQuery({
-    queryKey: queryKeys.games.search(query.q, query.limit),
-    queryFn: ({ signal }) => api(ENDPOINTS.gameSearch, { query, auth: false, signal }),
-    select: (rows) => toGames(rows).find((game) => game.slug === query.q) ?? null,
-    enabled: enabled && query.q.length > 0,
+  // Step one: the only route that matches a uuid at all.
+  const lookup = useQuery({
+    queryKey: queryKeys.games.search(term, MAX_LIMIT),
+    queryFn: ({ signal }) =>
+      api(ENDPOINTS.gameSearch, {
+        query: searchQuery({ q: term, limit: MAX_LIMIT }),
+        auth: false,
+        signal,
+      }),
+    // The route ranks exact matches first, but it is a `LIKE` — `plinko` also
+    // returns `plinko-deluxe`. Pick the exact uuid, never the first row.
+    select: (rows) => toGames(rows).find((game) => game.slug === term) ?? null,
+    enabled: on,
     staleTime: 10 * 60 * 1000,
   });
+
+  const name = lookup.data?.title ?? null;
+  const fullQuery = gamesQuery({ search: name ?? '', page: 1, limit: MAX_LIMIT });
+
+  // Step two: the same row, with the fields the detail page needs.
+  // Through `fetchGameList`, because this builds a `games.list` key — see the
+  // note on that function for what happens when one of these does not.
+  const full = useQuery({
+    queryKey: queryKeys.games.list(fullQuery),
+    queryFn: ({ signal }) => fetchGameList(fullQuery, signal),
+    select: ({ rows }) => toGames(rows).find((game) => game.slug === term) ?? null,
+    enabled: on && Boolean(name),
+    staleTime: 10 * 60 * 1000,
+  });
+
+  // The lookup resolved to nothing: the catalogue does not hold this slug, and
+  // that is a settled answer rather than a step still running.
+  const missing = lookup.isSuccess && lookup.data === null;
+
+  return {
+    /**
+     * The full row once it lands, and the lean one before it.
+     *
+     * Falling back to the lean row rather than holding a skeleton means the
+     * title, provider and art are on screen a request earlier. The fields only
+     * the full row carries — `inHouse` most of all — are read as absent until
+     * it arrives, which is why `isPending` stays true through step two.
+     */
+    data: missing ? null : full.data ?? lookup.data ?? undefined,
+    isPending: on && !missing && (lookup.isPending || (Boolean(name) && full.isPending)),
+    isSuccess: missing || full.isSuccess,
+    error: lookup.error ?? full.error ?? null,
+    refetch: () => {
+      lookup.refetch();
+      full.refetch();
+    },
+  };
 }

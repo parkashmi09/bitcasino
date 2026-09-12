@@ -432,7 +432,7 @@ export function MobileSidebar({ open, onClose, recentsCount }) {
         aria-modal="true"
         aria-label="Navigation"
         className={cn(
-          'absolute inset-y-0 start-0 flex w-72 max-w-[85vw] flex-col bg-goku shadow-xl',
+          'absolute inset-y-0 start-0 flex w-64 max-w-[calc(100vw-10px)] flex-col bg-goku shadow-xl',
           'transition-transform duration-200 ease-out',
           open ? 'translate-x-0' : '-translate-x-full',
         )}

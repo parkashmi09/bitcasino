@@ -1,11 +1,13 @@
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { GameCard } from '@/components/sections/GameCard';
 import { Button } from '@/components/ui/Button';
 import { Chip } from '@/components/ui/Chip';
 import { Icon } from '@/components/ui/Icon';
-import { GAMES } from '@/data/catalog';
+import { Skeleton } from '@/components/ui/Skeleton';
 import { useMediaQuery } from '@/hooks/useMediaQuery';
+import { useDebounced } from '@/hooks/useDebounced';
+import { useGames, useGameSearch } from '@/queries';
 import { cn } from '@/lib/cn';
 
 /**
@@ -48,17 +50,29 @@ const FILTERS = [
 
 /**
  * Games per page. The reference serves 30 against a catalogue of thousands;
- * this one holds 24, so the number is scaled to keep the behaviour — a first
+ * this one holds 44, so the number is scaled to keep the behaviour — a first
  * page, a "Load more", then the rest — rather than the constant, which would
  * make the control dead code here.
+ *
+ * Paging is still client-side over one fetched list. `GET /games/search` takes
+ * `q` and `limit` and has **no `page`**, so a real "next page of results" is
+ * not something the route can answer; the fallback list is a `?type=` browse
+ * that does page, but mixing the two paging models behind one "Load more"
+ * would be worse than fetching one generous page of each.
  */
 const PAGE_SIZE = 16;
 
 /** Matches the dialog's enter/leave animations in index.css. */
 const ANIMATION_MS = 150;
 
-const match = (game, query) =>
-  game.title.toLowerCase().includes(query) || game.provider.toLowerCase().includes(query);
+/**
+ * How many rows each list asks for.
+ *
+ * The platform caps both routes at 100. The search route ranks nothing — it is
+ * a `LIKE` over name and provider — so asking for the maximum and paging in
+ * the dialog is the closest thing to "all the matches" available.
+ */
+const FETCH_LIMIT = 100;
 
 export function SearchDialog({ open, onClose }) {
   const navigate = useNavigate();
@@ -76,16 +90,59 @@ export function SearchDialog({ open, onClose }) {
   const scrollRef = useRef(null);
   const openerRef = useRef(null);
 
-  const term = query.trim().toLowerCase();
-  const pool = filter ? GAMES.filter((game) => game.category === filter) : GAMES;
-  const results = term ? pool.filter((game) => match(game, term)) : pool;
+  const term = query.trim();
+  // The request follows the pause, not the keystroke — see `useDebounced`.
+  const settled = useDebounced(term, 250);
+
+  /**
+   * The fallback list, and the pool the category pills narrow.
+   *
+   * Fetched whenever the dialog is open, because it is what the empty field
+   * shows ("Most Popular Games") AND what a search that matched nothing falls
+   * back to. `?type=` does the category filtering server-side, so switching a
+   * pill is a new request rather than a cut of one list.
+   */
+  const popular = useGames({
+    category: filter || undefined,
+    limit: FETCH_LIMIT,
+    enabled: open,
+  });
+
+  /**
+   * The search itself.
+   *
+   * `GET /games/search` takes `q` and `limit` and **nothing else** — no
+   * category, no page. So the pill filter has to be applied here, on the
+   * results the route returned. That is a cut of at most `FETCH_LIMIT` rows
+   * rather than of the whole catalogue, which is the one place this dialog is
+   * less capable than the reference; a `type` on the search validator would
+   * close it, and is the same one-line addition flagged for `label` in
+   * `data/adapters/collections.js`.
+   */
+  const search = useGameSearch(settled, {
+    limit: FETCH_LIMIT,
+    enabled: open && settled.length > 0,
+  });
+
+  const pool = popular.data?.games ?? [];
+
+  const results = useMemo(() => {
+    const rows = search.data ?? [];
+    return filter ? rows.filter((game) => game.category === filter) : rows;
+  }, [search.data, filter]);
+
+  // While a term is settling, `search.data` is the PREVIOUS term's results —
+  // `useGameSearch` keeps them on screen deliberately. Treating that as the
+  // answer for the new term would flash "Nothing found" between keystrokes.
+  const searching = settled !== term || (settled.length > 0 && search.isPending);
 
   // A search that matched nothing falls back to the popular list, which the
   // reference runs *under* the empty state rather than instead of it.
-  const nothingFound = term !== '' && results.length === 0;
-  const list = nothingFound ? pool : results;
+  const nothingFound = settled !== '' && !searching && !search.isError && results.length === 0;
+  const list = settled === '' || nothingFound ? pool : results;
   const visible = list.slice(0, pages * PAGE_SIZE);
   const hasMore = visible.length < list.length;
+  const loading = settled === '' ? popular.isPending : searching;
 
   // Opening: remember where focus came from, take it, and lock the page under
   // the dialog. Closing is the same in reverse, once the animation has run.
@@ -159,11 +216,25 @@ export function SearchDialog({ open, onClose }) {
     scrollRef.current?.scrollTo({ top: 0 });
   };
 
+  /**
+   * "Random Game" picks out of whatever the dialog currently holds.
+   *
+   * There is no random-game route on the platform, and the catalogue has no
+   * endpoint that answers one row by chance — so the pool is the page already
+   * fetched. That makes the pick random within the first 100 of the current
+   * filter rather than across the whole catalogue, which is a real difference
+   * once a sync brings thousands and is why the button is disabled rather than
+   * silently doing nothing when the list is empty.
+   */
   const randomGame = () => {
-    const game = GAMES[Math.floor(Math.random() * GAMES.length)];
+    const source = list.length ? list : pool;
+    if (source.length === 0) return;
+    const game = source[Math.floor(Math.random() * source.length)];
     close();
-    navigate(`/play/${game.category}/${game.slug}`);
+    navigate(`/play/${game.category ?? 'video-slots'}/${game.slug}`);
   };
+
+  const canRandomise = (list.length || pool.length) > 0;
 
   if (!open && !closing) return null;
 
@@ -235,6 +306,7 @@ export function SearchDialog({ open, onClose }) {
             <Button
               size="lg"
               onClick={randomGame}
+              disabled={!canRandomise}
               className={cn(
                 'shrink-0 active:translate-y-px',
                 'max-md:fixed max-md:bottom-6 max-md:left-1/2 max-md:z-3 max-md:-translate-x-1/2',
@@ -310,28 +382,49 @@ export function SearchDialog({ open, onClose }) {
                 {term && !nothingFound ? 'Results' : 'Most Popular Games'}
               </h3>
               {/* The reference labels a real result set with its size and
-                  leaves the fallback suggestions uncounted. */}
-              {!nothingFound && (
+                  leaves the fallback suggestions uncounted. The count is
+                  withheld while a list is loading rather than shown as 0 —
+                  "0 results" is a claim, and mid-request we do not have one. */}
+              {!nothingFound && !loading && (
                 <span className="inline-flex shrink-0 items-center rounded-full bg-gohan px-2 py-0.5 text-xs font-medium text-bulma">
                   {list.length}
                 </span>
               )}
             </div>
 
-            <ul
-              onClick={(event) => event.target.closest('a') && close()}
-              className={cn(
-                'grid grid-cols-3 gap-2 md:grid-cols-5',
-                '[@media(min-width:1280px)]:grid-cols-7',
-                '[@media(min-width:1440px)]:grid-cols-8',
-              )}
-            >
-              {visible.map((game) => (
-                <li key={game.id}>
-                  <GameCard game={game} className="w-full" />
-                </li>
-              ))}
-            </ul>
+            {/* A failed read is not "nothing found". The empty state invites a
+                random game; this one says the search did not run. */}
+            {search.isError && settled !== '' && !searching ? (
+              <p role="alert" className="py-8 text-center text-sm text-trunks">
+                Search is unavailable right now. Please try again in a moment.
+                {search.error?.requestId ? (
+                  <span className="mt-1 block select-all font-mono text-[10px] text-trunks/70">
+                    {search.error.requestId}
+                  </span>
+                ) : null}
+              </p>
+            ) : (
+              <ul
+                onClick={(event) => event.target.closest('a') && close()}
+                className={cn(
+                  'grid grid-cols-3 gap-2 md:grid-cols-5',
+                  '[@media(min-width:1280px)]:grid-cols-7',
+                  '[@media(min-width:1440px)]:grid-cols-8',
+                )}
+              >
+                {loading
+                  ? Array.from({ length: 16 }, (_, i) => (
+                      <li key={i} aria-hidden="true">
+                        <Skeleton className="aspect-[140/188] w-full rounded-i-sm" />
+                      </li>
+                    ))
+                  : visible.map((game) => (
+                      <li key={game.id}>
+                        <GameCard game={game} className="w-full" />
+                      </li>
+                    ))}
+              </ul>
+            )}
           </div>
 
           {/* Fade over the last row, and the pill that sits on it. Both belong

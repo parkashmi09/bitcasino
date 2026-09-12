@@ -218,42 +218,15 @@ export function useProfile() {
 }
 
 /**
- * `{ kyc, status }` — the player's identity-verification state from
- * `GET /user/kyc/status`.
+ * `useKyc` lived here. It is `useKycStatus` in `queries/account.js` now.
  *
- * `kyc.status` is `NotSubmitted` before they apply, then `Pending`,
- * `Verified` or `Rejected`. The account page shows the identity card for
- * everything except `Verified`, which is the reference's own rule: a verified
- * account has no card there at all.
+ * Phase 6 added `POST /user/kyc/submit`, and the mutation for it invalidates
+ * the status read. This hook was a hand-rolled `useEffect` fetch holding
+ * nothing in the query cache, so that invalidation would have matched zero
+ * queries and done nothing — silently, leaving the identity card advertising
+ * "Start verification" for documents already sitting in the review queue.
  *
- * Separate from `useProfile` because it is a separate route. Folding it in
- * would make every consumer of the profile wait on two requests, and the
- * header's own reads do not need this one.
+ * The rest of this file stays as it is. `useProfile` has no mutation beside
+ * it reaching into a cache, so there is nothing to fix and a rewrite would be
+ * churn — see the note at the top of `queries/account.js`.
  */
-export function useKyc() {
-  const { status: session } = useAuth();
-  const [state, setState] = useState({ kyc: null, status: 'idle' });
-
-  useEffect(() => {
-    if (session !== 'authenticated') {
-      setState({ kyc: null, status: 'idle' });
-      return undefined;
-    }
-
-    const controller = new AbortController();
-    setState({ kyc: null, status: 'loading' });
-
-    api(ENDPOINTS.kycStatus, { signal: controller.signal })
-      .then((kyc) => setState({ kyc: kyc ?? null, status: 'ready' }))
-      .catch((error) => {
-        if (error?.name === 'AbortError') return;
-        // A failed read is not an excuse to tell somebody they are unverified.
-        // `error` leaves the card out entirely; see `Account.jsx`.
-        setState({ kyc: null, status: 'error' });
-      });
-
-    return () => controller.abort();
-  }, [session]);
-
-  return state;
-}

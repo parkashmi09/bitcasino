@@ -133,15 +133,66 @@ export function useFiatCurrency() {
   return [code, fiatStore.set];
 }
 
+/* ---------------------------------------------------------------------------
+ * The balances refresh signal.
+ *
+ * ═════════════════════════════════════════════════════════════════════════
+ * WHY THIS IS NOT `queryClient.invalidateQueries(['balances'])`
+ *
+ * `useBalances` below is a hand-rolled `useEffect` fetch, not a React Query
+ * hook — it predates the query layer and it is a single unparameterised read.
+ * So it holds NOTHING in the query cache, and an `invalidateQueries` naming
+ * `['balances']` matches no entry and does nothing at all. Silently: an
+ * invalidation that hits zero queries is not an error.
+ *
+ * That was a real defect, found by playing a round in the browser. The Limbo
+ * panel repainted with the new balance from the round's own reply while the
+ * HEADER CHIP two inches above it still showed the old one, until a
+ * navigation happened to remount the hook.
+ *
+ * A counter every instance subscribes to is what makes one round's settlement
+ * reach every mounted `useBalances` at once. `useSyncExternalStore` is
+ * already the pattern in this file for exactly that reason.
+ * ═════════════════════════════════════════════════════════════════════════
+ * ------------------------------------------------------------------------ */
+
+let balancesNonce = 0;
+const balancesListeners = new Set();
+
+const balancesSignal = {
+  subscribe(listener) {
+    balancesListeners.add(listener);
+    return () => balancesListeners.delete(listener);
+  },
+  get: () => balancesNonce,
+};
+
+/**
+ * Re-read every mounted balance.
+ *
+ * Called after anything that moves money without going through the query
+ * cache: an in-house round settling, a withdrawal, a swap. Cheap — one
+ * request per mounted hook, and there are at most two.
+ */
+export function refreshBalances() {
+  balancesNonce += 1;
+  for (const listener of balancesListeners) listener();
+}
+
 /**
  * `{ balances, status, error, reload }` — `balances` is the currency-keyed map,
  * `{}` until it arrives. `status` is `idle` for a signed-out visitor, so a
  * caller can tell "no wallet" from "an empty one".
+ *
+ * `reload` refreshes this instance only; `refreshBalances()` above refreshes
+ * every one of them.
  */
 export function useBalances() {
   const { status: session } = useAuth();
   const [state, setState] = useState({ balances: {}, status: 'idle', error: null });
-  const [nonce, setNonce] = useState(0);
+  const [local, setLocal] = useState(0);
+  const shared = useSyncExternalStore(balancesSignal.subscribe, balancesSignal.get, () => 0);
+  const nonce = `${local}:${shared}`;
 
   useEffect(() => {
     if (session !== 'authenticated') {
@@ -168,7 +219,7 @@ export function useBalances() {
     return () => controller.abort();
   }, [session, nonce]);
 
-  const reload = useCallback(() => setNonce((value) => value + 1), []);
+  const reload = useCallback(() => setLocal((value) => value + 1), []);
 
   return { ...state, reload };
 }

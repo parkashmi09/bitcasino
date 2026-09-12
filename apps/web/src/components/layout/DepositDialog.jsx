@@ -5,7 +5,9 @@ import { CoinMark } from './WalletMenu';
 import { useBalances, useDisplayCurrency, useFiatCurrency } from '@/hooks/useWallet';
 import { useExchangeRates } from '@/hooks/usePreferences';
 import { CURRENCY_ORDER, currencyMeta, currencyNetworks } from '@/data/currencies';
-import { formatBalance, formatFiat } from '@/lib/format';
+import QRCode from 'qrcode';
+import { compareDecimal, formatBalance, formatFiat, percentOf } from '@/lib/format';
+import { useDepositAddress, useSubmitWithdrawal } from '@/queries/wallet';
 import { cn } from '@/lib/cn';
 
 /**
@@ -39,13 +41,17 @@ import { cn } from '@/lib/cn';
  * (`GET /user/wallet/balances`, `GET /user/exchange-rate/rates`). The network
  * names are public facts, listed in `data/currencies.js`.
  *
- * The deposit ADDRESS is not, and is the one thing on this screen that must
- * never be improvised: it comes from the `GET_ADDRESS` socket event, and the
- * socket transport lands with Phase 4 of `docs/10-backend-integration.md`. A
- * player can read a fabricated address and send real money to it, so the QR
- * card states what it is waiting for instead of drawing a code. Same for Buy
- * and Withdraw, and for the exchange card's `SMART DEPOSIT` — they carry the
- * reference's shape and say plainly that they are not wired.
+ * The deposit ADDRESS is now real too, over the `GET_ADDRESS` socket event —
+ * Phase 4. It is the one thing on this screen that must never be improvised,
+ * because a player can send real money to whatever it shows, so `AddressPanel`
+ * below has four explicit states and none of them falls back to something
+ * plausible. Note especially the network caveat documented there: the platform
+ * stores one address per coin with no chain, so for a multi-network coin the
+ * address is NOT captioned with whichever network the player selected.
+ *
+ * Buy, and the exchange card's `SMART DEPOSIT`, are still unwired — they carry
+ * the reference's shape and say plainly that they are not. Withdraw is a real
+ * form over `SUBMIT_NEW_WITHDRAWL`.
  *
  * The geometry is the reference's drawer, not a centred card, so the panel
  * slides in from the edge it is attached to (`animate-sheet-in`, see
@@ -255,7 +261,7 @@ export function DepositDialog({ open, onClose }) {
                 />
               )}
 
-              <AddressPanel currency={currency} chain={chain} />
+              <AddressPanel currency={currency} chain={chain} networks={networks} />
             </div>
           )}
 
@@ -268,10 +274,11 @@ export function DepositDialog({ open, onClose }) {
           )}
 
           {tab === 'withdraw' && (
-            <Waiting
-              icon="send"
-              title={`Withdraw ${currency}`}
-              body="Withdrawals are submitted over the wallet socket and confirmed with your account password. The form opens with it, in Phase 4."
+            <WithdrawForm
+              currency={currency}
+              balance={balances[currency] ?? '0'}
+              decimals={meta.decimals}
+              onDone={reload}
             />
           )}
         </div>
@@ -620,28 +627,396 @@ function NetworkMark({ currency, short, size = 40 }) {
 }
 
 /**
- * Where the QR and the address go.
+ * The QR and the address — a real `GET_ADDRESS` read over the wallet socket.
  *
- * Drawn as the reference's square QR card so the sheet has the reference's
- * proportions, with the frame empty and the reason in it. This is the one
- * surface in the app that must never guess: an address is money's destination,
- * and a plausible-looking wrong one is worse than nothing at all.
+ * ═════════════════════════════════════════════════════════════════════════
+ * THIS IS THE ONE SURFACE IN THE APP THAT MUST NEVER GUESS.
+ *
+ * A player can send real money to whatever is shown here, and a deposit to a
+ * wrong address is unrecoverable. So every state is explicit and none of them
+ * falls back to something plausible:
+ *
+ *   loading      a skeleton the size of the card, not an empty frame
+ *   error        says the address could not be read, with a retry
+ *   unallocated  says no address is provisioned — `allocated: false` is a real
+ *                answer from the platform, not a failure
+ *   allocated    the address, and a QR encoding EXACTLY that string
+ *
+ * ── THE NETWORK CAVEAT, WHICH IS A REAL RISK ────────────────────────────
+ *
+ * `wallets` stores one address per (uid, coin) and has **no chain column**, so
+ * the platform cannot say which network an address belongs to — it answers
+ * `chain: null`. For a single-network coin that is fine and the network is
+ * implied. For USDT it is not: TRC20, ERC20 and BEP20 are different addresses,
+ * and sending to the wrong one loses the funds.
+ *
+ * So when the coin has several networks and the platform names none, this says
+ * so instead of captioning the address with whichever network the player
+ * happened to have selected above. Labelling it would be inventing the single
+ * most dangerous fact on the screen.
+ * ═════════════════════════════════════════════════════════════════════════
  */
-function AddressPanel({ currency, chain }) {
+function AddressPanel({ currency, chain: _chain, networks }) {
+  const { data, isPending, isError, error, refetch } = useDepositAddress(currency);
+  const [copied, setCopied] = useState(false);
+
+  const address = data?.allocated ? data.address : null;
+  /** The network the PLATFORM names, never the one the player picked. */
+  const confirmedChain = data?.chain ?? null;
+  const ambiguous = Boolean(address) && !confirmedChain && (networks?.length ?? 0) > 1;
+
+  const copy = async () => {
+    try {
+      await navigator.clipboard.writeText(address);
+      setCopied(true);
+      window.setTimeout(() => setCopied(false), 2000);
+    } catch {
+      // Clipboard denied or unavailable. The address is selectable as text,
+      // which is the fallback — no error state for a convenience.
+    }
+  };
+
   return (
     <div className="grid justify-items-center gap-3 rounded-i-md border-[0.8px] border-beerus bg-goku px-6 py-8 text-center">
-      <span className="grid aspect-square w-40 place-items-center rounded-i-sm border border-dashed border-beerus text-hit">
-        <Icon name="qr" size={72} className="text-beerus" />
-      </span>
+      {isPending ? (
+        <Skeleton className="aspect-square w-40 rounded-i-sm" />
+      ) : address ? (
+        <AddressQr value={address} />
+      ) : (
+        <span className="grid aspect-square w-40 place-items-center rounded-i-sm border border-dashed border-beerus">
+          <Icon name="qr" size={72} className="text-beerus" />
+        </span>
+      )}
 
       <p className="text-sm font-semibold text-bulma">
-        {currency} deposit address{chain ? ` · ${chain.label}` : ''}
+        {currency} deposit address
+        {confirmedChain ? ` · ${confirmedChain}` : ''}
       </p>
-      <p className="max-w-[280px] text-xs leading-relaxed text-trunks">
-        Addresses are issued per coin and chain over the wallet socket, which this build does not
-        connect to yet. Nothing is shown here until a real one can be.
-      </p>
+
+      {isPending ? (
+        <Skeleton className="h-8 w-full max-w-[280px]" />
+      ) : isError ? (
+        <>
+          <p className="max-w-[280px] text-xs leading-relaxed text-trunks">
+            {error?.code === 'SOCKET_TIMEOUT'
+              ? 'The wallet connection did not respond. Nothing is shown until an address can be read.'
+              : 'The deposit address could not be read. Nothing is shown until it can be.'}
+          </p>
+          <button
+            type="button"
+            onClick={() => refetch()}
+            className="rounded-i-sm bg-beerus px-3 py-1.5 text-xs font-medium text-bulma transition-colors hover:bg-trunks/20"
+          >
+            Try again
+          </button>
+        </>
+      ) : address ? (
+        <>
+          <button
+            type="button"
+            onClick={copy}
+            title="Copy address"
+            className="flex w-full max-w-[300px] items-center gap-2 rounded-i-sm border-[0.8px] border-beerus bg-gohan px-3 py-2 text-start transition-colors hover:border-trunks/40"
+          >
+            {/* `break-all` and not truncation: a partly shown address is one
+                somebody can copy by hand and get wrong. */}
+            <span className="min-w-0 flex-1 font-mono text-[11px] leading-4 break-all text-bulma">
+              {address}
+            </span>
+            <Icon
+              name={copied ? 'check' : 'copy'}
+              size={16}
+              className={copied ? 'shrink-0 text-roshi' : 'shrink-0 text-trunks'}
+            />
+          </button>
+
+          {ambiguous ? (
+            <p
+              role="alert"
+              className="max-w-[300px] rounded-i-sm bg-hit/10 px-3 py-2 text-xs leading-relaxed text-bulma"
+            >
+              <strong className="font-semibold">Confirm the network first.</strong>{' '}
+              {currency} exists on {networks.map((n) => n.label).join(', ')}, and this
+              deployment does not record which one this address is on. Sending on the
+              wrong network loses the deposit.
+            </p>
+          ) : (
+            <p className="max-w-[280px] text-xs leading-relaxed text-trunks">
+              Send only {currency}
+              {confirmedChain ? ` on ${confirmedChain}` : ''} to this address.
+            </p>
+          )}
+        </>
+      ) : (
+        <p className="max-w-[280px] text-xs leading-relaxed text-trunks">
+          No {currency} deposit address is provisioned for this account yet. The
+          platform issues them per coin; nothing is shown here until one exists.
+        </p>
+      )}
     </div>
+  );
+}
+
+/**
+ * A QR of exactly the address string, rendered to a canvas.
+ *
+ * The value encoded is the same string shown beneath it — never a URI scheme
+ * or an amount-carrying payment link, because a QR a player cannot read is a
+ * QR they cannot check against the text.
+ *
+ * Errors are swallowed to a blank frame rather than surfaced: the address
+ * itself is above it and copyable, so a failed render costs convenience, not
+ * correctness.
+ */
+function AddressQr({ value }) {
+  const ref = useRef(null);
+
+  useEffect(() => {
+    const canvas = ref.current;
+    if (!canvas) return;
+    QRCode.toCanvas(canvas, value, { width: 160, margin: 1 }).catch(() => {});
+  }, [value]);
+
+  return (
+    <span className="grid aspect-square w-40 place-items-center overflow-hidden rounded-i-sm bg-goten p-1">
+      <canvas ref={ref} aria-label="Deposit address QR code" className="size-full" />
+    </span>
+  );
+}
+
+/**
+ * The withdrawal form — `SUBMIT_NEW_WITHDRAWL` over the wallet socket.
+ *
+ * ═════════════════════════════════════════════════════════════════════════
+ * THIS MOVES REAL MONEY AND IT TAKES THE ACCOUNT PASSWORD.
+ *
+ * Four rules, and each one is load-bearing:
+ *
+ * 1. **The password is never stored.** It lives in component state for the
+ *    duration of the form and is cleared on submit, on success and on close.
+ *    It is not in a query key, not in the cache, not in a ref. The socket
+ *    frame is JSON in a byte array — TLS protects it, the encoding does not —
+ *    so it travels exactly as a password on an HTTPS form post does.
+ *
+ * 2. **The amount is a decimal STRING the whole way.** Never `Number()`.
+ *    Balances are `NUMERIC(30,8)` and a float cannot hold one; a withdrawal is
+ *    the worst possible place to find a rounding error. The percentage
+ *    shortcuts below do string arithmetic for the same reason.
+ *
+ * 3. **No automatic retry.** A withdrawal is not idempotent and the server has
+ *    no request id to deduplicate on, so a retry after a timeout is how one
+ *    payout becomes two. `useSubmitWithdrawal` inherits `retry: false`, and
+ *    the button is disabled while a submit is in flight.
+ *
+ * 4. **The confirm step is not decoration.** An address typed one character
+ *    wrong sends the money somewhere unrecoverable, so the form shows back
+ *    what it is about to do and asks again before it emits.
+ * ═════════════════════════════════════════════════════════════════════════
+ *
+ * The server verifies the password against the hash before anything moves, and
+ * checks affordability inside the same transaction as the debit. Neither is
+ * re-implemented here: the client's checks are there to spare a round trip and
+ * to say what is wrong, not to be the control.
+ */
+function WithdrawForm({ currency, balance, decimals, onDone }) {
+  const [address, setAddress] = useState('');
+  const [amount, setAmount] = useState('');
+  const [password, setPassword] = useState('');
+  const [confirming, setConfirming] = useState(false);
+  const [done, setDone] = useState(null);
+
+  const submit = useSubmitWithdrawal();
+
+  /** String-safe: take a percentage without ever making the balance a float. */
+  const takePercent = (percent) => setAmount(percentOf(balance, percent, decimals));
+
+  const overBalance = compareDecimal(amount || '0', balance) > 0;
+  const positive = /[1-9]/.test(amount || '');
+  const ready = address.trim().length > 0 && positive && !overBalance;
+
+  const reset = () => {
+    setAddress('');
+    setAmount('');
+    setPassword('');
+    setConfirming(false);
+  };
+
+  const send = async () => {
+    try {
+      const result = await submit.mutateAsync({
+        coin: currency,
+        amount,
+        wallet: address,
+        password,
+      });
+      // Cleared the moment it is no longer needed, before anything renders.
+      setPassword('');
+      setDone(result);
+      reset();
+      onDone?.();
+    } catch {
+      // `submit.error` carries it; the panel below renders from that. The
+      // password is deliberately kept so the player can correct only it.
+      setConfirming(false);
+    }
+  };
+
+  if (done) {
+    return (
+      <div className="grid justify-items-center gap-2 rounded-i-md border-[0.8px] border-beerus bg-goku px-6 py-10 text-center">
+        <span className="grid size-14 place-items-center rounded-full bg-roshi/15 text-roshi">
+          <Icon name="check" size={28} />
+        </span>
+        <p className="text-sm font-medium text-bulma">Withdrawal requested</p>
+        <p className="text-xs leading-relaxed text-trunks">
+          {formatBalance(done.amount ?? '0', decimals)} {done.coin ?? currency} is pending
+          review. It leaves your balance now and appears in your history.
+        </p>
+        <button
+          type="button"
+          onClick={() => setDone(null)}
+          className="mt-1 rounded-i-sm bg-beerus px-3 py-1.5 text-xs font-medium text-bulma transition-colors hover:bg-trunks/20"
+        >
+          Make another
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <form
+      className="grid gap-3"
+      onSubmit={(event) => {
+        event.preventDefault();
+        if (!confirming) setConfirming(true);
+      }}
+    >
+      <Field label={`${currency} address`}>
+        <input
+          value={address}
+          onChange={(e) => setAddress(e.target.value)}
+          disabled={confirming}
+          spellCheck={false}
+          autoComplete="off"
+          placeholder={`Destination ${currency} address`}
+          className="h-11 w-full rounded-i-sm border-[0.8px] border-beerus bg-goku px-3 font-mono text-xs text-bulma outline-none focus:border-piccolo disabled:text-trunks"
+        />
+      </Field>
+
+      <Field
+        label="Amount"
+        hint={`${formatBalance(balance, decimals)} ${currency} available`}
+      >
+        <input
+          value={amount}
+          onChange={(e) => setAmount(e.target.value.replace(/[^0-9.]/g, ''))}
+          disabled={confirming}
+          inputMode="decimal"
+          placeholder="0.00"
+          className="h-11 w-full rounded-i-sm border-[0.8px] border-beerus bg-goku px-3 text-sm tabular-nums text-bulma outline-none focus:border-piccolo disabled:text-trunks"
+        />
+        {!confirming && (
+          <div className="mt-1.5 flex gap-1.5">
+            {[25, 50, 75, 100].map((percent) => (
+              <button
+                key={percent}
+                type="button"
+                onClick={() => takePercent(percent)}
+                className="flex-1 rounded-i-xs bg-beerus py-1 text-[11px] font-medium text-bulma transition-colors hover:bg-trunks/20"
+              >
+                {percent === 100 ? 'Max' : `${percent}%`}
+              </button>
+            ))}
+          </div>
+        )}
+        {overBalance && (
+          <p role="alert" className="mt-1.5 text-[11px] text-dodoria">
+            That is more than your {currency} balance.
+          </p>
+        )}
+      </Field>
+
+      {confirming && (
+        <>
+          {/* Shown back before it is sent. An address one character wrong is
+              money gone, so the last thing the player reads is the thing that
+              is about to happen — not a form they have stopped looking at. */}
+          <div className="grid gap-1 rounded-i-md bg-goku px-3 py-2.5 text-xs">
+            <Row label="Sending" value={`${formatBalance(amount, decimals)} ${currency}`} />
+            <Row label="To" value={address} mono />
+          </div>
+
+          <Field label="Account password" hint="Verified before anything moves.">
+            <input
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              autoComplete="current-password"
+              className="h-11 w-full rounded-i-sm border-[0.8px] border-beerus bg-goku px-3 text-sm text-bulma outline-none focus:border-piccolo"
+            />
+          </Field>
+        </>
+      )}
+
+      {submit.isError && (
+        <p role="alert" className="rounded-i-sm bg-dodoria/10 px-3 py-2 text-xs text-bulma">
+          {submit.error?.message || 'The withdrawal was refused.'}
+        </p>
+      )}
+
+      {confirming ? (
+        <div className="flex gap-2">
+          <button
+            type="button"
+            onClick={() => setConfirming(false)}
+            disabled={submit.isPending}
+            className="h-11 flex-1 rounded-i-sm bg-beerus text-sm font-medium text-bulma transition-colors hover:bg-trunks/20 disabled:opacity-50"
+          >
+            Back
+          </button>
+          <button
+            type="button"
+            onClick={send}
+            // Disabled while in flight: a second click is a second payout.
+            disabled={submit.isPending || password.length === 0}
+            className="h-11 flex-1 rounded-i-sm bg-piccolo text-sm font-medium text-goten transition-opacity hover:opacity-90 disabled:opacity-50"
+          >
+            {submit.isPending ? 'Sending…' : 'Confirm withdrawal'}
+          </button>
+        </div>
+      ) : (
+        <button
+          type="submit"
+          disabled={!ready}
+          className="h-11 rounded-i-sm bg-piccolo text-sm font-medium text-goten transition-opacity hover:opacity-90 disabled:opacity-50"
+        >
+          Review withdrawal
+        </button>
+      )}
+    </form>
+  );
+}
+
+function Field({ label, hint, children }) {
+  return (
+    <label className="grid gap-1.5">
+      <span className="flex items-baseline justify-between gap-2">
+        <span className="text-xs font-medium text-bulma">{label}</span>
+        {hint && <span className="text-[11px] text-trunks">{hint}</span>}
+      </span>
+      {children}
+    </label>
+  );
+}
+
+function Row({ label, value, mono = false }) {
+  return (
+    <span className="flex items-baseline justify-between gap-3">
+      <span className="shrink-0 text-trunks">{label}</span>
+      <span className={cn('min-w-0 text-end break-all text-bulma', mono && 'font-mono text-[11px]')}>
+        {value}
+      </span>
+    </span>
   );
 }
 

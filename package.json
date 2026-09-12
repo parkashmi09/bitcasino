@@ -20,7 +20,8 @@
     "assets:gen": "node scripts/generate-assets.mjs",
     "fonts:fetch": "node scripts/fetch-fonts.mjs",
     "test": "npm run test -w @bc/web",
-    "verify:api": "npm run verify:api -w @bc/web"
+    "verify:api": "npm run verify:api -w @bc/web",
+    "verify:socket-events": "npm run verify:socket-events -w @bc/web"
   },
   "devDependencies": {
     "concurrently": "^9.2.1"

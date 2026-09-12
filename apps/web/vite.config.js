@@ -9,10 +9,23 @@ import path from 'node:path';
  * refuses `/internal/*`. Every path it serves starts `/api/v1`.
  *
  * `/socket.io` does NOT. The four services each attach their own Socket.io
- * server on their own port; the gateway proxies HTTP only. Everything the web
- * app listens for — wallet, auth rebind, chat, the in-house game rounds — is on
- * user-service and casino-service, so the socket proxy points straight at
- * user-service and casino events connect on their own namespace later.
+ * server on their own port; the gateway proxies HTTP only — `proxy.js` strips
+ * `upgrade` with the other hop-by-hop headers, so a websocket handshake sent
+ * at :4000 never reaches a service. Everything the web app listens for is on
+ * TWO of them, and they cannot share one proxy entry:
+ *
+ *   `/socket.io`     -> user-service :4001   wallet, auth rebind, chat
+ *   `/casino-socket` -> casino-service :4003 the in-house `PLAY_*` rounds
+ *
+ * Both servers listen on Socket.io's DEFAULT path (`/socket.io`), so the
+ * second entry rewrites rather than adding a path server-side: the client is
+ * told `path: '/casino-socket'`, Vite maps that back to `/socket.io` on :4003,
+ * and both connections stay same-origin — which is what keeps the browser from
+ * needing a CORS preflight per poll. A deployment that puts casino-service on
+ * its own host sets `VITE_CASINO_SOCKET_URL` instead and the rewrite is moot.
+ *
+ * `ws: true` on both: without it the polling handshake succeeds and the
+ * upgrade 400s, which presents as a socket that works and then stalls.
  */
 export default defineConfig({
   plugins: [react(), tailwindcss()],
@@ -24,6 +37,12 @@ export default defineConfig({
     proxy: {
       '/api': { target: 'http://127.0.0.1:4000', changeOrigin: true },
       '/socket.io': { target: 'http://127.0.0.1:4001', changeOrigin: true, ws: true },
+      '/casino-socket': {
+        target: 'http://127.0.0.1:4003',
+        changeOrigin: true,
+        ws: true,
+        rewrite: (url) => url.replace(/^\/casino-socket/, '/socket.io'),
+      },
     },
   },
   build: { outDir: 'dist', sourcemap: true },

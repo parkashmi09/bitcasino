@@ -1,12 +1,14 @@
 import { useAuth } from '@/auth/AuthProvider';
 import { Hero } from '@/components/sections/Hero';
 import { HomeBanner } from '@/components/sections/HomeBanner';
-import { GameRail } from '@/components/sections/GameRail';
+import { CatalogueRail } from '@/components/sections/CatalogueRail';
+import { LatestWins } from '@/components/sections/LatestWins';
 import { ThemeRail } from '@/components/sections/ThemeRail';
 import { TrustSection } from '@/components/sections/TrustSection';
 import { ProviderRail } from '@/components/sections/ProviderRail';
 import { Testimonials } from '@/components/sections/Testimonials';
-import { HOME_RAILS, THEME_RAIL_INDEX } from '@/data/catalog';
+import { useSiteConfig } from '@/queries';
+import { HOME_RAILS, THEME_RAIL_INDEX } from '@/data/homeRails';
 
 /**
  * Section order follows the reference home page.
@@ -67,9 +69,39 @@ import { HOME_RAILS, THEME_RAIL_INDEX } from '@/data/catalog';
  */
 export function Home() {
   const { status } = useAuth();
+  const { config } = useSiteConfig();
   const signedOut = status === 'anonymous';
-  const railsBeforeThemes = HOME_RAILS.slice(0, THEME_RAIL_INDEX);
-  const railsAfterThemes = HOME_RAILS.slice(THEME_RAIL_INDEX);
+
+  /**
+   * Operator flags gate three of the seven rails.
+   *
+   * `home_livecasino`, `home_popularslots` and `home_crashgames` are the
+   * platform's own `home_*` section toggles, and they name exactly the three
+   * rails backed by a curated collection — which is the pairing that makes
+   * sense, since both the flag and the row are things an operator edits. The
+   * other four have no flag and always render.
+   *
+   * `config.flag()` answers `true` for anything it has not been told about, so
+   * this shows every rail before the config lands and on a deployment that has
+   * never been configured. See `data/adapters/siteConfig.js`.
+   */
+  const RAIL_FLAGS = {
+    'live-casino': 'home_livecasino',
+    'popular-slots': 'home_popularslots',
+    crash: 'home_crashgames',
+  };
+
+  const rails = HOME_RAILS.filter((rail) => {
+    const flag = rail.source.kind === 'collection' ? RAIL_FLAGS[rail.source.slug] : null;
+    return flag ? config.flag(flag) : true;
+  });
+
+  // Split on the ORIGINAL index rather than the filtered one: the Themes strip
+  // belongs after "Exclusives", and counting into a list a flag has shortened
+  // would drift it up the page every time an operator hid a rail.
+  const themeAt = HOME_RAILS.slice(0, THEME_RAIL_INDEX).filter((rail) =>
+    rails.includes(rail),
+  ).length;
 
   return (
     <>
@@ -79,14 +111,19 @@ export function Home() {
 
       {signedOut && <ProviderRail />}
 
-      {railsBeforeThemes.map((rail, i) => (
-        <GameRail key={rail.title} {...rail} featured={i === 0} />
+      {/* Renders nothing until a round settles — see `LatestWins`. It sits
+          above the rails because that is where the reference puts it, and it
+          costs no space while the feed is empty. */}
+      {/* {config.flag('home_latestwins') && <LatestWins />} */}
+
+      {rails.slice(0, themeAt).map((rail) => (
+        <CatalogueRail key={rail.title} {...rail} />
       ))}
 
       <ThemeRail />
 
-      {railsAfterThemes.map((rail) => (
-        <GameRail key={rail.title} {...rail} />
+      {rails.slice(themeAt).map((rail) => (
+        <CatalogueRail key={rail.title} {...rail} />
       ))}
 
       <TrustSection />
@@ -104,12 +141,15 @@ export function Home() {
  * shimmering skeleton: this resolves in one round trip, and a card-shaped
  * pulse that turns into a *different* layout half the time reads worse than
  * quiet space.
+ *
+ * Below `sm` the banner is a carousel, so the height is the card's 410px plus
+ * the 16px gap and 8px dot row under it.
  */
 function AboveTheFoldSkeleton() {
   return (
     <div
       aria-hidden="true"
-      className="min-h-[410px] sm:min-h-[300px] lg:min-h-[400px] xl:min-h-[514px]"
+      className="min-h-[434px] sm:min-h-[300px] lg:min-h-[400px] xl:min-h-[514px]"
     />
   );
 }

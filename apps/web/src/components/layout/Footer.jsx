@@ -6,6 +6,8 @@ import { useMediaQuery } from '@/hooks/useMediaQuery';
 import { useFiatCurrency } from '@/hooks/useWallet';
 import { useExchangeRates } from '@/hooks/usePreferences';
 import { fiatPair } from '@/lib/format';
+import { useSiteConfig } from '@/queries';
+import { CURRENCY_ORDER } from '@/data/currencies';
 
 /**
  * Fat footer, laid out to the reference site's measurements.
@@ -73,20 +75,48 @@ const LINK_COLUMNS = [
 
 const LANGUAGES = ['English', 'Deutsch', 'Español', 'Français', 'Português', '日本語'];
 
-const PAYMENT_METHODS = [
-  { name: 'tether', src: '/images/footer/crypto/usdt.png' },
-  { name: 'usdc', src: '/images/footer/crypto/usdc.png' },
-  { name: 'tron', src: '/images/footer/crypto/trx.png' },
-  { name: 'eth', src: '/images/footer/crypto/eth.png' },
-  { name: 'matic', src: '/images/footer/crypto/matic.png' },
-  { name: 'btc', src: '/images/footer/crypto/btc.png' },
-  { name: 'ton', src: '/images/footer/crypto/ton.png' },
-  { name: 'bnb', src: '/images/footer/crypto/bnb.svg' },
-  { name: 'xrp', src: '/images/footer/crypto/xrp.png' },
-  { name: 'doge', src: '/images/footer/crypto/doge.svg' },
-  { name: 'ada', src: '/images/footer/crypto/ada.svg' },
-  { name: 'ltc', src: '/images/footer/crypto/ltc.png' },
-];
+/**
+ * The payment marks, keyed by the platform's own currency ticker.
+ *
+ * ═════════════════════════════════════════════════════════════════════════
+ * WHICH OF THESE SHOWS IS THE OPERATOR'S DECISION, NOT THIS FILE'S.
+ *
+ * `GET /admin/site-config/public` carries a per-currency flag, and
+ * `adapters/siteConfig.js` intersects it with the wallet's own
+ * `SUPPORTED_CURRENCIES` allow-list. A footer advertising a coin the site has
+ * switched off is an invitation to send money it cannot receive — which for a
+ * deposit rail is not a cosmetic error.
+ *
+ * So the artwork lives here, keyed by ticker, and the ORDER and the SELECTION
+ * come from the config. `TON` and `MATIC` have art and no ticker in
+ * `SUPPORTED_CURRENCIES`, so they simply never resolve; a currency the
+ * platform enables with no art here is dropped rather than drawn as a broken
+ * image. Both directions fail quietly and visibly, which is the right way
+ * round for a strip of logos.
+ * ═════════════════════════════════════════════════════════════════════════
+ */
+const PAYMENT_MARKS = {
+  USDT: { name: 'tether', src: '/images/footer/crypto/usdt.png' },
+  USDC: { name: 'usdc', src: '/images/footer/crypto/usdc.png' },
+  TRX: { name: 'tron', src: '/images/footer/crypto/trx.png' },
+  ETH: { name: 'eth', src: '/images/footer/crypto/eth.png' },
+  MATIC: { name: 'matic', src: '/images/footer/crypto/matic.png' },
+  BTC: { name: 'btc', src: '/images/footer/crypto/btc.png' },
+  BNB: { name: 'bnb', src: '/images/footer/crypto/bnb.svg' },
+  XRP: { name: 'xrp', src: '/images/footer/crypto/xrp.png' },
+  DOGE: { name: 'doge', src: '/images/footer/crypto/doge.svg' },
+  ADA: { name: 'ada', src: '/images/footer/crypto/ada.svg' },
+  LTC: { name: 'ltc', src: '/images/footer/crypto/ltc.png' },
+};
+
+/**
+ * What renders before the config lands, and if it never does.
+ *
+ * `adapters/siteConfig.js` defaults every flag ON for an absent config row,
+ * so this matches what a fully-enabled deployment shows and first paint does
+ * not flicker a shorter strip into a longer one.
+ */
+const DEFAULT_PAYMENT_METHODS = Object.values(PAYMENT_MARKS);
 
 const SOCIAL_LINKS = [
   { name: 'telegram', src: '/images/footer/social/telegram.png' },
@@ -203,6 +233,26 @@ export function Footer() {
   const [fiat] = useFiatCurrency();
   const { rates } = useExchangeRates();
 
+  /**
+   * The marks to show, from the operator's own currency flags.
+   *
+   * `enabledCurrencies` filters `CURRENCY_ORDER` — the wallet's allow-list, in
+   * the deployment's own preference order — by the site config's per-currency
+   * flag, so the strip advertises exactly what this site can receive. A
+   * currency with no artwork here is dropped rather than drawn broken.
+   *
+   * Falls back to the full set while the config is in flight, which is what an
+   * unconfigured deployment resolves to anyway — so nothing flickers.
+   */
+  const { config, isPending: configPending } = useSiteConfig();
+
+  const paymentMethods = configPending
+    ? DEFAULT_PAYMENT_METHODS
+    : config
+        .enabledCurrencies(CURRENCY_ORDER)
+        .map((code) => PAYMENT_MARKS[code])
+        .filter(Boolean);
+
   return (
     // Negative margins cancel `main`'s padding so the footer supplies its own,
     // exactly as it does on the reference site: 20px below md, 32px above.
@@ -273,7 +323,7 @@ export function Footer() {
           <div className="flex flex-col gap-4 lg:flex-row lg:justify-between">
             <div className="flex flex-col gap-4">
               <BandHeading>Payment methods</BandHeading>
-              <MarkRow items={PAYMENT_METHODS} />
+              <MarkRow items={paymentMethods} />
             </div>
 
             <div className="flex flex-col gap-4">

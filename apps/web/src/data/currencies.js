@@ -21,9 +21,25 @@
 const CRYPTO = 8;
 const FIAT = 2;
 
-/** ticker -> { name, decimals, tint } */
+/**
+ * What the WALLET's own surfaces print, as opposed to `decimals` above.
+ *
+ * The reference's balances panel shows `0.00` on every row, Bitcoin included,
+ * and labels the Bitcoin one `0.00 mBTC` — read off its own phone panel, where
+ * the amount column is 45px wide. It does not show a coin's storage precision
+ * there: eight places would be a 92px column of zeroes, which is exactly what
+ * this app was drawing before anyone compared the two.
+ *
+ * So a currency may carry a display UNIT — `shift` decimal places to the right
+ * and a name for the result. Bitcoin's is the reference's default, milli-BTC.
+ * Nothing else has one: a row reading `0.00` is already denominated by its own
+ * label, and only a unit that differs from the ticker needs saying.
+ */
+export const WALLET_DECIMALS = 2;
+
+/** ticker -> { name, decimals, tint, unit?, shift? } */
 export const CURRENCIES = {
-  BTC: { name: 'Bitcoin', decimals: CRYPTO, tint: '#f7931a' },
+  BTC: { name: 'Bitcoin', decimals: CRYPTO, tint: '#f7931a', unit: 'mBTC', shift: 3 },
   ETH: { name: 'Ethereum', decimals: CRYPTO, tint: '#627eea' },
   LTC: { name: 'Litecoin', decimals: CRYPTO, tint: '#345d9d' },
   BCH: { name: 'Bitcoin Cash', decimals: CRYPTO, tint: '#8dc351' },
@@ -32,7 +48,7 @@ export const CURRENCIES = {
   DOGE: { name: 'Dogecoin', decimals: CRYPTO, tint: '#c2a633' },
   ADA: { name: 'Cardano', decimals: CRYPTO, tint: '#0033ad' },
   XRP: { name: 'Ripple', decimals: CRYPTO, tint: '#23292f' },
-  BNB: { name: 'BNB', decimals: CRYPTO, tint: '#f3ba2f' },
+  BNB: { name: 'Binance coin', decimals: CRYPTO, tint: '#f3ba2f' },
   USDP: { name: 'Pax Dollar', decimals: FIAT, tint: '#00845d' },
   NEXO: { name: 'Nexo', decimals: CRYPTO, tint: '#1a4199' },
   MKR: { name: 'Maker', decimals: CRYPTO, tint: '#1aab9b' },
