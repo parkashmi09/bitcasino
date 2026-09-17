@@ -40,8 +40,10 @@ import { ProvablyFair } from '@/pages/ProvablyFair';
 import { RewardTerms } from '@/pages/RewardTerms';
 import { PrivacyPolicy } from '@/pages/PrivacyPolicy';
 import { BitcoinBreakdown } from '@/pages/BitcoinBreakdown';
-import { HelpLoyalty } from '@/pages/HelpLoyalty';
-import { HelpRewards } from '@/pages/HelpRewards';
+import { HelpCenter } from '@/pages/HelpCenter';
+import { HelpCategory } from '@/pages/HelpCategory';
+import { HelpArticle } from '@/pages/HelpArticle';
+import { OurLicense } from '@/pages/OurLicense';
 import { ScrollToTop } from '@/components/layout/ScrollToTop';
 import { RouteProgress } from '@/components/layout/RouteProgress';
 import { AuthProvider } from '@/auth/AuthProvider';
@@ -253,8 +255,12 @@ export default function App() {
             <Route path="help-center/provably-fair" element={<ProvablyFair />} />
             <Route path="help-center/reward-terms" element={<RewardTerms />} />
             <Route path="help-center/privacy-policy" element={<PrivacyPolicy />} />
-            <Route path="help-center/help-loyalty" element={<HelpLoyalty />} />
-            <Route path="help-center/help-your-bonuses" element={<HelpRewards />} />
+            {/* One data-driven category and article view covers every help topic.
+                Add entries in data/helpArticles.js; no new page or route needed. */}
+            <Route path="help-center/:categorySlug/:articleSlug" element={<HelpArticle />} />
+            <Route path="help-center/:categorySlug" element={<HelpCategory />} />
+            <Route path="help-center" element={<HelpCenter />} />
+            <Route path="help-center/our-license" element={<OurLicense />} />
             <Route path="bitcoin-breakdown" element={<BitcoinBreakdown />} />
             {/* Tournaments is a real page now. `all/:filter` is the reference's
                 own shape for the two `See all` links — `current` and `past` —

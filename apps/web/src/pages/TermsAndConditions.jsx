@@ -1,16 +1,5 @@
 import { Link } from 'react-router-dom';
-
-const CATEGORIES = [
-  ['Getting Started', '/help-center'],
-  ['Your Account', '/help-center'],
-  ['Your Transactions', '/help-center'],
-  ['Your rewards', '/help-center'],
-  ['Payment Options', '/help-center'],
-  ['About Crypto', '/help-center'],
-  ['How to buy Crypto', '/help-center'],
-  ['Loyalty Club', '/loyalty'],
-  ['Bitcasino Information', '/help-center/terms-and-conditions'],
-];
+import { HelpCategoriesSidebar } from '../components/sections/HelpCategoriesSidebar';
 
 const RELATED_ARTICLES = [
   ['Dispute Resolution', '/help-center/dispute-resolution'],
@@ -193,26 +182,13 @@ function Article() {
   );
 }
 
-function Categories() {
-  return (
-    <aside className="hidden min-w-72 self-start md:block md:ps-8 lg:min-w-[280px] lg:ps-4">
-      <h2 className="mb-4 text-2xl font-normal leading-8 text-bulma">Categories</h2>
-      <div className="divide-y divide-beerus border-t border-beerus">
-        {CATEGORIES.map(([label, to]) => (
-          <Link key={label} to={to} className="block py-4 text-base text-bulma hover:text-piccolo">{label}</Link>
-        ))}
-      </div>
-    </aside>
-  );
-}
-
 export function TermsAndConditions() {
   return (
     <div className="w-full max-w-[99rem] overflow-x-clip md:mx-auto">
       <Breadcrumbs />
       <div className="mt-8 grid gap-10 md:grid-cols-[minmax(0,1fr)_280px] md:gap-8 lg:grid-cols-[minmax(0,800px)_280px] lg:justify-between">
         <Article />
-        <Categories />
+        <HelpCategoriesSidebar />
       </div>
       <section className="mt-14 border-t border-beerus pt-8">
         <h2 className="mb-5 text-2xl font-bold text-bulma">Related articles</h2>

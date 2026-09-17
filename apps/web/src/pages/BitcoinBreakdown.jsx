@@ -84,8 +84,8 @@ export function BitcoinBreakdown() {
   const [openWallet, setOpenWallet] = useState(0);
 
   return (
-    <div className="grid min-w-0 gap-8 overflow-hidden">
-      <section className="relative -mx-4 overflow-hidden rounded-b-2xl pb-8 pt-12 md:-mx-8 md:pb-10 md:pt-16" style={{ backgroundImage: `url(${IMAGE_ROOT}/promotions/2023/bitcoin-breakdown-banner.jpg?auto=compress,format&fit=max&q=50)`, backgroundPosition: 'center', backgroundSize: 'cover' }}>
+    <div className="grid min-w-0 gap-8 overflow-hidden ">
+      <section className="relative -mx-4 overflow-hidden p-5 rounded-b-2xl pb-8 pt-12 md:-mx-8 md:pb-10 md:pt-16" style={{ backgroundImage: `url(${IMAGE_ROOT}/promotions/2023/bitcoin-breakdown-banner.jpg?auto=compress,format&fit=max&q=50)`, backgroundPosition: 'center', backgroundSize: 'cover' }}>
         <div className="relative mx-auto grid max-w-[1392px] gap-10 px-5 text-popo md:px-8">
           <div className="grid max-w-xl gap-6">
             <h1 className="font-secondary text-[32px] font-light leading-[1.15] md:text-[56px]">The Big Bitcoin Breakdown</h1>
