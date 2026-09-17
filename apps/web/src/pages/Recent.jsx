@@ -45,7 +45,7 @@ export function Recent() {
 
   if (status === 'error') {
     return (
-      <div className="flex flex-col gap-6 py-2">
+      <div className="flex flex-col gap-6">
         <h1 className="self-end font-primary text-2xl leading-8 font-normal tracking-normal text-bulma">
           Recently played
         </h1>
@@ -98,7 +98,7 @@ const CRUMB = [{ label: 'Games', to: '/' }, { label: 'Recently played' }];
  */
 function RecentSkeleton() {
   return (
-    <div className="flex flex-col gap-6 py-2">
+    <div className="flex flex-col gap-6">
       <h1 className="self-end font-primary text-2xl leading-8 font-normal tracking-normal text-bulma">
         Recently played
       </h1>

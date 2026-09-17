@@ -20,14 +20,21 @@ const SRC = {
   promotions: ASSETS.navIcons.promotions,
   tournaments: ASSETS.navIcons.tournaments,
   providers: ASSETS.navIcons.providers,
-  'live-games': ASSETS.navIcons['live-games'],
   'live-casino': ASSETS.navIcons['all-live-casino'],
+  live: ASSETS.navIcons['all-live-casino'],
+  'live-exclusive': ASSETS.navIcons['live-exclusives'],
   vip: ASSETS.navIcons.crown,
+  baccarat: ASSETS.navIcons.baccarat,
+  blackjack: ASSETS.navIcons.blackjack,
+  roulette: ASSETS.navIcons.roulette,
   'table-games': ASSETS.navIcons['table-games'],
   slots: ASSETS.navIcons.slots,
+  'bitcasino-exclusive': ASSETS.navIcons.originals,
   crash: ASSETS.navIcons['crash-instant-win'],
   'game-shows': ASSETS.navIcons['game-shows'],
   jackpots: ASSETS.navIcons.jackpots,
+  'bonus-buy': ASSETS.navIcons['bonus-buys-1'],
+  'all-games': ASSETS.navIcons['all-games'],
 
   /* The account menu's rows. Same CMS directory as everything above —
      `cms/icons/icon_*.png`, read off the reference's own account panel — so

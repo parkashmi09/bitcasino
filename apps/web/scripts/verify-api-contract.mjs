@@ -47,7 +47,7 @@ import {
   COLLECTION_SLUGS,
 } from '../src/queries/params.js';
 import { toGames, toProviders, toProviderCounts, toSiteConfig } from '../src/data/adapters/index.js';
-import { CATEGORY_SLUGS, categoryFromType } from '../src/data/adapters/categories.js';
+import { CATEGORY_SLUGS, categoryFromType, queryTypesFor } from '../src/data/adapters/categories.js';
 import { CATEGORY_ART } from '../src/data/adapters/games.js';
 import { KNOWN_LOGOS } from '../src/data/adapters/providers.js';
 import {
@@ -229,14 +229,28 @@ for (const slug of CATEGORY_SLUGS) {
 
   const games = toGames(res.data);
 
-  // An empty category is legitimate — but every row that DID come back must
-  // map to the slug we asked for, or the mapping table is wrong in a way that
-  // shows the player another category's games.
-  const wrong = games.filter((game) => game.category !== slug);
+  /**
+   * An empty category is legitimate — but every row that DID come back must
+   * belong to the page we asked for, or the mapping table is wrong in a way
+   * that shows the player another category's games.
+   *
+   * "Belongs to" is `queryTypesFor`, not `=== slug`, because a page may cover
+   * more than its own type: `/categories/live-casino` is the whole live room
+   * and answers the baccarat, blackjack and roulette tables carved out of it.
+   * For the other nine that set is one long, so this is the same assertion it
+   * always was — and it still catches the failure it was written for, which is
+   * a row from a category nobody asked about.
+   */
+  const covered = new Set(queryTypesFor(slug).map(categoryFromType).filter(Boolean));
+  const wrong = games.filter((game) => !covered.has(game.category));
   if (wrong.length) {
     fail(`?type=${query.type}`, `${wrong.length} row(s) mapped to ${wrong[0].category}`);
   } else {
-    ok(`?type=${query.type}`, `${games.length} game(s)`);
+    const detail =
+      covered.size > 1
+        ? `${games.length} game(s) across ${covered.size} categories`
+        : `${games.length} game(s)`;
+    ok(`?type=${query.type}`, detail);
   }
 }
 

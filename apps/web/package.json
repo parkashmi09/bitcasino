@@ -11,7 +11,10 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "verify:api": "node scripts/verify-api-contract.mjs",
-    "verify:socket-events": "node scripts/verify-socket-events.mjs"
+    "verify:socket-events": "node scripts/verify-socket-events.mjs",
+    "test:e2e": "playwright test",
+    "test:e2e:ui": "playwright test --ui",
+    "e2e:install": "playwright install --with-deps chromium"
   },
   "dependencies": {
     "@tanstack/react-query": "^5.102.8",
@@ -25,6 +28,7 @@
   },
   "devDependencies": {
     "@eslint/js": "^9.39.5",
+    "@playwright/test": "^1.63.0",
     "@tailwindcss/vite": "^4.1.13",
     "@testing-library/react": "^16.3.3",
     "@vitejs/plugin-react": "^5.0.4",

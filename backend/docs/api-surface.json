@@ -6078,7 +6078,7 @@
       "middleware": [
         {
           "type": "rateLimit",
-          "value": "limiter"
+          "value": "callbackLimiter"
         }
       ],
       "responses": [
@@ -6087,6 +6087,37 @@
           "kind": "raw",
           "status": 200,
           "shape": "res.json(…)"
+        }
+      ],
+      "thrown": [],
+      "resolved": true,
+      "file": "services/casino/src/modules/gis/routes/public.routes.js"
+    },
+    {
+      "service": "casino",
+      "module": "gis",
+      "audience": "public",
+      "method": "POST",
+      "path": "/api/v1/casino/gis/launch-demo",
+      "routePath": "/launch-demo",
+      "handler": "launchDemo",
+      "handlerSource": "index.js",
+      "middleware": [
+        {
+          "type": "rateLimit",
+          "value": "demoLimiter"
+        },
+        {
+          "type": "validate",
+          "value": "v.launchDemo"
+        }
+      ],
+      "responses": [
+        {
+          "index": 33,
+          "kind": "created",
+          "status": 201,
+          "shape": "service.launchDemo(…)"
         }
       ],
       "thrown": [],
@@ -6190,33 +6221,6 @@
           "kind": "created",
           "status": 201,
           "shape": "service.launch(…)"
-        }
-      ],
-      "thrown": [],
-      "resolved": true,
-      "file": "services/casino/src/modules/gis/routes/user.routes.js"
-    },
-    {
-      "service": "casino",
-      "module": "gis",
-      "audience": "user",
-      "method": "POST",
-      "path": "/api/v1/casino/gis/launch-demo",
-      "routePath": "/launch-demo",
-      "handler": "launchDemo",
-      "handlerSource": "index.js",
-      "middleware": [
-        {
-          "type": "validate",
-          "value": "v.launchDemo"
-        }
-      ],
-      "responses": [
-        {
-          "index": 33,
-          "kind": "created",
-          "status": 201,
-          "shape": "service.launchDemo(…)"
         }
       ],
       "thrown": [],
@@ -10389,6 +10393,37 @@
           "kind": "created",
           "status": 201,
           "shape": "service.registerAndSignIn(…)"
+        }
+      ],
+      "thrown": [],
+      "resolved": true,
+      "file": "services/user/src/modules/auth/routes/public.routes.js"
+    },
+    {
+      "service": "user",
+      "module": "auth",
+      "audience": "public",
+      "method": "POST",
+      "path": "/api/v1/user/auth/reset-password",
+      "routePath": "/reset-password",
+      "handler": "resetPassword",
+      "handlerSource": "public.controller.js",
+      "middleware": [
+        {
+          "type": "rateLimit",
+          "value": "resetLimiter"
+        },
+        {
+          "type": "validate",
+          "value": "v.resetPassword"
+        }
+      ],
+      "responses": [
+        {
+          "index": 306,
+          "kind": "ok",
+          "status": 200,
+          "shape": "service.resetPasswordWithCode(…)"
         }
       ],
       "thrown": [],

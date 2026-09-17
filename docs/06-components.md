@@ -344,6 +344,46 @@ changes, and the same apology stays on screen. It is pinned by a test.
 
 ## Sections — `components/sections/`
 
+### `Pager`
+
+```tsx
+<Pager page={2} totalPages={9} onChange={goTo} />
+```
+
+Numbered pagination, as the reference draws it under a category grid: a
+`flex items-center gap-0.5` row of 32x32 cells at 8px radius, 14px/500, the
+current page filled `piccolo` with white on it. The two arrows are 34x32 and
+are simply **absent** at the ends rather than rendered disabled. Nothing is
+rendered at all for a single page.
+
+`pageWindow(page, total)` is the truncation rule, exported so it can be tested
+on its own. It was read off `/categories/video-slots`, which runs to 203 pages
+— the only list on the reference long enough to show every branch:
+
+```
+page 1    1 2 3 4 … 203 ›
+page 3  ‹ 1 2 3 4 … 203 ›
+page 4  ‹ 1 … 3 4 5 … 203 ›
+page 12 ‹ 1 … 11 12 13 … 203 ›
+page 203 ‹ 1 … 200 201 202 203
+```
+
+So: first and last always, a one-either-side window around the current page,
+and each end widening to a run of four instead of hiding a single number behind
+an ellipsis. Note page 4 — `1 … 3 4 5` and not `1 2 3 4 5`. A first draft
+collapsed a gap of one into the number it hid, which is tempting and wrong; the
+row's width would then jump about as you page through. `Pager.test.js` pins all
+seven measured sequences plus the invariants (first and last always reachable,
+never two ellipses in a row, an ellipsis only where numbers are actually
+missing).
+
+The cells are buttons, not links. The reference is server-rendered and pages
+through `<a href="?page=n">`; here the page number is query state the page
+already owns, and a full navigation would refetch the shell. `Category` writes
+the same `?page=` into the URL, so a page is still linkable and reloadable —
+and a `?page=` past the end is replaced with the last real page rather than
+rendering an empty grid under the filter's "no games match" line.
+
 ### `GameCard`
 
 ```tsx
@@ -365,13 +405,28 @@ crops are separate files, and loading both to hide one would cost a phone an
 image it never shows. `block size-full` on the `<picture>` is load-bearing —
 it is an inline box by default, and the image's `h-full` resolves against it.
 
-The tile carries **no caption**: title and studio are part of the artwork, as
-they are on the reference site. That is what lets a rail read as one uniform
-band rather than a row of images with ragged text beneath them.
+The caption sits **over** the artwork, never under it and never inside it —
+which is how the reference does it, and the only arrangement that can caption a
+real captured thumbnail as well as a generated one. Three pieces, all measured
+off the reference tile:
 
-Composition, bottom to top: artwork → badge (end/top) → live player count
-(start/top, with a green dot) → jackpot amount (bottom, over a gradient) →
-hover veil, on top of all of it at `z-3`.
+- a scrim, `linear-gradient(180deg, transparent 31.73%, #000 100%)` over the
+  whole tile, so white type is legible whatever the art does down there. A
+  fixed black rather than a theme colour: it sits on artwork, not on the page.
+- the title, `font-display` (Big Shoulders) black uppercase, at 16/20/22px
+  against a 104/124/140px tile.
+- the studio under it, DM Sans semibold at a flat 9px, 80% opacity. `In-House`
+  prints as `Bitcasino`, which is what the reference prints under its own
+  originals; the raw string is left alone, because the provider filter matches
+  on it.
+
+Because the caption is in the DOM, `gameThumb` and `originalArt` emit artwork
+only — see docs/07-assets.md.
+
+Composition, bottom to top: artwork → scrim (`z-1`) → caption (`z-2`), the
+jackpot amount riding above the title as a kicker → badge (end/top) and live
+player count (start/top, with a green dot), also `z-2` → hover veil, over all
+of it at `z-3`.
 
 The hover state is a single element and is **identical on every tile**: a
 `bg-popo/60` veil that fades `opacity-0` → `opacity-90` in 150ms, carrying a
@@ -392,20 +447,33 @@ The chrome every game-listing page shares, in the reference's order: title and
 filter bar on one line, then the grid, then the breadcrumb — which sits *below*
 the grid, not above it.
 
-The filter bar is always the same pair. One dropdown narrows the list by the
-axis the page is **not** already fixed to (a category page filters by provider,
-a provider page by category); `filter` carries it as
+The filter bar is one to three controls, placed by area name rather than by
+source order. One dropdown narrows the list by the axis the page is **not**
+already fixed to (a category page filters by provider, a provider page by
+category); `filters` carries it as
 `{ label, placeholder, options, value, onChange }`. The other sorts, and is
 owned here because every list sorts identically — the reference's own five
 options, from its payload: Popularity, A-Z, Volatility, Hit Ratio, RTP.
 `popular` has no comparator on purpose: popularity *is* the catalogue order the
 list arrives in, so picking it restores that order.
 
+A page fixed to **neither** axis gets a third: a theme cuts across type and
+studio, and `/categories/live-casino` covers three sub-categories as well as
+its own type. Both show `Categories`, `Providers`, `Sort by` — which is what
+the reference shows on exactly those pages and nowhere else. On the live casino
+page the `Categories` options are the slices only: its own slug is dropped,
+because choosing it would send the union back and change nothing.
+
 `filter` is OPTIONAL, and it carries the sort control with it — both dropdowns
 or neither. `/games/recent` is the page with neither: the reference draws it as
 a bare heading, because a play history has no second axis to narrow by and
 "most recent first" is the only order that means anything. With no `filter`
 the list is also left in the order it arrived rather than sorted.
+
+`pagination` is `{page, totalPages, onChange}` and draws `ui/Pager` in the gap
+between the grid and the breadcrumb — the slot the reference keeps for it. A
+category page passes it; a collection is read whole and passes nothing, and
+`Pager` renders nothing for a single page either way.
 
 `empty` replaces the "No games match this filter yet." line for a page where
 that sentence would be wrong — Recently played says nothing has been played,
@@ -415,6 +483,28 @@ The heading is DM Sans at 24/32 weight 400, the same as the account pages'.
 It was Space Grotesk at `font-light` until it was checked against the
 reference, whose `h1` on every listing page computes to `24px/32px`,
 weight `400`, `"DM Sans"`.
+
+Below `md` the bar starts **closed**, behind a 40x40 `aria-label="Filters"`
+button beside the heading; from `md` it is always open and the button is gone.
+Opening it reveals the same two-row arrangement (`providers | sort` over
+`categories`) the reference's own button expands into.
+
+> **The reference switches this on the user agent, not on the viewport.**
+> Narrowing a desktop browser will not show you its phone layout. Measured on
+> `/themes/vip-prive`: an iPhone UA gets the button and nothing else at 390px
+> *and* at 1024px; a desktop UA gets all three controls inline at 1440px *and*
+> at 390px. A previous pass resized a desktop window, saw the controls at every
+> width, concluded the button did not exist and deleted it — which left the
+> `filters` glyph in `ui/Icon.jsx` with no caller. This app is a
+> client-rendered SPA and does it by width instead: sniffing the UA would keep
+> the phone layout on a rotated tablet, drop it in a desktop browser's device
+> mode, and could not respond to a resize at all.
+
+The same measurement is why the heading block carries `p-1 md:p-0`: against a
+phone UA the reference's `h1` sits at 20px over a 16px grid gutter and the grid
+starts 8px lower, which is 4px on all four sides of that block and nothing
+else. At 390px and at 1440px both pages now agree on heading position, grid
+offset, track count, gaps and tile size to the pixel.
 
 The grid is the reference's auto-fitting one, its track floor stepping
 6.5rem → 7.75rem → 8.75rem, so the column count follows the viewport rather
@@ -528,10 +618,28 @@ Scrollable category shortcuts. Fixed 96/112px tiles. Sits below the game rails
 rather than under the hero, which is where the reference puts the equivalent
 row.
 
-### `PromoGrid`
+### `PromotionList`
 
-Three promo cards, one column on mobile and three from `md`. Each is a
-gradient panel with a decorative circle that scales on hover.
+```tsx
+<PromotionTabs participations={0} />
+<PromotionRows promotions={[{ slug, title, blurb, href, art }]} />
+```
+
+The `/promotions` chrome: the two-tab rule across the top, and the list of
+campaign rows under it. A row is a 700x290 picture on the left and a 300px
+column holding a 24px title, a 16px line and a 112x40 `Read more` — one
+`grid-cols-[minmax(200px,700px)_300px] gap-10` from `md` up, and one `gohan`
+card with the picture stacked on top below it, which is the reference's own
+breakpoint behaviour rather than a responsive fix added here.
+
+Both tabs — `/promotions` and `/promotions/participations` — render the bar,
+so it lives here rather than on either page. The measurements and the two
+deliberate departures (`Read more` is a `span`, and the page keeps a hidden
+`h1`) are in the file's own header.
+
+It replaced `PromoGrid`, three gradient panels the home page had already
+stopped rendering, whose `tone` and `cta` fields left `PROMOTIONS` when that
+list became promotion rows.
 
 ### `ProviderRail`
 
@@ -686,7 +794,7 @@ project, not collected from real players.
 
 | Page | Responsibility |
 | --- | --- |
-| `Home` | Section order; splits `HOME_RAILS` at `THEME_RAIL_INDEX` to slot in `ThemeRail`. All game rails run consecutively, then `TrustSection` (the single collapsed editorial panel) and `Testimonials`. `CategoryStrip`, `SeoContent`, `PromoGrid`, `VipBanner`, `CryptoFeatures`, `AccessAnywhere` and `GettingStarted` still exist but are not rendered here |
+| `Home` | Section order; splits `HOME_RAILS` at `THEME_RAIL_INDEX` to slot in `ThemeRail`. All game rails run consecutively, then `TrustSection` (the single collapsed editorial panel) and `Testimonials`. `CategoryStrip`, `SeoContent`, `VipBanner`, `CryptoFeatures`, `AccessAnywhere` and `GettingStarted` still exist but are not rendered here |
 | `Category` | Game list for a category or a `COLLECTIONS` slug; owns the provider filter, derived from the studios actually present |
 | `Providers` | Studio index grid |
 | `Provider` | One studio's catalogue; owns the category filter, derived from the categories actually present |

@@ -429,3 +429,61 @@ rail scroller    snap-x snap-mandatory
 project had `w-[124px] md:w-[140px]`, the same ladder one breakpoint early, so
 every tile on every phone was a fifth too wide. It is not visible at 1536px,
 which is why it survived several passes.
+
+## The game-list page, measured
+
+`/themes/live-exclusives` on both sides, 1536px viewport, signed out. Every
+number here is identical on both, and this is the block to re-run after
+touching `GameList`, `GameCard` or `ui/Select`:
+
+```
+content column   288 … 1489                  sidebar 256 + main px-8
+filter bar       288,104  1201x76            no py-2 above it
+  heading             ,148       x32         h1 self-end, 24/32 DM Sans 400
+  controls        941,104   548x76           3 × 180px, gap 4
+    label                      x24           14/24 trunks, mb-1
+    field                      x48           h-12
+grid             288,214  1201x…             7 × 157.8, gap 16
+  tile title                                 18px/0.93, caption box 124x59
+spacer           288,+24  1201x0             an empty mt-8
+breadcrumb       288,+24                     80px under the grid in total
+```
+
+Three things that block cost us, all of them invisible in the source:
+
+**The reference's `lg:` sizes on a tile title do not exist.** Its own class is
+`text-[14px] leading-[0.97] md:text-[18px] md:leading-[0.93] lg:text-[21px]
+lg:leading-[0.93]`, and `lg:px-2` next door resolves fine — but a probe element
+carrying `text-[14px] lg:text-[21px]` reads back **14px** at 1536, so that one
+utility was never generated in their build. Copying the class list gives a tile
+a fifth more type than the reference draws and rewraps every title. Read the
+rendered `font-size`, never the class.
+
+Which means: **probe, do not read `document.styleSheets`.** Every one of the
+reference's stylesheets is cross-origin, so `sheet.cssRules` throws and a walk
+over them reports zero rules — indistinguishable from "the rule is not there".
+Append a `<div>` with the classes in question, read its computed style, remove
+it. That is the only reliable answer.
+
+**`cn` drops a `leading-` written before a `text-` in the same scope.**
+tailwind-merge treats `font-size` as conflicting with `leading`, because
+`text-lg/7` sets both — so `cn('… leading-[0.97] …', 'text-[14px] …')` emits no
+line height at all and the browser uses 1.5. `GameCard` had exactly that, per
+breakpoint, and its titles ran a line long for as long as it existed. **Size
+first, leading second, within each breakpoint.**
+
+**The phone filter bar is behind a button, and you cannot see that by
+resizing.** The reference branches on the USER AGENT, server-side. With a
+desktop UA it serves all three controls inline at every width, phone widths
+included — which is what a narrowed desktop browser shows you, and what led one
+pass here to delete the `Filters` button as nonexistent. With an iPhone UA it
+serves a 40x40 `aria-label="Filters"` button beside the heading instead, at
+390px and at 1024px alike. Both were measured. The inline arrangement is still
+worth copying, because it is what the button expands into:
+`[grid-template-areas:"providers_sort"_"categories_categories"]` below `md`
+and `"categories_providers_sort"` above it.
+
+This app is a client-rendered SPA and switches on width instead — closed below
+`md`, always open from `md`. Sniffing the UA would be worse and no more
+faithful: it would keep the phone layout on a rotated tablet, drop it in device
+mode, and not respond to a resize at all.

@@ -30,7 +30,13 @@ const browse = {
     .object({
       ...paging,
       provider: z.string().trim().max(120).optional(),
-      type: z.string().trim().max(120).optional(),
+      /**
+       * One type, or a comma-separated set of them — `#typeWhere` in the
+       * service turns the set into an `Op.or`. The ceiling is 240 rather than
+       * 120 so a handful of members fit; it is still a bound, because the
+       * value reaches a `LIKE` and an unbounded one is an invitation.
+       */
+      type: z.string().trim().max(240).optional(),
       search: z.string().trim().max(120).optional(),
       technology: z.string().trim().max(60).optional(),
       has_lobby: triBool,

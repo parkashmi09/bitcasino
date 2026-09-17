@@ -1,0 +1,64 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 420 564" width="420" height="564" role="img" aria-label="Crash">
+  <defs>
+    <linearGradient id="og" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#170533"/>
+      <stop offset="0.55" stop-color="#170533"/>
+      <stop offset="0.78" stop-color="#160531"/>
+      <stop offset="1" stop-color="#15042F"/>
+    </linearGradient>
+    <radialGradient id="obloom" cx="0.5" cy="0" r="0.62">
+      <stop offset="0" stop-color="#5B27B2" stop-opacity="0.42"/>
+      <stop offset="0.55" stop-color="#4A1C82" stop-opacity="0.16"/>
+      <stop offset="1" stop-color="#4A1C82" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="oglow" cx="0.5" cy="0.36" r="0.6">
+      <stop offset="0" stop-color="#5B27B2" stop-opacity="0.5"/>
+      <stop offset="0.6" stop-color="#3A1272" stop-opacity="0.16"/>
+      <stop offset="1" stop-color="#3A1272" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="ohalo" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0" stop-color="#8B45E8" stop-opacity="0.5"/>
+      <stop offset="0.62" stop-color="#6A2FD8" stop-opacity="0.16"/>
+      <stop offset="1" stop-color="#6A2FD8" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="vio" x1="0.1" y1="0" x2="0.9" y2="1">
+      <stop offset="0" stop-color="#C4A2FF"/><stop offset="0.45" stop-color="#8B5CF6"/><stop offset="1" stop-color="#6A10F9"/>
+    </linearGradient>
+    <linearGradient id="vioD" x1="0.1" y1="0" x2="0.9" y2="1">
+      <stop offset="0" stop-color="#6A2FD8"/><stop offset="1" stop-color="#2E0B68"/>
+    </linearGradient>
+    <linearGradient id="org" x1="0.1" y1="0" x2="0.9" y2="1">
+      <stop offset="0" stop-color="#FFD07A"/><stop offset="0.42" stop-color="#FFA100"/><stop offset="1" stop-color="#EE7407"/>
+    </linearGradient>
+    <linearGradient id="orgD" x1="0.1" y1="0" x2="0.9" y2="1">
+      <stop offset="0" stop-color="#F08B00"/><stop offset="1" stop-color="#A94A05"/>
+    </linearGradient>
+    <linearGradient id="wht" x1="0.15" y1="0" x2="0.85" y2="1">
+      <stop offset="0" stop-color="#FFFFFF"/><stop offset="0.62" stop-color="#F3EEFF"/><stop offset="1" stop-color="#CBBBF0"/>
+    </linearGradient>
+    <linearGradient id="swoosh" gradientUnits="userSpaceOnUse" x1="6" y1="26" x2="196" y2="188">
+      <stop offset="0" stop-color="#FFFFFF" stop-opacity="0.15"/>
+      <stop offset="0.38" stop-color="#FFFFFF" stop-opacity="0.95"/>
+      <stop offset="1" stop-color="#FFFFFF" stop-opacity="0.35"/>
+    </linearGradient></defs>
+  <rect width="420" height="564" fill="url(#og)"/>
+  <rect width="420" height="564" fill="url(#oglow)"/>
+  <rect width="420" height="564" fill="url(#obloom)"/>
+  <g transform="translate(-6.0 1.0) scale(2.16)">
+    <ellipse cx="100" cy="104" rx="118" ry="96" fill="url(#ohalo)"/>
+    <path d="M-17.6 82.4L-16.2 78.4L-14.2 74.5L-11.8 70.7L-9.2 67.1L-6.3 63.5L-3.0 60.0L0.5 56.6L4.2 53.4L8.3 50.3L12.5 47.3L17.0 44.5L21.7 41.9L26.6 39.4L31.7 37.1L37.0 34.9L42.5 33.0L48.0 31.2L53.8 29.6L59.6 28.2L65.5 27.0L71.5 26.0L77.6 25.2L83.8 24.6L90.0 24.2L96.2 24.1L102.4 24.1L108.6 24.4L114.8 24.8L120.9 25.5L127.0 26.3L133.0 27.4L138.9 28.7L144.7 30.2L150.3 31.9L155.9 33.8L161.1 36.1L160.9 36.8L155.3 35.3L149.8 33.9L144.1 32.5L138.3 31.3L132.5 30.3L126.5 29.5L120.5 28.8L114.5 28.3L108.4 28.0L102.3 27.9L96.3 28.0L90.2 28.3L84.1 28.7L78.1 29.4L72.2 30.2L66.3 31.2L60.5 32.4L54.8 33.8L49.3 35.3L43.8 37.0L38.5 38.9L33.4 40.9L28.4 43.1L23.6 45.5L19.0 47.9L14.6 50.6L10.4 53.3L6.4 56.2L2.7 59.2L-0.8 62.3L-4.1 65.5L-7.1 68.8L-9.9 72.2L-12.4 75.6L-14.7 79.1L-17.0 82.6Z" fill="url(#swoosh)" transform="rotate(-19 100 104)"/>
+    <path d="M16.6 133.2L11.4 128.8L7.4 123.6L4.3 118.1L2.1 112.2L1.0 106.1L0.9 99.9L1.8 93.7L3.7 87.5L6.7 81.5L10.5 75.8L15.3 70.3L20.9 65.2L27.2 60.5L34.2 56.2L41.9 52.3L50.0 49.0L58.7 46.1L67.7 43.9L77.1 42.1L86.7 41.0L96.4 40.4L106.1 40.4L115.8 41.0L125.4 42.1L134.7 43.9L143.7 46.2L152.4 49.0L160.5 52.4L168.2 56.3L175.2 60.6L181.5 65.4L187.1 70.6L191.9 76.2L195.8 82.1L198.7 88.3L200.7 94.8L189.5 97.3L188.0 92.6L185.6 87.9L182.5 83.3L178.6 78.8L173.9 74.5L168.5 70.4L162.3 66.6L155.6 63.2L148.2 60.2L140.4 57.5L132.1 55.4L123.5 53.7L114.7 52.5L105.7 51.8L96.6 51.7L87.6 52.1L78.7 53.0L69.9 54.4L61.5 56.3L53.5 58.7L45.9 61.6L38.8 64.8L32.4 68.4L26.6 72.4L21.5 76.6L17.1 81.1L13.5 85.8L10.7 90.6L8.7 95.6L7.5 100.6L7.1 105.8L7.5 111.0L8.8 116.3L10.8 121.7L13.7 127.1L17.1 132.8Z" fill="url(#swoosh)" transform="rotate(-19 100 104)"/>
+    
+    <path d="M18 180 C 62 176 106 150 134 96" stroke="url(#orgD)" stroke-width="15" fill="none" stroke-linecap="round" opacity="0.35"/>
+    <path d="M18 180 C 62 176 106 150 134 96" stroke="url(#org)" stroke-width="9" fill="none" stroke-linecap="round"/>
+    <g transform="rotate(44 138 74)">
+      <path d="M138 16c19 19 28 42 28 63 0 16-12 26-28 26s-28-10-28-26c0-21 9-44 28-63Z" fill="url(#wht)"/>
+      <circle cx="138" cy="64" r="13" fill="url(#vio)"/>
+      <circle cx="134" cy="60" r="4.4" fill="#fff" opacity="0.9"/>
+      <path d="M110 84l-19 33 27-13Zm56 0l19 33-27-13Z" fill="url(#org)"/>
+      <path d="M126 106h24l-12 30Z" fill="url(#orgD)"/>
+    </g>
+    <path d="M200.7 94.8L201.4 98.8L201.6 102.8L201.5 106.9L201.0 110.9L200.0 114.8L198.7 118.7L197.0 122.5L195.0 126.2L192.6 129.8L189.9 133.2L186.8 136.5L183.5 139.6L179.9 142.6L176.0 145.4L171.9 148.1L167.5 150.6L162.9 152.9L158.1 155.0L153.1 156.9L148.0 158.7L142.6 160.2L137.2 161.5L131.6 162.7L125.9 163.6L120.2 164.3L114.3 164.7L108.5 165.0L102.6 165.0L96.7 164.8L90.9 164.4L85.1 163.7L79.4 162.9L73.7 161.7L68.2 160.4L62.9 158.7L57.8 156.5L58.0 155.8L63.5 156.4L68.9 157.2L74.4 157.9L79.9 158.5L85.5 158.9L91.2 159.1L96.9 159.1L102.5 158.9L108.1 158.6L113.7 158.0L119.3 157.3L124.7 156.3L130.1 155.2L135.3 153.9L140.4 152.4L145.3 150.7L150.0 148.9L154.6 146.9L158.9 144.8L163.0 142.5L166.8 140.1L170.4 137.6L173.7 135.0L176.8 132.2L179.5 129.5L181.9 126.6L184.0 123.7L185.8 120.8L187.3 117.9L188.5 114.9L189.4 112.0L190.0 109.0L190.3 106.1L190.3 103.2L190.1 100.2L189.5 97.3Z" fill="url(#swoosh)" transform="rotate(-19 100 104)"/>
+    <circle cx="139.2" cy="167.9" r="4.4" fill="#fff" opacity="0.55"/><circle cx="136.0" cy="30.3" r="4.4" fill="#fff" opacity="0.42"/><circle cx="57.7" cy="27.1" r="3.0" fill="#fff" opacity="0.36"/><circle cx="217.8" cy="64.8" r="3.7" fill="#fff" opacity="0.33"/><circle cx="234.7" cy="93.6" r="2.3" fill="#fff" opacity="0.31"/><circle cx="95.2" cy="18.4" r="1.6" fill="#fff" opacity="0.58"/><circle cx="56.9" cy="40.4" r="3.0" fill="#fff" opacity="0.44"/><circle cx="-8.6" cy="141.7" r="2.3" fill="#fff" opacity="0.37"/><circle cx="21.1" cy="169.6" r="3.7" fill="#fff" opacity="0.33"/><path d="M168 31Q170.21 41.79 181 44Q170.21 46.21 168 57Q165.79 46.21 155 44Q165.79 41.79 168 31Z" fill="#fff" opacity="0.95"/>
+  </g>
+</svg>

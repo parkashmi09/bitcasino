@@ -8,6 +8,7 @@ const { createLogger } = require('@ibitplay/common');
 const { hashToken, verifyPassword } = require('@ibitplay/auth');
 
 const { AuthService } = require('../auth.service');
+const { EmailService } = require('../../email/email.service');
 
 /**
  * Registration and password reset.
@@ -81,6 +82,7 @@ test('registration and password reset', async (t) => {
   t.after(async () => {
     for (const id of created) {
       await models.AuthVerificationToken.destroy({ where: { user_id: id } });
+      await models.UserOtps.destroy({ where: { user_id: id } });
       await models.AuthSession.destroy({ where: { user_id: id } });
       await models.Credits.destroy({ where: { uid: id } });
       await models.Users.destroy({ where: { id } });
@@ -310,6 +312,210 @@ test('registration and password reset', async (t) => {
 
     await assert.rejects(
       () => service.completePasswordReset({ token: sent[0].data.token, newPassword: 'correct-horse-battery' }),
+      (err) => err.code === 'AUTH_PASSWORD_REUSED'
+    );
+  });
+
+  // ══════════════════════════════════════════════════════════════════════
+  //  Recovery by one-time CODE — the path the web client uses
+  //
+  //  `POST /email/otp` → `POST /email/otp/verify` → `POST /auth/reset-password`
+  //
+  //  The first two routes have existed since the port. Nothing spent a
+  //  `reset-password` proof and `completePasswordReset` was exposed on no
+  //  transport, so the platform could issue a recovery code, confirm it was
+  //  correct, and then had no way to change the password.
+  // ══════════════════════════════════════════════════════════════════════
+
+  /**
+   * A mailer that satisfies `EmailService`, which checks `result.sent`.
+   *
+   * The one above answers the array length, which is truthy and has no `sent`
+   * key — `requestOtp` would read that as a failed send and throw
+   * `EMAIL_SEND_FAILED`, which presents as "the OTP tests are broken" rather
+   * than "the mailer stub is the wrong shape".
+   */
+  let posted = [];
+  const otpMailer = {
+    send: async (message) => {
+      posted.push(message);
+      return { sent: true };
+    },
+  };
+
+  const emails = new EmailService({
+    models,
+    db: connection,
+    logger,
+    mailer: otpMailer,
+    config: {},
+  });
+
+  /** The code is never in a response. The only place to read it is the email. */
+  const codeFromMail = () => {
+    const match = /Your code is (\d{6})/.exec(posted.at(-1)?.text ?? '');
+    assert.ok(match, 'the OTP email carried no code');
+    return match[1];
+  };
+
+  /** Issue and verify a code, leaving a spendable proof. */
+  const provenCode = async (email) => {
+    posted = [];
+    await emails.requestOtp({ email, purpose: 'reset-password' });
+    const code = codeFromMail();
+    await emails.verifyOtp({ email, code, purpose: 'reset-password' });
+    return code;
+  };
+
+  const resetWithCode = (email, code, newPassword) =>
+    service.resetPasswordWithCode({
+      newPassword,
+      spendProof: () => emails.spendProofWithCode({ email, code, purpose: 'reset-password' }),
+    });
+
+  await t.test('THE CODE IS NEVER IN A RESPONSE, ONLY IN THE EMAIL', async () => {
+    // Legacy's `POST /send-otp` answered `{message, otp}` — it handed the
+    // caller the code. A one-time code the requester is told is not a factor.
+    await signUp('m');
+    posted = [];
+    const answer = await emails.requestOtp({
+      email: `${unique}m@test.invalid`,
+      purpose: 'reset-password',
+    });
+
+    assert.equal(answer.otp, undefined);
+    assert.equal(JSON.stringify(answer).includes(codeFromMail()), false);
+  });
+
+  await t.test('a verified code sets the password and clears `password2`', async () => {
+    const account = await signUp('n');
+    const email = `${unique}n@test.invalid`;
+    const code = await provenCode(email);
+
+    const result = await resetWithCode(email, code, 'a-brand-new-passphrase');
+    assert.equal(result.reset, true);
+
+    const row = await models.Users.findByPk(account.id);
+    assert.ok(await verifyPassword('a-brand-new-passphrase', row.password));
+    assert.equal(row.password2, null, 'the cleartext column is cleared by this path too');
+  });
+
+  await t.test('THE PROOF IS SINGLE USE', async () => {
+    const email = `${unique}o@test.invalid`;
+    await signUp('o');
+    const code = await provenCode(email);
+
+    await resetWithCode(email, code, 'first-new-passphrase');
+
+    // The same verification must not authorise a second reset — otherwise a
+    // code that leaked after being used is still a working account takeover.
+    await assert.rejects(
+      () => resetWithCode(email, code, 'second-new-passphrase'),
+      (err) => err.code === 'EMAIL_OTP_INVALID'
+    );
+  });
+
+  await t.test('A WRONG CODE IS REFUSED EVEN THOUGH A PROOF EXISTS', async () => {
+    /**
+     * The security property this whole route hangs on.
+     *
+     * `spendProof` — the version `profile.changeEmail` uses — is keyed on the
+     * address alone, which is fine there because that request already carries
+     * the account holder's token. This one is UNAUTHENTICATED, so a spend
+     * keyed on the address would mean: for the five minutes after a victim
+     * verifies their own code, any caller naming that address owns the
+     * account, having never seen the code.
+     */
+    const email = `${unique}p@test.invalid`;
+    const account = await signUp('p');
+    const code = await provenCode(email);
+
+    const wrong = code === '000000' ? '111111' : '000000';
+    await assert.rejects(
+      () => resetWithCode(email, wrong, 'attackers-passphrase'),
+      (err) => err.code === 'EMAIL_OTP_INVALID'
+    );
+
+    // And the password did not move.
+    const row = await models.Users.findByPk(account.id);
+    assert.ok(await verifyPassword('correct-horse-battery', row.password));
+  });
+
+  await t.test('a wrong code does NOT burn the proof', async () => {
+    // A mistyped digit must not send somebody back to the start of the flow.
+    const email = `${unique}q@test.invalid`;
+    await signUp('q');
+    const code = await provenCode(email);
+
+    await assert.rejects(() => resetWithCode(email, '000001', 'nope-passphrase'));
+    const result = await resetWithCode(email, code, 'the-real-new-passphrase');
+    assert.equal(result.reset, true);
+  });
+
+  await t.test('AN UNVERIFIED CODE IS NOT A PROOF', async () => {
+    // Issued but never run through `/otp/verify`. The row exists with
+    // `is_verified: false`, and the reset must not accept it — otherwise the
+    // verify step is decorative and the attempt counter never applies.
+    const email = `${unique}r@test.invalid`;
+    await signUp('r');
+    posted = [];
+    await emails.requestOtp({ email, purpose: 'reset-password' });
+
+    await assert.rejects(
+      () => resetWithCode(email, codeFromMail(), 'skipped-a-step-passphrase'),
+      (err) => err.code === 'EMAIL_OTP_INVALID'
+    );
+  });
+
+  await t.test('A PROOF FOR ONE PURPOSE CANNOT RESET A PASSWORD', async () => {
+    /**
+     * Purpose confinement. `reset-2fa` and `change-email` codes go to the same
+     * inbox and live in the same table; without the purpose in the lookup, a
+     * code issued to turn off two-factor would also set a new password —
+     * which is the more valuable of the two actions.
+     */
+    const email = `${unique}s@test.invalid`;
+    await signUp('s');
+    posted = [];
+    await emails.requestOtp({ email, purpose: 'login' });
+    const code = codeFromMail();
+    await emails.verifyOtp({ email, code, purpose: 'login' });
+
+    await assert.rejects(
+      () => resetWithCode(email, code, 'wrong-purpose-passphrase'),
+      (err) => err.code === 'EMAIL_OTP_INVALID'
+    );
+  });
+
+  await t.test('A CODE RESET REVOKES EVERY SESSION', async () => {
+    // Same guarantee the token path gives. A reset is what somebody does when
+    // they believe the account is compromised.
+    const email = `${unique}t@test.invalid`;
+    const account = await signUp('t');
+
+    await service.login(
+      { identifier: `${unique}t`, password: 'correct-horse-battery' },
+      { ip: '127.0.0.1', userAgent: 'test' }
+    );
+    assert.equal(await models.AuthSession.count({ where: { user_id: account.id, revoked_at: null } }), 1);
+
+    const code = await provenCode(email);
+    await resetWithCode(email, code, 'revoke-everything-passphrase');
+
+    assert.equal(
+      await models.AuthSession.count({ where: { user_id: account.id, revoked_at: null } }),
+      0,
+      'every session ended'
+    );
+  });
+
+  await t.test('reusing the current password is refused on this path too', async () => {
+    const email = `${unique}u@test.invalid`;
+    await signUp('u');
+    const code = await provenCode(email);
+
+    await assert.rejects(
+      () => resetWithCode(email, code, 'correct-horse-battery'),
       (err) => err.code === 'AUTH_PASSWORD_REUSED'
     );
   });

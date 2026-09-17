@@ -187,9 +187,13 @@ function sparkles(slug, w, h, count = 5) {
 
 /**
  * Game tile. `wide` produces the featured 1.3:1 variant used by the first rail;
- * the default is the 0.745:1 portrait every other rail uses. Both bake the
- * title into the art, as the reference thumbnails do, so a tile needs no
- * caption underneath and rows stay a uniform height.
+ * the default is the 0.745:1 portrait every other rail uses.
+ *
+ * Artwork only — no title, no studio, no foot scrim. The reference's own
+ * thumbnails carry none of the three either: it sets the caption over the
+ * image in the DOM, and `GameCard` now does the same. Baking it in here would
+ * print it twice, and would leave a real captured thumbnail (the five under
+ * `images/originals/`) as the only untitled tile in the grid.
  */
 export function gameThumb(title, slug, category, provider, { wide = false } = {}) {
   const p = palette(slug);
@@ -203,29 +207,7 @@ export function gameThumb(title, slug, category, provider, { wide = false } = {}
   const ex = W / 2 - 100 * scale;
   const ey = H * 0.34 - 100 * scale;
 
-  // Long titles wrap onto a second line first, then shrink — in that order, so
-  // a two-word name never ends up set at half the size of its neighbours.
-  const words = title.split(' ');
-  const split = Math.ceil(words.length / 2);
-  const lines =
-    title.length > 10 && words.length > 1
-      ? [words.slice(0, split).join(' '), words.slice(split).join(' ')]
-      : [title];
-
-  // Space Grotesk bold caps run about 0.66em per character at this tracking;
-  // that is close enough to keep the longest line inside the tile's margins.
-  const longest = Math.max(...lines.map((l) => l.length));
-  const fontSize = Math.min(wide ? 64 : 52, Math.floor((W - 48) / (longest * 0.66)));
-  const baseY = H - 96 - (lines.length - 1) * fontSize * 0.92;
-
-  const titleSvg = lines
-    .map(
-      (line, i) =>
-        `<text x="${W / 2}" y="${baseY + i * fontSize * 0.92}" text-anchor="middle" font-family="'Space Grotesk',system-ui,sans-serif" font-size="${fontSize}" font-weight="700" letter-spacing="1" fill="#fff">${escapeXml(line.toUpperCase())}</text>`,
-    )
-    .join('');
-
-  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" role="img" aria-label="${escapeXml(title)}">
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" role="img" aria-label="${escapeXml(title)} by ${escapeXml(provider)}">
   <defs>
     <linearGradient id="bg" x1="0" y1="0" x2="0.35" y2="1">
       <stop offset="0" stop-color="${p.base}"/>
@@ -236,19 +218,11 @@ export function gameThumb(title, slug, category, provider, { wide = false } = {}
       <stop offset="0" stop-color="${p.glow}" stop-opacity="0.85"/>
       <stop offset="1" stop-color="${p.glow}" stop-opacity="0"/>
     </radialGradient>
-    <linearGradient id="foot" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0" stop-color="${p.foot}" stop-opacity="0"/>
-      <stop offset="0.55" stop-color="${p.foot}" stop-opacity="0.85"/>
-      <stop offset="1" stop-color="${p.foot}"/>
-    </linearGradient>
   </defs>
   <rect width="${W}" height="${H}" fill="url(#bg)"/>
   <rect width="${W}" height="${H}" fill="url(#glow)"/>
   ${sparkles(slug, W, H)}
   <g transform="translate(${ex.toFixed(1)} ${ey.toFixed(1)}) scale(${scale})">${emblem}</g>
-  <rect y="${H * 0.5}" width="${W}" height="${H * 0.5}" fill="url(#foot)"/>
-  ${titleSvg}
-  <text x="${W / 2}" y="${H - 52}" text-anchor="middle" font-family="'DM Sans',system-ui,sans-serif" font-size="24" font-weight="500" fill="#fff" opacity="0.62">${escapeXml(provider)}</text>
 </svg>
 `;
 }
@@ -295,9 +269,22 @@ export function providerLogo(name, slug) {
 
 /* ----------------------------------------------------------- promo art --- */
 
+/**
+ * The picture on a promotion card.
+ *
+ * Rendered at **700x290**, which is the size the reference requests for both
+ * places one of these appears: the row on `/promotions` and the 343x142 rail
+ * beside a detail page. Both are the same 2.41:1 crop, so one file serves
+ * both and neither needs `object-cover` to save it.
+ *
+ * The drawing itself is still laid out in the 640x320 grid it was written in;
+ * the `viewBox` takes a 265-tall band out of the middle of that composition
+ * rather than restating every coordinate. Everything with a subject in it —
+ * the coin at cy 96, the sweep at y 250 — sits inside the band.
+ */
 export function promoArt(title, slug) {
   const p = palette(slug);
-  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 320" width="640" height="320" role="img" aria-label="${escapeXml(title)}">
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 27 640 265" width="700" height="290" role="img" aria-label="${escapeXml(title)}">
   <defs>
     <linearGradient id="p" x1="0" y1="0" x2="1" y2="1">
       <stop offset="0" stop-color="${p.base}"/><stop offset="1" stop-color="${p.foot}"/>
@@ -597,4 +584,584 @@ export function tournamentArt(title, slug, tier = 'silver') {
 function plateFontSize(label) {
   const perGlyph = 880 / Math.max(label.length, 1);
   return Math.round(Math.min(104, Math.max(44, (perGlyph - 6) / 0.62)));
+}
+
+/* ------------------------------------------------------ originals tiles --- */
+
+/**
+ * The in-house games' artwork.
+ *
+ * These twenty are the one part of the catalogue that is *ours* — a
+ * `PLAY_*` socket event against casino-service rather than a provider iframe —
+ * so unlike a licensed slot they need art that this repository can actually
+ * ship. Until now the seeder pointed every one of them at
+ * `/images/categories/originals.png`, which is the 64x64 sidebar nav icon: one
+ * blurry pinwheel, repeated twenty-one times down the Originals page.
+ *
+ * ## The art direction is measured, not guessed
+ *
+ * ## Five of the twenty are not drawn at all
+ *
+ * The reference's Originals provider page (`/providers/bitcasino-originals`)
+ * lists exactly six games — Plinko, Baccarat, Dice, Hilo, Blackjack, Roulette
+ * — and nothing else on its CDN answers to any of the other names. Five of the
+ * six are games this platform also deals, so those five ship the *real*
+ * artwork, fetched at both crops by `scripts/fetch-originals.mjs`, and
+ * `ORIGINAL_ART` in `generate-assets.mjs` skips them. Baccarat is captured too
+ * but unused: there is no baccarat original here. The remaining fifteen are
+ * drawn, and everything below exists to make them sit beside the five without
+ * the seam showing.
+ *
+ * ## The art direction is measured, not guessed
+ *
+ * Decoding the captured PNGs and reading fixed points gives the ground
+ * exactly, and it is the same in all five: an almost flat near-black violet
+ * (`#170533` at the corners, `#15042F` along the foot) under a wide bloom on
+ * the top edge peaking at `#2B0F58`, and a softer one behind the subject. See
+ * `GROUND`. The subject is always a single object floating in the upper two
+ * thirds, modelled in two colours — violet `#6A10F9` and orange `#FFA100` —
+ * with white speculars, a white ribbon orbiting it, and a scatter of white
+ * motes. `SUBJECT_DEFS`, `ribbon` and `motes` are that composition; each
+ * emblem only draws the object.
+ *
+ * ## Why both ratios
+ *
+ * The portrait tile is the 420x564 the category grid lays out; the wide one is
+ * the 732x564 the home page's featured rail reads (`data/homeRails.js`), and
+ * the Originals rail is the featured rail. Each emblem is authored once on the
+ * same 200x200 grid every other emblem here uses and rendered into both boxes,
+ * rather than letting the grid centre-crop a third of the drawing away.
+ *
+ * Neither carries text. The reference captions its tiles in the DOM over the
+ * image, not in the image, and `GameCard` does the same — which is also the
+ * only arrangement under which a captured thumbnail and a drawn one can carry
+ * the same caption.
+ */
+
+/** uid -> title. Mirrors `IN_HOUSE_TITLES` in `backend/scripts/seed-data.js`. */
+export const ORIGINALS = Object.freeze({
+  crash: 'Crash', classic_dice: 'Classic Dice', hash_dice: 'Hash Dice', limbo: 'Limbo',
+  keno: 'Keno', single_keno: 'Single Keno', hilo: 'Hi-Lo', highlow: 'High Low',
+  wheel: 'Wheel', magic_wheel: 'Magic Wheel', plinko: 'Plinko', mine: 'Mines',
+  tower: 'Tower', diamond: 'Diamonds', goal: 'Goal', roulette: 'Roulette',
+  blackjack: 'Blackjack', videopoker: 'Video Poker', three_card_monte: 'Three Card Monte',
+  snake_and_ladders: 'Snakes and Ladders',
+});
+
+/**
+ * The in-house games the reference has real artwork for, and where it lives.
+ *
+ * Keys are our uid; values are the path under `heathmont.imgix.net` that its
+ * own Originals page loads. `scripts/fetch-originals.mjs` pulls both crops,
+ * `generate-assets.mjs` skips drawing these, and `inHouseRow` in
+ * `backend/scripts/seed-data.js` mirrors the key list so it can point at
+ * `.avif` instead of `.svg`.
+ *
+ * `baccarat` is captured but has no key here: the reference deals one and this
+ * platform does not, so there is no tile for it to fill. It is kept under
+ * `images/originals/` as the sixth sample the drawn tiles are measured
+ * against — see `GROUND` — and nothing references it.
+ *
+ * Nothing else on that CDN answers: every other in-house name, in every
+ * spelling, 403s. So this map is five entries and will stay five until the
+ * reference ships more.
+ */
+export const CAPTURED_ORIGINALS = Object.freeze({
+  plinko: 'casino-onetouch/plinko.png',
+  blackjack: 'casino-onetouch/blackjack.png',
+  hilo: 'casino-onetouch/hilo.png',
+  classic_dice: 'casino-onetouch/dice.png',
+  roulette: 'bitcasino/images/roullete-originals-thumbnail-card+lg.png',
+});
+
+/**
+ * The ground, re-sampled off the five captured tiles pixel by pixel.
+ *
+ * An earlier pass read these as a `#4A1C82 → #16052A` ramp, which is roughly
+ * three stops too bright — it measured the bloom, not the ground, and the
+ * result was a wall of mid-violet tiles beside a reference that is nearly
+ * black. Decoding the PNGs and reading fixed points gives the real thing, and
+ * it is the same in all five to within two levels:
+ *
+ *   corner (0,0) #170533   top centre #2B0F58   left edge, mid #1D083E
+ *   bottom, anywhere across the width #15042F
+ *
+ * So: an almost flat near-black violet, lifted only by a wide bloom sitting on
+ * the top edge and a softer one behind the subject. The contrast in these
+ * tiles is carried entirely by the object, which is why a brighter ground
+ * flattened them.
+ */
+const GROUND = `
+    <linearGradient id="og" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#170533"/>
+      <stop offset="0.55" stop-color="#170533"/>
+      <stop offset="0.78" stop-color="#160531"/>
+      <stop offset="1" stop-color="#15042F"/>
+    </linearGradient>
+    <radialGradient id="obloom" cx="0.5" cy="0" r="0.62">
+      <stop offset="0" stop-color="#5B27B2" stop-opacity="0.42"/>
+      <stop offset="0.55" stop-color="#4A1C82" stop-opacity="0.16"/>
+      <stop offset="1" stop-color="#4A1C82" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="oglow" cx="0.5" cy="0.36" r="0.6">
+      <stop offset="0" stop-color="#5B27B2" stop-opacity="0.5"/>
+      <stop offset="0.6" stop-color="#3A1272" stop-opacity="0.16"/>
+      <stop offset="1" stop-color="#3A1272" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="ohalo" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0" stop-color="#8B45E8" stop-opacity="0.5"/>
+      <stop offset="0.62" stop-color="#6A2FD8" stop-opacity="0.16"/>
+      <stop offset="1" stop-color="#6A2FD8" stop-opacity="0"/>
+    </radialGradient>`;
+
+/** The two-colour model every subject is built from, plus its speculars. */
+const SUBJECT_DEFS = `
+    <linearGradient id="vio" x1="0.1" y1="0" x2="0.9" y2="1">
+      <stop offset="0" stop-color="#C4A2FF"/><stop offset="0.45" stop-color="#8B5CF6"/><stop offset="1" stop-color="#6A10F9"/>
+    </linearGradient>
+    <linearGradient id="vioD" x1="0.1" y1="0" x2="0.9" y2="1">
+      <stop offset="0" stop-color="#6A2FD8"/><stop offset="1" stop-color="#2E0B68"/>
+    </linearGradient>
+    <linearGradient id="org" x1="0.1" y1="0" x2="0.9" y2="1">
+      <stop offset="0" stop-color="#FFD07A"/><stop offset="0.42" stop-color="#FFA100"/><stop offset="1" stop-color="#EE7407"/>
+    </linearGradient>
+    <linearGradient id="orgD" x1="0.1" y1="0" x2="0.9" y2="1">
+      <stop offset="0" stop-color="#F08B00"/><stop offset="1" stop-color="#A94A05"/>
+    </linearGradient>
+    <linearGradient id="wht" x1="0.15" y1="0" x2="0.85" y2="1">
+      <stop offset="0" stop-color="#FFFFFF"/><stop offset="0.62" stop-color="#F3EEFF"/><stop offset="1" stop-color="#CBBBF0"/>
+    </linearGradient>
+    <linearGradient id="swoosh" gradientUnits="userSpaceOnUse" x1="6" y1="26" x2="196" y2="188">
+      <stop offset="0" stop-color="#FFFFFF" stop-opacity="0.15"/>
+      <stop offset="0.38" stop-color="#FFFFFF" stop-opacity="0.95"/>
+      <stop offset="1" stop-color="#FFFFFF" stop-opacity="0.35"/>
+    </linearGradient>`;
+
+/**
+ * The white ribbon that orbits every subject.
+ *
+ * Drawn as a closed tapered band between two offsets of the same ellipse
+ * rather than a stroked arc: the reference's ribbon is thick through the
+ * middle and comes to a point at both ends, which a uniform `stroke-width`
+ * cannot do. Each subject calls it twice — once before the object and once
+ * after — so the band passes behind and then in front, which is what reads as
+ * an orbit rather than a circle drawn on top.
+ */
+function ribbon({ cx = 100, cy = 104, rx = 96, ry = 58, from = 150, to = 476, part = [0, 1], w = 7, rot = -19, steps = 36 }) {
+  const outer = [];
+  const inner = [];
+  for (let i = 0; i <= steps; i++) {
+    // `part` is the slice of the whole orbit this pass draws. The taper is a
+    // function of position along the ORBIT, not along the slice, so the two
+    // passes meet at full width instead of pinching to a point at the seam.
+    const t = part[0] + (part[1] - part[0]) * (i / steps);
+    const a = ((from + (to - from) * t) * Math.PI) / 180;
+    // Thin at both ends, fullest at 55% along — the taper the reference draws.
+    const half = w * Math.sin(Math.PI * t) ** 0.55 + 0.35;
+    const px = cx + rx * Math.cos(a);
+    const py = cy + ry * Math.sin(a);
+    let nx = Math.cos(a) / rx;
+    let ny = Math.sin(a) / ry;
+    const len = Math.hypot(nx, ny) || 1;
+    nx /= len;
+    ny /= len;
+    outer.push(`${(px + nx * half).toFixed(1)} ${(py + ny * half).toFixed(1)}`);
+    inner.push(`${(px - nx * half).toFixed(1)} ${(py - ny * half).toFixed(1)}`);
+  }
+  const d = `M${outer.join('L')}L${inner.reverse().join('L')}Z`;
+  return `<path d="${d}" fill="url(#swoosh)" transform="rotate(${rot} ${cx} ${cy})"/>`;
+}
+
+/** The dust the ribbon throws off: hashed white motes, plus one four-point star. */
+function motes(slug) {
+  const h = hash(slug + ':mote');
+  const dots = Array.from({ length: 9 }, (_, i) => {
+    const a = ((h >> (i * 2)) % 360) * (Math.PI / 180);
+    const r = 74 + ((h >> (i + 3)) % 46);
+    const x = 100 + Math.cos(a) * r * 1.15;
+    const y = 104 + Math.sin(a) * r * 0.72;
+    const s = 1.6 + ((h >> i) % 5) * 0.7;
+    const o = (0.3 + ((h >> (i + 5)) % 55) / 100).toFixed(2);
+    return `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="${s.toFixed(1)}" fill="#fff" opacity="${o}"/>`;
+  }).join('');
+  const sx = h % 2 ? 168 : 36;
+  return `${dots}${star(sx, 44, 13, 0.95)}`;
+}
+
+/** A four-point sparkle with concave sides — the reference's own star shape. */
+function star(x, y, s, o = 1) {
+  const k = s * 0.17;
+  return `<path d="M${x} ${y - s}Q${x + k} ${y - k} ${x + s} ${y}Q${x + k} ${y + k} ${x} ${y + s}Q${x - k} ${y + k} ${x - s} ${y}Q${x - k} ${y - k} ${x} ${y - s}Z" fill="#fff" opacity="${o}"/>`;
+}
+
+/* -- solids the emblems are assembled from, all on the 200x200 grid -------- */
+
+/**
+ * An isometric die, pipped on all three visible faces.
+ *
+ * Each face is a parallelogram spanned by two edge vectors, so a pip given in
+ * face coordinates (u, v in -0.5..0.5) is placed by the same two lines of
+ * arithmetic whichever face it is on — and lands on the face's own plane,
+ * which is what stops the pips reading as dots floating over a cube.
+ */
+function die(cx, cy, s, { faces = 'white', top = 3, left = 2, right = 4 } = {}) {
+  const h = s * 0.52;
+  const H = s * 1.12;
+  const skin =
+    faces === 'violet'
+      ? { top: 'url(#vio)', left: '#5B0FD6', right: '#42099E', pip: '#F4EDFF' }
+      : { top: '#FDFCFF', left: '#E3D9F6', right: '#C7B9E8', pip: '#2E0B68' };
+
+  const SPOTS = {
+    1: [[0, 0]],
+    2: [[-0.26, -0.26], [0.26, 0.26]],
+    3: [[-0.28, -0.28], [0, 0], [0.28, 0.28]],
+    4: [[-0.26, -0.26], [0.26, -0.26], [-0.26, 0.26], [0.26, 0.26]],
+    5: [[-0.28, -0.28], [0.28, -0.28], [0, 0], [-0.28, 0.28], [0.28, 0.28]],
+    6: [[-0.28, -0.3], [0.28, -0.3], [-0.28, 0], [0.28, 0], [-0.28, 0.3], [0.28, 0.3]],
+  };
+
+  // face: centre plus the two edge vectors that span it.
+  const pips = (value, c, e1, e2, rx, ry) =>
+    (SPOTS[value] ?? SPOTS[1])
+      .map(([u, v]) => {
+        const x = c[0] + u * e1[0] + v * e2[0];
+        const y = c[1] + u * e1[1] + v * e2[1];
+        return `<ellipse cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" rx="${rx.toFixed(1)}" ry="${ry.toFixed(1)}" fill="${skin.pip}"/>`;
+      })
+      .join('');
+
+  return `
+    <path d="M${cx} ${cy - h} L${cx + s} ${cy - h / 2} L${cx} ${cy} L${cx - s} ${cy - h / 2} Z" fill="${skin.top}"/>
+    <path d="M${cx - s} ${cy - h / 2} L${cx} ${cy} L${cx} ${cy + H} L${cx - s} ${cy + H - h / 2} Z" fill="${skin.left}"/>
+    <path d="M${cx + s} ${cy - h / 2} L${cx} ${cy} L${cx} ${cy + H} L${cx + s} ${cy + H - h / 2} Z" fill="${skin.right}"/>
+    ${pips(top, [cx, cy - h / 2], [s, h / 2], [s, -h / 2], s * 0.1, s * 0.075)}
+    ${pips(left, [cx - s / 2, cy - h / 4 + H / 2], [s, h / 2], [0, H], s * 0.1, s * 0.1)}
+    ${pips(right, [cx + s / 2, cy - h / 4 + H / 2], [-s, h / 2], [0, H], s * 0.1, s * 0.1)}`;
+}
+
+/** A playing card, face up on `mark` or blank. */
+function card(x, y, w, h, rot, fill, mark = '') {
+  return `<g transform="rotate(${rot} ${x + w / 2} ${y + h / 2})">
+      <rect x="${x}" y="${y}" width="${w}" height="${h}" rx="${(w * 0.13).toFixed(1)}" fill="${fill}"/>
+      <rect x="${x}" y="${y}" width="${w}" height="${h * 0.42}" rx="${(w * 0.13).toFixed(1)}" fill="#fff" opacity="0.14"/>
+      ${mark}
+    </g>`;
+}
+
+/** The back of a face-down card: an inset frame with a lozenge in it. */
+function cardBack(x, y, w, h) {
+  const cx = x + w / 2;
+  const cy = y + h / 2;
+  return `<rect x="${x + 7}" y="${y + 7}" width="${w - 14}" height="${h - 14}" rx="7" fill="none" stroke="#fff" stroke-width="2.5" opacity="0.45"/>
+      <path d="M${cx} ${cy - 15}l11 15-11 15-11-15 11-15Z" fill="#fff" opacity="0.55"/>`;
+}
+
+/** A chip, seen at the same three-quarter tilt the reference gives its chips. */
+function chip(cx, cy, r, face = 'url(#org)', rim = 'url(#orgD)') {
+  const ry = r * 0.62;
+  return `
+    <ellipse cx="${cx}" cy="${(cy + r * 0.2).toFixed(1)}" rx="${r}" ry="${ry.toFixed(1)}" fill="${rim}"/>
+    <ellipse cx="${cx}" cy="${cy}" rx="${r}" ry="${ry.toFixed(1)}" fill="${face}"/>
+    <ellipse cx="${cx}" cy="${cy}" rx="${(r * 0.56).toFixed(1)}" ry="${(ry * 0.56).toFixed(1)}" fill="#fff" opacity="0.9"/>
+    <ellipse cx="${cx}" cy="${cy}" rx="${(r * 0.34).toFixed(1)}" ry="${(ry * 0.34).toFixed(1)}" fill="${face}"/>`;
+}
+
+/** A sphere with a specular — the ball in Plinko, Goal, Keno and Roulette. */
+function ball(cx, cy, r, grad = 'url(#wht)') {
+  return `
+    <circle cx="${cx}" cy="${cy}" r="${r}" fill="${grad}"/>
+    <ellipse cx="${(cx - r * 0.3).toFixed(1)}" cy="${(cy - r * 0.36).toFixed(1)}" rx="${(r * 0.34).toFixed(1)}" ry="${(r * 0.26).toFixed(1)}" fill="#fff" opacity="0.75" transform="rotate(-28 ${cx} ${cy})"/>`;
+}
+
+/** A coin lying at the stack's tilt, used by Hi-Lo and the wheels' rims. */
+function coin(cx, cy, rx, ry, face = 'url(#org)') {
+  return `<ellipse cx="${cx}" cy="${cy}" rx="${rx}" ry="${ry}" fill="${face}"/>`;
+}
+
+/**
+ * One object per game, drawn on the 200x200 grid centred at (100, 104).
+ *
+ * Every one of them is the same idea as the captured six: a single subject,
+ * modelled in violet and orange with white speculars, sitting square in the
+ * middle with nothing else in the frame. Two games that are variants of each
+ * other (`hilo`/`highlow`, `keno`/`single_keno`, `wheel`/`magic_wheel`,
+ * `classic_dice`/`hash_dice`) are deliberately drawn as different objects
+ * rather than recoloured copies, because a rail showing two near-identical
+ * tiles is the problem this set exists to fix.
+ */
+const ORIGINAL_EMBLEMS = {
+  // Rocket climbing its own multiplier curve.
+  crash: () => `
+    <path d="M18 180 C 62 176 106 150 134 96" stroke="url(#orgD)" stroke-width="15" fill="none" stroke-linecap="round" opacity="0.35"/>
+    <path d="M18 180 C 62 176 106 150 134 96" stroke="url(#org)" stroke-width="9" fill="none" stroke-linecap="round"/>
+    <g transform="rotate(44 138 74)">
+      <path d="M138 16c19 19 28 42 28 63 0 16-12 26-28 26s-28-10-28-26c0-21 9-44 28-63Z" fill="url(#wht)"/>
+      <circle cx="138" cy="64" r="13" fill="url(#vio)"/>
+      <circle cx="134" cy="60" r="4.4" fill="#fff" opacity="0.9"/>
+      <path d="M110 84l-19 33 27-13Zm56 0l19 33-27-13Z" fill="url(#org)"/>
+      <path d="M126 106h24l-12 30Z" fill="url(#orgD)"/>
+    </g>`,
+
+  // Two dice mid-throw, one white and one violet -- the reference's own pairing.
+  classic_dice: () => `
+    ${die(70, 118, 34, { faces: 'violet', top: 3, left: 5, right: 2 })}
+    ${die(128, 72, 40, { faces: 'white', top: 5, left: 3, right: 6 })}`,
+
+  // One die over the hash it is drawn from.
+  hash_dice: () => `
+    <g opacity="0.85">
+      <path d="M56 74h96M50 106h96" stroke="url(#org)" stroke-width="7" stroke-linecap="round"/>
+      <path d="M86 56l-12 72M122 56l-12 72" stroke="url(#org)" stroke-width="7" stroke-linecap="round"/>
+    </g>
+    ${die(106, 112, 40, { faces: 'white', top: 2, left: 4, right: 5 })}
+    <circle cx="46" cy="142" r="5" fill="#fff" opacity="0.6"/>`,
+
+  // A multiplier plate thrown up an orange chevron.
+  limbo: () => `
+    <path d="M100 24l44 46h-26v34h-36V70H56l44-46Z" fill="url(#org)"/>
+    <g transform="rotate(-8 100 140)">
+      <rect x="42" y="110" width="116" height="60" rx="18" fill="url(#vio)"/>
+      <rect x="42" y="110" width="116" height="26" rx="14" fill="#fff" opacity="0.16"/>
+      <path d="M78 128l44 34M122 128l-44 34" stroke="#fff" stroke-width="9" stroke-linecap="round"/>
+    </g>
+    <circle cx="152" cy="102" r="4.5" fill="#fff" opacity="0.7"/>`,
+
+  // A draw of three balls.
+  keno: () => `
+    ${ball(70, 128, 32, 'url(#vio)')}
+    ${ball(134, 118, 28, 'url(#org)')}
+    ${ball(104, 68, 25, 'url(#wht)')}
+    <circle cx="70" cy="128" r="17" fill="#fff" opacity="0.22"/>
+    <circle cx="134" cy="118" r="15" fill="#fff" opacity="0.25"/>
+    <circle cx="104" cy="68" r="13" fill="url(#vio)" opacity="0.35"/>`,
+
+  // One ball, over the card it was drawn against.
+  single_keno: () => `
+    <g transform="rotate(-12 96 116)">
+      <rect x="46" y="66" width="104" height="104" rx="16" fill="url(#vio)"/>
+      ${Array.from({ length: 9 }, (_, i) => {
+        const x = 62 + (i % 3) * 32;
+        const y = 82 + Math.floor(i / 3) * 32;
+        return `<rect x="${x}" y="${y}" width="20" height="20" rx="6" fill="#fff" opacity="${i === 4 ? 0.9 : 0.28}"/>`;
+      }).join('')}
+    </g>
+    ${ball(132, 74, 30, 'url(#org)')}`,
+
+  // A stack of coins between the two calls.
+  hilo: () => `
+    <path d="M18 84l22-28 22 28H48v30H32V84H18Z" fill="url(#org)"/>
+    <path d="M138 148l22 28 22-28h-14v-30h-16v30h-14Z" fill="url(#vio)"/>
+    <g>
+      ${coin(100, 148, 46, 17, 'url(#vioD)')}
+      ${coin(100, 134, 46, 17, 'url(#vio)')}
+      ${coin(100, 120, 46, 17, 'url(#orgD)')}
+      ${coin(100, 106, 46, 17, 'url(#org)')}
+      ${coin(100, 106, 27, 9, '#fff')}
+    </g>`,
+
+  // The same call, made on a card.
+  highlow: () => `
+    ${card(64, 52, 78, 108, 8, 'url(#wht)', `
+      <path d="M103 74l20 24h-13v22h-14V98H83l20-24Z" fill="url(#org)"/>
+      <path d="M103 148l-20-24h13v-16h14v16h13l-20 24Z" fill="url(#vio)" opacity="0.9"/>`)}
+    ${chip(150, 140, 28)}`,
+
+  // Prize wheel, straight on, with its pointer.
+  wheel: () => {
+    const segs = Array.from({ length: 10 }, (_, i) => {
+      const a0 = (i * Math.PI) / 5 - Math.PI / 2;
+      const a1 = ((i + 1) * Math.PI) / 5 - Math.PI / 2;
+      const R = 68;
+      return `<path d="M100 106 L${(100 + R * Math.cos(a0)).toFixed(1)} ${(106 + R * Math.sin(a0)).toFixed(1)} A${R} ${R} 0 0 1 ${(100 + R * Math.cos(a1)).toFixed(1)} ${(106 + R * Math.sin(a1)).toFixed(1)} Z" fill="${i % 2 ? 'url(#vio)' : 'url(#org)'}"/>`;
+    }).join('');
+    return `
+    <circle cx="100" cy="112" r="72" fill="#2A0B55" opacity="0.5"/>
+    ${segs}
+    <circle cx="100" cy="106" r="68" fill="none" stroke="#fff" stroke-width="6" opacity="0.9"/>
+    <circle cx="100" cy="106" r="15" fill="#fff"/>
+    <circle cx="100" cy="106" r="7" fill="url(#vio)"/>
+    <path d="M100 22l14 24h-28l14-24Z" fill="#fff"/>`;
+  },
+
+  // The same wheel, tilted and lit -- the "magic" is the star on its hub.
+  magic_wheel: () => {
+    const segs = Array.from({ length: 8 }, (_, i) => {
+      const a0 = (i * Math.PI) / 4 - Math.PI / 2;
+      const a1 = ((i + 1) * Math.PI) / 4 - Math.PI / 2;
+      const R = 66;
+      return `<path d="M100 106 L${(100 + R * Math.cos(a0)).toFixed(1)} ${(106 + R * 0.62 * Math.sin(a0)).toFixed(1)} A${R} ${(R * 0.62).toFixed(1)} 0 0 1 ${(100 + R * Math.cos(a1)).toFixed(1)} ${(106 + R * 0.62 * Math.sin(a1)).toFixed(1)} Z" fill="${i % 2 ? 'url(#vio)' : 'url(#org)'}"/>`;
+    }).join('');
+    return `
+    <ellipse cx="100" cy="120" rx="70" ry="45" fill="#2A0B55" opacity="0.55"/>
+    ${segs}
+    <ellipse cx="100" cy="106" rx="66" ry="41" fill="none" stroke="#fff" stroke-width="6" opacity="0.85"/>
+    <ellipse cx="100" cy="106" rx="14" ry="9" fill="#fff"/>
+    ${star(100, 46, 20, 0.95)}
+    ${star(154, 70, 10, 0.8)}`;
+  },
+
+  // Ball dropping through the pegs, tracing the path it took.
+  plinko: () => {
+    let pegs = '';
+    for (let row = 0; row < 3; row++) {
+      for (let i = 0; i < row + 4; i++) {
+        const x = 100 + (i - (row + 3) / 2) * 30;
+        const y = 72 + row * 32;
+        pegs += `<circle cx="${x.toFixed(1)}" cy="${(y + 4).toFixed(1)}" r="7.5" fill="url(#orgD)"/><circle cx="${x.toFixed(1)}" cy="${y}" r="7.5" fill="url(#org)"/>`;
+      }
+    }
+    return `
+    ${pegs}
+    <circle cx="118" cy="36" r="5" fill="#fff" opacity="0.45"/>
+    <circle cx="126" cy="50" r="6.5" fill="#fff" opacity="0.6"/>
+    ${ball(138, 158, 29)}`;
+  },
+
+  // The bomb, and the gem you were digging for.
+  mine: () => `
+    <path d="M128 52l10-10 8 8-10 10Z" fill="url(#org)"/>
+    <path d="M118 66c8-14 18-20 26-14" stroke="url(#org)" stroke-width="7" fill="none" stroke-linecap="round"/>
+    ${star(150, 40, 12, 0.95)}
+    <circle cx="92" cy="116" r="50" fill="url(#vioD)"/>
+    <circle cx="92" cy="116" r="50" fill="url(#vio)" opacity="0.55"/>
+    <ellipse cx="74" cy="98" rx="16" ry="11" fill="#fff" opacity="0.55" transform="rotate(-30 74 98)"/>
+    <path d="M146 128l18-26 18 26-18 28Z" fill="url(#org)"/>
+    <path d="M146 128h36l-18 13Z" fill="#fff" opacity="0.5"/>`,
+
+  // Blocks stacked as far as they went, star on the top one.
+  tower: () => {
+    const rows = [0, 1, 2, 3]
+      .map((i) => {
+        const y = 146 - i * 30;
+        const w = 116 - i * 14;
+        const x = 100 - w / 2;
+        const fill = i % 2 ? 'url(#vio)' : 'url(#org)';
+        return `<rect x="${x}" y="${y}" width="${w}" height="24" rx="8" fill="${fill}"/>
+      <rect x="${x}" y="${y}" width="${w}" height="9" rx="4.5" fill="#fff" opacity="0.22"/>`;
+      })
+      .join('');
+    return `
+    <ellipse cx="100" cy="176" rx="72" ry="14" fill="#2A0B55" opacity="0.5"/>
+    ${rows}
+    ${star(100, 36, 18, 0.95)}`;
+  },
+
+  // One cut gem, big, with two chips of it alongside.
+  diamond: () => `
+    <path d="M100 40l46 34-46 92-46-92 46-34Z" fill="url(#vio)"/>
+    <path d="M100 40l46 34-46 26-46-26 46-34Z" fill="url(#wht)" opacity="0.92"/>
+    <path d="M54 74h92l-46 92-46-92Z" fill="url(#vio)" opacity="0.35"/>
+    <path d="M100 40v26M76 56l24 44M124 56l-24 44" stroke="#fff" stroke-width="3" opacity="0.6" fill="none"/>
+    <path d="M158 120l14-18 14 18-14 22Z" fill="url(#org)"/>
+    <path d="M24 134l12-16 12 16-12 20Z" fill="url(#org)" opacity="0.85"/>`,
+
+  // The ball, and the net it went into.
+  goal: () => `
+    <g stroke="#fff" stroke-width="2.5" opacity="0.3">
+      <path d="M46 150V70M74 150V70M102 150V70M130 150V70M158 150V70"/>
+      <path d="M24 94h158M24 120h158"/>
+    </g>
+    <path d="M22 152V68h160v84" fill="none" stroke="url(#org)" stroke-width="12" stroke-linecap="round" stroke-linejoin="round"/>
+    ${ball(112, 136, 40)}
+    <path d="M106 102l15 11-6 18h-18l-6-18 15-11Z" fill="url(#vio)"/>
+    <path d="M75 118l11 13-7 15M137 118l-11 13 7 15" stroke="url(#vio)" stroke-width="5" fill="none" stroke-linecap="round"/>`,
+
+  // The wheel at its three-quarter tilt, with the ball still running.
+  roulette: () => {
+    const spokes = Array.from({ length: 12 }, (_, i) => {
+      const a = (i * Math.PI) / 6;
+      return `<path d="M${(100 + Math.cos(a) * 26).toFixed(1)} ${(106 + Math.sin(a) * 16).toFixed(1)} L${(100 + Math.cos(a) * 62).toFixed(1)} ${(106 + Math.sin(a) * 38).toFixed(1)}" stroke="#fff" stroke-width="2.5" opacity="0.45"/>`;
+    }).join('');
+    return `
+    <ellipse cx="100" cy="120" rx="78" ry="50" fill="url(#vioD)"/>
+    <ellipse cx="100" cy="106" rx="78" ry="50" fill="url(#vio)"/>
+    <ellipse cx="100" cy="106" rx="64" ry="40" fill="url(#org)"/>
+    <ellipse cx="100" cy="106" rx="52" ry="32" fill="#33115F"/>
+    ${spokes}
+    <ellipse cx="100" cy="106" rx="26" ry="16" fill="url(#org)"/>
+    <path d="M80 98l40 16M80 114l40-16" stroke="#FFE3B0" stroke-width="4" stroke-linecap="round"/>
+    ${ball(152, 84, 15)}`;
+  },
+
+  // The pair you want, over the chip you put on it.
+  blackjack: () => `
+    ${card(50, 46, 76, 106, -14, 'url(#org)', '<path d="M88 74l16 26H72l16-26Zm0 56l-16-26h32l-16 26Z" fill="#fff" opacity="0.85"/>')}
+    ${card(88, 42, 76, 106, 12, 'url(#vio)', '<path d="M126 72c10 0 17 8 17 17 0 13-17 27-17 27s-17-14-17-27c0-9 7-17 17-17Z" fill="#fff" opacity="0.9"/>')}
+    ${chip(142, 150, 30)}`,
+
+  // A dealt hand, fanned.
+  videopoker: () => `
+    ${card(34, 70, 62, 88, -26, 'url(#vio)', '<circle cx="65" cy="114" r="14" fill="#fff" opacity="0.85"/>')}
+    ${card(70, 56, 62, 88, -8, 'url(#wht)', '<path d="M101 86l13 22H88l13-22Z" fill="url(#org)"/>')}
+    ${card(102, 62, 62, 88, 10, 'url(#vio)', '<path d="M133 86c9 0 15 7 15 15 0 11-15 24-15 24s-15-13-15-24c0-8 6-15 15-15Z" fill="#fff" opacity="0.9"/>')}
+    ${chip(62, 160, 26)}`,
+
+  // Three cards down, the middle one lifted.
+  three_card_monte: () => `
+    <ellipse cx="100" cy="172" rx="40" ry="10" fill="#12042A" opacity="0.55"/>
+    ${card(14, 96, 58, 84, -10, 'url(#vio)', cardBack(14, 96, 58, 84))}
+    ${card(128, 96, 58, 84, 10, 'url(#vio)', cardBack(128, 96, 58, 84))}
+    ${card(70, 30, 60, 86, -3, 'url(#wht)', '<path d="M100 58l15 23H85l15-23Zm0 50l-15-23h30l-15 23Z" fill="url(#org)"/>')}`,
+
+  // The ladder up and the snake down.
+  snake_and_ladders: () => `
+    <g transform="rotate(-13 70 112)">
+      <path d="M46 178V44M92 178V44" stroke="url(#org)" stroke-width="11" stroke-linecap="round"/>
+      <path d="M46 64h46M46 94h46M46 124h46M46 154h46" stroke="url(#orgD)" stroke-width="9" stroke-linecap="round"/>
+    </g>
+    <path d="M104 178c46 2 60-24 40-44s-24-34 4-46" fill="none" stroke="url(#vioD)" stroke-width="26" stroke-linecap="round"/>
+    <path d="M104 178c46 2 60-24 40-44s-24-34 4-46" fill="none" stroke="url(#vio)" stroke-width="19" stroke-linecap="round"/>
+    <path d="M96 172c-10 2-18 6-24 12l22 2Z" fill="url(#vioD)"/>
+    <g transform="rotate(-16 152 84)">
+      <path d="M128 84c0-16 12-26 28-26s26 10 26 22c0 10-8 16-20 16h-34Z" fill="url(#vio)"/>
+      <ellipse cx="146" cy="70" rx="11" ry="6" fill="#fff" opacity="0.4"/>
+      <circle cx="164" cy="74" r="4.6" fill="#fff"/>
+      <circle cx="165" cy="74" r="2" fill="#2E0B68"/>
+      <path d="M182 90l16 6-16 4 8-5Z" fill="url(#org)"/>
+    </g>`,
+};
+
+/**
+ * One originals tile.
+ *
+ * `wide` draws the 732x564 featured crop; the default is the 420x564 portrait
+ * the category grid lays out. Neither carries text — `GameCard` sets the title
+ * over the tile, exactly as the reference does, so the five captured
+ * thumbnails and the fifteen drawn ones caption identically.
+ *
+ * The framing follows the captured five: the subject sits in the upper two
+ * thirds and the foot is left empty, which is what leaves room for the
+ * caption. On the wide crop the subject centres, because the reference's own
+ * wide art is a top-anchored crop of the same drawing.
+ *
+ * @param {string} uid The in-house game id, e.g. `classic_dice`.
+ * @param {{wide?: boolean}} [options]
+ */
+export function originalArt(uid, { wide = false } = {}) {
+  const title = ORIGINALS[uid] ?? uid;
+  const draw = ORIGINAL_EMBLEMS[uid] ?? ORIGINAL_EMBLEMS.diamond;
+  const W = wide ? 732 : 420;
+  const H = 564;
+
+  const scale = wide ? 2.9 : 2.16;
+  const cy = wide ? H * 0.5 : H * 0.4;
+  const ex = W / 2 - 100 * scale;
+  const ey = cy - 104 * scale;
+
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" role="img" aria-label="${escapeXml(title)}">
+  <defs>${GROUND}${SUBJECT_DEFS}</defs>
+  <rect width="${W}" height="${H}" fill="url(#og)"/>
+  <rect width="${W}" height="${H}" fill="url(#oglow)"/>
+  <rect width="${W}" height="${H}" fill="url(#obloom)"/>
+  <g transform="translate(${ex.toFixed(1)} ${ey.toFixed(1)}) scale(${scale})">
+    <ellipse cx="100" cy="104" rx="118" ry="96" fill="url(#ohalo)"/>
+    ${ribbon({ rx: 122, ry: 78, from: 196, to: 300, w: 1.8 })}
+    ${ribbon({ part: [0, 0.62], w: 5.6 })}
+    ${draw()}
+    ${ribbon({ part: [0.62, 1], w: 5.6 })}
+    ${motes(uid)}
+  </g>
+</svg>
+`;
 }

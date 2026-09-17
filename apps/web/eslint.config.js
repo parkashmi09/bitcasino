@@ -195,4 +195,28 @@ export default [
       'no-console': 'off',
     },
   },
+
+  {
+    /**
+     * The Playwright suite. Node, not a browser.
+     *
+     * This block is easy to read as the same case as `scripts/` above and it
+     * is not quite: a spec file runs in Node and DRIVES a browser, so the
+     * code here is Node's and the code it evaluates through `page` is the
+     * browser's. Node globals only, therefore — a spec that reached for
+     * `document` at the top level would be a real mistake, and this is what
+     * catches it.
+     *
+     * `no-console` is off for the same reason it is off for the scripts:
+     * `global-setup.js` reports what it found to the terminal, which is the
+     * first line a developer reads when the suite refuses to start.
+     */
+    files: ['e2e/**/*.js'],
+    languageOptions: {
+      globals: globals.node,
+    },
+    rules: {
+      'no-console': 'off',
+    },
+  },
 ];

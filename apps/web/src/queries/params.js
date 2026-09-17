@@ -4,7 +4,7 @@
  * that script is that it sends these exact objects, so this module has to stay
  * loadable outside the bundler.
  */
-import { typeForCategory } from '../data/adapters/categories.js';
+import { queryTypesFor, typeForCategory } from '../data/adapters/categories.js';
 
 /**
  * The query objects sent to the catalogue routes, as pure functions.
@@ -71,7 +71,18 @@ export function gamesQuery({ category, provider, search, page: p = 1, limit = 24
   return {
     page: page(p),
     limit: clamp(limit, 24, MAX_LIMIT),
-    ...(category ? { type: typeForCategory(category) } : {}),
+    /**
+     * `queryTypesFor`, not `typeForCategory`: a category page may cover more
+     * than one upstream type. `live-casino` covers `baccarat` and `blackjack`
+     * as well as its own, because the sidebar calls it **All Live Casino
+     * Games** and the reference means that literally.
+     *
+     * Joined with a comma, which `GET /casino/games` reads as a set — see
+     * `#typeWhere` in `backend/services/casino/.../games.service.js`. A single
+     * type still sends as a bare string, so every existing request is byte for
+     * byte what it was.
+     */
+    ...(category ? { type: queryTypesFor(category).join(',') } : {}),
     ...(provider ? { provider } : {}),
     ...(search ? { search } : {}),
   };

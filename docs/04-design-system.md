@@ -82,9 +82,15 @@ here, add a token — that is how the dark theme keeps working.
 | --- | --- | --- | --- |
 | Body | DM Sans | 400, 500, 700 | `font-primary` (default on `body`) |
 | Display | Space Grotesk | 500, 700 | `font-secondary` (default on `h1`–`h6`) |
+| Tile title | Big Shoulders | 900 | `font-display` |
 
-Both are SIL OFL 1.1 and self-hosted as woff2 with `font-display: swap`. The
-400 body weight and 700 display weight are preloaded in `index.html`.
+All three are SIL OFL 1.1 and self-hosted as woff2 with `font-display: swap`.
+The 400 body weight and 700 display weight are preloaded in `index.html`.
+
+`font-display` has exactly one caller: the name set over a game tile in
+`GameCard`, which is the one place the reference uses it too. It is a condensed
+face, and that is the point — a two-word title fits on one line at 22px inside
+a 140px tile, which neither of the other two families manages.
 
 Headings get `font-weight: 700` and `letter-spacing: -0.01em` in the base
 layer, matching the reference site's tighter display setting.

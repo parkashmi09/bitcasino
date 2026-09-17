@@ -33,7 +33,7 @@ export {
 
 export { useProviders, useProviderGames } from './providers';
 
-export { useGameCollection, useRail, PLATFORM_COLLECTIONS } from './collections';
+export { useGameCollection, useTheme, useRail, PLATFORM_COLLECTIONS } from './collections';
 
 export { useSiteConfig } from './siteConfig';
 
@@ -67,7 +67,17 @@ export {
   useLastBetsByGame,
   useTopWinners,
   useNotificationFeed,
+  useOperatorNotice,
 } from './live';
+
+export {
+  useRequestResetCode,
+  useVerifyResetCode,
+  useResetPassword,
+  OTP_PURPOSE,
+  OTP_LENGTH,
+  OTP_TTL_SECONDS,
+} from './recovery';
 
 export {
   useSpinSlices,

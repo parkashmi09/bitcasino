@@ -470,6 +470,21 @@ const IN_HOUSE_TITLES = {
   snake_and_ladders: 'Snakes and Ladders',
 };
 
+/**
+ * The five in-house games whose tile is the reference's own artwork rather
+ * than a drawing of it.
+ *
+ * Mirrors `CAPTURED_ORIGINALS` in `apps/web`'s `scripts/art.mjs`, which is
+ * where the CDN sources live; `npm run assets:originals` writes the files and
+ * `npm run assets:gen` skips drawing over them. Only the extension differs, so
+ * a set membership is all `inHouseRow` needs.
+ *
+ * `apps/web/scripts/verify-api-contract.mjs` walks every path the catalogue
+ * emits and asserts it exists on disk, so a name that falls out of step with
+ * the files fails there rather than as a broken-image glyph in the grid.
+ */
+const CAPTURED_ART = new Set(['plinko', 'blackjack', 'hilo', 'classic_dice', 'roulette']);
+
 DATASETS.push({
   name: 'games',
   group: 'config',
@@ -577,6 +592,9 @@ const catalogueRow = (game) => ({
     hitRatio: game.hitRatio,
     ...(game.players === undefined ? {} : { players: game.players }),
     ...(game.jackpot === undefined ? {} : { jackpot: game.jackpot }),
+    // The slot's bonus round is for sale. `/themes/bonus-buy-in` cuts on it,
+    // and like the three stats above it has no column of its own.
+    ...(game.bonusBuy === true ? { bonusBuy: true } : {}),
   },
   images: { portrait: game.thumb, landscape: game.thumbWide },
 });
@@ -591,19 +609,40 @@ const catalogueRow = (game) => ({
  * `parameters.inHouse` is how a client tells them apart: an in-house game is a
  * `PLAY_*` socket event against casino-service, not a provider iframe.
  */
-const inHouseRow = (uid, title) => ({
-  uuid: uid,
-  name: title,
-  provider: 'In-House',
-  type: 'originals',
-  image: '/images/categories/originals.png',
-  technology: 'html5',
-  hasLobby: false,
-  isMobile: true,
-  label: null,
-  parameters: { inHouse: true, event: uid },
-  images: {},
-});
+const inHouseRow = (uid, title) => {
+  /**
+   * Its own artwork, both crops.
+   *
+   * This was `/images/categories/originals.png` for every one of the twenty —
+   * the 64x64 sidebar nav icon, which the 140x188 tile scaled up seven times
+   * into a blur, twenty-one identical copies of it down
+   * `/categories/originals`.
+   *
+   * Now five of them carry the reference's real thumbnail (`.avif`, fetched by
+   * `npm run assets:originals`) and the other fifteen a drawing in the same art
+   * direction (`.svg`, written by `npm run assets:gen`) — so the extension is
+   * the one thing the path cannot derive from the uid alone.
+   *
+   * `images.landscape` is the 1.3:1 crop the home page's featured rail reads,
+   * and the Originals rail IS the featured rail.
+   */
+  const ext = CAPTURED_ART.has(uid) ? '.avif' : '.svg';
+  const portrait = `/images/originals/${uid}${ext}`;
+
+  return {
+    uuid: uid,
+    name: title,
+    provider: 'In-House',
+    type: 'originals',
+    image: portrait,
+    technology: 'html5',
+    hasLobby: false,
+    isMobile: true,
+    label: null,
+    parameters: { inHouse: true, event: uid },
+    images: { portrait, landscape: `/images/originals/${uid}-wide${ext}` },
+  };
+};
 
 DATASETS.push({
   name: 'catalogue',

@@ -36,3 +36,5 @@ export {
   CUT_SAMPLE,
   resolveCollection,
 } from './collections.js';
+
+export { THEMES, THEME_SLUGS, resolveTheme, themeCut } from './themes.js';

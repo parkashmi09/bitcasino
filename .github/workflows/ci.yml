@@ -1,19 +1,26 @@
 # Continuous integration.
 #
 # ─────────────────────────────────────────────────────────────────────────
-# TWO JOBS, BECAUSE TWO OF THE CHECKS NEED SOMETHING THIS REPOSITORY DOES
-# NOT CONTAIN.
+# THREE JOBS, BECAUSE TWO OF THEM NEED SOMETHING THIS REPOSITORY DOES NOT
+# CONTAIN.
 #
 # `web` is the front end on its own: lint, unit tests, production build. It
 # needs nothing but this repository and runs on every push.
 #
-# `contracts` is the seam between the web app and the platform — the checks
-# that catch a renamed backend route or a mistyped socket event before a page
-# does. Every one of them reads `backend/`, which is a VENDORED TREE THAT IS
-# NOT COMMITTED HERE (`git ls-files backend` is empty). On a fresh clone the
+# `contracts` is the seam between the web app and the platform — the STATIC
+# checks that catch a renamed backend route or a mistyped socket event before
+# a page does.
+#
+# `e2e` is the same seam at RUNTIME: it stands the platform up, runs the live
+# contract check, then drives a browser through register → sign in → balance
+# → play a round → chat. It is the only job that can see a CORS header that
+# refuses the browser or a socket that stays anonymous after sign-in.
+#
+# Both of the latter read `backend/`, which is a VENDORED TREE THAT IS NOT
+# COMMITTED HERE (`git ls-files backend` is empty). On a fresh clone the
 # directory simply is not there.
 #
-# So the job detects it and skips with a message rather than failing, and
+# So those jobs detect it and skip with a message rather than failing, and
 # rather than passing. A green tick for a check that never ran is the failure
 # mode worth designing against: it is how a broken contract ships under a
 # clean build. The skip is loud, in the job summary, and the moment the
@@ -166,22 +173,167 @@ jobs:
           npm run db:migrate
           npm run db:verify
 
+  # ─────────────────────────────────────────────────────────────────────
+  # THE FIXTURE JOB.
+  #
+  # `verify:api` and the Playwright suite were both absent from this workflow
+  # for the same reason, recorded here as "a fixture job, not a step": they
+  # need five processes, a migrated database and a seeded catalogue. This is
+  # that job. It stands the platform up, runs the live contract check against
+  # it, then drives a real browser through register → sign in → balance →
+  # play a round → chat.
+  #
+  # It is the only job here that can catch a CORS header that refuses the
+  # browser, a proxy that drops the websocket upgrade, or a socket that stays
+  # anonymous after sign-in — each of which renders a correct-looking screen
+  # that does nothing.
+  #
+  # Same skip discipline as `contracts`: no `backend/` means a LOUD skip in
+  # the job summary, never a silent pass.
+  # ─────────────────────────────────────────────────────────────────────
+  e2e:
+    name: End to end — the live platform in a browser
+    runs-on: ubuntu-latest
+    needs: web
+
+    services:
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_USER: bitcasino
+          POSTGRES_PASSWORD: postgres123
+          POSTGRES_DB: ibitplay
+        ports: ['5433:5432']
+        options: >-
+          --health-cmd "pg_isready -U bitcasino"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      DB_HOST: 127.0.0.1
+      DB_PORT: 5433
+      DB_NAME: ibitplay
+      DB_USER: bitcasino
+      DB_PASSWORD: postgres123
+      DB_SCHEMA: public
+      DB_SSL: 'false'
+      # The browser reaches the app on Vite's own port, and Vite proxies
+      # `/api` to the gateway and `/socket.io` to user-service. Both origins
+      # have to be allowed or every request dies in a preflight.
+      CORS_ORIGIN: http://127.0.0.1:5173
+      SOCKET_ALLOWED_ORIGINS: http://127.0.0.1:5173
+      # The registration limiter is 20/hour per IP and this suite registers on
+      # every run. One IP in Actions means the suite would start 429ing after
+      # the twentieth run of the day — as a product bug, in the UI.
+      RATE_LIMIT_ENABLED: 'false'
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - name: Is the backend tree present?
+        id: backend
+        run: |
+          if [ -d backend/services/user/src ]; then
+            echo "present=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "present=false" >> "$GITHUB_OUTPUT"
+            {
+              echo "### End-to-end skipped"
+              echo
+              echo 'No `backend/` in this checkout, so the browser suite did not run:'
+              echo
+              echo '- `verify:api` — the app’s own query objects against a live gateway'
+              echo '- `test:e2e` — register → sign in → balance → play a round → chat'
+              echo
+              echo 'They are **not** passing. See the comment above this job.'
+            } >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Install the backend
+        if: steps.backend.outputs.present == 'true'
+        run: npm --prefix backend ci
+
+      # Migrate, then seed. `--demo` is what creates `demo_player01` with a
+      # funded INR balance and fills `gisgamesnew` from the web app's own
+      # `data/catalog.js`; without it the specs would open a game that does
+      # not exist, which reads as a broken catalogue page.
+      - name: Migrate and seed
+        if: steps.backend.outputs.present == 'true'
+        working-directory: backend
+        run: |
+          npm run db:migrate
+          npm run db:seed
+          npm run db:seed:demo
+
+      # Four services, not six. No sportsbook here for the same reason there
+      # is none anywhere in this project, and `sports-worker` polls a provider
+      # that does not exist in CI.
+      - name: Start the platform
+        if: steps.backend.outputs.present == 'true'
+        working-directory: backend
+        run: |
+          npm run dev user admin casino gateway > "$RUNNER_TEMP/platform.log" 2>&1 &
+          echo $! > "$RUNNER_TEMP/platform.pid"
+
+      - name: Wait for the gateway
+        if: steps.backend.outputs.present == 'true'
+        run: |
+          for i in $(seq 1 60); do
+            if curl -sf http://127.0.0.1:4000/api/v1/casino/games/stats > /dev/null; then
+              echo "gateway up after ${i}s"
+              exit 0
+            fi
+            sleep 1
+          done
+          echo "::error::the gateway never came up"
+          cat "$RUNNER_TEMP/platform.log"
+          exit 1
+
+      # The live contract check first: it is faster than the browser suite and
+      # its failures are far easier to read. A 422 from a `.strict()` validator
+      # reported here is one line; the same defect reported by Playwright is a
+      # blank rail and a timeout.
+      - name: Live API contract
+        if: steps.backend.outputs.present == 'true'
+        working-directory: apps/web
+        run: npm run verify:api
+
+      - name: Install Chromium
+        if: steps.backend.outputs.present == 'true'
+        working-directory: apps/web
+        run: npx playwright install --with-deps chromium
+
+      - name: End-to-end
+        if: steps.backend.outputs.present == 'true'
+        working-directory: apps/web
+        run: npm run test:e2e
+
+      - name: The platform's log, when something failed
+        if: failure() && steps.backend.outputs.present == 'true'
+        run: tail -200 "$RUNNER_TEMP/platform.log"
+
+      - name: Upload the Playwright report
+        if: failure() && steps.backend.outputs.present == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: apps/web/playwright-report
+          retention-days: 7
+
 # ─────────────────────────────────────────────────────────────────────────
-# NOT HERE, AND NAMED RATHER THAN QUIETLY OMITTED
+# STILL NOT HERE, AND NAMED RATHER THAN QUIETLY OMITTED
 #
-# `npm run verify:api` is the live contract check — it sends the app's own
-# query objects at a running gateway and asserts the ADAPTED output is
-# renderable. It is the most valuable check in the repository and it is not in
-# this workflow, because it needs five processes, a migrated database and a
-# seeded catalogue. That is a fixture job, not a step, and standing it up
-# under Actions is its own piece of work rather than a line here.
-#
-# Run it by hand against a local platform:
-#
-#     cd backend && npm run dev user admin casino gateway
-#     npm run verify:api
-#
-# `backend/npm test` — 1095 tests — is absent for the same reason plus one
-# more: it wants its own `ibitplay_test` database, and this workflow's service
-# container hosts the development one that `db:verify` migrates.
+# `backend/npm test` — 1095 tests — wants its own `ibitplay_test` database,
+# and this workflow's service container hosts the development one that
+# `db:verify` migrates and the `e2e` job seeds. Giving it a second database is
+# a small change to this file and a larger one to how the backend's test setup
+# picks its connection; it is worth doing and it is not done here.
 # ─────────────────────────────────────────────────────────────────────────

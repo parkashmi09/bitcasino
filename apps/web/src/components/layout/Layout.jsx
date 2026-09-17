@@ -5,6 +5,7 @@ import { Footer } from './Footer';
 import { Sidebar, MobileSidebar } from './Sidebar';
 import { SearchDialog } from './SearchDialog';
 import { DepositDialog } from './DepositDialog';
+import { OperatorNotice } from './OperatorNotice';
 import { RouteErrorBoundary } from './ErrorBoundary';
 import { MobileBottomNav } from './MobileBottomNav';
 import { useRecentlyPlayed } from '@/hooks/useRecentlyPlayed';
@@ -19,11 +20,12 @@ export function Layout() {
   /**
    * The badge on the sidebar's `Recents` chip.
    *
-   * Fetched here rather than inside the sidebar because `SidebarNav` is
-   * mounted TWICE at every width — the desktop column and the mobile drawer
-   * are both in the tree, the drawer merely translated off-screen — so a hook
-   * call down there is two requests per page load for every signed-in visitor.
-   * One call up here feeds both.
+   * Fetched here rather than inside the sidebar because `SidebarNav` renders
+   * in two places: the desktop column, which stays in the tree at every width
+   * (`hidden md:flex`, so it is mounted even on a phone), and the mobile sheet
+   * whenever that is open. A hook call down there would be two requests per
+   * page load for every signed-in visitor who opened the menu. One call up
+   * here feeds both.
    *
    * `null` until the list actually arrives, which is what leaves the disc
    * empty rather than flashing a `0` that is about to become a 7. The hook
@@ -65,9 +67,12 @@ export function Layout() {
           has no `/search`, and the field in the header opens this instead. */}
       <SearchDialog open={searchOpen} onClose={() => setSearchOpen(false)} />
 
+      {/* `onOpenMenu` toggles rather than opens. The sheet it controls has no
+          scrim and no close button — as on the reference — so this tab is the
+          way back out of it as well as the way in. */}
       <MobileBottomNav
         onOpenSearch={() => setSearchOpen(true)}
-        onOpenMenu={() => setMenuOpen(true)}
+        onOpenMenu={() => setMenuOpen((open) => !open)}
         onNavigate={() => setMenuOpen(false)}
         menuOpen={menuOpen}
       />
@@ -76,6 +81,12 @@ export function Layout() {
           the search dialog it reads the wallet, and an always-mounted copy
           would fetch balances on every page load for a drawer nobody opened. */}
       {depositOpen && <DepositDialog open onClose={() => setDepositOpen(false)} />}
+
+      {/* The operator's live banner. Always mounted, unlike the drawers: it is
+          a PUSH with nothing to poll and nowhere to replay from, so a listener
+          attached only while some panel is open would miss the notice
+          entirely rather than showing it late. */}
+      <OperatorNotice />
 
       {/* The sidebar is a full-height column that owns the brand, and the
           header starts to the right of it — the reference's shape, not a

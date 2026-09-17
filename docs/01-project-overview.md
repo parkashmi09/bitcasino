@@ -29,7 +29,7 @@ casino UI would be brand impersonation, not a study:
 | --- | --- |
 | Bitcasino logo and wordmark | `Logo.jsx` — a neutral placeholder mark, same footprint |
 | Bitcasino favicon / touch icons | Generated brand-tile icons (`scripts/generate-assets.mjs`) |
-| Game thumbnail artwork (licensed to studios like Evolution, Hacksaw, Betsoft) | Generated tiles — gradient base, category emblem and baked-in title, deterministic per slug |
+| Game thumbnail artwork (licensed to studios like Evolution, Hacksaw, Betsoft) | Generated tiles — gradient base and category emblem, deterministic per slug; the title is set over the tile, as the reference sets its own |
 | Studio names and logos | Invented studios — Northlight, Vertex Play, Lumen Games, … |
 | Real game titles | Invented titles — Sunken Vault, Lantern Drift, … |
 | Marketing and SEO body copy | Original short copy written for this project |

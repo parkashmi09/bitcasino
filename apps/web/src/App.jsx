@@ -2,12 +2,14 @@ import { BrowserRouter, Navigate, Route, Routes, useParams } from 'react-router-
 import { Layout } from '@/components/layout/Layout';
 import { Home } from '@/pages/Home';
 import { Category } from '@/pages/Category';
+import { Theme } from '@/pages/Theme';
 import { Recent } from '@/pages/Recent';
 import { Providers } from '@/pages/Providers';
 import { Provider } from '@/pages/Provider';
 import { Play } from '@/pages/Play';
 import { Login } from '@/pages/Login';
 import { SignUp } from '@/pages/SignUp';
+import { ForgotPassword } from '@/pages/ForgotPassword';
 import { NotFound } from '@/pages/NotFound';
 import { ProfileLayout } from '@/pages/ProfileLayout';
 import { Notifications } from '@/pages/Notifications';
@@ -22,9 +24,24 @@ import { Transactions } from '@/pages/Transactions';
 import { Blog } from '@/pages/Blog';
 import { BlogPost } from '@/pages/BlogPost';
 import { Promotions } from '@/pages/Promotions';
+import { Participations } from '@/pages/Participations';
+import { League } from '@/pages/League';
+import { WeeklyRakeback } from '@/pages/WeeklyRakeback';
+import { SpinWheel } from '@/pages/SpinWheel';
 import { Vip } from '@/pages/Vip';
 import { Tournaments } from '@/pages/Tournaments';
 import { TournamentList } from '@/pages/TournamentList';
+import { TermsAndConditions } from '@/pages/TermsAndConditions';
+import { ResponsibleGaming } from '@/pages/ResponsibleGaming';
+import { SelfExclusion } from '@/pages/SelfExclusion';
+import { DisputeResolution } from '@/pages/DisputeResolution';
+import { AmlPolicy } from '@/pages/AmlPolicy';
+import { ProvablyFair } from '@/pages/ProvablyFair';
+import { RewardTerms } from '@/pages/RewardTerms';
+import { PrivacyPolicy } from '@/pages/PrivacyPolicy';
+import { BitcoinBreakdown } from '@/pages/BitcoinBreakdown';
+import { HelpLoyalty } from '@/pages/HelpLoyalty';
+import { HelpRewards } from '@/pages/HelpRewards';
 import { ScrollToTop } from '@/components/layout/ScrollToTop';
 import { RouteProgress } from '@/components/layout/RouteProgress';
 import { AuthProvider } from '@/auth/AuthProvider';
@@ -92,7 +109,23 @@ export default function App() {
               outside the auth guards, because the whole point of the link is
               that a stranger opens it. */}
           <Route path="ref/:code" element={<ReferralLanding />} />
-          <Route path="forgot-password" element={<Navigate to="/login" replace />} />
+          {/* Password recovery. It WAS `<Navigate to="/login" />` — the link
+              in the login panel's own footer sent a locked-out player back to
+              the panel they had just failed at, which is to say the site had
+              no account recovery at all.
+
+              Behind `RedirectIfAuthenticated` like the other two auth
+              screens: somebody already signed in who wants a new password
+              wants `/profile/security`, which asks for the current one and
+              needs no email round trip. */}
+          <Route
+            path="forgot-password"
+            element={
+              <RedirectIfAuthenticated>
+                <ForgotPassword />
+              </RedirectIfAuthenticated>
+            }
+          />
           <Route path="terms" element={<Navigate to="/register" replace />} />
           <Route path="privacy" element={<Navigate to="/register" replace />} />
 
@@ -123,6 +156,11 @@ export default function App() {
               }
             />
             <Route path="games/:slug" element={<Category mode="collection" />} />
+            {/* The reference's third list space. A theme is a hand-picked set
+                that cuts across type and studio, which is neither a category
+                nor one of the platform's curated rows — `Theme.jsx` says why
+                it is its own page rather than a third `mode` on `Category`. */}
+            <Route path="themes/:slug" element={<Theme />} />
             <Route path="providers" element={<Providers />} />
             {/* The studio index and one studio's catalogue are different pages
                 on the reference — the detail view is a filterable game list. */}
@@ -165,25 +203,59 @@ export default function App() {
               <Route path="settings" element={<Settings />} />
             </Route>
 
-            {/* Real as of Phase 7 — the spin wheel over `/spin-wheel/*` and
-                the operator's scheduled events over `GET /user/bonus/events`. */}
+            {/* The list of campaigns, and the reference's own second tab
+                beside it. `participations` is declared before the `:slug`
+                redirect below, which would otherwise swallow it. */}
             <Route path="promotions" element={<Promotions />} />
+            <Route path="promotions/participations" element={<Participations />} />
+            {/* The campaigns with a page of their own, at the reference's own
+                slugs — `data/promotionPages.js` is the list, and every entry
+                there needs a route here or it falls through to the redirect
+                below. The first two are home banner cards (League is also the
+                sidebar's promo card); the third is the spin wheel over
+                `/spin-wheel/*`, which used to be a panel on the index. */}
+            <Route path="promotions/league-of-bitcasino" element={<League />} />
+            <Route path="promotions/weekly-rakeback-2026" element={<WeeklyRakeback />} />
+            <Route path="promotions/spin-the-wheel" element={<SpinWheel />} />
+            {/* The slugs those links carried before the pages existed, and the
+                year-less form of the rakeback one. Kept so anything already
+                pointing at them — a bookmark, an old build — lands on the page
+                rather than on the index. */}
+            <Route
+              path="promotions/league"
+              element={<Navigate to="/promotions/league-of-bitcasino" replace />}
+            />
+            <Route
+              path="promotions/weekly-rakeback"
+              element={<Navigate to="/promotions/weekly-rakeback-2026" replace />}
+            />
             {/**
-              * `promotions/:slug` still redirects, and now to the index rather
-              * than to home.
+              * Every other `promotions/:slug` still redirects to the index.
               *
-              * The home banner links here by slug (`/promotions/league`), and
-              * there is nothing behind those slugs: `bonus_events` has a name
+              * There is nothing behind those slugs: `bonus_events` has a name
               * and a window, no slug and no body, so a per-promotion page
-              * would have to invent everything on it. Sending the visitor to
-              * the list they came for beats a 404 or a fabricated page, and it
-              * is one route to delete when the platform grows a detail read.
+              * would have to invent everything on it — which is exactly what
+              * `data/league.js` does for the one campaign above, deliberately
+              * and with the reason written down. Sending the visitor to the
+              * list they came for beats a 404 or a fabricated page, and it is
+              * one route to delete when the platform grows a detail read.
               */}
             <Route path="promotions/:slug" element={<Navigate to="/promotions" replace />} />
 
             {/* The blog, over `GET /api/v1/admin/blogs` — public audience. */}
             <Route path="blog" element={<Blog />} />
             <Route path="blog/:slug" element={<BlogPost />} />
+            <Route path="help-center/terms-and-conditions" element={<TermsAndConditions />} />
+            <Route path="help-center/responsible-gaming" element={<ResponsibleGaming />} />
+            <Route path="help-center/self-exclusion" element={<SelfExclusion />} />
+            <Route path="help-center/dispute-resolution" element={<DisputeResolution />} />
+            <Route path="help-center/aml" element={<AmlPolicy />} />
+            <Route path="help-center/provably-fair" element={<ProvablyFair />} />
+            <Route path="help-center/reward-terms" element={<RewardTerms />} />
+            <Route path="help-center/privacy-policy" element={<PrivacyPolicy />} />
+            <Route path="help-center/help-loyalty" element={<HelpLoyalty />} />
+            <Route path="help-center/help-your-bonuses" element={<HelpRewards />} />
+            <Route path="bitcoin-breakdown" element={<BitcoinBreakdown />} />
             {/* Tournaments is a real page now. `all/:filter` is the reference's
                 own shape for the two `See all` links — `current` and `past` —
                 and it is declared BEFORE nothing else can claim it, since

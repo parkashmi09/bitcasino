@@ -22,6 +22,7 @@ import {
   resolveCollection,
 } from './collections';
 import { CATEGORIES } from '../categories';
+import { THEME_SLUGS, resolveTheme } from './themes';
 
 /**
  * The adapters, against the shapes the platform actually answers.
@@ -468,5 +469,63 @@ describe('collections', () => {
     // A category listed in the UI with no mapping renders a nav entry whose
     // page can never have anything in it.
     expect(CATEGORIES.map((c) => c.slug)).toEqual([...CATEGORY_SLUGS]);
+  });
+});
+
+/**
+ * The two kinds of theme.
+ *
+ * `/themes/:slug` serves both a curated list (Live Exclusives, VIP Prive,
+ * Bitcasino Exclusives) and a rule (Bonus Buy-in). They behave differently in
+ * one way that matters and is easy to break: a curated list keeps ITS OWN
+ * order, because an operator arranged it, and a rule keeps the catalogue's.
+ */
+describe('themes', () => {
+  const games = [
+    { id: '1', slug: 'exclusive-blackjack' },
+    { id: '2', slug: 'nothing-to-do-with-a-theme', bonusBuy: true },
+    { id: '3', slug: 'exclusive-speed-baccarat-1' },
+    { id: '4', slug: 'also-not-in-a-theme' },
+  ];
+
+  it('keeps a curated theme in the order the theme names, not the catalogue', () => {
+    // `exclusive-speed-baccarat-1` is named FIRST in the theme and arrives
+    // second here. The operator's order is the curation; losing it turns a
+    // arranged row into an arbitrary one.
+    const theme = resolveTheme('live-exclusives');
+
+    expect(theme.cut(games).map((g) => g.id)).toEqual(['3', '1']);
+  });
+
+  it('cuts a rule-based theme by the flag, leaving the catalogue order alone', () => {
+    // Bonus Buy-in is seventy-four pages on the reference — a filter over a
+    // feature, not a list anyone picked. It has no order of its own to impose.
+    const theme = resolveTheme('bonus-buy-in');
+
+    expect(theme.cut(games).map((g) => g.id)).toEqual(['2']);
+  });
+
+  it('only takes a bonus-buy flag the catalogue actually set', () => {
+    // Absent means "not recorded", never "false" — a real sync records neither
+    // and must yield an empty theme rather than every slot on the site.
+    const theme = resolveTheme('bonus-buy-in');
+
+    expect(theme.cut([{ id: 'x' }, { id: 'y', bonusBuy: false }])).toEqual([]);
+  });
+
+  it('answers null for a slug it does not serve', () => {
+    // The page turns this into "list not found" rather than an empty grid: a
+    // wrong URL and an empty curated list are different answers.
+    expect(resolveTheme('not-a-theme')).toBeNull();
+  });
+
+  it('every theme the sidebar links has content behind it', () => {
+    for (const slug of THEME_SLUGS) {
+      const theme = resolveTheme(slug);
+      expect(theme, slug).not.toBeNull();
+      expect(theme.label, slug).toBeTruthy();
+      // Either a list of members or a rule, never neither.
+      expect(Boolean(theme.games?.length) || typeof theme.cut === 'function', slug).toBe(true);
+    }
   });
 });

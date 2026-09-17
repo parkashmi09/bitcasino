@@ -46,8 +46,8 @@ const LINK_COLUMNS = [
   {
     heading: 'About',
     links: [
-      { label: 'Loyalty Club', to: '/vip' },
-      { label: 'Rewards', to: '/promotions' },
+      { label: 'Loyalty Club', to: '/help-center/help-loyalty' },
+      { label: 'Rewards', to: '/help-center/help-your-bonuses' },
       { label: 'Blog', to: '/blog' },
       { label: 'Affiliates', to: '/affiliates' },
       { label: 'Help Centre', to: '/help-center' },
@@ -62,9 +62,9 @@ const LINK_COLUMNS = [
       { label: 'Self-exclusion', to: '/help-center/self-exclusion' },
       { label: 'Dispute resolution', to: '/help-center/dispute-resolution' },
       { label: 'AML policy', to: '/help-center/aml' },
-      { label: 'Fairness and RNG testing methods', to: '/help-center/fairness' },
+      { label: 'Fairness and RNG testing methods', to: '/help-center/terms-and-conditions' },
       { label: 'Are the Games Provably Fair', to: '/help-center/provably-fair' },
-      { label: 'KYC policies', to: '/help-center/kyc-policies' },
+      { label: 'KYC policies', to: '/help-center/terms-and-conditions' },
       { label: 'Account, pay-outs and rewards', to: '/help-center/reward-terms' },
       { label: 'Affiliate terms and conditions', to: '/help-center/affiliate-terms' },
       { label: 'Privacy policy', to: '/help-center/privacy-policy' },

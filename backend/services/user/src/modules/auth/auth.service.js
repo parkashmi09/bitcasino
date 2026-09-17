@@ -532,27 +532,107 @@ class AuthService {
     const user = await this.models.Users.findByPk(record.user_id);
     if (!user) throw errors.RESET_TOKEN_INVALID();
 
+    return this.#applyPasswordReset(user, newPassword, async (transaction) => {
+      // Single use. Consumed in the SAME transaction as the password change,
+      // so a failure partway leaves neither done.
+      await record.update({ consumed_at: new Date() }, { transaction });
+    });
+  }
+
+  /**
+   * Complete a reset with a one-time CODE rather than an emailed link.
+   *
+   * ═════════════════════════════════════════════════════════════════════════
+   * THE TWO RESET PATHS, AND WHY BOTH EXIST
+   *
+   * `completePasswordReset` above takes a 64-character token from a link in
+   * an email. It has been written and tested since the port and was never
+   * exposed on a route or a socket event — dead code with no transport.
+   *
+   * This one takes the 6-digit code from `POST /email/otp`, which the player
+   * types back into the page they are already on. It needs no link, no email
+   * template pointed at a front-end origin, and no round trip out of the app
+   * — which is what makes it the one the web client can actually use.
+   *
+   * They converge here deliberately. Both end in `#applyPasswordReset`, so
+   * both clear the legacy `password2` cleartext column and both revoke every
+   * session; a second implementation is how one of them ends up doing only
+   * one of those.
+   * ═════════════════════════════════════════════════════════════════════════
+   *
+   * `spendProof` does the verifying and the spending — it is passed in rather
+   * than reached for, so this module does not depend on the email module's
+   * shape. The same seam `profile.changeEmail` uses.
+   *
+   * @param {object} input
+   * @param {string} input.newPassword
+   * @param {() => Promise<{id: string|number}>} input.spendProof
+   *   Consumes the caller's proof and answers the account it belongs to.
+   *   Throws if the code is wrong, unverified or expired.
+   */
+  async resetPasswordWithCode({ newPassword, spendProof }) {
+    /**
+     * The proof is spent FIRST, and a failure stops here.
+     *
+     * Order matters: looking the account up first and spending afterwards
+     * would mean an unverified caller could probe which addresses exist by
+     * the shape of the failure. Spending first makes every unauthorised call
+     * fail identically, in the email module, on the same error.
+     */
+    const proven = await spendProof();
+
+    const user = await this.models.Users.findByPk(proven.id);
+    // The proof named an account that has since gone. Same refusal as a bad
+    // code — a caller learns nothing about which it was.
+    if (!user) throw errors.RESET_TOKEN_INVALID();
+
+    return this.#applyPasswordReset(user, newPassword);
+  }
+
+  /**
+   * Set a new password, clear the cleartext copy, end every session.
+   *
+   * The three things a completed reset must do, in one transaction, shared by
+   * both paths above.
+   *
+   * @param {object} user A loaded `Users` instance.
+   * @param {string} newPassword
+   * @param {(transaction: object) => Promise<void>} [alsoInTransaction]
+   *   Extra work belonging to the caller's own path — consuming a link token,
+   *   for the one that has one.
+   */
+  async #applyPasswordReset(user, newPassword, alsoInTransaction) {
+    /**
+     * Reuse is refused BEFORE the transaction opens.
+     *
+     * It is a read and a bcrypt compare, and holding a write transaction open
+     * across ~225ms of CPU for something that may well refuse is the kind of
+     * lock a busy reset queue notices.
+     */
     if (user.password && (await verifyPassword(newPassword, user.password))) {
       throw errors.PASSWORD_REUSED();
     }
 
+    const hashed = await hashPassword(newPassword);
+
     return this.db.transaction(async (transaction) => {
       await user.update(
         {
-          password: await hashPassword(newPassword),
+          password: hashed,
           /**
            * And the cleartext copy is CLEARED, for this account, here.
            *
-           * Every legacy write path maintained `password2`. Every reset
-           * through this flow removes one more row's worth.
+           * Every legacy write path maintained `password2` — it is the column
+           * `Rule.resetClientPassword` READ from to email people their own
+           * password back. Every reset through either flow removes one more
+           * row's worth.
            */
           password2: null,
         },
         { transaction }
       );
 
-      // Single use.
-      await record.update({ consumed_at: new Date() }, { transaction });
+      if (alsoInTransaction) await alsoInTransaction(transaction);
 
       /**
        * Every session ends. A reset is what somebody does when they believe

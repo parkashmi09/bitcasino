@@ -15,11 +15,14 @@ import { mkdir, writeFile } from 'node:fs/promises';
 import { deflateSync } from 'node:zlib';
 import path from 'node:path';
 import {
+  CAPTURED_ORIGINALS,
   FAVICON,
   HERO_ART,
   bannerArt,
   SIDEBAR_PROMO,
   gameThumb,
+  ORIGINALS,
+  originalArt,
   promoArt,
   providerLogo,
   themeArt,
@@ -169,7 +172,14 @@ const { TOURNAMENTS } = await import(
   new URL('../apps/web/src/data/tournaments.js', import.meta.url).href
 );
 
-for (const dir of ['images/games', 'images/providers', 'images/promos', 'images/themes', 'images/banners', 'images/tournaments', 'icons']) {
+// So do the campaigns with a page of their own. Most of them carry reference
+// artwork that is already in `public/` and needs nothing drawn; the promo
+// loop below picks out the ones whose `art` points into `images/promos`.
+const { PROMO_PAGES } = await import(
+  new URL('../apps/web/src/data/promotionPages.js', import.meta.url).href
+);
+
+for (const dir of ['images/games', 'images/originals', 'images/providers', 'images/promos', 'images/themes', 'images/banners', 'images/tournaments', 'icons']) {
   await mkdir(path.join(PUBLIC, dir), { recursive: true });
 }
 
@@ -188,6 +198,25 @@ for (const game of GAMES) {
     path.join(dir, `${game.slug}-wide.svg`),
     gameThumb(game.title, game.slug, game.category, game.provider, { wide: true }),
   );
+  count += 2;
+}
+
+// The in-house games. Unlike a licensed title, an original is ours to draw,
+// and until this ran the seeder pointed every one of them at the 64x64 sidebar
+// nav icon — one blurry pinwheel repeated down the whole Originals page.
+//
+// Five are skipped: the reference deals those five itself and its own artwork
+// is fetched instead, by `npm run assets:originals`. Drawing over them here
+// would replace a real render with a vector approximation of it, and would put
+// two files with the same stem and different extensions in the directory.
+//
+// Both ratios for the rest: the category grid lays out the portrait tile, and
+// the Originals rail is the home page's featured rail, which takes the wide one.
+for (const uid of Object.keys(ORIGINALS)) {
+  if (uid in CAPTURED_ORIGINALS) continue;
+  const dir = path.join(PUBLIC, 'images/originals');
+  await writeFile(path.join(dir, `${uid}.svg`), originalArt(uid));
+  await writeFile(path.join(dir, `${uid}-wide.svg`), originalArt(uid, { wide: true }));
   count += 2;
 }
 
@@ -213,7 +242,11 @@ for (const tournament of TOURNAMENTS) {
   count++;
 }
 
-for (const promo of PROMOTIONS) {
+// `images/promos` only, and only the `.svg` ones: the League and the Weekly
+// Rakeback name reference artwork under `images/banners`, which is a file in
+// the tree and not something to overwrite with a drawing of a coin.
+for (const promo of [...PROMO_PAGES, ...PROMOTIONS]) {
+  if (!promo.art.startsWith('/images/promos/') || !promo.art.endsWith('.svg')) continue;
   const slug = promo.art.split('/').pop().replace('.svg', '');
   await writeFile(path.join(PUBLIC, 'images/promos', `${slug}.svg`), promoArt(promo.title, slug));
   count++;

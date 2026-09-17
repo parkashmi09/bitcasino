@@ -159,13 +159,36 @@ class GamesService {
     return [];
   }
 
+  /**
+   * `type` as one value or as a comma-separated set.
+   *
+   * A category page is not always one type. `/categories/live-casino` means
+   * "All Live Casino Games" and has to answer the tables filed under
+   * `baccarat` and `blackjack` as well as its own — so the client sends
+   * `?type=live-casino,baccarat,blackjack` and gets one page of the union
+   * rather than three pages it would have to merge and re-paginate itself.
+   *
+   * Still `iLike` per member, so the case-insensitivity below is unchanged,
+   * and a single value produces exactly the clause it always did — `Op.or` of
+   * one would work but reads worse in a query log.
+   */
+  #typeWhere(type) {
+    const values = String(type)
+      .split(',')
+      .map((value) => value.trim())
+      .filter(Boolean);
+
+    if (values.length <= 1) return { [Op.iLike]: values[0] ?? type };
+    return { [Op.or]: values.map((value) => ({ [Op.iLike]: value })) };
+  }
+
   #filterClause({ provider, type, search, technology, has_lobby: hasLobby, has_freespins: hasFreespins }) {
     const where = {};
 
     // Case-insensitive equality, as legacy's `LOWER(x) = LOWER(?)` was — a
     // vendor saved as "Evolution" must match a filter of "evolution".
     if (provider) where.provider = { [Op.iLike]: provider };
-    if (type) where.type = { [Op.iLike]: type };
+    if (type) where.type = this.#typeWhere(type);
     if (technology) where.technology = { [Op.iLike]: technology };
     if (search) where.name = { [Op.iLike]: `%${search}%` };
     if (hasLobby !== undefined) where.has_lobby = hasLobby;

@@ -88,6 +88,11 @@ const KNOWN_LOGOS = Object.freeze(
     'tidewater',
     'foxglove',
     'bitcasino-originals',
+    // Not a placeholder studio: `Evolution` really runs the seven live tables
+    // behind `/themes/live-exclusives`, and `evolution.svg` is its own mark.
+    // Its derived slug and its file name already agree, so it needs no alias —
+    // only to be admitted here, or the providers grid draws it logoless.
+    'evolution',
   ]),
 );
 

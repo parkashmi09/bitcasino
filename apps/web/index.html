@@ -14,6 +14,10 @@
     <link rel="manifest" href="/manifest.webmanifest" />
     <link rel="preload" as="font" type="font/woff2" href="/fonts/dm-sans-400.woff2" crossorigin />
     <link rel="preload" as="font" type="font/woff2" href="/fonts/space-grotesk-700.woff2" crossorigin />
+    <!-- Every game tile above the fold sets its title in this one, and there is
+         no second weight of it to wait on. Without the preload the first rail
+         paints its titles in the fallback and reflows once the face lands. -->
+    <link rel="preload" as="font" type="font/woff2" href="/fonts/big-shoulders-900.woff2" crossorigin />
     <title>Bitcasino | Bitcoin Casino of the Year - Play with BTC & 10+ Crypto</title>
   </head>
   <body>

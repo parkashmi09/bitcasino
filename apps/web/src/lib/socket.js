@@ -1,6 +1,6 @@
 import { io } from 'socket.io-client';
 import { tokenStore } from '@/auth/tokenStore';
-import { EVENTS, SERVICE_OF } from './socketEvents';
+import { EVENTS, LITERAL_EVENTS, SERVICE_OF } from './socketEvents';
 
 /**
  * The socket transport, and the one place that knows the wire format.
@@ -176,6 +176,135 @@ const sockets = new Map();
 const boundTokens = new Map();
 
 /**
+ * service -> event -> the set of handlers listening for a PUSH on it.
+ *
+ * ═════════════════════════════════════════════════════════════════════════
+ * THIS REGISTRY EXISTS BECAUSE A CONNECTION DOES NOT OUTLIVE A SIGN-IN.
+ *
+ * `socket.on(...)` survives a RECONNECT on its own — socket.io re-attaches
+ * every listener when the transport comes back. What it does not survive is
+ * `closeSocket()`, which `bindSession` calls on sign-out and on a casino
+ * rebind: the instance is discarded, and the next `getSocket()` builds a new
+ * one with no listeners on it at all.
+ *
+ * Without this map, a chat drawer that subscribed at mount would go
+ * permanently deaf the first time the player signed out and back in — with
+ * the panel still open, still polling its reads successfully, and simply
+ * never receiving another message. Nothing would error.
+ *
+ * So subscriptions are held HERE, outside any connection, and re-attached by
+ * `getSocket` every time one is built.
+ * ═════════════════════════════════════════════════════════════════════════
+ */
+const subscriptions = new Map();
+
+/** Attach every registered handler for `service` to a freshly built socket. */
+function attachSubscriptions(service, socket) {
+  const byEvent = subscriptions.get(service);
+  if (!byEvent) return;
+
+  for (const [event, handlers] of byEvent) {
+    socket.on(event, (frame) => deliver(event, handlers, frame));
+  }
+}
+
+/**
+ * Decode one pushed frame and hand it to every handler.
+ *
+ * A handler that throws must not stop the others: these are independent
+ * subscribers to a broadcast, and one component's render bug is not a reason
+ * for another component to miss a message. Same for an unreadable frame —
+ * there is no caller to reject, so it is swallowed rather than thrown into a
+ * socket.io listener where it would surface as an unhandled error.
+ */
+function deliver(event, handlers, frame) {
+  let payload;
+  try {
+    payload = decode(frame);
+  } catch {
+    return;
+  }
+
+  for (const handler of [...handlers]) {
+    try {
+      handler(payload, event);
+    } catch {
+      /* One subscriber's failure is its own. */
+    }
+  }
+}
+
+/**
+ * Listen for a pushed event, and return the function that stops listening.
+ *
+ * The counterpart to `request()`: that one asks and awaits an ack, this one
+ * receives what the server sends unasked. Three events on this platform push
+ * — `admin_notify` to every connected client, and the `social` module's
+ * `ADD_CHAT` and `ADD_MESSAGES`, neither of which this app wires (see Phase 8
+ * in `docs/10`). Today `admin_notify` is the only subscriber.
+ *
+ * **The payload is the raw decoded frame, envelope and all.** A push is not a
+ * reply and carries no ack to attribute it to, so there is nothing to unwrap
+ * against: a module event pushes `{status: true, ...row}` while
+ * `admin_notify` is a bare `{mesage, message}` with no envelope whatsoever.
+ * Stripping `status` here would be inventing a uniformity the wire does not
+ * have, so each reader handles its own — `queries/live.js` for this one.
+ *
+ * Subscribing OPENS the connection if there is not one already, which is the
+ * behaviour a caller wants — a component that subscribes before anything has
+ * been requested should still receive.
+ *
+ * @param {string} event A value from `EVENTS` or `LITERAL_EVENTS`.
+ * @param {(payload: object, event: string) => void} handler
+ * @param {'user'|'casino'} [service] Defaults to the event's own service,
+ *   then to `user` — literal events are not in `SERVICE_OF`.
+ * @returns {() => void} Unsubscribe. Safe to call twice.
+ */
+export function subscribe(event, handler, service = SERVICE_OF[event] ?? 'user') {
+  let byEvent = subscriptions.get(service);
+  if (!byEvent) {
+    byEvent = new Map();
+    subscriptions.set(service, byEvent);
+  }
+
+  let handlers = byEvent.get(event);
+  const first = !handlers;
+  if (!handlers) {
+    handlers = new Set();
+    byEvent.set(event, handlers);
+  }
+  handlers.add(handler);
+
+  /**
+   * Only the FIRST subscriber to an event attaches a socket.io listener; the
+   * rest join the set behind it. Otherwise `n` subscribers means `n` listeners
+   * decoding the same frame `n` times, and socket.io warns past ten of them.
+   *
+   * And only when the connection was ALREADY open. The registry above is
+   * filled first, so a `getSocket` that has to build one re-attaches this
+   * event through `attachSubscriptions` on the way — attaching again here
+   * would deliver every message twice, which on a chat panel reads as the
+   * server having sent it twice.
+   */
+  const open = sockets.get(service);
+  const connection = getSocket(service);
+  if (first && open) {
+    connection.on(event, (frame) => deliver(event, handlers, frame));
+  }
+
+  let done = false;
+  return () => {
+    if (done) return;
+    done = true;
+    handlers.delete(handler);
+    /* The socket.io listener stays even when the set empties. It closes over
+       the same `handlers` set this event's next subscriber will fill, so
+       removing and re-adding it would only churn — and an empty set delivers
+       to nobody, which is exactly what "unsubscribed" means. */
+  };
+}
+
+/**
  * The connection for one service, opened on first use.
  *
  * A missing token is fine and is NOT an error: it means a signed-out visitor,
@@ -224,6 +353,11 @@ export function getSocket(service = 'user') {
   });
 
   sockets.set(service, socket);
+
+  /* Before returning it, not after: a caller that subscribes and immediately
+     receives should not race a listener that has not been attached yet. */
+  attachSubscriptions(service, socket);
+
   return socket;
 }
 
@@ -474,4 +608,4 @@ export function closeSocket(service) {
   }
 }
 
-export { EVENTS };
+export { EVENTS, LITERAL_EVENTS };

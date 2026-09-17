@@ -89,7 +89,7 @@ export function Provider() {
 
   if (isPending || !provider) {
     return (
-      <div className="flex flex-col gap-6 py-2">
+      <div className="flex flex-col gap-6">
         <div className="h-8" />
         <GameGridSkeleton />
       </div>
@@ -100,13 +100,16 @@ export function Provider() {
     <GameList
       title={provider.name}
       games={games ?? []}
-      filter={{
-        label: 'Categories',
-        placeholder: 'All Game Categories',
-        options: categoryOptions,
-        value: category,
-        onChange: setCategory,
-      }}
+      filters={[
+        {
+          area: 'categories',
+          label: 'Categories',
+          placeholder: 'All Game Categories',
+          options: categoryOptions,
+          value: category,
+          onChange: setCategory,
+        },
+      ]}
       empty={`${provider.name} has no games in this category.`}
       breadcrumb={[{ label: 'Providers', to: '/providers' }, { label: provider.name }]}
     />

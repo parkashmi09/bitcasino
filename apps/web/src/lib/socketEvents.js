@@ -116,6 +116,42 @@ export const EVENTS = Object.freeze({
 });
 
 /**
+ * Events whose wire name is a plain string rather than a hash.
+ *
+ * `@ibitplay/socket` keeps these in its own `LITERAL_EVENTS` table, separate
+ * from `EVENTS`, because they were never put through legacy's hashing step —
+ * they are the handful of names that were typed directly into both ends.
+ *
+ * Kept apart here for the same reason, and because `verify-socket-events.mjs`
+ * has to parse them out of a different table on the backend side.
+ */
+export const LITERAL_EVENTS = Object.freeze({
+  /**
+   * The operator's live banner broadcast.
+   *
+   * ═══════════════════════════════════════════════════════════════════════
+   * IT EMITS `{mesage: …}` — ONE `s` — AND THAT TYPO IS THE WIRE PROTOCOL.
+   *
+   * Shipped clients read `mesage`, so the platform cannot fix it without
+   * silencing the notice everywhere. The correctly-spelled key is sent
+   * ALONGSIDE it, so anything written against the ported API can read
+   * `message` — but a client that reads only the correct spelling would go
+   * quiet the moment it spoke to an older build, which is why the reader in
+   * `queries/live.js` takes whichever arrives.
+   * ═══════════════════════════════════════════════════════════════════════
+   *
+   * RECEIVE-ONLY from this app. Sending it needs a staff token, and there is
+   * no staff surface here.
+   *
+   * Not persisted: `notifications.broadcast` in admin-service is the durable
+   * path that writes a row and pushes over FCM. This is the live banner for
+   * whoever happens to be connected, which is why it is a transient toast
+   * rather than a row in the notifications feed.
+   */
+  ADMIN_NOTIFY: 'admin_notify',
+});
+
+/**
  * Which service owns each event.
  *
  * The four services each attach their own Socket.io server on their own port —

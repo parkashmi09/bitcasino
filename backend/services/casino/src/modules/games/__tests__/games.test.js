@@ -105,6 +105,40 @@ test('game catalogue', async (t) => {
     assert.equal(result.total, 1, 'a vendor stored capitalised must match a lowercase filter');
   });
 
+  await t.test('a comma-separated type filter reads as a set', async () => {
+    // `/categories/live-casino` means "All Live Casino Games" and has to
+    // answer the tables filed under the sub-categories carved out of it, so
+    // the client sends all three types in one request rather than merging and
+    // re-paginating three responses itself.
+    const suffix = `${TAG}-agg`;
+    await seedGame({ type: `baccarat-${suffix}` });
+    await seedGame({ type: `blackjack-${suffix}` });
+    await seedGame({ type: `live-casino-${suffix}` });
+    await seedGame({ type: `slots-${suffix}` });
+
+    const both = await service.browse({
+      page: 1,
+      limit: 10,
+      type: `baccarat-${suffix},blackjack-${suffix}`,
+    });
+    assert.equal(both.total, 2, 'two types must return both of their games and nothing else');
+
+    const one = await service.browse({ page: 1, limit: 10, type: `baccarat-${suffix}` });
+    assert.equal(one.total, 1, 'a single type must behave exactly as it always did');
+
+    // The members are trimmed and case-folded individually — a set built by
+    // joining a mapping table is exactly where a stray space shows up.
+    const spaced = await service.browse({
+      page: 1,
+      limit: 10,
+      type: ` BACCARAT-${suffix} , blackjack-${suffix} `,
+    });
+    assert.equal(spaced.total, 2, 'each member is trimmed and matched case-insensitively');
+
+    const missing = await service.browse({ page: 1, limit: 10, type: `nothing-${suffix}` });
+    assert.equal(missing.total, 0, 'an unknown type still matches nothing');
+  });
+
   await t.test('is_mobile sorts, it does not filter', async () => {
     // Legacy had this both ways in two branches of the same function. The sort
     // is what shipped, and a player filtering "mobile" still expects to be able

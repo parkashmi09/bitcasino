@@ -69,7 +69,8 @@ each one:
 | 5 — Play | **Done for the seam and one original.** Limbo is a real socket round on casino-service that moves the balance and writes a `bets` row; the other nineteen originals say so rather than pretending; aggregator titles call the real launch routes and render `GIS_NOT_CONFIGURED` as a state. Needed a **second socket connection** and a **second reply envelope**, and found **one backend defect that voided winning rounds**. See *What Phase 5 actually landed* below. |
 | 6 — Account area | **The three blockers are done**, plus sessions. Two-factor is a real setup/disable flow over `/2fa/*`, the sessions list is `GET /auth/sessions`, KYC is a real multipart submission, and `/profile/transactions` is a new screen over `GET /user/history`. Profile, preferences and referrals were already real from Phase 3. Vault, bonuses, rakeback, gift cards and bank details are **not** built — see *What Phase 6 actually landed* for what is left and why the Rewards page is still a fixture. |
 | 7 — Content, promotions and site config | **Done.** `/promotions`, `/tournaments`, `/vip` and `/blog` are pages rather than redirects; the blog, the banner art, the spin wheel and the VIP standing all read the platform, and the footer quotes a real rate. **One defect found in the audit**: `GET /user/bonus/events` is the player's own bonus log, not the operator's scheduled promotions, and the page was built on the wrong reading — corrected. Tournaments still reads a fixture, because the platform has no tournaments table. See *What Phase 7 actually landed* below. |
-| 8 — Live surfaces, hardening, CI | **Six of eight.** The wins ticker and the game-page feed are real socket reads, notifications are a real feed (which needed a **backend fix** — the event had never worked), rate limits are handled on both transports, there are error boundaries on every route, `npm run lint` runs green against a real config, and CI is wired. **Chat and Playwright are not built** and are named rather than skipped. See *What Phase 8 actually landed* below. |
+| 8 — Live surfaces, hardening, CI | **Seven of eight.** The wins ticker and the game-page feed are real socket reads, notifications are a real feed (which needed a **backend fix** — the event had never worked), rate limits are handled on both transports, there are error boundaries on every route, `npm run lint` runs green, and CI is wired. **`admin_notify` and Playwright landed 2026-09-12** — the transport gained `subscribe()`, and the browser suite came with the CI fixture job the earlier note said it needed. **Chat is still not built**, now for a reason that was tested rather than assumed: a drawer and a header trigger were built and then reverted, because the reference has no player-chat surface and a fifth header control is a bigger deviation than anything `docs/11` lists. See *Closing Phase 8* below. |
+| 9 — Password recovery | **Done.** `/forgot-password` was a `Navigate to="/login"` and the site had no account recovery at all. It is now a three-step screen over `POST /email/otp`, `/otp/verify` and a **new** `POST /auth/reset-password` — the third leg the platform was missing, without which the two existing routes could confirm a code and then had no way to change a password. See *Phase 9 — Password recovery* below. 2FA-reset-by-email is still unwired. |
 
 The order is deliberate: 2 and 3 are independent, and accounts were asked for
 first. Phase 1 shipped only the parts 3 needs, so `data/adapters/` and the
@@ -457,7 +458,7 @@ found by the contract check rather than by looking:
   `northlight.svg`. `assets.generated.js` was no help — it indexes the 68
   reference studios, and our eight placeholder logos are written by a different
   script and are not in it.
-- Three of seven category placeholders. `crash` is served from
+- Three of ten category placeholders. `crash` is served from
   `crash-instant-win.png`, `live-casino` from `live-games.png`, and
   `video-slots` is an `.svg` where the rest are `.png`.
 
@@ -537,7 +538,7 @@ detail shell render entirely from the API with skeletons on first paint, and
 
 Landed 2026-09-09. Every screen in the table above now reads the platform, and
 the grep is clean. Three components still import `catalog.js` and are meant to:
-`HomeBanner` and `PromoGrid` are Phase 7's admin-content surfaces, and
+`HomeBanner` and the promotions list are Phase 7's admin-content surfaces, and
 `Testimonials` is marketing copy the platform has no route for. `catalog.js`
 itself stays regardless — the Phase 0 seeder reads `GAMES` out of it.
 
@@ -551,7 +552,7 @@ itself stays regardless — the Phase 0 seeder reads `GAMES` out of it.
 
 #### The route decides, not the slug
 
-`live-casino` and `crash` are **both** one of our seven categories and one of
+`live-casino` and `crash` are **both** one of our ten categories and one of
 the platform's five curated collections, and they list different games — the
 collection is a row an operator picked, the category is every game of that
 type. `/games/live-casino` returns 5 and `/categories/live-casino` returns 3.
@@ -769,6 +770,14 @@ has no route back into their account, and a player who loses their authenticator
 cannot clear 2FA. The done-when does not mention either, which is why the phase
 still reads as done — but they are the two most-used recovery paths on a real
 casino and they are absent, not deferred by design.
+
+> **Half-superseded, 2026-09-12.** Password recovery is built — see *Phase 9*
+> below. It needed more than wiring the two routes named here: the OTP pair
+> leaves a *proof* that nothing on the platform spent, and the method that
+> does set a password was exposed on no transport, so a third route had to be
+> added. **2FA reset by email is still unwired**, and unlike the password
+> pair it is complete on the platform: `confirmTwoFactorReset` verifies the
+> code and disables the factor in one call. That one is a screen, not a seam.
 
 #### A correction to this document
 
@@ -1319,6 +1328,12 @@ runs on `data/notifications.js` for the reason Phase 4 recorded: there is no
 player notification feed in user-service. Those are the next tranche, not
 this one.
 
+> Rakeback is worth a note, because there is now a page with its name on it.
+> `/promotions/weekly-rakeback-2026` is the reference's **campaign** page, and
+> the reference's own body for it is empty — so that page carries a hero and a
+> title and does not touch `GET /rakeback`. The accrual and the claim are still
+> routes without a screen, like the other five.
+
 #### Verification
 
     npm test                       # 116 unit tests (5 new)
@@ -1800,28 +1815,23 @@ database, and the workflow's service container hosts the development one that
 #### Not built, and named rather than quietly skipped
 
 - **Chat.** `CHATS`, `ADD_CHAT`, `MY_FRIENDS` and `MESSAGES` are all
-  implemented on the platform and none of them is wired. The reference site has
-  no chat surface — no sidebar panel, no drawer, nothing in the header — so
-  building one would not be porting a feature but inventing one, and it would
-  be the largest surface in the app with nothing to measure it against.
-  `ADD_CHAT` also broadcasts to every connected client at 20 messages a minute
-  per player, which needs moderation and a report path before it needs a UI.
-  Worth doing deliberately, as its own piece of work.
-- **`admin_notify`.** The operator's live banner broadcast. It emits
-  `{mesage: …}` — one `s` — with the correct spelling alongside, and that typo
-  IS the wire protocol. Not wired: it is a staff-triggered push with no
-  persistence (`notifications.broadcast` in admin-service is the durable path),
-  and there is no way to trigger one from this deployment to test against,
-  because staff login is still blocked by the 2FA enrolment gate Phase 0 hit.
-- **Playwright.** The unit suite covers the adapters, the token store's
-  single-flight refresh, the socket encode/decode wrapper, the rate-limit
-  rules and the error boundary. An end-to-end register → log in → view balance
-  → play a round is not there. It needs the whole platform up and a browser
-  download, which makes it the same fixture problem `verify:api` has in CI, and
-  it should land with that fixture rather than before it.
+  implemented on the platform and none of them is wired. The reference site
+  has no chat surface — no sidebar panel, no drawer, nothing in the header —
+  so building one would not be porting a feature but inventing one.
+  **A drawer and a header trigger were subsequently built and reverted**,
+  which turned this from a judgement into a finding; *Closing Phase 8* below
+  records what the attempt showed, including the one thing that makes it look
+  like a close call and does not. `ADD_CHAT` also broadcasts to every
+  connected client at 20 messages a minute per player, which needs moderation
+  and a report path before it needs a UI.
+- **`admin_notify`** — **built 2026-09-12.** See *Closing Phase 8*.
+- **Playwright** — **built 2026-09-12**, with the CI fixture this note said it
+  should land with. See *Closing Phase 8*.
 - **`LAST_BETS` as a push.** All three feeds are POLLS: the platform answers
   these events on request and broadcasts nothing on them, so "live" here means
   a twenty-second interval with a rate-limit backoff, not a subscription.
+  `admin_notify` is the one genuine push in the app, which is why it needed
+  `subscribe()` and why it is a transient banner rather than a feed row.
 
 #### Verification
 
@@ -1842,6 +1852,274 @@ takes `SOCKET_BASE` for a deployment where user-service is not on
 > user-service process started before 2026-09-10 is still serving the old
 > handler and will still answer `SOCKET_HANDLER_FAILED`; the fix was verified
 > against a second instance on :4111. Restart `npm run dev …` to pick it up.
+
+---
+
+## Closing Phase 8 — `admin_notify` and Playwright
+
+Landed 2026-09-12. Two of the three outstanding items. The third, chat, was
+started and then **deliberately removed** — see the end of this section.
+
+**New:** `apps/web/src/components/layout/OperatorNotice.jsx`,
+`playwright.config.js`, `e2e/{global-setup,session,play,recovery}.js`.
+**Modified:** `lib/socket.js` (`subscribe()` and the subscription registry),
+`lib/socketEvents.js` (a `LITERAL_EVENTS` table), `queries/live.js`
+(`useOperatorNotice`), `queries/live.test.jsx`, `queries/index.js`,
+`components/layout/Layout.jsx`, `eslint.config.js`, `vite.config.js`,
+`scripts/verify-socket-events.mjs`, `.github/workflows/ci.yml` (a third job).
+
+### The transport could only ask, never listen
+
+Everything before this was request/reply. `request()` emits with an ack and
+resolves; there was no way to receive a frame the server sent unasked, which
+is what `admin_notify` does. `subscribe()` is that, and the part worth knowing
+is not the listener — it is the registry behind it.
+
+`socket.on(...)` survives a RECONNECT on its own; socket.io re-attaches every
+listener when the transport comes back. What it does not survive is
+`closeSocket()`, which `bindSession` calls on sign-out. The instance is
+discarded and the next `getSocket()` builds a new one with nothing on it. So
+subscriptions are held outside any connection and re-attached by `getSocket`
+every time one is built. Without that, a subscriber would go permanently deaf
+the first time a player signed out and back in — reads still succeeding,
+nothing ever arriving, and nothing anywhere erroring.
+
+### `admin_notify` is wired, and is deliberately not a notification
+
+It emits `{mesage: …}` — one `s` — with the correct spelling alongside, and
+that typo is the wire protocol: an older build sends only the typo, so the
+reader takes whichever is present. It is a transient banner rather than a row
+in the feed, because it **writes nothing**: a notice exists for whoever is
+connected at that moment and nowhere afterwards. Routing it into
+`useNotifications` would claim a durability the platform does not provide, and
+the row would vanish the next time that list was actually fetched.
+`notifications.broadcast` in admin-service is the durable path and surfaces
+through the bell.
+
+It still cannot be TRIGGERED from this deployment — sending one needs a staff
+token, and staff login is blocked by the 2FA enrolment gate Phase 0 hit. What
+is verified is the read path, in `queries/live.test.jsx`, in both spellings.
+
+### Playwright, and the fixture it was waiting for
+
+13 specs over three files. The earlier note said an end-to-end suite "should
+land with that fixture rather than before it", meaning the CI job that stands
+the platform up — so the job is part of this:
+
+`.github/workflows/ci.yml` has a third job, `e2e`. It starts Postgres,
+migrates, seeds with `--demo`, brings up four services, waits on the gateway,
+runs **`verify:api`** — which had never run in CI either, for the same reason
+— and then the browser suite. Same skip discipline as `contracts`: no
+`backend/` means a loud skip in the job summary, never a silent pass.
+
+`e2e/global-setup.js` refuses to run rather than skipping. It probes the
+gateway, checks the response carries the platform's own envelope rather than
+something in front of it, and checks the catalogue is non-empty — an unseeded
+database fails these specs in a way that reads as a broken app. A suite that
+quietly skipped would be a green tick over an untested seam.
+
+What the browser catches that 183 unit tests cannot: a CORS preflight the
+browser refuses, a proxy that drops the websocket upgrade, `AuthProvider`'s
+bootstrap under real StrictMode double-invocation against a real refresh round
+trip, the casino socket staying anonymous after sign-in so every `PLAY_*` is
+refused. Every one of them renders a correct-looking screen that does nothing.
+
+### Chat: built, then removed, and the removal is the right call
+
+A chat drawer was built against the whole `social` module — `CHATS`,
+`ADD_CHAT`, `MY_FRIENDS`, `ADD_FRIEND`, `MESSAGES`, `ADD_MESSAGES` — with a
+header trigger beside the bell. **It was reverted before it shipped**, and the
+reason is the one this phase's original note already gave and the build did
+not honour:
+
+> The reference site has no chat surface — no sidebar panel, no drawer,
+> nothing in the header — so building one would not be porting a feature but
+> inventing one.
+
+Adding a fifth control to the signed-in header is exactly that. `docs/11`
+records the header as **four controls**, every dimension measured off
+bitcasino.io, and the first version of that header was wrong precisely because
+it was built from inference rather than from the DOM. A new control is a
+bigger deviation than any of the ones that table lists.
+
+Worth recording, because it is the thing that makes this look like a close
+call and is not: the reference's sidebar DOES carry a row reading
+`Support · Chat` with a green online dot (`Sidebar.jsx`, currently inert).
+That is live customer support — an operator, one-to-one. The `social` module
+is public rooms and player-to-player messages. Hanging the second behind a
+control labelled the first would put a player into a public room when they
+pressed a button that promised support, which is worse than having no chat.
+
+So the `social` module stays unwired, and the six event names came out of
+`socketEvents.js` with it — that table's own rule is that a name nothing sends
+is a name nothing verifies. What survives is `subscribe()`, which
+`admin_notify` needs and which is the piece the transport was actually missing.
+
+If chat is wanted later it needs a surface decision first, not a client: the
+reference offers nowhere to put it, `ADD_CHAT` broadcasts to every connected
+player at 20 messages a minute, and that needs moderation and a report path
+before it needs a UI.
+
+#### Verification
+
+    npm run lint                    # 0 errors
+    npm test                        # 183 tests
+    npm run build
+    npm run verify:socket-events    # 13 client names, including one literal
+    npx playwright test --list      # 13 specs in 3 files
+
+`verify:socket-events` now checks `LITERAL_EVENTS` too. `admin_notify` is a
+plain name in the backend's own `LITERAL_EVENTS` table, quoted with single
+quotes where the hashes use double — which is the only thing separating the
+two tables in one file at one indentation, and is why a literal must never be
+added to the client's `EVENTS`: it would be reported as missing by a check
+that structurally cannot see it.
+
+**Not run here:** the browser suite itself. It needs the platform up, and no
+Postgres was reachable on this machine. `--list` proves the specs parse and
+are discovered; it proves nothing about whether they pass.
+
+---
+
+## Phase 9 — Password recovery
+
+Landed 2026-09-12. `/forgot-password` was `<Navigate to="/login" replace />`,
+so the link in the login panel's own footer returned a locked-out player to
+the panel they had just failed at. The site had **no account recovery**.
+
+**New:** `POST /api/v1/user/auth/reset-password` on the backend;
+`apps/web/src/pages/ForgotPassword.jsx`, `queries/recovery.js`,
+`queries/recovery.test.jsx`, `e2e/recovery.spec.js`.
+**Modified:** `auth.service.js` (`resetPasswordWithCode`, `#applyPasswordReset`),
+`auth.validators.js`, `auth/controllers/public.controller.js`,
+`email.service.js` (`spendProofWithCode`), `lib/endpoints.js` (3 paths — 56
+total), `App.jsx`, `components/layout/AuthShell.jsx` (a `providers` flag),
+`auth/__tests__/registration.test.js` (9 new cases).
+
+### The platform could issue a recovery code and then not spend it
+
+This is the finding that shaped the work. `POST /user/email/otp` and
+`/otp/verify` have existed since the port, and the audit that named them
+"live, unwired" was right about the routes and wrong about what wiring them
+would achieve. Tracing the flow through:
+
+- `verifyOtp` marks the row verified, leaving a **proof** good for 300
+  seconds. **Nothing spends a `reset-password` proof.** `spendProof` has
+  exactly one caller — `profile.changeEmail`, for `change-email`.
+- `AuthService.completePasswordReset(token, newPassword)` is fully written and
+  tested: it sets the password, clears the legacy `password2` cleartext column
+  and revokes every session. **It is exposed on no route and no socket event.**
+- `C.RESET_PASSWORD` (socket, public) mails a reset link that has nothing to
+  land on.
+
+So wiring only the two OTP routes would have got a player to "your code is
+correct" and no further. The third leg is new.
+
+### The code is sent again at the last step, and that is the security property
+
+`spendProof` is keyed on the address and the purpose. That is sufficient where
+`profile` uses it, because the request spending the proof already carries the
+account holder's token — the proof only has to answer "did they also
+demonstrate they can read mail there".
+
+Password reset has no token; the whole point is that the caller cannot
+authenticate. A spend keyed on the address alone would mean that for the five
+minutes after a victim verifies their own code, **any** request naming that
+address can set the password, having never seen the code. So
+`spendProofWithCode` re-checks it against the same bcrypt hash `verifyOtp`
+compared, which makes the proof row a record that the code was used recently
+rather than a bearer credential of its own.
+
+A wrong code at that step does **not** burn the proof. It is tempting — a
+wrong code there is suspicious — but the person holding the real code is the
+person who just verified it, and a mistyped digit must not send them back to
+the start. The row expires on its own in under five minutes and the route is
+metered at 10 per 15 minutes per IP, which is what bounds the guessing that
+choice leaves open.
+
+### It mints no session, deliberately
+
+`register` answers with one because creating an account and using it are one
+intent. A reset is the opposite: the service has just revoked every session on
+the account, because a reset is what somebody does when they believe it is
+compromised. Handing back a fresh session in the same response would re-open
+the door that was just closed — for whoever made the call, on a flow whose
+premise is that their identity is unproven. It answers
+`{reset, revokedSessions}` and the screen sends the player to the login form.
+
+`revokedSessions` is shown rather than swallowed: "every device has been
+signed out — 3 sessions ended" is the confirmation that the thing they were
+worried about has been undone.
+
+### The screen must never say it found the account
+
+`POST /email/otp` answers identically whether or not the address is
+registered, and sends nothing in the second case — legacy answered
+`User not found`, which turns a reset box into a free membership check. The
+copy after step one is therefore conditional on nothing: *if that address has
+an account, a code is on its way to it.* It reads as hedging and it is the
+point, and it is exactly the sentence a later well-meaning edit would
+"improve". `e2e/recovery.spec.js` renders the step for a known and an unknown
+address and asserts the two are the same text, so a rewording cannot pass
+while reintroducing the leak.
+
+The one refusal that IS specific is `EMAIL_OTP_COOLDOWN`, which is safe: a
+caller only reaches it by having asked for a code for that address themselves
+a moment ago. It carries `details.retryAfterSeconds`, and the screen shows the
+number — without it a player just presses the button again.
+
+### Both reset paths converge on one method
+
+`completePasswordReset` (link token) and `resetPasswordWithCode` (typed code)
+both end in `#applyPasswordReset`, so both clear `password2` and both revoke
+every session. A second implementation is how one of them ends up doing only
+one of those. The token path still has no transport; it is now two lines from
+having one, and the code path is the one the web client can actually use — no
+link, no email template pointed at a front-end origin, no round trip out of
+the app.
+
+### `AuthShell` grew one flag, and it is not cosmetic
+
+`providers={false}` drops the social row and the `or` rule above the form, on
+this screen only. Offering "Continue with Google" to somebody three steps into
+proving they own an email-and-password account is not an alternative route to
+the same place — a social identity is a different account — and the `or` rule
+above it actively implies the form below is one of two ways to finish.
+Recovery has no second way.
+
+### Not built, and named rather than quietly skipped
+
+- **2FA reset by email.** `POST /user/email/2fa/reset` and `/reset/confirm`
+  are still unwired, and unlike the password routes they are **complete on the
+  platform** — `confirmTwoFactorReset` verifies the code and disables the
+  factor in one call, with no missing third leg. A player who loses their
+  authenticator still cannot clear it. It is a screen, not a seam.
+- **The emailed link.** `C.RESET_PASSWORD` and `completePasswordReset` stay
+  unexposed. Wiring them needs the mail template pointed at this app's origin,
+  which is a deployment decision rather than a code one.
+- **An end-to-end test of the happy path in the browser.** The code goes to an
+  inbox and nowhere else — not in the response, not in a header, not in a
+  debug field, which is the single most important property of the flow. A test
+  hook that leaked it back to Playwright would undo the thing being protected.
+  Reading it properly needs a mail catcher wired into the platform's SMTP
+  configuration; that is a fixture and it is not built. The full three steps
+  are covered in `registration.test.js` instead, against a real database with a
+  recording mailer, reading the code out of the rendered message.
+
+#### Verification
+
+    npm test                        # 183 tests (12 new, in queries/recovery.test.jsx)
+    npm run lint
+    npm run build
+    node backend/tools/verify-frontend-routes.js   # 56 endpoints, all mounted
+    cd backend && npm run verify:modules           # 589 routes
+
+`backend/npm test` adds 9 cases to `registration.test.js` covering the code
+path end to end — single use, a wrong code refused while a proof exists, an
+unverified code rejected, purpose confinement, session revocation and reuse.
+**They have not been executed here**: they need `ibitplay_test`, and no
+Postgres was reachable on this machine. They skip rather than fail, which is
+the behaviour that file already had.
 
 ---
 

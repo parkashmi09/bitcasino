@@ -55,6 +55,20 @@ export default defineConfig({
    */
   test: {
     environment: 'jsdom',
+    /**
+     * Scoped to `src`, and that scoping is load-bearing rather than tidy.
+     *
+     * Vitest's default glob matches `*.test.*` AND `*.spec.*` anywhere under
+     * the project root, which would sweep up
+     * `e2e/*.spec.js` — Playwright specs that import `@playwright/test` and
+     * expect a real browser. Under vitest they do not fail usefully: they
+     * fail on the import, in jsdom, with an error about a missing module,
+     * and the obvious reading is that the e2e suite is broken rather than
+     * that it was run by the wrong runner.
+     *
+     * `npm test` is vitest over `src`; `npm run test:e2e` is Playwright over
+     * `e2e`. Neither ever sees the other's files.
+     */
     include: ['src/**/*.test.{js,jsx}'],
     restoreMocks: true,
   },

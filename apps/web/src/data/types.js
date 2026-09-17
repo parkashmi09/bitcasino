@@ -10,6 +10,9 @@
 /**
  * @typedef {'originals'
  *   | 'live-casino'
+ *   | 'baccarat'
+ *   | 'blackjack'
+ *   | 'roulette'
  *   | 'video-slots'
  *   | 'table-games'
  *   | 'crash'
@@ -31,6 +34,7 @@
  * @property {'low' | 'medium' | 'high'} volatility
  * @property {number} hitRatio Winning spins, as a percentage.
  * @property {number} [players] Seats taken, for live-dealer tables only.
+ * @property {true} [bonusBuy] The slot sells its bonus round outright. `/themes/bonus-buy-in` cuts on it; absent means the catalogue does not record the feature.
  * @property {number} [jackpot]
  */
 
@@ -51,14 +55,17 @@
  */
 
 /**
+ * One row of the `/promotions` list: a 700x290 picture, a title, one line
+ * under it, and somewhere to go. The same shape `PROMO_PAGES` maps a campaign
+ * into, so the index can concatenate the two.
+ *
  * @typedef {object} Promotion
  * @property {string} id
+ * @property {string} slug
  * @property {string} title
  * @property {string} blurb
- * @property {string} cta
  * @property {string} href
  * @property {string} art
- * @property {'brand' | 'jackpot' | 'positive'} tone
  */
 
 /**

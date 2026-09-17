@@ -114,7 +114,12 @@ export function Select({
 
   return (
     <div ref={wrapRef} className={cn('relative w-full', className)} {...props}>
-      <span id={`${id}-label`} className="mb-1 block text-sm leading-5 text-trunks">
+      {/* 14/24, not 14/20. The reference's control label reads back
+          `14px / 24px` in `trunks` with a 4px gap to the field, and the extra
+          four pixels are the whole reason its filter bar measures 76px against
+          the 72 this used to draw — which pushed every game grid up by 4px
+          relative to the reference's. */}
+      <span id={`${id}-label`} className="mb-1 block text-sm leading-6 text-trunks">
         {label}
       </span>
 

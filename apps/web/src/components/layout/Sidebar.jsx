@@ -25,7 +25,7 @@ import { cn } from '@/lib/cn';
  * The rail carries `group/rail` and `data-collapsed`, so every piece below
  * styles its own collapsed form through `group-data-[collapsed=true]/rail:`
  * rather than threading a prop down. `MobileSidebar` renders the same nav
- * without that group, so the drawer is always the full-width form.
+ * without that group, so the sheet is always the full-width form.
  *
  * Each link is `{ label, to, icon }`, where `icon` is a NavIcon name.
  */
@@ -40,13 +40,32 @@ const PRIMARY = [
 ];
 
 const LIVE_GROUP = [
-  { label: 'Live Casino', to: '/categories/live-casino', icon: 'live-casino' },
-  { label: 'VIP', to: '/vip', icon: 'vip' },
-  { label: 'Table Games', to: '/categories/table-games', icon: 'table-games' },
-  { label: 'Slots', to: '/categories/video-slots', icon: 'slots' },
-  { label: 'Crash & Instant', to: '/categories/crash', icon: 'crash' },
+  { label: 'Live Exclusives', to: '/themes/live-exclusives', icon: 'live-exclusive' },
+  /* `/themes/vip-prive`, not `/vip`. They are two different pages on the
+     reference and this row is the first: the high-limit room, a grid of twenty
+     Salon Prive tables. `/vip` is the account's own VIP standing, which the
+     reference links as `VIP Club` from the footer — and which this site's
+     footer links there too. */
+  { label: 'VIP Prive', to: '/themes/vip-prive', icon: 'vip' },
+  { label: 'Baccarat', to: '/categories/baccarat', icon: 'baccarat' },
+  { label: 'Blackjack', to: '/categories/blackjack', icon: 'blackjack' },
+  { label: 'Roulette', to: '/categories/roulette', icon: 'roulette' },
   { label: 'Game Shows', to: '/categories/game-shows', icon: 'game-shows' },
+  { label: 'All Live Casino Games', to: '/categories/live-casino', icon: 'live' },
+];
+
+const GAMES = [
+  { label: 'Slots', to: '/categories/video-slots', icon: 'slots' },
+  /* Themes, not categories. Neither is a game type — one is five own-brand
+     titles and the other is every slot with a feature — and the reference
+     files both under `/themes/`. The spellings are its own: `Bitcasino`
+     without the inner capital, and `Buy-in` with a lower-case `i`. */
+  { label: 'Bitcasino Exclusives', to: '/themes/bitcasino-exclusives', icon: 'bitcasino-exclusive' },
   { label: 'Jackpots', to: '/categories/jackpots', icon: 'jackpots' },
+  { label: 'Crash & Instant', to: '/categories/crash', icon: 'crash' },
+  { label: 'Bonus Buy-in', to: '/themes/bonus-buy-in', icon: 'bonus-buy' },
+  { label: 'Table Games', to: '/categories/table-games', icon: 'table-games' },
+  { label: 'All Games', to: '/games', icon: 'all-games' },
 ];
 
 /**
@@ -260,7 +279,9 @@ function SidebarHeader({ collapsed, onToggle }) {
 
 export function SidebarNav({ onNavigate, recentsCount }) {
   const [liveOpen, setLiveOpen] = useState(true);
-  const [tip, handlers] = useRailTip();
+  const [gamesOpen, setGamesOpen] = useState(true);
+  const [liveTip, liveHandlers] = useRailTip();
+  const [gamesTip, gamesHandlers] = useRailTip();
 
   return (
     <>
@@ -268,8 +289,11 @@ export function SidebarNav({ onNavigate, recentsCount }) {
           reference — `min-h` rather than a fixed height. The rail drops it
           outright; there is no 56px-wide form of a 232px banner. */}
       <div className="px-3 pb-2 group-data-[collapsed=true]/rail:hidden">
+        {/* The card is the League artwork and its label says so, so it goes to
+            the League page rather than to the promotions index — the same fix
+            the home banner's first card needed. */}
         <Link
-          to="/promotions"
+          to="/promotions/league-of-bitcasino"
           onClick={onNavigate}
           className="relative block min-h-[78px] overflow-hidden rounded-xl focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-piccolo"
         >
@@ -310,10 +334,9 @@ export function SidebarNav({ onNavigate, recentsCount }) {
               type="button"
               onClick={() => setLiveOpen((open) => !open)}
               aria-expanded={liveOpen}
-              {...handlers}
+              {...liveHandlers}
               className={cn(ROW, 'rounded-xl text-bulma hover:bg-heles')}
             >
-              <NavIcon name="live-games" />
               <span className={ROW_LABEL}>Live Games</span>
               <span className="ms-auto grid size-6 place-items-center rounded-md group-data-[collapsed=true]/rail:hidden">
                 <Icon
@@ -322,12 +345,42 @@ export function SidebarNav({ onNavigate, recentsCount }) {
                   className={cn('text-bulma transition-transform', liveOpen && 'rotate-180')}
                 />
               </span>
-              <RailTip tip={tip}>Live Games</RailTip>
+              <RailTip tip={liveTip}>Live Games</RailTip>
             </button>
 
             {liveOpen && (
               <ul className="flex flex-col gap-1 group-data-[collapsed=true]/rail:hidden">
                 {LIVE_GROUP.map((item) => (
+                  <li key={item.to}>
+                    <NavItem item={item} onNavigate={onNavigate} />
+                  </li>
+                ))}
+              </ul>
+            )}
+          </li>
+
+          <li className="rounded-xl bg-gohan">
+            <button
+              type="button"
+              onClick={() => setGamesOpen((open) => !open)}
+              aria-expanded={gamesOpen}
+              {...gamesHandlers}
+              className={cn(ROW, 'rounded-xl text-bulma hover:bg-heles')}
+            >
+              <span className={ROW_LABEL}>Games</span>
+              <span className="ms-auto grid size-6 place-items-center rounded-md group-data-[collapsed=true]/rail:hidden">
+                <Icon
+                  name="chevron-down"
+                  size={16}
+                  className={cn('text-bulma transition-transform', gamesOpen && 'rotate-180')}
+                />
+              </span>
+              <RailTip tip={gamesTip}>Games</RailTip>
+            </button>
+
+            {gamesOpen && (
+              <ul className="flex flex-col gap-1 group-data-[collapsed=true]/rail:hidden">
+                {GAMES.map((item) => (
                   <li key={item.to}>
                     <NavItem item={item} onNavigate={onNavigate} />
                   </li>
@@ -413,42 +466,67 @@ export function Sidebar({ collapsed, onToggle, recentsCount }) {
   );
 }
 
-/** Slide-over variant used below the `md` breakpoint. */
+/**
+ * The below-`md` form of the column.
+ *
+ * This is **not** a slide-over drawer, which is what it was and what read as
+ * obviously not the reference. Measured off bitcasino.io's own phone layout at
+ * a 430px viewport, the mobile sidebar is a **full-width sheet that fills the
+ * gap between the header and the bottom tab bar**:
+ *
+ * ```
+ * fixed inset-x-0 top-(…,3.75rem) bottom-(…,3rem) z-40
+ * overflow-y-auto overscroll-none bg-sidebar p-2 max-md:pb-6
+ * ```
+ *
+ * Every part of that is load-bearing, and every part of it differed here:
+ *
+ * | | was | reference |
+ * | --- | --- | --- |
+ * | Width | a 256px drawer pinned to the start edge | the full viewport |
+ * | Height | `inset-y-0`, over the header and the tab bar | `top-15 bottom-12`, between them |
+ * | Scrim | `bg-zeno` at 40% | none at all |
+ * | Layer | `z-50`, above the tab bar | `z-40`, below it |
+ * | Brand row | a second logo and a close button | nothing — the header keeps the logo |
+ * | Entrance | a 200ms `translate-x` slide | none; it is mounted, not moved |
+ *
+ * The reference mounts this on open and unmounts it on close — the node is
+ * simply absent from the DOM otherwise, its `transform` is `none` at every
+ * frame and there is no transition on it, so the early return below is the
+ * behaviour rather than an optimisation.
+ *
+ * With no scrim and no close button there are three ways out, and they are the
+ * reference's three: press `Menu` in the tab bar again (it toggles — see
+ * `Layout`), follow any link in the sheet, or press Escape. The tab bar stays
+ * above the sheet and stays live, which is the point of `z-40`, and is also
+ * why this carries no `aria-modal` — nothing here is modal.
+ *
+ * The 4px where the sheet's top overlaps the 64px header is the reference's
+ * own: it opens at 3.75rem under a `h-16` bar. Both surfaces are `goku`, and
+ * the sheet's `p-2` starts its content below the bar regardless.
+ *
+ * Nothing inside changes. `SidebarNav` and `SidebarFooter` are the same
+ * components the desktop column renders, with the same 40px rows and 36px
+ * shortcut pills the reference measures at both widths — only the box they sit
+ * in was wrong. Without `group/rail` above them, every `group-data-[collapsed]`
+ * variant is inert, so the sheet always draws the full-width form.
+ */
 export function MobileSidebar({ open, onClose, recentsCount }) {
+  if (!open) return null;
+
   return (
     <div
-      className={cn('fixed inset-0 z-50 md:hidden', !open && 'pointer-events-none')}
-      aria-hidden={!open}
+      className={cn(
+        'fixed inset-x-0 top-15 bottom-12 z-40 md:hidden',
+        'overflow-y-auto overscroll-none bg-goku p-2 pb-6',
+      )}
     >
-      <div
-        onClick={onClose}
-        className={cn(
-          'absolute inset-0 bg-zeno transition-opacity duration-200',
-          open ? 'opacity-100' : 'opacity-0',
-        )}
-      />
-      <div
-        role="dialog"
-        aria-modal="true"
-        aria-label="Navigation"
-        className={cn(
-          'absolute inset-y-0 start-0 flex w-64 max-w-[calc(100vw-10px)] flex-col bg-goku shadow-xl',
-          'transition-transform duration-200 ease-out',
-          open ? 'translate-x-0' : '-translate-x-full',
-        )}
-      >
-        <div className="flex h-16 shrink-0 items-center justify-between px-3">
-          <Logo />
-          <button
-            type="button"
-            onClick={onClose}
-            aria-label="Close navigation menu"
-            className="grid size-10 place-items-center rounded-i-sm text-bulma hover:bg-heles"
-          >
-            <Icon name="close" size={22} />
-          </button>
-        </div>
-        <div className="no-scrollbar min-h-0 flex-1 overflow-y-auto">
+      {/* `min-h-full` on a flex column is what pins the footer to the bottom of
+          a short sheet and lets a tall one scroll past it — the reference's own
+          arrangement, and the reason the outer box owns the scroll rather than
+          the link list. */}
+      <div className="flex min-h-full w-full flex-col">
+        <div className="no-scrollbar flex min-h-0 flex-1 flex-col">
           <SidebarNav onNavigate={onClose} recentsCount={recentsCount} />
         </div>
         <SidebarFooter />

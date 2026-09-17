@@ -35,7 +35,7 @@ import { readFileSync, existsSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 
-import { EVENTS } from '../src/lib/socketEvents.js';
+import { EVENTS, LITERAL_EVENTS } from '../src/lib/socketEvents.js';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const BACKEND_EVENTS = join(HERE, '..', '..', '..', 'backend', 'packages', 'socket', 'src', 'events.js');
@@ -61,6 +61,21 @@ const source = readFileSync(BACKEND_EVENTS, 'utf8');
 const backend = new Map();
 for (const match of source.matchAll(/^\s{2}([A-Z0-9_]+):\s*"([^"]+)"/gm)) {
   backend.set(match[1], match[2]);
+}
+
+/**
+ * The LITERAL table, which is a separate export and is quoted differently.
+ *
+ * `EVENTS` holds hashes in DOUBLE quotes; `LITERAL_EVENTS` holds plain names
+ * in SINGLE ones. Both live in the same file at the same indentation, so the
+ * quote character is the only thing the regex above has to tell them apart by
+ * — which is also why a literal must never be added to the client's `EVENTS`:
+ * it would be reported as "not in the backend table at all" by a check that
+ * structurally cannot see it.
+ */
+const backendLiterals = new Map();
+for (const match of source.matchAll(/^\s{2}([A-Z0-9_]+):\s*'([^']+)'/gm)) {
+  backendLiterals.set(match[1], match[2]);
 }
 
 if (backend.size === 0) {
@@ -90,6 +105,26 @@ for (const [name, hash] of Object.entries(EVENTS)) {
   }
 
   console.log(`  ${green('✓')} ${name} ${dim(hash)}`);
+}
+
+for (const [name, wire] of Object.entries(LITERAL_EVENTS)) {
+  const expected = backendLiterals.get(name);
+
+  if (expected === undefined) {
+    console.log(`  ${red('✗')} ${name} — not in the backend LITERAL table`);
+    failures += 1;
+    continue;
+  }
+
+  if (expected !== wire) {
+    console.log(`  ${red('✗')} ${name} — wire name does not match`);
+    console.log(`    ${dim('client ')} ${wire}`);
+    console.log(`    ${dim('backend')} ${expected}`);
+    failures += 1;
+    continue;
+  }
+
+  console.log(`  ${green('✓')} ${name} ${dim(`${wire}  (literal)`)}`);
 }
 
 console.log(`\n${'─'.repeat(70)}`);

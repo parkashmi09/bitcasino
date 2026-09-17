@@ -42,10 +42,19 @@
   --color-jackpot: rgb(var(--jackpot-primary));
   --color-jackpot-2: rgb(var(--jackpot-secondary));
 
-  /* Typography — DM Sans (body) + Space Grotesk (display), both SIL OFL. */
+  /* Typography — DM Sans (body) + Space Grotesk (headings), both SIL OFL. */
   --font-primary: "DM Sans", ui-sans-serif, system-ui, -apple-system,
     "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
   --font-secondary: "Space Grotesk", var(--font-primary);
+
+  /* The third family, used in exactly one place: the title set over a game
+     tile. The reference sets those in Big Shoulders Black — a condensed face
+     that fits a two-word name on one line at 22px inside a 140px tile, which
+     neither of the other two can. Also SIL OFL. `ui-sans-serif` is a poor
+     stand-in for a condensed face, so the stack falls back to the platform's
+     own narrow gothics before it gives up. */
+  --font-display: "Big Shoulders", "Arial Narrow", "Roboto Condensed",
+    var(--font-primary);
 
   /* Moon radius scale */
   --radius-i-xs: 0.25rem;

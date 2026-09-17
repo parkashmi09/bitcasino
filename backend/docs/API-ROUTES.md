@@ -601,7 +601,7 @@ attaches and the shape the handler answers with. Regenerate with
 
 | | |
 | --- | ---: |
-| Routes mounted | 588 |
+| Routes mounted | 589 |
 | Modules | 66 |
 | Answering outside the envelope | 55 |
 
@@ -913,11 +913,11 @@ the end of this appendix.
 | Method | Path | Guard | Response |
 |---|---|---|---|
 | `POST` | `/api/v1/casino/gis/callback/transactions` | `public` + rate-limited | **raw** `res.json(…)` |
+| `POST` | `/api/v1/casino/gis/launch-demo` | `public` + rate-limited | `201` `service.launchDemo(…)` |
 | `GET` | `/api/v1/casino/gis/freespins/bets` | `player` | `200` `service.freespinBets(…)` |
 | `GET` | `/api/v1/casino/gis/game-tags` | `player` | `200` `service.gameTags(…)` |
 | `GET` | `/api/v1/casino/gis/jackpots` | `player` | `200` `service.jackpots(…)` |
 | `POST` | `/api/v1/casino/gis/launch` | `player` | `201` `service.launch(…)` |
-| `POST` | `/api/v1/casino/gis/launch-demo` | `player` | `201` `service.launchDemo(…)` |
 | `GET` | `/api/v1/casino/gis/limits` | `player` | `200` `service.limits(…)` |
 | `GET` | `/api/v1/casino/gis/limits/freespin` | `player` | `200` `service.freespinLimits(…)` |
 | `GET` | `/api/v1/casino/gis/lobby` | `player` | `200` `service.lobby(…)` |
@@ -1121,7 +1121,7 @@ the end of this appendix.
 |---|---|---|---|
 | `GET` | `/internal/sports/wager/turnover/:userId` | `internal` | `200` `service.turnover(…)` |
 
-### user-service — :4001 (273 routes)
+### user-service — :4001 (274 routes)
 
 #### `affiliate`
 
@@ -1150,6 +1150,7 @@ the end of this appendix.
 | `POST` | `/api/v1/user/auth/login` | `public` + rate-limited | `200` `service.login(…)` |
 | `POST` | `/api/v1/user/auth/refresh` | `public` | `200` `service.refresh(…)` |
 | `POST` | `/api/v1/user/auth/register` | `public` + rate-limited | `201` `service.registerAndSignIn(…)` |
+| `POST` | `/api/v1/user/auth/reset-password` | `public` + rate-limited | `200` `service.resetPasswordWithCode(…)` |
 | `POST` | `/api/v1/user/auth/change-password` | `player` | `200` `{ ...result, message }` |
 | `POST` | `/api/v1/user/auth/logout` | `player` | `200` `service.logout(…)` |
 | `GET` | `/api/v1/user/auth/me` | `player` | `200` `service.me(…)` |

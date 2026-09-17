@@ -1,5 +1,13 @@
+import { useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { EVENTS, RATE_LIMIT_WINDOW_MS, SocketError, request } from '@/lib/socket';
+import {
+  EVENTS,
+  LITERAL_EVENTS,
+  RATE_LIMIT_WINDOW_MS,
+  SocketError,
+  request,
+  subscribe,
+} from '@/lib/socket';
 import { queryKeys } from '@/queries/keys';
 
 /**
@@ -233,6 +241,60 @@ export function useNotificationFeed({ enabled = true } = {}) {
     refetchInterval: backOffWhenLimited(NOTICE_POLL_MS),
     retry: false,
   });
+}
+
+/**
+ * The operator's live banner broadcast — `admin_notify`.
+ *
+ * Not a query, because there is nothing to read. It is the one surface in the
+ * app that is genuinely PUSHED: the four feeds above are polls (the platform
+ * answers them on request and broadcasts nothing), and this one arrives
+ * unasked and cannot be asked for.
+ *
+ * ═══════════════════════════════════════════════════════════════════════
+ * IT IS NOT PERSISTED ANYWHERE, WHICH IS WHY IT IS NOT A NOTIFICATION.
+ *
+ * `admin_notify` writes no row. A staff member sends it, every socket
+ * connected AT THAT MOMENT receives it, and it exists nowhere afterwards —
+ * not in a table, not in `useNotificationFeed` above, not on a reload. So it
+ * is deliberately routed to a transient banner and deliberately NOT folded
+ * into the notifications feed: putting it in a list that survives a refresh
+ * would claim a durability the platform does not provide, and the row would
+ * vanish the next time that list was actually fetched.
+ *
+ * `notifications.broadcast` in admin-service is the durable path — it writes
+ * a row and pushes over FCM — and that one surfaces through the bell.
+ * ═══════════════════════════════════════════════════════════════════════
+ *
+ * ═══════════════════════════════════════════════════════════════════════
+ * IT SPELLS THE FIELD `mesage`. ONE `s`. READ BOTH.
+ *
+ * The correctly-spelled key is sent alongside, which makes `message ?? mesage`
+ * look like the safe order — it is the wrong one to rely on alone. The typo
+ * is what every shipped client reads and what an older build sends BY ITSELF,
+ * so a reader that only understood `message` would go silently quiet against
+ * one. Taking whichever is present costs nothing and cannot regress.
+ * ═══════════════════════════════════════════════════════════════════════
+ *
+ * Cannot be triggered from this deployment: sending one needs a staff token,
+ * and staff login is blocked by the 2FA enrolment gate Phase 0 hit. The READ
+ * path is what the tests cover, in both spellings.
+ *
+ * @param {(notice: {text: string, at: number}) => void} onNotice
+ */
+export function useOperatorNotice(onNotice) {
+  useEffect(() => {
+    if (typeof onNotice !== 'function') return undefined;
+
+    return subscribe(LITERAL_EVENTS.ADMIN_NOTIFY, (payload) => {
+      /* No envelope at all on this one — it is emitted as a bare object, not
+         through the `ok()` wrapper every module event uses, so there is no
+         `status` to check. */
+      const text = String(payload?.message ?? payload?.mesage ?? '').trim();
+      if (!text) return;
+      onNotice({ text, at: Date.now() });
+    });
+  }, [onNotice]);
 }
 
 export { toBet };

@@ -18,7 +18,7 @@ BitCasino/
 │   │   │   │   ├── layout/         Header, Sidebar, Footer, Layout, Logo, ScrollToTop
 │   │   │   │   └── sections/       Hero, GameCard, GameRail, ThemeRail,
 │   │   │   │                       CategoryStrip, TrustSection, SeoContent,
-│   │   │   │                       ProviderRail, PromoGrid, VipBanner,
+│   │   │   │                       ProviderRail, PromotionList, VipBanner,
 │   │   │   │                       CryptoFeatures, AccessAnywhere,
 │   │   │   │                       GettingStarted, Testimonials
 │   │   │   ├── pages/              Home, Category, Providers, Provider, Play, NotFound
@@ -75,8 +75,9 @@ The rule: dependencies point inward — `pages` → `sections` → `ui`, never b
 | Path | Page | Notes |
 | --- | --- | --- |
 | `/` | `Home` | Hero signed out / promo banners signed in, then rails + editorial blocks |
-| `/categories/:slug` | `Category` | Game list, filtered by provider |
+| `/categories/:slug` | `Category` | Game list, filtered by provider, 35 a page. `baccarat`, `blackjack` and `roulette` are slices of `live-casino`, which covers all four and is the only one with a `Categories` dropdown — see `SLUG_EXTRA_TYPES` in `data/adapters/categories.js` |
 | `/games/:slug` | `Category` | Curated collection (`COLLECTIONS`), same view |
+| `/themes/:slug` | `Theme` | A set that cuts across type AND studio, so it offers both dropdowns. Four of them, from `adapters/themes.js`: `live-exclusives`, `vip-prive` and `bitcasino-exclusives` are curated lists; `bonus-buy-in` is a rule over the `bonusBuy` flag |
 | `/providers` | `Providers` | Studio index |
 | `/providers/:slug` | `Provider` | One studio, game list filtered by category |
 | `/play/:category/:slug` | `Play` | Game frame placeholder + similar rail |
@@ -84,7 +85,13 @@ The rule: dependencies point inward — `pages` → `sections` → `ui`, never b
 | `/register` | `SignUp` | Split screen — **outside `Layout`** |
 | `/tournaments` | `Tournaments` | Active / Coming soon / Finished, over `data/tournaments.js` |
 | `/tournaments/all/:filter` | `TournamentList` | `current` and `past` — the index's two `See all` targets |
-| `/promotions`, `/vip` | redirect | Stubs — redirect to `/` |
+| `/promotions` | `Promotions` | The list of campaigns, over `PROMO_PAGES` then `PROMOTIONS` |
+| `/promotions/participations` | `Participations` | The reference's second tab. No participation record exists on the platform, so the count is 0; the player's own bonus log sits under it |
+| `/promotions/league-of-bitcasino` | `League` | The campaign the home banner and the sidebar's promo card point at, over `data/league.js` |
+| `/promotions/weekly-rakeback-2026` | `WeeklyRakeback` | The home banner's middle card. Hero and title only — the reference's own body for this campaign is empty |
+| `/promotions/spin-the-wheel` | `SpinWheel` | The wheel over `/spin-wheel/*`, on a promotion page of its own — it used to be a panel on the index |
+| `/promotions/:slug` | redirect | Every other campaign slug → `/promotions`; nothing on the platform describes one |
+| `/vip` | `Vip` | Level, wager progress and the three periodic bonuses, over `GET /user/bonus`. NOT the sidebar's `VIP Prive` row — that is `/themes/vip-prive`, the high-limit room. The reference keeps the two apart the same way and links this one as `VIP Club` from the footer |
 | `/forgot-password` | redirect | Stub — redirects to `/login` |
 | `/terms`, `/privacy` | redirect | Stubs — redirect to `/register` |
 | `*` | `NotFound` | |

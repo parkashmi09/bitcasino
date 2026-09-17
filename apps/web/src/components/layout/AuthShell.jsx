@@ -360,8 +360,29 @@ function MarketingPanel({ image, title, benefits }) {
  * its login document paints the form with the page. The motion on these two
  * screens is the shake on a refused credential and the spinner in the submit,
  * both of which are reactions to something the visitor did.
+ *
+ * ## `providers`
+ *
+ * Defaults to true, which is Log in and Sign Up — both of which the reference
+ * draws with the social row and the `or` rule above the form.
+ *
+ * It is false on exactly one screen: password recovery. Offering "Continue
+ * with Google" to somebody who is three steps into proving they own an
+ * EMAIL-AND-PASSWORD account is not an alternative route to the same place —
+ * a social identity is a different account — and the `or` rule above it
+ * actively implies the form below is one of two ways to finish. Recovery has
+ * no second way. The flag exists rather than a second shell so the panel,
+ * the logo gap, the heading size and the marketing column stay one thing.
  */
-export function AuthShell({ heading, image, title, benefits, footer, children }) {
+export function AuthShell({
+  heading,
+  image,
+  title,
+  benefits,
+  footer,
+  providers = true,
+  children,
+}) {
   return (
     <div className="flex h-dvh overflow-hidden bg-goku">
       <div className="no-scrollbar h-full w-full overflow-y-auto bg-goku p-4 md:w-[380px] md:shrink-0 md:p-5">
@@ -378,24 +399,28 @@ export function AuthShell({ heading, image, title, benefits, footer, children })
               </h1>
             </div>
 
-            {/* 1fr 1fr auto: two named providers, then the overflow button. */}
-            <div className="grid w-full grid-flow-col grid-cols-2 gap-1">
-              {PROVIDERS.map((provider) => (
-                <Button key={provider.label} variant="secondary" className={PROVIDER_BUTTON}>
-                  <img src={provider.icon} alt="" width={20} height={20} className="size-5 shrink-0" />
-                  {provider.label}
-                </Button>
-              ))}
-              <MoreProviders />
-            </div>
+            {providers && (
+              <>
+                {/* 1fr 1fr auto: two named providers, then the overflow button. */}
+                <div className="grid w-full grid-flow-col grid-cols-2 gap-1">
+                  {PROVIDERS.map((provider) => (
+                    <Button key={provider.label} variant="secondary" className={PROVIDER_BUTTON}>
+                      <img src={provider.icon} alt="" width={20} height={20} className="size-5 shrink-0" />
+                      {provider.label}
+                    </Button>
+                  ))}
+                  <MoreProviders />
+                </div>
 
-            <div className="grid grid-flow-col grid-cols-[1fr_auto_1fr] items-center gap-2">
-              <hr className="h-px border-0 bg-beerus" />
-              <span className="text-[10px] leading-[15px] tracking-[1px] text-trunks uppercase">
-                or
-              </span>
-              <hr className="h-px border-0 bg-beerus" />
-            </div>
+                <div className="grid grid-flow-col grid-cols-[1fr_auto_1fr] items-center gap-2">
+                  <hr className="h-px border-0 bg-beerus" />
+                  <span className="text-[10px] leading-[15px] tracking-[1px] text-trunks uppercase">
+                    or
+                  </span>
+                  <hr className="h-px border-0 bg-beerus" />
+                </div>
+              </>
+            )}
 
             {children}
           </div>

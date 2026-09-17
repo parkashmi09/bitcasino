@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 27 640 265" width="700" height="290" role="img" aria-label="VIP club">
+  <defs>
+    <linearGradient id="p" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="hsl(210 58% 20%)"/><stop offset="1" stop-color="hsl(210 62% 7%)"/>
+    </linearGradient>
+    <radialGradient id="pg" cx="0.76" cy="0.28" r="0.6">
+      <stop offset="0" stop-color="hsl(210 78% 46%)" stop-opacity="0.9"/>
+      <stop offset="1" stop-color="hsl(210 78% 46%)" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <rect width="640" height="320" fill="url(#p)"/>
+  <rect width="640" height="320" fill="url(#pg)"/>
+  <circle cx="486" cy="96" r="72" fill="#FFB319" opacity="0.92"/>
+  <circle cx="486" cy="96" r="46" fill="none" stroke="#fff" stroke-width="6" opacity="0.55"/>
+  <path d="M470 70h22a16 16 0 0 1 0 32h-22V70Zm0 32h26a17 17 0 0 1 0 34h-26v-34Z" fill="hsl(210 62% 7%)" opacity="0.8"/>
+  <path d="M-20 250 C 120 200 220 300 360 250 S 600 200 680 246 V320 H-20 Z" fill="hsl(59 88% 62%)" opacity="0.35"/>
+  <path d="M-557 -61v4M-559 -59h4" stroke="#fff" stroke-width="2.5" stroke-linecap="round" opacity="0.08"/><path d="M-428 -72v0M-428 -72h0" stroke="#fff" stroke-width="2.5" stroke-linecap="round" opacity="-0.04"/><path d="M-111 -85v0M-111 -85h0" stroke="#fff" stroke-width="2.5" stroke-linecap="round" opacity="-0.10"/><path d="M-222 -76v4M-224 -74h4" stroke="#fff" stroke-width="2.5" stroke-linecap="round" opacity="-0.13"/><path d="M-86 -15v8M-90 -11h8" stroke="#fff" stroke-width="2.5" stroke-linecap="round" opacity="0.01"/><path d="M6 17v2M5 18h2" stroke="#fff" stroke-width="2.5" stroke-linecap="round" opacity="-0.07"/>
+</svg>

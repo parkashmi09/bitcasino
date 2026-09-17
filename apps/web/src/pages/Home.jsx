@@ -63,9 +63,11 @@ import { HOME_RAILS, THEME_RAIL_INDEX } from '@/data/homeRails';
  * The reference folds the whole editorial tail (trust, game breakdown,
  * providers, promotions, the crypto explainer and the getting-started guide)
  * into `TrustSection`'s single collapsed panel rather than a run of separate
- * bands. `CategoryStrip`, `SeoContent`, `PromoGrid`, `VipBanner`,
- * `CryptoFeatures`, `AccessAnywhere` and `GettingStarted` still exist as
- * components, but the home page no longer renders them.
+ * bands. `CategoryStrip`, `SeoContent`, `VipBanner`, `CryptoFeatures`,
+ * `AccessAnywhere` and `GettingStarted` still exist as components, but the
+ * home page no longer renders them. (`PromoGrid` was one of them until
+ * `PROMOTIONS` was reshaped into promotion-list rows for `/promotions`; it
+ * rendered the `tone` and `cta` fields that shape no longer has.)
  */
 export function Home() {
   const { status } = useAuth();

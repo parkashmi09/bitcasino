@@ -50,6 +50,16 @@ const PATHS = {
   'chevron-up': 'M6 14.5l6-6 6 6',
   /* Paired chevrons, the reference's sort affordance — not a caret. */
   'sort': 'M8 10l4-4 4 4M8 14l4 4 4-4',
+  /* The filter toggle on a game list's heading row below `md`: two rails, a
+     knob on each, the top knob left and the bottom one right.
+
+     Copied verbatim from the reference's own button — `aria-label="Filters"`,
+     read off `bitcasino.io/categories/live-casino` in a phone context, which
+     is the only state that renders it. It is therefore on a 32 grid at a
+     1-unit stroke, not this file's 24 at 1.75, and it keeps them: see `GRID`
+     below for why rescaling a traced glyph is not free. */
+  'filters':
+    'M14 12.5C14 13.6046 13.1046 14.5 12 14.5C10.8954 14.5 10 13.6046 10 12.5M14 12.5C14 11.3954 13.1046 10.5 12 10.5C10.8954 10.5 10 11.3954 10 12.5M14 12.5H25.5M10 12.5H6.5M18 20.5C18 19.3954 18.8954 18.5 20 18.5C21.1046 18.5 22 19.3954 22 20.5M18 20.5C18 21.6046 18.8954 22.5 20 22.5C21.1046 22.5 22 21.6046 22 20.5M18 20.5L6.5 20.5M22 20.5H25.5',
   'menu-collapse':
     'M3 6H17M3 12H13M3 18H17M21 8L19.8462 8.87652C17.9487 10.318 17 11.0388 17 12C17 12.9612 17.9487 13.682 19.8462 15.1235L21 16',
   /* Header cluster — the reference's notification bell and its `Recents`
@@ -74,6 +84,10 @@ const PATHS = {
   'alert':
     'M12 2.25a9.75 9.75 0 1 0 0 19.5 9.75 9.75 0 0 0 0-19.5ZM11 6.75a1 1 0 1 1 2 0v6a1 1 0 1 1-2 0v-6ZM12 15.9a1.15 1.15 0 1 0 0 2.3 1.15 1.15 0 0 0 0-2.3Z',
   'headset': 'M5 14v-2a7 7 0 0 1 14 0v2M4 13.5h2.5v5H5a1 1 0 0 1-1-1v-4Zm16 0h-2.5v5H19a1 1 0 0 0 1-1v-4ZM17.5 18.5v.5a2.5 2.5 0 0 1-2.5 2.5h-2',
+  /* A speech bubble with its tail at the start edge, and three dots. Drawn on
+     the same 24 grid at the same 1.75 stroke as the rest — the reference has
+     no chat control to copy, so this matches the SET rather than a source. */
+  'chat': 'M6 4.5h12a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2h-5.5L8 19.5V15.5H6a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2ZM8.5 10h.01M12 10h.01M15.5 10h.01',
   // The refer page: copy the invite link, share it, and the face on its empty
   // state. Same 24x24 grid and 1.75 stroke as everything above.
   'copy': 'M9 9.5a2 2 0 0 1 2-2h6.5a2 2 0 0 1 2 2V16a2 2 0 0 1-2 2H11a2 2 0 0 1-2-2V9.5ZM15 7.5V8a2 2 0 0 0-2-2H6.5a2 2 0 0 0-2 2v6.5a2 2 0 0 0 2 2H7',
@@ -115,18 +129,37 @@ const SOLID = new Set(['wallet', 'alert']);
  */
 const EVENODD = new Set(['alert']);
 
+/**
+ * Glyphs authored on a grid other than this file's 24, with the stroke that
+ * grid was drawn for.
+ *
+ * Only traced icons belong here. A path copied from the reference is a set of
+ * exact numbers, and rescaling them to 24 means either rounding every
+ * coordinate — which moves the shape — or carrying three decimal places that
+ * nobody can check against the source. Keeping the original grid keeps the
+ * path byte-identical to what was read off the page, so it stays verifiable.
+ *
+ * The stroke travels with the grid: 1 unit on a 32 grid and 1.75 on a 24 are
+ * both drawn at the same weight once the glyph is scaled to its box, so a
+ * traced path on this project's default stroke would come out a third heavier
+ * than the reference draws it.
+ */
+const GRID = { filters: 32 };
+const STROKE = { filters: 1 };
+
 export function Icon({ name, size = 20, solid = false, className, ...props }) {
   const filled = solid || SOLID.has(name);
+  const grid = GRID[name] ?? 24;
 
   return (
     <svg
       width={size}
       height={size}
-      viewBox="0 0 24 24"
+      viewBox={`0 0 ${grid} ${grid}`}
       fill={filled ? 'currentColor' : 'none'}
       fillRule={EVENODD.has(name) ? 'evenodd' : undefined}
       stroke={filled ? 'none' : 'currentColor'}
-      strokeWidth={1.75}
+      strokeWidth={STROKE[name] ?? 1.75}
       strokeLinecap="round"
       strokeLinejoin="round"
       aria-hidden="true"

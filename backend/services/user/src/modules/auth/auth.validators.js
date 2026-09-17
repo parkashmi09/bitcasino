@@ -89,4 +89,39 @@ const changePassword = {
     }),
 };
 
-module.exports = { login, register, refresh, logout, changePassword, password, identifier };
+/**
+ * Finish a password reset with the code from `POST /email/otp`.
+ *
+ * `email`, not `identifier`. The OTP is issued against an ADDRESS — that is
+ * what `user_otps.email` stores and what the proof is keyed on — so accepting
+ * a username here would mean resolving it to an address first, and a username
+ * that happens to equal somebody else's email address is exactly the
+ * collision `#findByIdentifier` exists to avoid. The player typed the address
+ * to get the code; they still have it.
+ *
+ * `.strict()`, like every other schema here: an unexpected key is a 422
+ * rather than a silent drop, which is what stops a client sending
+ * `{email, code, password}` and wondering why nothing changed.
+ */
+const resetPassword = {
+  body: z
+    .object({
+      email: z.string().trim().toLowerCase().email('that is not a valid email address').max(190),
+      // Exactly six digits, matching `OTP_LENGTH` and the email module's own
+      // regex. A prefix of a code is not a code.
+      code: z.string().trim().regex(/^\d{6}$/, 'the code is 6 digits'),
+      newPassword: password,
+    })
+    .strict(),
+};
+
+module.exports = {
+  login,
+  register,
+  refresh,
+  logout,
+  changePassword,
+  resetPassword,
+  password,
+  identifier,
+};

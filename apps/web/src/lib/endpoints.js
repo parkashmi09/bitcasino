@@ -32,6 +32,64 @@ export const ENDPOINTS = {
   // Public: resolves somebody else's referral code before signup submits it.
   verifyReferral: `${USER}/profile/verify-referral/:referralCode`,
 
+  // ── Password recovery ───────────────────────────────────────────────
+  // Three public routes, in order. All three are rate-limited, and the
+  // limits differ because the risks do — see each one.
+  //
+  // ═══════════════════════════════════════════════════════════════════
+  // THE THIRD ROUTE IS NEW. THE FIRST TWO WERE UNREACHABLE WITHOUT IT.
+  //
+  // `/email/otp` and `/email/otp/verify` have existed since the port and
+  // neither had anything to hand its result to: nothing on the platform
+  // spent a `reset-password` proof, and `AuthService.completePasswordReset`
+  // — which does set a password — was exposed on no route and no socket
+  // event. So the platform could issue a recovery code, confirm it was
+  // correct, and then had no way to change the password.
+  //
+  // `POST /auth/reset-password` is that third leg. See
+  // `backend/services/user/src/modules/auth/routes/public.routes.js`.
+  // ═══════════════════════════════════════════════════════════════════
+
+  // Issue a code. `{email, purpose}`, where `purpose` is a z.enum and
+  // `reset-password` is the one this app sends.
+  //
+  // ANSWERS IDENTICALLY WHETHER OR NOT THE ADDRESS HAS AN ACCOUNT, and
+  // sends nothing in the second case. That is deliberate — distinguishing
+  // them turns this into an account-enumeration oracle — so the screen
+  // after it cannot say "check your inbox, we found you". It says what was
+  // done, not what was found.
+  //
+  // The code is NEVER in the response. Legacy's `POST /send-otp` answered
+  // `{message, otp}`; a one-time code the requester is handed is not a
+  // second factor.
+  //
+  // Limited to 5 a minute per IP, and separately to one per 120 seconds per
+  // address — `EMAIL_OTP_COOLDOWN` carries `details.retryAfterSeconds`,
+  // which is what the resend countdown is built from.
+  emailOtp: `${USER}/email/otp`,
+
+  // Check a code. `{email, purpose, code}` — exactly six digits, and a
+  // prefix of a code is a 422 rather than a near miss.
+  //
+  // Three attempts per code, then `EMAIL_OTP_TOO_MANY_ATTEMPTS` and the
+  // player must request another. On success the row is marked verified and
+  // is PROOF for 300 seconds — which is the window the next call has.
+  emailOtpVerify: `${USER}/email/otp/verify`,
+
+  // Set the new password. `{email, code, newPassword}`.
+  //
+  // The code is sent AGAIN, and that is not redundancy. The proof left by
+  // the verify step is keyed on the address alone; this route is
+  // unauthenticated, so without re-checking the code, any caller naming
+  // that address could set the password during the five minutes after a
+  // victim verified their own. Re-checking makes the proof a record that
+  // the code was used recently rather than a bearer credential.
+  //
+  // Answers `{reset, revokedSessions}` and **mints no session** — the
+  // service has just revoked every session on the account, and handing back
+  // a fresh one would re-open the door it closed. The player signs in.
+  resetPassword: `${USER}/auth/reset-password`,
+
   // ── Profile ─────────────────────────────────────────────────────────
   // One path, two verbs: GET answers the player's own record, PUT edits it.
   // PUT is `.strict()` on the backend and accepts `username`, `country` and

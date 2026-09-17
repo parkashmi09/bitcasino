@@ -3,6 +3,7 @@ import { api } from '@/lib/api';
 import { ENDPOINTS, path } from '@/lib/endpoints';
 import { toGames } from '@/data/adapters';
 import { CUT_SAMPLE, resolveCollection } from '@/data/adapters/collections';
+import { resolveTheme } from '@/data/adapters/themes';
 import { queryKeys } from './keys';
 import { fetchGameList } from './games';
 import { collectionQuery, gamesQuery } from './params';
@@ -130,6 +131,49 @@ export function useGameCollection(slug, { limit = 48 } = {}) {
     isPending: active.isPending,
     error: active.error ?? null,
     refetch: active.refetch,
+  };
+}
+
+/**
+ * One theme at `/themes/:slug`.
+ *
+ * Same shape as `useGameCollection` — `{games, label, isPending, error,
+ * refetch, notFound}` — so `Theme.jsx` and `Category.jsx` read alike.
+ *
+ * A theme is always a cut, never a platform read: it names its members and
+ * cuts across type and studio, which is a list `GET /casino/games` has no
+ * parameter for. See `data/adapters/themes.js`.
+ *
+ * It shares `useCutSource`, so a theme costs no request of its own on a page
+ * that has already read the catalogue — and, more to the point, the three
+ * badge cuts and every theme are one fetch between them rather than one each.
+ *
+ * @param {string} slug
+ */
+export function useTheme(slug) {
+  const theme = resolveTheme(slug);
+  const source = useCutSource({ enabled: Boolean(theme) });
+
+  if (!theme) {
+    return {
+      games: [],
+      label: null,
+      notFound: true,
+      isPending: false,
+      error: null,
+      refetch: () => {},
+    };
+  }
+
+  const rows = rowsOf(source.data, 'cut');
+
+  return {
+    games: rows === undefined ? undefined : theme.cut(toGames(rows)),
+    label: theme.label,
+    notFound: false,
+    isPending: source.isPending,
+    error: source.error ?? null,
+    refetch: source.refetch,
   };
 }
 
