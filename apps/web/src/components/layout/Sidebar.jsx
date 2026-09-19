@@ -172,25 +172,25 @@ function ShortcutBadge({ children }) {
  * `bulma`. The row is a shortcut strip, and it says so by not competing with
  * the navigation proper.
  *
- * ## One half navigates, one half does not
+ * ## Both halves navigate now
  *
  * `Recents` is a real link, to the same `/games/recent` the header's
  * `RecentsLink` points at — the reference wires both controls to one page, and
  * so does this. Its count comes from the same `useRecentlyPlayed` list that
  * page renders, so the badge can never disagree with what opening it shows.
  *
- * The star has nowhere to go: there is no favourites feature, which is the
- * half of this row `docs/11` has carried as a known gap. It is therefore a
- * plain element with no role, no tab stop and no hover — a number you can read
- * rather than a control that swallows the click, which is the same call the
- * account tab bar makes for `Tournaments`. Its `0` is a literal, and a true
- * one: with no way to favourite a game, nobody has any.
+ * The star is the same shape, to `/games/favourite` — the reference's own
+ * singular slug — and its count comes from `useFavourites`, the store the game
+ * page's own star writes to. That is the one part of the row that used to be
+ * inert: `docs/11` carried "no favourites feature" as a known gap, and the
+ * badge was a literal `0` because there was no way to make it anything else.
+ * Toggling a game now moves the badge and the page together.
  *
  * The rail drops the row outright, like the promo card above it: there is no
  * 56px form of two labelled pills, and the trailing hairline goes with it so
  * the collapsed column does not show two rules in a row.
  */
-function PlayerShortcuts({ recentsCount, onNavigate }) {
+function PlayerShortcuts({ recentsCount, favouritesCount, onNavigate }) {
   const { status } = useAuth();
 
   if (status !== 'authenticated') return null;
@@ -200,11 +200,15 @@ function PlayerShortcuts({ recentsCount, onNavigate }) {
   return (
     <>
       <div className="flex gap-2.5 px-3 pt-2 pb-4 group-data-[collapsed=true]/rail:hidden">
-        <div className={pill}>
+        <NavLink
+          to="/games/favourite"
+          onClick={onNavigate}
+          className={cn(pill, 'transition-colors hover:bg-beerus')}
+        >
           <span className="sr-only">Favourites</span>
           <Icon name="star" solid />
-          <ShortcutBadge>0</ShortcutBadge>
-        </div>
+          <ShortcutBadge>{favouritesCount}</ShortcutBadge>
+        </NavLink>
 
         <NavLink
           to="/games/recent"
@@ -277,7 +281,7 @@ function SidebarHeader({ collapsed, onToggle }) {
   );
 }
 
-export function SidebarNav({ onNavigate, recentsCount }) {
+export function SidebarNav({ onNavigate, recentsCount, favouritesCount }) {
   const [liveOpen, setLiveOpen] = useState(true);
   const [gamesOpen, setGamesOpen] = useState(true);
   const [liveTip, liveHandlers] = useRailTip();
@@ -309,7 +313,11 @@ export function SidebarNav({ onNavigate, recentsCount }) {
 
       <div className={HAIRLINE} />
 
-      <PlayerShortcuts recentsCount={recentsCount} onNavigate={onNavigate} />
+      <PlayerShortcuts
+        recentsCount={recentsCount}
+        favouritesCount={favouritesCount}
+        onNavigate={onNavigate}
+      />
 
       <nav aria-label="Main" className="p-2 px-3">
         <ul className="flex w-full flex-col gap-3 font-medium">
@@ -447,7 +455,7 @@ function SidebarFooter() {
  * against it, so one 200ms linear tween carries the whole column and the page
  * content reflowing beside it.
  */
-export function Sidebar({ collapsed, onToggle, recentsCount }) {
+export function Sidebar({ collapsed, onToggle, recentsCount, favouritesCount }) {
   return (
     <aside
       data-collapsed={collapsed}
@@ -459,7 +467,7 @@ export function Sidebar({ collapsed, onToggle, recentsCount }) {
     >
       <SidebarHeader collapsed={collapsed} onToggle={onToggle} />
       <div className="no-scrollbar min-h-0 flex-1 overflow-y-auto group-data-[collapsed=true]/rail:overflow-hidden">
-        <SidebarNav recentsCount={recentsCount} />
+        <SidebarNav recentsCount={recentsCount} favouritesCount={favouritesCount} />
       </div>
       <SidebarFooter />
     </aside>
@@ -511,7 +519,7 @@ export function Sidebar({ collapsed, onToggle, recentsCount }) {
  * in was wrong. Without `group/rail` above them, every `group-data-[collapsed]`
  * variant is inert, so the sheet always draws the full-width form.
  */
-export function MobileSidebar({ open, onClose, recentsCount }) {
+export function MobileSidebar({ open, onClose, recentsCount, favouritesCount }) {
   if (!open) return null;
 
   return (
@@ -527,7 +535,11 @@ export function MobileSidebar({ open, onClose, recentsCount }) {
           the link list. */}
       <div className="flex min-h-full w-full flex-col">
         <div className="no-scrollbar flex min-h-0 flex-1 flex-col">
-          <SidebarNav onNavigate={onClose} recentsCount={recentsCount} />
+          <SidebarNav
+            onNavigate={onClose}
+            recentsCount={recentsCount}
+            favouritesCount={favouritesCount}
+          />
         </div>
         <SidebarFooter />
       </div>

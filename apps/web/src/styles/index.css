@@ -173,6 +173,12 @@
 @keyframes bc-sheet-in-rtl  { from { transform: translateX(-100%) } to { transform: none } }
 @keyframes bc-sheet-out-rtl { from { transform: none } to { transform: translateX(-100%) } }
 
+/* A bottom sheet slides UP from the seat of the screen rather than in from a
+   side edge — the reference's `claim_reward_modal` over the cashier. Same
+   150ms as the rest. */
+@keyframes bc-up-in  { from { transform: translateY(100%) } to { transform: none } }
+@keyframes bc-up-out { from { transform: none } to { transform: translateY(100%) } }
+
 /* Spinner beside the route-loading bar — NProgress's own 400ms turn. */
 @keyframes bc-spin { from { transform: rotate(0deg) } to { transform: rotate(360deg) } }
 
@@ -185,6 +191,8 @@
   .animate-sheet-out   { animation: bc-sheet-out 150ms ease-in forwards; }
   [dir='rtl'] .animate-sheet-in  { animation-name: bc-sheet-in-rtl; }
   [dir='rtl'] .animate-sheet-out { animation-name: bc-sheet-out-rtl; }
+  .animate-up-in       { animation: bc-up-in 150ms ease-out; }
+  .animate-up-out      { animation: bc-up-out 150ms ease-in forwards; }
 }
 
 /* ---------------------------------------------------------------------------

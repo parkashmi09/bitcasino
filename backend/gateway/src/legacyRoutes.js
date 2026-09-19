@@ -1062,6 +1062,7 @@ const EXACT = {
   // ── casino/js-games — huidu.bet (v1) and games.ibitplay.com (v2) ────
   //
   // Both callback paths are configured on the PROVIDERS' side.
+  //launching callback
   'POST /jsGames/game/bet-callback': '/api/v1/casino/js-games/v1/bet-callback',
   'POST /jsGamesv2/bet-callback': '/api/v1/casino/js-games/v2/bet-callback',
 

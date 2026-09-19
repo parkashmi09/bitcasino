@@ -203,22 +203,22 @@ Inside: the field row (field, "Random Game", close), the category pills
 (`Chip variant="tint"` — All / Slots / Live Casino / Originals), then a
 scrolling area holding the count heading and the grid. Typing swaps the heading
 from "Most Popular Games" to "Results"; the badge beside it counts the whole
-list, not the loaded page. A search matching nothing shows the reference's
+list. A search matching nothing shows the reference's
 empty state — stacked-tile illustration, "Nothing found", a "Random Game"
 button — with the popular list still running underneath it, uncounted.
 
-Three pieces move between breakpoints, all of them the reference's:
+Two pieces move between breakpoints, all of them the reference's:
 
 - **Random Game** sits beside the field from `md`, and becomes a pill fixed
   above the safe area on a phone. While the empty state is up it leaves the
   row, because the empty state carries its own.
-- **Load more** is desktop-only. Below `md` the reference drops the button and
-  pages the list in as you reach the end of the scroller.
 - The empty-state illustration is hidden on a phone.
 
+The whole list renders in the scrolling area (the platform caps the underlying
+routes at 100), so the box scrolls without paging.
+
 Over the last row sits the reference's fade — `popo` to transparent at 50%,
-300ms — up while the scroller has further to go or a page is still unloaded,
-which is also what keeps the white "Load more" pill legible.
+300ms — up only while the scroller has further to go.
 
 Enter and leave are the reference's fade plus 95% zoom over 150ms
 (`animate-dialog-in` / `-out` in `styles/index.css`); the panel stays mounted
@@ -257,9 +257,9 @@ they read as controls rather than a third card), each ending in a 20px `goku`
 disc holding a count. `Recents` is a link to `/games/recent` — the same page the
 header's `RecentsLink` opens — and its badge is the length of that page's own
 list, fetched once in `Layout` and passed down, since `SidebarNav` is mounted
-twice at every width. The star is a readout: no favourites feature exists, so it
-has no role, no tab stop and no hover, and its `0` is true. The rail drops the
-whole row, second hairline included.
+twice at every width. The star is its twin now, to `/games/favourite`, with a
+count from `useFavourites` — the same store the game page's star writes to. The
+rail drops the whole row, second hairline included.
 
 **Collapsing** narrows the column to the reference's 56px icon rail — it never
 hides it. `width` is the only animated property, 256px → 56px over 200ms
@@ -798,9 +798,13 @@ project, not collected from real players.
 | `Category` | Game list for a category or a `COLLECTIONS` slug; owns the provider filter, derived from the studios actually present |
 | `Providers` | Studio index grid |
 | `Provider` | One studio's catalogue; owns the category filter, derived from the categories actually present |
-| `Play` | Breadcrumb, similar-games rail, unknown slugs — and one of **three** frames, chosen by what the game is. A playable original renders `LimboGame` (a real socket round on casino-service against the wallet); an original this client cannot yet draw says so, because the engine plays all twenty and only the client is missing; an aggregator title renders `ProviderFrame`, whose Fun/Real pair calls `POST /casino/gis/launch{,-demo}` and shows `GIS_NOT_CONFIGURED` as a state rather than a failure. `isPlayable` in `queries/play.js` is the single place that choice is made |
+| `Play` | The reference's shareable shell: `group/shell` with `data-view` of `min`/`expanded`/`fullscreen`, a `minmax(0,1fr)_386px` two-column grid from `xl`, and an aside holding the phone-only `game-info-mobile` twin plus `ProviderGames`. Unknown slugs get a not-found. Inside the card, one of **three** frames by what the game is: a playable original renders `LimboGame` (a real socket round on casino-service against the wallet) or `SignInToPlay` for a signed-out visitor; an original this client cannot yet draw says so, because the engine plays all twenty and only the client is missing; an aggregator title gets the Fun/Real launch frame. `isPlayable` in `queries/play.js` is the single place that choice is made |
 | `LimboGame` | The first in-house original. Stake and target multiplier, a string-safe ½/2×/Max, the payout preview net of the 2% house edge, the settled roll, and the player's own rounds read back from `GET /casino/bet-history?source=inhouse`. It does **not** claim provable fairness: `in-house/engine/hash.js` draws the hash alongside the result rather than committing to it beforehand, so the value is labelled as the round's identifier and nothing more |
-| `ProviderFrame` | The aggregator seam. Nothing is launched until a button is pressed — a launch writes a `gis_sessions` row and records a play. The iframe is sandboxed without `allow-same-origin`, so a provider page cannot reach this origin's storage and the access token in it |
+| `GamePanel` | The reference's `p-3 bg-secondary rounded-lg` card (here `bg-gohan`) — game area, toolbar, the `max-[420px]` mobile stats accordion and the desktop `GameInfo` copy. Owns the frame's launch state (moved from the retired `ProviderFrame`), so the toolbar's Fun/Real switch and the iframe it mounts are one decision. Nothing is launched until a button is pressed — a launch writes a `gis_sessions` row and records a play. The iframe is sandboxed without `allow-same-origin`, so a provider page cannot reach this origin's storage and the access token in it |
+| `GameInfo` — the info block (thumbnail, title, badges, description) plus the clamped SEO section with Show more; rendered twice, desktop in the card and the `md:hidden` `game-info-mobile` in the aside, sharing one copy |
+| `GameStats` — `gameMetrics` (provider, type, RTP, volatility, hit frequency, bonus buy) built in `gameStats.js`, surfaced in the info popover, the mobile accordion and the SEO table |
+| `GameActions` — Like and Favourite toggles, persisted per player in `localStorage`; the like heart prints a count but it is this player's own 0/1, because no likes table exists to draw a real aggregate from. The star writes through `useFavourites`, storing the whole game so the `/games/favourite` page can draw a tile without a request, and sharing one store with the sidebar badge |
+| `ProviderGames` | The aside's "More from {provider}" column — `useGames({ provider, limit })` with a Load More that steps `take` by 24 (capped at `MAX_LIMIT`), the studio's name handled with the `In-House → Bitcasino` label, and RTP printed over the every-game studio line |
 | `Refer` | `/profile/refer-a-friend` — the invite banner, the three-step explainer with its dotted connector, and a split between the referral list and a column of statistics and FAQ. The link, `Total Referrals` and `Total earned` are real: `GET /profile/referral`, `GET /affiliate/team`, `GET /affiliate/rewards` |
 | `Security` | `/profile/security` — three cards. The password card opens a `Change password` dialog over `POST /auth/change-password`. The two-factor card drives `/2fa/{status,enable,setup-verify,disable}` through a setup dialog (QR plus the base32 key, then a six-digit confirm) and a disable dialog that takes the code **and** the account password; it reads `hasInitiated` so an abandoned setup is a state it can name. The sessions card is `GET /auth/sessions` with a sign-out-everywhere over `POST /auth/logout {allSessions}` — the reference has no such card, and `docs/11` records the divergence |
 | `Transactions` | `/profile/transactions` — three tabs over `GET /user/history` (two separately-counted sides, not a flat list) and `GET /user/history/transfers`. Offset-based paging with Previous/Next, because `count` is per-side and no single total would be honest across the tabs. An unresolvable provider coin id renders as `coin #1280` rather than being guessed into a ticker |

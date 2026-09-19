@@ -5,7 +5,6 @@ import { Button } from '@/components/ui/Button';
 import { Chip } from '@/components/ui/Chip';
 import { Icon } from '@/components/ui/Icon';
 import { Skeleton } from '@/components/ui/Skeleton';
-import { useMediaQuery } from '@/hooks/useMediaQuery';
 import { useDebounced } from '@/hooks/useDebounced';
 import { useGames, useGameSearch } from '@/queries';
 import { cn } from '@/lib/cn';
@@ -29,13 +28,11 @@ import { cn } from '@/lib/cn';
  * pills, then the scrolling result area, which carries the count heading and
  * the grid. The grid steps 3 → 5 → 7 → 8 columns on the same four widths.
  *
- * Three pieces move between breakpoints, all of them the reference's:
+ * Two pieces move between breakpoints, all of them the reference's:
  *
  * - "Random Game" sits beside the field on `md`, and becomes a floating pill
  *   fixed above the safe area on a phone, where the field row has no space
  *   for it.
- * - "Load more" is a desktop affordance only. Below `md` the reference drops
- *   the button and pages the list in as you reach the end of the scroller.
  * - The empty state's card illustration is hidden on a phone, where the sheet
  *   is short enough that the message alone has to carry it.
  */
@@ -48,39 +45,22 @@ const FILTERS = [
   { value: 'originals', label: 'Originals' },
 ];
 
-/**
- * Games per page. The reference serves 30 against a catalogue of thousands;
- * this one holds 44, so the number is scaled to keep the behaviour — a first
- * page, a "Load more", then the rest — rather than the constant, which would
- * make the control dead code here.
- *
- * Paging is still client-side over one fetched list. `GET /games/search` takes
- * `q` and `limit` and has **no `page`**, so a real "next page of results" is
- * not something the route can answer; the fallback list is a `?type=` browse
- * that does page, but mixing the two paging models behind one "Load more"
- * would be worse than fetching one generous page of each.
- */
-const PAGE_SIZE = 16;
-
-/** Matches the dialog's enter/leave animations in index.css. */
 const ANIMATION_MS = 150;
 
 /**
  * How many rows each list asks for.
  *
  * The platform caps both routes at 100. The search route ranks nothing — it is
- * a `LIKE` over name and provider — so asking for the maximum and paging in
- * the dialog is the closest thing to "all the matches" available.
+ * a `LIKE` over name and provider — so asking for the maximum is the closest
+ * thing to "all the matches" available; the dialog shows them all and scrolls.
  */
 const FETCH_LIMIT = 100;
 
 export function SearchDialog({ open, onClose }) {
   const navigate = useNavigate();
-  const desktop = useMediaQuery('(min-width: 768px)');
 
   const [query, setQuery] = useState('');
   const [filter, setFilter] = useState('');
-  const [pages, setPages] = useState(1);
   // The panel stays mounted for one animation after `open` goes false, so the
   // reference's zoom-out is not cut off by React unmounting the tree.
   const [closing, setClosing] = useState(false);
@@ -140,8 +120,6 @@ export function SearchDialog({ open, onClose }) {
   // reference runs *under* the empty state rather than instead of it.
   const nothingFound = settled !== '' && !searching && !search.isError && results.length === 0;
   const list = settled === '' || nothingFound ? pool : results;
-  const visible = list.slice(0, pages * PAGE_SIZE);
-  const hasMore = visible.length < list.length;
   const loading = settled === '' ? popular.isPending : searching;
 
   // Opening: remember where focus came from, take it, and lock the page under
@@ -153,7 +131,6 @@ export function SearchDialog({ open, onClose }) {
     setClosing(false);
     setQuery('');
     setFilter('');
-    setPages(1);
 
     const { overflow } = document.body.style;
     document.body.style.overflow = 'hidden';
@@ -198,21 +175,10 @@ export function SearchDialog({ open, onClose }) {
     setAtEnd(el.scrollHeight - el.scrollTop - el.clientHeight < 8);
   }, []);
 
-  useLayoutEffect(measure, [measure, visible.length, open]);
-
-  const onScroll = () => {
-    measure();
-    const el = scrollRef.current;
-    // Below `md` the reference has no "Load more" — the next page arrives as
-    // you reach the end of the scroller instead.
-    if (!desktop && hasMore && el.scrollHeight - el.scrollTop - el.clientHeight < 240) {
-      setPages((page) => page + 1);
-    }
-  };
+  useLayoutEffect(measure, [measure, list.length, open]);
 
   const reset = (next) => {
     next();
-    setPages(1);
     scrollRef.current?.scrollTo({ top: 0 });
   };
 
@@ -347,7 +313,7 @@ export function SearchDialog({ open, onClose }) {
         <div className="relative min-h-0 flex-1">
           <div
             ref={scrollRef}
-            onScroll={onScroll}
+            onScroll={measure}
             className="no-scrollbar h-full overflow-y-auto pb-4"
           >
             {nothingFound && (
@@ -418,7 +384,7 @@ export function SearchDialog({ open, onClose }) {
                         <Skeleton className="aspect-[140/188] w-full rounded-i-sm" />
                       </li>
                     ))
-                  : visible.map((game) => (
+                  : list.map((game) => (
                       <li key={game.id}>
                         <GameCard game={game} className="w-full" />
                       </li>
@@ -427,37 +393,18 @@ export function SearchDialog({ open, onClose }) {
             )}
           </div>
 
-          {/* Fade over the last row, and the pill that sits on it. Both belong
-              to the scroll area rather than the grid, so they stay put while
-              it moves; the fade bleeds into the dialog's own padding. It says
-              "there is more" — so it is up while the scroller has further to
-              go *or* while a page is still unloaded, which is also what keeps
-              the white "Load more" pill legible. */}
+          {/* Fade over the last row. It belongs to the scroll area rather than
+              the grid, so it stays put while it moves; the fade bleeds into
+              the dialog's own padding. It says "there is more" — so it is up
+              while the scroller has further to go. */}
           <div
             aria-hidden="true"
             className={cn(
               'pointer-events-none absolute inset-x-[-1rem] bottom-0 z-2 h-16 rounded-i-sm',
               'bg-linear-to-t from-popo to-transparent transition-opacity duration-300',
-              atEnd && !hasMore ? 'opacity-0' : 'opacity-50',
+              atEnd ? 'opacity-0' : 'opacity-50',
             )}
           />
-
-          {hasMore && (
-            <div className="absolute inset-x-0 bottom-0 z-3 flex justify-center py-2 max-md:hidden">
-              <button
-                type="button"
-                onClick={() => setPages((page) => page + 1)}
-                className={cn(
-                  'inline-flex h-8 cursor-pointer items-center gap-1.5 rounded-full px-2.5',
-                  'border border-goten/30 bg-transparent text-sm font-medium text-goten',
-                  'backdrop-blur-2xl transition-colors hover:bg-goten/10 active:translate-y-px',
-                )}
-              >
-                Load more
-                <Icon name="chevron-down" size={16} />
-              </button>
-            </div>
-          )}
         </div>
       </div>
     </div>

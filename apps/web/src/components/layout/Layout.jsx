@@ -9,6 +9,7 @@ import { OperatorNotice } from './OperatorNotice';
 import { RouteErrorBoundary } from './ErrorBoundary';
 import { MobileBottomNav } from './MobileBottomNav';
 import { useRecentlyPlayed } from '@/hooks/useRecentlyPlayed';
+import { useFavourites } from '@/hooks/useFavourites';
 
 export function Layout() {
   const [menuOpen, setMenuOpen] = useState(false);
@@ -34,6 +35,15 @@ export function Layout() {
    */
   const { games, status: recentsStatus } = useRecentlyPlayed();
   const recentsCount = recentsStatus === 'ready' ? games.length : null;
+
+  /**
+   * The badge on the sidebar's favourites star. Unlike `recentsCount` this
+   * needs no request — `useFavourites` reads the device and answers `0` rather
+   * than `null` for a player with none — but it is subscribed here for the same
+   * reason: `SidebarNav` is mounted twice, and one store read up here feeds
+   * both the desktop column and the mobile sheet.
+   */
+  const { count: favouritesCount } = useFavourites();
 
   // Close the slide-over on navigation and lock scroll while it is open.
   useEffect(() => setMenuOpen(false), [pathname]);
@@ -61,6 +71,7 @@ export function Layout() {
         open={menuOpen}
         onClose={() => setMenuOpen(false)}
         recentsCount={recentsCount}
+        favouritesCount={favouritesCount}
       />
 
       {/* Search is a dialog over the current page, not a route — the reference
@@ -96,6 +107,7 @@ export function Layout() {
           collapsed={railCollapsed}
           onToggle={() => setRailCollapsed((collapsed) => !collapsed)}
           recentsCount={recentsCount}
+          favouritesCount={favouritesCount}
         />
 
         <div className="flex min-w-0 flex-1 flex-col">

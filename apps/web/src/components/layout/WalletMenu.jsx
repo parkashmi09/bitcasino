@@ -4,7 +4,7 @@ import { Skeleton } from '@/components/ui/Skeleton';
 import { Switch } from '@/components/ui/Switch';
 import { MenuPanel } from './HeaderMenu';
 import { usePopover } from '@/hooks/usePopover';
-import { useBalances, useDisplayCurrency } from '@/hooks/useWallet';
+import { useBalances, useBtcUnit, useDisplayCurrency } from '@/hooks/useWallet';
 import { CURRENCY_ORDER, currencyMeta } from '@/data/currencies';
 import { walletBalance } from '@/lib/format';
 import { cn } from '@/lib/cn';
@@ -32,7 +32,8 @@ import { cn } from '@/lib/cn';
  * the way to the screen (`walletBalance`). It is never invented and never
  * parsed — two places in the currency's DISPLAY unit, which is the reference's
  * own wallet denomination and why a Bitcoin balance reads `0.00 mBTC` here
- * rather than `0.00000000`. A wallet that has not answered yet shows a
+ * rather than `0.00000000` (or `0.00 μBTC` once the wallet drawer's Wallet
+ * settings `Bitcoin metric prefix` switch is flicked to micro). A wallet that has not answered yet shows a
  * skeleton rather than a zero, because a false zero beside a real account is
  * worse than no number.
  *
@@ -145,6 +146,16 @@ function pickList(balances, selected, hideZero) {
   );
 }
 
+/**
+ * What the wallet should print for a coin's display row: the weight of the
+ * player's chosen Bitcoin unit. Only Bitcoin carries one (`unit`/`shift` in
+ * `data/currencies.js`), so every other row passes through untouched — the
+ * cashier's `Bitcoin metric prefix` switch never re-labels a doge.
+ */
+function unitMeta(meta, btcUnit) {
+  return meta.unit ? { ...meta, unit: btcUnit, shift: btcUnit === 'μBTC' ? 6 : meta.shift } : meta;
+}
+
 export function WalletMenu({ onOpenDeposit }) {
   const { open, toggle, close, ref } = usePopover();
   const [currency, setCurrency] = useDisplayCurrency();
@@ -154,7 +165,9 @@ export function WalletMenu({ onOpenDeposit }) {
   // never stays where it was put.
   const [hideZero, setHideZero] = useState(false);
 
-  const meta = currencyMeta(currency);
+  const [btcUnit] = useBtcUnit();
+
+  const meta = unitMeta(currencyMeta(currency), btcUnit);
   const balance = walletBalance(balances[currency] ?? '0', meta);
   const list = pickList(balances, currency, hideZero);
 
@@ -267,7 +280,7 @@ export function WalletMenu({ onOpenDeposit }) {
                   narrower than a row. */}
               <ul className="grid min-h-0 flex-1 grid-cols-1 gap-1 overflow-y-auto p-4">
                 {list.map((code) => {
-                  const row = currencyMeta(code);
+                  const row = unitMeta(currencyMeta(code), btcUnit);
                   const active = code === currency;
                   const held = walletBalance(balances[code] ?? '0', row);
 

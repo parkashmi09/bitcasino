@@ -1,11 +1,15 @@
 import { useEffect, useId, useRef, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { Button } from '@/components/ui/Button';
+import { Dialog } from '@/components/ui/Dialog';
 import { Icon } from '@/components/ui/Icon';
+import { usePopover } from '@/hooks/usePopover';
 import { useReferral } from '@/hooks/useReferral';
 import {
   REFERRAL_FAQ,
   REFERRAL_FAQ_VISIBLE,
   REFERRAL_STEPS,
+  REFERRAL_TERMS,
   REFERRAL_TIERS,
 } from '@/data/referral';
 import { cn } from '@/lib/cn';
@@ -71,10 +75,11 @@ import { cn } from '@/lib/cn';
  */
 export function Refer() {
   const { link, referrals, earned, status } = useReferral();
+  const [termsOpen, setTermsOpen] = useState(false);
 
   return (
     <div className="grid gap-4">
-      <InviteBanner link={link} status={status} />
+      <InviteBanner link={link} status={status} onOpenTerms={() => setTermsOpen(true)} />
       <HowItWorks />
 
       <section className="flex flex-col gap-4 xl:flex-row">
@@ -92,6 +97,8 @@ export function Refer() {
           <Faq />
         </div>
       </section>
+
+      <ReferralTermsDialog open={termsOpen} onClose={() => setTermsOpen(false)} />
     </div>
   );
 }
@@ -115,7 +122,7 @@ export function Refer() {
  * column is dropped — the reference does the same, and a 290px card cannot
  * hold both a three-line heading and a picture on a phone.
  */
-function InviteBanner({ link, status }) {
+function InviteBanner({ link, status, onOpenTerms }) {
   return (
     <section className="relative flex w-full overflow-hidden rounded-3xl bg-[#fbf7f7] md:h-[290px]">
       <div className="relative z-1 flex w-full flex-col gap-6 px-6 py-6 md:w-3/4 md:gap-8">
@@ -127,15 +134,16 @@ function InviteBanner({ link, status }) {
 
         <p className="max-w-[420px] text-xs leading-4 text-trunks">
           By proceeding, I agree to the{' '}
-          {/* `/terms` is the stub route the reward cards' fine print already
-              points at — the reference has a referral-specific terms page this
-              project does not. */}
-          <a
-            href="/terms"
-            className="text-popo underline underline-offset-2 transition-colors hover:text-piccolo"
+          {/* The reference opens its terms in a dialog rather than sending the
+              player off the page, so the consent line is a button, not a link.
+              The terms themselves are `data/referral.js#referral-terms`. */}
+          <button
+            type="button"
+            onClick={onOpenTerms}
+            className="cursor-pointer text-popo underline underline-offset-2 transition-colors hover:text-piccolo"
           >
             Referral Terms &amp; Conditions
-          </a>{' '}
+          </button>{' '}
           and understand that anyone with my invite link will be aware I use
           Bitcasino.
         </p>
@@ -163,6 +171,45 @@ function InviteBanner({ link, status }) {
 }
 
 /**
+ * The reference's share menu: the four networks it offers, each with the
+ * network's own mark and web share intent.
+ *
+ * The marks are fetched off the reference's CDN, along with everything else on
+ * this page — see their row in `docs/07-assets.md`. The intents are the
+ * networks' own share endpoints, with one deviation worth naming: Messenger
+ * has no app-free web share URL — its Send Dialog demands an `app_id` and its
+ * `fb-messenger://` scheme is mobile-only — so that row points at Facebook's
+ * app-free sharer instead.
+ */
+const SHARE_TARGETS = [
+  {
+    id: 'telegram',
+    label: 'Share via Telegram',
+    icon: '/images/refer/share-telegram.png',
+    intent: (link) => `https://t.me/share/url?url=${encodeURIComponent(link)}`,
+  },
+  {
+    id: 'whatsapp',
+    label: 'Share via WhatsApp',
+    icon: '/images/refer/share-whatsapp.svg',
+    intent: (link) => `https://wa.me/?text=${encodeURIComponent(link)}`,
+  },
+  {
+    id: 'messenger',
+    label: 'Share via Messenger',
+    icon: '/images/refer/share-messenger.svg',
+    intent: (link) =>
+      `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(link)}`,
+  },
+  {
+    id: 'line',
+    label: 'Share via Line',
+    icon: '/images/refer/share-line.svg',
+    intent: (link) => `https://line.me/R/msg/?text=${encodeURIComponent(link)}`,
+  },
+];
+
+/**
  * The invite link and the two things you can do with it.
  *
  * `grid-cols-[2fr_1fr]` is the reference's: the link takes two thirds and
@@ -173,12 +220,41 @@ function InviteBanner({ link, status }) {
  * what the reference does, and it is why the URL inside it is a `<p>` rather
  * than an `<a>`: an anchor here would navigate the player to their own invite
  * page instead of putting it on their clipboard.
+ *
+ * `Share` opens the reference's four-network menu. It is `fixed`, not
+ * `absolute`: the banner's `overflow-hidden` clips anything absolute to the
+ * card, and a fixed panel measured off the trigger escapes it the same way
+ * `Sidebar`'s rail tip and the operator notice do — no portal.
  */
 function LinkRow({ link, status, className }) {
   const [copied, setCopied] = useState(false);
   const timer = useRef(null);
+  const { open, toggle, close, ref } = usePopover();
+  const [anchor, setAnchor] = useState(null);
 
   useEffect(() => () => window.clearTimeout(timer.current), []);
+
+  // A fixed panel needs the trigger's box at the moment the menu opens. It
+  // never repositions: the menu closes on the things that would un-moor it —
+  // a scroll, a resize, a click elsewhere, Escape.
+  useEffect(() => {
+    if (!open) return undefined;
+    const box = ref.current?.getBoundingClientRect();
+    if (!box) return undefined;
+    const panelWidth = 288; // `w-72` = 18rem, in px.
+    setAnchor({
+      top: box.bottom + 8,
+      left: Math.max(8, Math.min(box.right - panelWidth, window.innerWidth - panelWidth - 8)),
+    });
+    const detach = () => close();
+    window.addEventListener('resize', detach);
+    window.addEventListener('scroll', detach, true);
+    return () => {
+      setAnchor(null);
+      window.removeEventListener('resize', detach);
+      window.removeEventListener('scroll', detach, true);
+    };
+  }, [open, close, ref]);
 
   async function copy() {
     if (!link) return;
@@ -196,25 +272,10 @@ function LinkRow({ link, status, className }) {
     timer.current = window.setTimeout(() => setCopied(false), 1800);
   }
 
-  async function share() {
-    if (!link) return;
-    // The platform share sheet where there is one — a phone, mostly — and the
-    // clipboard everywhere else, which is what the control is for either way.
-    if (navigator.share) {
-      try {
-        await navigator.share({ title: 'Bitcasino', url: link });
-        return;
-      } catch {
-        // Dismissed, or refused. Fall through to the clipboard.
-      }
-    }
-    await copy();
-  }
-
   const label = status === 'loading' ? 'Loading your invite link…' : link;
 
   return (
-    <div className={cn('grid grid-cols-[2fr_1fr] items-center gap-2', className)}>
+    <div ref={ref} className={cn('grid grid-cols-[2fr_1fr] items-center gap-2', className)}>
       <button
         type="button"
         onClick={copy}
@@ -231,10 +292,44 @@ function LinkRow({ link, status, className }) {
         <Icon name={copied ? 'check' : 'copy'} size={20} className="text-popo" />
       </button>
 
-      <Button variant="secondary" onClick={share} disabled={!link} className="text-base">
+      <Button
+        variant="secondary"
+        onClick={toggle}
+        disabled={!link}
+        aria-haspopup="menu"
+        aria-expanded={open}
+        fullWidth
+        className="text-base"
+      >
         Share
         <Icon name="share" size={18} />
       </Button>
+
+      {open && anchor && (
+        <div
+          role="menu"
+          aria-label="Share your invite link"
+          style={{ top: anchor.top, left: anchor.left }}
+          className="fixed z-50 w-72 origin-top-right animate-menu-in rounded-i-md border-[0.8px] border-beerus bg-goku p-1 shadow-lg"
+        >
+          {SHARE_TARGETS.map((target) => (
+            <a
+              key={target.id}
+              role="menuitem"
+              href={target.intent(link)}
+              target="_blank"
+              rel="noreferrer"
+              onClick={close}
+              className="flex h-10 w-full items-center justify-between gap-2 rounded-i-sm px-2 text-sm text-bulma transition-colors hover:bg-heles"
+            >
+              <span className="flex items-center gap-2">
+                <img src={target.icon} alt="" className="size-6" />
+                <span>{target.label}</span>
+              </span>
+            </a>
+          ))}
+        </div>
+      )}
 
       {/* Announced without moving focus, which is the whole point of a copy
           confirmation — the player is about to paste, not to read the page. */}
@@ -567,4 +662,108 @@ function PrizeTable() {
       </table>
     </div>
   );
+}
+
+/* -------------------------------------------------------------------------- */
+/* Terms dialog                                                                */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * The "Referral Terms & Conditions" dialog the banner's consent line opens.
+ *
+ * The reference opens the same panel on both phones and desktops — a 520px
+ * card capped at 75% of the viewport (480px from `md` up, which is the
+ * reference's own number) that scrolls inside itself — so this rides the
+ * app's `Dialog`, which already scrolls the panel and locks the body behind
+ * it. The copy is `REFERRAL_TERMS` in `data/referral.js`, and the prize
+ * table is the same `PrizeTable` the FAQ answers with.
+ *
+ * The overview is one numbered list that runs through the table — the
+ * reference numbers clause 13 (`Bitcasino reserves the right…`) as 13, not as
+ * the restart after a table — so the list is drawn in two runs around it.
+ */
+function ReferralTermsDialog({ open, onClose }) {
+  return (
+    <Dialog
+      open={open}
+      onClose={onClose}
+      title="Refer a Friend Terms & Conditions"
+      width="max-w-[520px]"
+      maxHeight="max-h-[75%] md:max-h-[480px]"
+    >
+      <p className="text-sm leading-5 text-trunks">{REFERRAL_TERMS.intro}</p>
+
+      {REFERRAL_TERMS.sections.map((section) => (
+        <section key={section.heading} className="grid gap-3">
+          <h3 className="pt-2 text-base font-semibold text-bulma">{section.heading}</h3>
+          <TermsItemsList items={section.items} />
+        </section>
+      ))}
+    </Dialog>
+  );
+}
+
+/**
+ * A numbered clause list, split around the prize table when one is present so
+ * the numbering carries straight through it — the reference's own behaviour.
+ */
+function TermsItemsList({ items }) {
+  const tableAt = items.findIndex(
+    (item) => typeof item === 'object' && item && item.table,
+  );
+
+  if (tableAt === -1) {
+    return <OrderedTermsList items={items} />;
+  }
+
+  return (
+    <div className="grid gap-3">
+      <OrderedTermsList items={items.slice(0, tableAt)} />
+      <PrizeTable />
+      {/* `start` takes a 1-based number: the marker's index is the number of
+          clauses before it. */}
+      <OrderedTermsList items={items.slice(tableAt + 1)} start={tableAt + 1} />
+    </div>
+  );
+}
+
+function OrderedTermsList({ items, start }) {
+  return (
+    <ol
+      start={start}
+      className="grid list-decimal gap-2 ps-7 text-sm leading-5 text-trunks marker:text-piccolo"
+    >
+      {items.map((item, index) => (
+        <li key={index}>{termItem(item)}</li>
+      ))}
+    </ol>
+  );
+}
+
+/**
+ * A clause is a string, or an object carrying a link back into the site.
+ *
+ * The `typeof` guard is load-bearing. `String.prototype.link` is the legacy
+ * DOM method named `link`, so `item.link` on a plain string clause is a
+ * function and `if (item.link)` alone would send every string down the link
+ * branch and empty the list — each clause becoming an empty `<a>` to `to`
+ * of `undefined` (the current route). Legacy DOM methods are the reason the
+ * guard checks the value is an OBJECT before reading its `.link`.
+ */
+function termItem(item) {
+  if (typeof item === 'object' && item && item.link) {
+    return (
+      <>
+        {item.before}
+        <Link
+          to={item.link.to}
+          className="text-piccolo underline underline-offset-2 transition-colors hover:text-bulma"
+        >
+          {item.link.label}
+        </Link>
+        {item.after}
+      </>
+    );
+  }
+  return item;
 }

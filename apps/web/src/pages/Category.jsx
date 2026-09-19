@@ -3,7 +3,12 @@ import { Link, useParams, useSearchParams } from 'react-router-dom';
 import { GameList } from '@/components/sections/GameList';
 import { GameGridSkeleton, QueryError } from '@/components/ui/QueryState';
 import { categoryLabel } from '@/data/categories';
-import { categoryFromType, isCategorySlug, queryTypesFor } from '@/data/adapters/categories';
+import {
+  CATEGORY_SLUGS,
+  categoryFromType,
+  isCategorySlug,
+  queryTypesFor,
+} from '@/data/adapters/categories';
 import { useGames } from '@/queries';
 import { useGameCollection } from '@/queries/collections';
 
@@ -40,13 +45,21 @@ const PAGE_SIZE = 35;
  * table the request is, so the filter cannot offer a slice the page does not
  * actually contain.
  *
+ * ## Or the one page fixed to neither
+ *
+ * `/games` — the reference's All Games page — is not fixed to any axis, so
+ * both dropdowns show and the list starts whole, unfiltered across all ten
+ * categories and every studio. `mode="all"` reads no slug, disables the
+ * `isCategorySlug` guard and hands `covers` the full `CATEGORY_SLUGS` list so
+ * the Categories control has every category to narrow to.
+ *
  * The provider filter goes to the API on a category page (`?provider=`) and is
  * applied client-side on a collection page — a curated collection takes `page`
  * and `limit` and **nothing else**, so `?provider=` there is a 422 rather than
  * a narrower list. The collection is read whole and filtered here, which is
  * correct because a curated row is short by construction.
  *
- * @param {{mode: 'category' | 'collection'}} props
+ * @param {{mode: 'category' | 'collection' | 'all'}} props
  */
 export function Category({ mode = 'category' }) {
   const { slug } = useParams();
@@ -69,6 +82,11 @@ export function Category({ mode = 'category' }) {
    * and the request can never disagree about what the page contains.
    */
   const covers = useMemo(() => {
+    /* `/games` — the reference's All Games page — is fixed to no axis at all,
+       so the Categories dropdown offers every one of the ten, all the way from
+       `All Game Categories`. That is why it is the only mode with a dropdown
+       whose options are static rather than derived from `queryTypesFor`. */
+    if (mode === 'all') return CATEGORY_SLUGS;
     const types = queryTypesFor(slug ?? '');
     if (types.length <= 1) return [];
     return types
@@ -87,7 +105,7 @@ export function Category({ mode = 'category' }) {
        * exactly why they are the page's own type rather than a slice of it.
        */
       .filter((value) => value !== slug);
-  }, [slug]);
+  }, [mode, slug]);
 
   /**
    * The page number lives in `?page=`, as it does on the reference.
@@ -162,7 +180,7 @@ export function Category({ mode = 'category' }) {
      * Roulette would show the roulette tables *on that page* and call it the
      * whole list.
      */
-    category: subcategory || slug,
+    category: subcategory || (mode === 'all' ? undefined : slug),
     provider: provider || undefined,
     page,
     /**
@@ -174,7 +192,9 @@ export function Category({ mode = 'category' }) {
      * short by construction and its route takes no `page` worth using.
      */
     limit: PAGE_SIZE,
-    enabled: asCategory && isCategorySlug(slug),
+    /* With no slug there is nothing to validate against, so the `all` mode is
+       always on: `/games` has no `isCategorySlug` guard to pass. */
+    enabled: mode === 'all' || (asCategory && isCategorySlug(slug)),
   });
 
   /**
@@ -253,11 +273,15 @@ export function Category({ mode = 'category' }) {
     [covers],
   );
 
-  const title = asCategory
-    ? slug
-      ? categoryLabel(slug)
-      : 'All games'
-    : collection.label;
+  // `/games` is the reference's All Games page — its h1 reads `Games`, not
+  // `All games`, and stays put while the filters narrow the grid beneath it.
+  const title = mode === 'all'
+    ? 'Games'
+    : asCategory
+      ? (slug
+          ? categoryLabel(slug)
+          : 'All games')
+      : collection.label;
 
   // A `/games/:slug` that is neither a collection, a cut, nor a category.
   if (isCollectionRoute && collection.notFound) {
@@ -335,7 +359,14 @@ export function Category({ mode = 'category' }) {
             }
           : undefined
       }
-      breadcrumb={[{ label: 'Games', to: '/' }, { label: title }]}
+      /* The page its own crumb points at, so it gets just the one — `Games`
+         is where you are, not a stop on the way to it. The logo (home) opens
+         the trail either way. */
+      breadcrumb={
+        mode === 'all'
+          ? [{ label: 'Games' }]
+          : [{ label: 'Games', to: '/' }, { label: title }]
+      }
     />
   );
 }

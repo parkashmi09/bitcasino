@@ -4,6 +4,7 @@ import { Home } from '@/pages/Home';
 import { Category } from '@/pages/Category';
 import { Theme } from '@/pages/Theme';
 import { Recent } from '@/pages/Recent';
+import { Favourites } from '@/pages/Favourites';
 import { Providers } from '@/pages/Providers';
 import { Provider } from '@/pages/Provider';
 import { Play } from '@/pages/Play';
@@ -46,6 +47,7 @@ import { HelpArticle } from '@/pages/HelpArticle';
 import { OurLicense } from '@/pages/OurLicense';
 import { ScrollToTop } from '@/components/layout/ScrollToTop';
 import { RouteProgress } from '@/components/layout/RouteProgress';
+import { useDeferredLocation } from '@/hooks/useDeferredLocation';
 import { AuthProvider } from '@/auth/AuthProvider';
 import { RedirectIfAuthenticated, RequireAuth } from '@/auth/guards';
 
@@ -70,15 +72,27 @@ function ReferralLanding() {
   return <Navigate to={`/register?ref=${encodeURIComponent(code ?? '')}`} replace />;
 }
 
-export default function App() {
+/**
+ * The route tree, drawn from a deferred location.
+ *
+ * A synchronous SPA commits the destination the same frame a link is clicked,
+ * so without help the page would paint under a loading bar that is only just
+ * starting — the bar trailing a page that was already there. `Routes`
+ * therefore renders `useDeferredLocation()` instead of the router's own: the
+ * current page stays on screen while the bar runs to completion, and the
+ * destination commits and paints exactly when the bar unmounts. `RouteProgress`
+ * is outside `Routes` on purpose, so it still reads the real location and
+ * starts the moment the click lands.
+ */
+function AppRoutes() {
+  const display = useDeferredLocation();
+
   return (
-    <BrowserRouter>
-      <AuthProvider>
-        <ScrollToTop />
-        {/* Route-change loading bar. Outside Routes on purpose: the reference
-            shows it on every internal navigation, auth screens included. */}
-        <RouteProgress />
-        <Routes>
+    <>
+      {/* Route-change loading bar. Outside Routes on purpose: the reference
+          shows it on every internal navigation, auth screens included. */}
+      <RouteProgress />
+      <Routes location={display}>
           {/* Outside `Layout` on purpose: the reference drops the whole app
               shell on these two and splits the viewport instead.
 
@@ -157,6 +171,19 @@ export default function App() {
                 </RequireAuth>
               }
             />
+            {/* The sidebar star's destination, at the reference's own singular
+                slug (`href="/games/favourite"`). A static segment, like
+                `games/recent` above, so it outranks `games/:slug` and never
+                falls through to a collection read. Unguarded on purpose — the
+                list is on this device, so there is nothing to sign in for; see
+                `Favourites.jsx`. */}
+            <Route path="games/favourite" element={<Favourites />} />
+            {/* `/games` — the All Games page — is the one list fixed to no
+                axis: everything, filterable by category and provider. It is a
+                static segment, so React Router ranks it above `games/:slug`
+                and the sidebar's `All Games` row lands here instead of in
+                `NotFound`. */}
+            <Route path="games" element={<Category mode="all" />} />
             <Route path="games/:slug" element={<Category mode="collection" />} />
             {/* The reference's third list space. A theme is a hand-picked set
                 that cuts across type and studio, which is neither a category
@@ -286,6 +313,16 @@ export default function App() {
             <Route path="*" element={<NotFound />} />
           </Route>
         </Routes>
+      </>
+    );
+}
+
+export default function App() {
+  return (
+    <BrowserRouter>
+      <AuthProvider>
+        <ScrollToTop />
+        <AppRoutes />
       </AuthProvider>
     </BrowserRouter>
   );

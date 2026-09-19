@@ -5,9 +5,10 @@ import { findHelpCategory } from '@/data/helpArticles';
 function RichText({ parts }) {
   return parts.map((part, index) => {
     if (part.href) {
-      const isExternal = /^https?:\/\//i.test(part.href);
+      const isMailto = /^mailto:/i.test(part.href);
+      const isExternal = isMailto || /^https?:\/\//i.test(part.href);
       if (isExternal) {
-        return <a key={index} href={part.href} target="_blank" rel="noreferrer" className="font-bold underline hover:text-piccolo">{part.linkLabel}</a>;
+        return <a key={index} href={part.href} {...(isMailto ? {} : { target: '_blank', rel: 'noreferrer' })} className="font-bold underline hover:text-piccolo">{part.linkLabel}</a>;
       }
       return <Link key={index} to={part.href} className="font-bold underline hover:text-piccolo">{part.linkLabel}</Link>;
     }
@@ -52,14 +53,39 @@ function ContentBlocks({ blocks }) {
     if (block.type === 'image') return <div key={index} className="banner-image py-4"><img src={block.src} alt={block.alt || ''} width="850" height="850" className="h-auto max-w-full" loading="lazy" /></div>;
     if (block.type === 'subheading') return <h3 key={index}>{block.value}</h3>;
     if (block.type === 'list') return <ul key={index}>{block.values.map((value, itemIndex) => <li key={itemIndex}><ListItemContent item={value} /></li>)}</ul>;
-    if (block.type === 'ordered-list') return <ol key={index} className="list-decimal space-y-2 ps-7">{block.values.map((value, itemIndex) => <li key={itemIndex}><ListItemContent item={value} /></li>)}</ol>;
+    if (block.type === 'ordered-list') {
+      return (
+        <ol key={index} className="list-decimal space-y-2 ps-7">
+          {block.values.map((value, itemIndex) => (
+            <li key={itemIndex} className={value?.table ? 'space-y-4' : undefined}>
+              <ListItemContent item={value} />
+              {value?.table ? (
+                <div className="table-wrapper overflow-x-auto">
+                  <table className="min-w-full border-collapse text-left text-sm">
+                    <thead className="bg-gohan">
+                      <tr>{value.table.headers.map((header) => <th key={header} className="border border-beerus px-3 py-2 font-bold">{header}</th>)}</tr>
+                    </thead>
+                    <tbody>
+                      {value.table.rows.map((row) => (
+                        <tr key={row[0]}>{row.map((cell) => <td key={cell} className="border border-beerus px-3 py-2">{cell}</td>)}</tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              ) : null}
+            </li>
+          ))}
+        </ol>
+      );
+    }
     if (block.type === 'procedure') {
       return (
         <ol key={index} className="list-decimal space-y-4 ps-7">
           {block.values.map((item, itemIndex) => (
             <li key={itemIndex} className="space-y-4">
-              <ListItemContent item={typeof item === 'string' ? item : { parts: item.parts, text: item.text, bold: item.bold, prefix: item.prefix, href: item.href, linkLabel: item.linkLabel, suffix: item.suffix }} />
+              <ListItemContent item={typeof item === 'string' ? item : { parts: item.parts, text: item.text, bold: item.bold, prefix: item.prefix, href: item.href, linkLabel: item.linkLabel, suffix: item.suffix, note: item.note }} />
               {item.image ? <img src={item.image} alt={item.alt || ''} width="850" height="850" className="h-auto max-w-full" loading="lazy" /> : null}
+              {item.images?.map((src) => <img key={src} src={src} alt={item.alt || ''} width="850" height="850" className="h-auto max-w-full" loading="lazy" />)}
             </li>
           ))}
         </ol>

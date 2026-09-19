@@ -134,6 +134,65 @@ export function useFiatCurrency() {
 }
 
 /* ---------------------------------------------------------------------------
+ * The third wallet preference: which unit a Bitcoin balance reads in.
+ *
+ * The reference's cashier keeps this under `Currency` in its Wallet settings —
+ * `mBTC` (milli-BTC) or `μBTC` (micro-BTC, "bits") — and the site throughout
+ * is denominated in whichever is highlighted. Bitcoin's data row defaults to
+ * mBTC (`shift: 3`), so this store's default is the same value the code
+ * already renders, and picking μBTC restates the row with `shift: 6`.
+ *
+ * Like the two above: `localStorage`, no platform column, shared across every
+ * surface that reads it so flipping it here repaints them together. The seam is
+ * the one `docs/11` records for `bc.fiat`.
+ * ------------------------------------------------------------------------ */
+
+const BTC_UNIT_KEY = 'bc.btc-unit';
+
+/** The unit choices the cashier's `Bitcoin metric prefix` switch offers. */
+export const BTC_UNITS = ['mBTC', 'μBTC'];
+
+function readBtcUnit() {
+  try {
+    const stored = localStorage.getItem(BTC_UNIT_KEY);
+    return stored && BTC_UNITS.includes(stored) ? stored : BTC_UNITS[0];
+  } catch {
+    // Private mode, or storage disabled. mBTC is what the currency row says.
+    return BTC_UNITS[0];
+  }
+}
+
+let currentBtcUnit = null;
+const btcUnitListeners = new Set();
+
+const btcUnitStore = {
+  subscribe(listener) {
+    btcUnitListeners.add(listener);
+    return () => btcUnitListeners.delete(listener);
+  },
+  get() {
+    currentBtcUnit ??= readBtcUnit();
+    return currentBtcUnit;
+  },
+  set(unit) {
+    if (!BTC_UNITS.includes(unit) || unit === btcUnitStore.get()) return;
+    currentBtcUnit = unit;
+    try {
+      localStorage.setItem(BTC_UNIT_KEY, unit);
+    } catch {
+      // The choice still applies to this tab; it just will not outlive it.
+    }
+    for (const listener of btcUnitListeners) listener();
+  },
+};
+
+/** `[unit, setUnit]`, shared across every component that calls it. */
+export function useBtcUnit() {
+  const unit = useSyncExternalStore(btcUnitStore.subscribe, btcUnitStore.get, () => BTC_UNITS[0]);
+  return [unit, btcUnitStore.set];
+}
+
+/* ---------------------------------------------------------------------------
  * The balances refresh signal.
  *
  * ═════════════════════════════════════════════════════════════════════════

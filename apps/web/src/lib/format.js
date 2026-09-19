@@ -83,12 +83,14 @@ export function walletBalance(value, meta = {}) {
 }
 
 /**
- * The footer's `1 USDT = 94.779 INR` pair.
+ * The footer's `1 USDT = 83.333 INR` pair.
  *
  * `rate` is the target currency's `usdRate` as `GET /user/exchange-rate/rates`
- * answers it: a decimal STRING, because the column is one and a float is not.
- * It is parsed exactly once, here, to format a display string — never to carry
- * a balance, which is the rule `formatBalance` follows for the same reason.
+ * answers it: USD per ONE unit of that currency, a decimal STRING because the
+ * column is one and a float is not. The backend and its seed agree on that
+ * spelling — `INR` is seeded at `0.012` (₹1 = $0.012) and the swap module's
+ * own fixture says `1 INR = 0.012 USD`. The pair is the inverse of that,
+ * because it asks how many rupees one dollar buys: `1 / 0.012 = 83.333`.
  *
  * USDT is quoted rather than USD because it is the platform's account default
  * and what every fiat rail settles into, and it tracks the dollar 1:1 — so the
@@ -96,21 +98,24 @@ export function walletBalance(value, meta = {}) {
  * `1 USD = 1 USD`, which the fallback below does deliberately: with no rate to
  * hand, saying nothing more than the identity is better than printing a number
  * nobody answered.
+ *
+ * It is parsed exactly once, here, to format a display string — never to carry
+ * a balance, which is the rule `formatBalance` follows for the same reason.
  */
 export function fiatPair(fiat, rate) {
   const parsed = Number(rate);
   if (!Number.isFinite(parsed) || parsed <= 0) return `1 USDT = 1 USD`;
 
-  // Up to three places, trailing zeros dropped — `94.779`, but `1.5` not
-  // `1.500`. `en-US` is pinned so the separator does not follow the visitor's
-  // locale into a string the rest of the footer writes in English.
-  const amount = parsed.toLocaleString('en-US', { maximumFractionDigits: 3 });
+  // Up to three places, trailing zeros dropped — `83.333`, but `1` not `1.000`.
+  // `en-US` is pinned so the separator does not follow the visitor's locale
+  // into a string the rest of the footer writes in English.
+  const amount = (1 / parsed).toLocaleString('en-US', { maximumFractionDigits: 3 });
   return `1 USDT = ${amount} ${fiat}`;
 }
 
 /**
- * The grey second line under a balance in the wallet drawer — `₹0.00` beside
- * `0.00 USDT` on the reference.
+ * The grey second line under a balance in the wallet drawer — `₹8,333.33`
+ * beside `100.00 USDT` on the reference.
  *
  * This one DOES parse the balance, which everything above refuses to do, and
  * the difference is deliberate: it is a conversion, so it is already an
@@ -120,9 +125,10 @@ export function fiatPair(fiat, rate) {
  * balance is rendered separately and never from this.
  *
  * Both rates carry `usdRate` as `GET /user/exchange-rate/rates` answers it:
- * units of that currency per one US dollar — the reading `fiatPair` uses when
- * it prints `1 USDT = 94.779 INR`. So the value goes through the dollar:
- * `usd = amount / fromRate`, then `usd * toRate`.
+ * USD per ONE unit of the currency — `INR` is `0.012` (₹1 = $0.012), `BTC`
+ * `65000`. So the value goes through the dollar exactly as the backend's own
+ * `convert` does: `usd = amount × fromRate`, then `usd ÷ toRate` — `200 BTC ×
+ * 65000 ÷ 0.012 = ₹1,083,333,333.33`.
  *
  * Answers `null` — not a zero, and not the unconverted number — when either
  * leg is missing. A quote nobody supplied a rate for is worse than no quote.
@@ -141,10 +147,10 @@ export function formatFiat(value, fromRate, toRate, fiat) {
       style: 'currency',
       currency: fiat,
       maximumFractionDigits: 2,
-    }).format((amount / from) * to);
+    }).format((amount * from) / to);
   } catch {
     // An ISO code `Intl` does not know. The number is still worth showing.
-    return `${((amount / from) * to).toFixed(2)} ${fiat}`;
+    return `${((amount * from) / to).toFixed(2)} ${fiat}`;
   }
 }
 

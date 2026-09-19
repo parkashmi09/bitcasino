@@ -33,7 +33,7 @@ from so you can audit it before shipping.
 | `images/footer/licenses/cga.svg` | 1 | Drawn here, 146x92 (rendered 62x39) | Yours |
 | `images/categories/*` | 26 | Reference CMS nav icons, via `scripts/place-assets.mjs` — 7 of them are the account menu's rows | Reference site |
 | `images/ui/loyalty-beginner.png` | 1 | **Copied from the reference site** — the account menu's tier emblem | Reference site |
-| `images/refer/*` | 5 | **Copied from the reference site** — the refer page: the banner ground, its gold filigree, the megaphone render, and the two statistics icons | Reference site |
+| `images/refer/*` | 9 | **Copied from the reference site** — the refer page: the banner ground, its gold filigree, the megaphone render, the two statistics icons, and the four Share-menu network marks | Reference site |
 | `images/loyalty/*` | 28 | **Copied from the reference site** — the whole `/loyalty` sheet: banner, ground and filigree, 3 promise icons, 6 benefit renders, 7 tier emblems, 3 profit renders, and 6 pieces of line art | Reference site |
 | `images/auth/*` | 10 | **Copied from the reference site** — see below | Reference site / third-party marks |
 | `images/banners/league.png`, `weekly-rakeback.webp`, `game-of-the-week.webp`, `deposit-rewards.webp` | 4 | **Copied from the reference site** — see below | Reference site |
@@ -304,7 +304,7 @@ worth knowing: the Game of the Week art names a specific slot, so the blurb no
 longer names one of ours, or the picture and the caption would contradict each
 other.
 
-**The refer page** is the third verbatim clone. `images/refer/` holds five
+**The refer page** is the third verbatim clone. `images/refer/` holds nine
 files and `data/referral.js` carries the reference's own steps, prize table
 and FAQ answers word for word.
 
@@ -315,13 +315,23 @@ and FAQ answers word for word.
 | `speaker.png` | `.../refer-a-friend/speaker.svg` | the megaphone render |
 | `referral.png` | `.../refer-a-friend/referral.svg` | `Total Referrals` |
 | `earned.png` | `.../refer-a-friend/earned.svg` | `Total earned` |
+| `share-telegram.png` | `.../icons/telegram.png` | the Share menu's Telegram mark |
+| `share-whatsapp.svg` | `.../icons/whatsapp.svg` | the Share menu's WhatsApp mark |
+| `share-messenger.svg` | `.../icons/icon-messenger.svg` | the Share menu's Messenger mark |
+| `share-line.svg` | `.../icons/line.svg` | the Share menu's Line mark |
 
 Sources are `heathmont.imgix.net/bitcasino/images/`.
 
-> The last three are served as `.svg` and are not vectors: each is an SVG
-> wrapper around one base64 PNG, which is why they are 128-560 KB apiece on the
-> reference. imgix will not rasterise them (`fm=webp` returns the SVG
-> untouched), so the embedded PNG was extracted and saved directly — smaller
+The last four are the invitation share menu's network marks — registered
+trademarks, on the same footing as the Metamask and Google marks on `/login`,
+so they are listed here and must be replaced before shipping. They are real
+vectors (`telegram` is a raster, but only 4 KB at its natural size), not the
+base64-wrapped `.svg`s below.
+
+> The three `.svg` sources (`speaker`, `referral`, `earned`) are not vectors:
+> each is an SVG wrapper around one base64 PNG, which is why they are 128-560 KB
+> apiece on the reference. imgix will not rasterise them (`fm=webp` returns the
+> SVG untouched), so the embedded PNG was extracted and saved directly — smaller
 > than the wrapper, but still a 500px and a 1000px raster drawn at 128px, and
 > `earned.png` is 410 KB of it. **Downsample these three before shipping**;
 > the same known-inefficiency note applies as to `banners/league.png`.

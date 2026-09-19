@@ -29,8 +29,13 @@ import { cn } from '@/lib/cn';
  * RSC payload and the bar has something real to measure; this is a Vite SPA
  * with every route in one bundle, so navigation is synchronous and the bar
  * would otherwise mount and complete inside a single frame. The floor holds it
- * on screen long enough to read as the same control. It delays nothing — the
- * new page is already painted underneath it.
+ * on screen long enough to read as the same control.
+ *
+ * The bar is a signal, not a mechanism — new-route rendering is held OFF by
+ * `useDeferredLocation` (see `App.jsx`) until `ROUTE_TRANSITION_MS` runs out,
+ * so the page that was already on screen stays there during a load and the
+ * destination appears only as the bar disappears. `RouteProgress` only needs
+ * to run on time; the gate reads the same number.
  */
 
 /** NProgress's own starting value: the bar never shows an empty track. */
@@ -44,6 +49,13 @@ const TRICKLE_MS = 300;
 
 /** How long the bar runs before it is allowed to complete. See above. */
 const FLOOR_MS = 500;
+
+/**
+ * The whole run, mount to teardown. `useDeferredLocation` holds the old route
+ * on screen for exactly this long, so the destination lands the frame the bar
+ * unmounts.
+ */
+export const ROUTE_TRANSITION_MS = FLOOR_MS + SPEED * 2;
 
 /** Small, decelerating steps — the reference creeps rather than jumps. */
 const creep = (n) => Math.min(n + (1 - n) * (0.005 + Math.random() * 0.02), 0.994);

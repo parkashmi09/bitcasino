@@ -57,6 +57,11 @@ const ANIMATION_MS = 150;
  * @param {React.RefObject} [props.initialFocus] Focused on open — the first field.
  * @param {string} [props.width]     A max-width utility; the default is the 448px
  *                                   the reference uses for its account dialogs.
+ * @param {string} [props.maxHeight] A max-height utility; the default lets the
+ *                                   panel grow to the viewport. Callers with a
+ *                                   long body cap it (the terms dialog uses the
+ *                                   reference's own `md:max-h-[480px]`) and the
+ *                                   panel scrolls internally.
  */
 export function Dialog({
   open,
@@ -64,6 +69,7 @@ export function Dialog({
   title,
   initialFocus,
   width = 'max-w-[448px]',
+  maxHeight = 'max-h-[calc(100dvh-2rem)]',
   children,
 }) {
   const [closing, setClosing] = useState(false);
@@ -128,9 +134,10 @@ export function Dialog({
         aria-modal="true"
         aria-labelledby={titleId}
         className={cn(
-          'relative grid max-h-[calc(100dvh-2rem)] w-full gap-4 overflow-y-auto rounded-i-md bg-goku p-4',
+          'relative grid w-full gap-4 overflow-y-auto rounded-i-md bg-goku p-4',
           'shadow-lg ring-1 ring-bulma/10 outline-none',
           width,
+          maxHeight,
           leaving ? 'animate-dialog-out' : 'animate-dialog-in',
         )}
       >

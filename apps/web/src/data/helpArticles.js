@@ -5,7 +5,7 @@
  */
 export const HELP_ARTICLE_CATEGORIES = [
   {
-    slug: 'help-getting-started',title: 'Getting Started',articles: [
+    slug: 'help-getting-started', title: 'Getting Started', articles: [
       {
         slug: 'are-the-games-provably-fair--',
         title: 'Learn about Bitcasino Originals provably fair games',
@@ -293,43 +293,57 @@ export const HELP_ARTICLE_CATEGORIES = [
           { type: 'paragraph', value: 'To speed up the confirmation of your transaction, we advise you to use what the average recommended transaction fee is at that time. This will help your transaction to get at least 1 confirmation within 10 minutes, instead of a few hours.' },
           { type: 'subheading', value: 'Fiat' },
           { type: 'link-paragraph', prefix: 'For more information about different payment options, please click  ', href: '/help-center/help-payment-options', linkLabel: 'here.', },
-        ]}, 
-        {slug: 'what-is-the-maximum-withdrawal', title: 'What is the maximum withdrawal?', content: [
-        { type: 'paragraph', value: 'For withdrawals in cryptocurrencies, Bitcasino.io has no restrictions for the maximum withdrawal amount.' },
-        
-      ]}, 
-      {slug: 'what-is-the-maximum-deposit', title: 'What is the maximum deposit?', content: [
-        { type: 'paragraph', value: 'Bitcasino.io has no restrictions for the maximum deposit amount in cryptocurrency. However, we do encourage everyone to gamble responsibly and within their allocated means.' },
+        ]
+      },
+      {
+        slug: 'what-is-the-maximum-withdrawal', title: 'What is the maximum withdrawal?', content: [
+          { type: 'paragraph', value: 'For withdrawals in cryptocurrencies, Bitcasino.io has no restrictions for the maximum withdrawal amount.' },
 
-      ]
-      }, {slug: 'what-fees-do-i-pay', title: 'What fees do I pay?', content: [
-        { type: 'paragraph', value:'For bitcoin, altcoins and fiat transactions, we do not charge any fees. However, please note that your bank or payment service provider may charge you additional fees for deposits, withdrawals or currency conversion according to their terms and conditions and your user agreement.'},
-        { type: 'paragraph', value:'In some cases, we may charge an additional fee, but, if this happens, you will be informed about that during payment process.'},
-      ]}, 
-      
-      {slug: 'how-do-i-make-a-withdrawal', title: 'How do I make a withdrawal?', content: [
-        {type:'ordered-list',values:['Log in to Bitcasino.io.','Click on "Deposit"','Select the currency you wish to make a withdrawal with by clicking on “Active Balance” and choosing the currency you wish to use.','Once you’ve selected your preferred currency, make sure the tab below “Active Balance” has “Withdraw” as the highlighted tab.','Select the currency icon, choose the amount you wish to withdraw click on "Next"','Select the Network you wish to transmit these funds to','Enter your wallet address.','Click the Preview Withdraw button, check to ensure the details (destination address, network, currency and amount) are correct.','Click the "Confirm" button and your withdrawal request will be made. Note: If you have two-factor authentication enabled, you must enter the authenticator code to confirm.']}
-      ]},
-      {slug: 'how-is-my-transaction-confirmed', title: 'How is my transaction confirmed?', content: [
-        { type: 'paragraph', value:'All transaction confirmations come from the wallet provider, blockchain, and miners. The time it takes for a transaction to be confirmed depends on the blockchain and your transaction fee. It can take anywhere from 10 minutes to a few hours.'},
-        { type: 'paragraph', value:'Here are the number of transaction confirmations needed for each cryptocurrency we offer:'},
-        {type:'ordered-list',values:['The Open Network (TON) - 1 transaction confirmation','Ripple (XRP) - 1 transaction confirmation','Bitcoin (BTC) - 3 transaction confirmations','Dogecoin (DOGE) - 3 transaction confirmations','Litecoin (LTC) - 6 transaction confirmations','Cardano (ADA) - 10 transaction confirmations','Ethereum (ETH) - 12 transaction confirmations','Tether (USDT) - 12 transaction confirmations','USD Coin (USDC) - 12 transaction confirmations','Polygon (MATIC) - 12 transaction confirmations','Shiba Inu (SHIB) - 12 transaction confirmations','Build N Build (BNB) - 15 transaction confirmations','Tron (TRX) - 20 transaction confirmations.']},
-        { type: 'subheading', value:'How to check how many confirmations you have on your transaction'},
-        {type:'ordered-list',values:['Click on "Deposit" or (if on mobile) on your balance.','Go to "Recent Transactions" or "Transaction history" to see the status of your transaction. If it has the necessary amount of confirmations, the status will say "CONFIRMED"']},
-        { type: 'paragraph', value:''},
-      ]},
-      {slug: 'how-do-i-buy-crypto', title: 'How do I buy crypto?', content: [
-        {type:'ordered-list',values:['Log in to Bitcasino.io.','At the top right of the page, click Deposit. ','Under "Active Balance", choose the cryptocurrency you are interested in purchasing.','Select the "Buy Crypto" option on the slider (once highlighted, it will be selected)','You will see a selection of methods you can use to purchase cryptocurrency.','Choose the corresponding method, for additional help or instructions please check the following help centre articles: Credit/Debit/Apple Pay/Google Pay, Bitget','Proceed to complete the steps according to the payment method that you selected.']},
-          { type: 'link-paragraph', prefix: 'More information about depositing using various currencies and payment methods is available at the ', href: '/help-center/help-payment-options', linkLabel: 'Payment Options', suffix:' section.', }
-      ]},
-      {slug: 'how-do-i-make-a-deposit', title: 'How do I make a deposit?', content: [
-        {type:'ordered-list',values:['Log in to Bitcasino.io.','Click on "Deposit"','Select the currency you wish to make a withdrawal with by clicking on “Active Balance” and choosing the currency you wish to use.','Once you’ve selected your preferred currency, make sure the tab below “Active Balance” has “Withdraw” as the highlighted tab.','(Optional) Some currencies allow you to connect your wallet via available wallet providers, this allows more convenient methods for depositing.','Check the "Deposit Network" you have selected. Some currencies offer the ability to transfer funds using different networks (such as ERC20, TRC20 etc.)','Copy the one-time deposit address you will see below the currency drop-down list and use it in your wallet']},
-        { type: 'link-paragraph', prefix: 'N.B Please make sure to check that your deposit amount meets the', href: 'help-center/help-your-transactions/what-is-the-minimum-deposit', linkLabel: 'minimum deposit requirement,', suffix:'as otherwise it will not be credited.' },
-        
-        { type: 'paragraph', value:''},
-        { type: 'paragraph', value:''},
-        { type: 'paragraph', value:''},
-      ]},
+        ]
+      },
+      {
+        slug: 'what-is-the-maximum-deposit', title: 'What is the maximum deposit?', content: [
+          { type: 'paragraph', value: 'Bitcasino.io has no restrictions for the maximum deposit amount in cryptocurrency. However, we do encourage everyone to gamble responsibly and within their allocated means.' },
+
+        ]
+      }, {
+        slug: 'what-fees-do-i-pay', title: 'What fees do I pay?', content: [
+          { type: 'paragraph', value: 'For bitcoin, altcoins and fiat transactions, we do not charge any fees. However, please note that your bank or payment service provider may charge you additional fees for deposits, withdrawals or currency conversion according to their terms and conditions and your user agreement.' },
+          { type: 'paragraph', value: 'In some cases, we may charge an additional fee, but, if this happens, you will be informed about that during payment process.' },
+        ]
+      },
+
+      {
+        slug: 'how-do-i-make-a-withdrawal', title: 'How do I make a withdrawal?', content: [
+          { type: 'ordered-list', values: ['Log in to Bitcasino.io.', 'Click on "Deposit"', 'Select the currency you wish to make a withdrawal with by clicking on “Active Balance” and choosing the currency you wish to use.', 'Once you’ve selected your preferred currency, make sure the tab below “Active Balance” has “Withdraw” as the highlighted tab.', 'Select the currency icon, choose the amount you wish to withdraw click on "Next"', 'Select the Network you wish to transmit these funds to', 'Enter your wallet address.', 'Click the Preview Withdraw button, check to ensure the details (destination address, network, currency and amount) are correct.', 'Click the "Confirm" button and your withdrawal request will be made. Note: If you have two-factor authentication enabled, you must enter the authenticator code to confirm.'] }
+        ]
+      },
+      {
+        slug: 'how-is-my-transaction-confirmed', title: 'How is my transaction confirmed?', content: [
+          { type: 'paragraph', value: 'All transaction confirmations come from the wallet provider, blockchain, and miners. The time it takes for a transaction to be confirmed depends on the blockchain and your transaction fee. It can take anywhere from 10 minutes to a few hours.' },
+          { type: 'paragraph', value: 'Here are the number of transaction confirmations needed for each cryptocurrency we offer:' },
+          { type: 'ordered-list', values: ['The Open Network (TON) - 1 transaction confirmation', 'Ripple (XRP) - 1 transaction confirmation', 'Bitcoin (BTC) - 3 transaction confirmations', 'Dogecoin (DOGE) - 3 transaction confirmations', 'Litecoin (LTC) - 6 transaction confirmations', 'Cardano (ADA) - 10 transaction confirmations', 'Ethereum (ETH) - 12 transaction confirmations', 'Tether (USDT) - 12 transaction confirmations', 'USD Coin (USDC) - 12 transaction confirmations', 'Polygon (MATIC) - 12 transaction confirmations', 'Shiba Inu (SHIB) - 12 transaction confirmations', 'Build N Build (BNB) - 15 transaction confirmations', 'Tron (TRX) - 20 transaction confirmations.'] },
+          { type: 'subheading', value: 'How to check how many confirmations you have on your transaction' },
+          { type: 'ordered-list', values: ['Click on "Deposit" or (if on mobile) on your balance.', 'Go to "Recent Transactions" or "Transaction history" to see the status of your transaction. If it has the necessary amount of confirmations, the status will say "CONFIRMED"'] },
+          { type: 'paragraph', value: '' },
+        ]
+      },
+      {
+        slug: 'how-do-i-buy-crypto', title: 'How do I buy crypto?', content: [
+          { type: 'ordered-list', values: ['Log in to Bitcasino.io.', 'At the top right of the page, click Deposit. ', 'Under "Active Balance", choose the cryptocurrency you are interested in purchasing.', 'Select the "Buy Crypto" option on the slider (once highlighted, it will be selected)', 'You will see a selection of methods you can use to purchase cryptocurrency.', 'Choose the corresponding method, for additional help or instructions please check the following help centre articles: Credit/Debit/Apple Pay/Google Pay, Bitget', 'Proceed to complete the steps according to the payment method that you selected.'] },
+          { type: 'link-paragraph', prefix: 'More information about depositing using various currencies and payment methods is available at the ', href: '/help-center/help-payment-options', linkLabel: 'Payment Options', suffix: ' section.', }
+        ]
+      },
+      {
+        slug: 'how-do-i-make-a-deposit', title: 'How do I make a deposit?', content: [
+          { type: 'ordered-list', values: ['Log in to Bitcasino.io.', 'Click on "Deposit"', 'Select the currency you wish to make a withdrawal with by clicking on “Active Balance” and choosing the currency you wish to use.', 'Once you’ve selected your preferred currency, make sure the tab below “Active Balance” has “Withdraw” as the highlighted tab.', '(Optional) Some currencies allow you to connect your wallet via available wallet providers, this allows more convenient methods for depositing.', 'Check the "Deposit Network" you have selected. Some currencies offer the ability to transfer funds using different networks (such as ERC20, TRC20 etc.)', 'Copy the one-time deposit address you will see below the currency drop-down list and use it in your wallet'] },
+          { type: 'link-paragraph', prefix: 'N.B Please make sure to check that your deposit amount meets the', href: 'help-center/help-your-transactions/what-is-the-minimum-deposit', linkLabel: 'minimum deposit requirement,', suffix: 'as otherwise it will not be credited.' },
+
+          { type: 'paragraph', value: '' },
+          { type: 'paragraph', value: '' },
+          { type: 'paragraph', value: '' },
+        ]
+      },
       // {slug: 'what-fees-do-i-pay', title: 'What fees do I pay?', content: []},
     ],
   },
@@ -418,23 +432,27 @@ export const HELP_ARTICLE_CATEGORIES = [
           },
         ],
       },
-      { slug: 'casino-boosts', title: 'Casino Boosts', content:[
-        {type:'paragraph',value:'The Casino Boost feature enables you to boost your winnings during the boost period by the indicated percentage. If you have an available Casino Boost you will see a banner on the start page, which shows more details about the boost (boost percentage, time until the boost expires, eligible games).'},
-        {type:'paragraph',value:'The active boost period will start after you click the button next to the timer under a boost-compatible game. Upon activation of the boost, a timer will start ticking, and all wins you score within the boost period will be taken into account for the calculation of the boost reward.'},
-        {type:'paragraph',value:'The timer will stop when it reaches 0 or when the maximum boost amount is reached.'},
-        {type:'subheading',value:'Examples:'},
-        {type:'paragraph',value:'Player A has a 10% casino boost on any slot game available. The boost duration is 2 minutes and the maximum boost reward is 10 mBTC. Player A plays on a slot for two minutes and wins 30 mBTC. Player A can now claim his boost reward with the value of 3 mBTC (30 mBTC * 0.1 = 3 mBTC).'},
-        {type:'paragraph',value:'Player B has a 20% casino boost on any slot game available. The boost duration is 3 minutes and the maximum boost reward is 5 mBTC. Player B starts playing and immediately wins 100 mBTC. Because the boost amount has reached the 5 mBTC limit (100 mBTC * 0.2 = 20 mBTC), the timer stops immediately. Player B can now claim the maximum boost of 5 mBTC'},
-      ] },
-      { slug: 'how-do-i-enable-a-bonus-', title: 'How do I enable a reward?', content:[
-        {type:'paragraph',value:'You need to enable your reward before making a deposit, otherwise, your reward will not be activated.'},
-        {type:'paragraph',value:'To enable your reward:'},
-        {type:'ordered-list',values:['Click on the "Deposit" button, or on your current balance.','In the menu that opens, you can scroll down to find 2 options, "Claim reward" or "My Rewards".','"Claim reward" allows you to input a bonus code. Available rewards can be found by opening the "My Rewards" section.']},
-        {type:'paragraph',value:'Do take note:'},
-        {type:'list',values:['Each user can only have one reward enabled at one time.','You need to forfeit your current reward if you want to enable a new reward.']},
-        {type:'paragraph',value:''},
+      {
+        slug: 'casino-boosts', title: 'Casino Boosts', content: [
+          { type: 'paragraph', value: 'The Casino Boost feature enables you to boost your winnings during the boost period by the indicated percentage. If you have an available Casino Boost you will see a banner on the start page, which shows more details about the boost (boost percentage, time until the boost expires, eligible games).' },
+          { type: 'paragraph', value: 'The active boost period will start after you click the button next to the timer under a boost-compatible game. Upon activation of the boost, a timer will start ticking, and all wins you score within the boost period will be taken into account for the calculation of the boost reward.' },
+          { type: 'paragraph', value: 'The timer will stop when it reaches 0 or when the maximum boost amount is reached.' },
+          { type: 'subheading', value: 'Examples:' },
+          { type: 'paragraph', value: 'Player A has a 10% casino boost on any slot game available. The boost duration is 2 minutes and the maximum boost reward is 10 mBTC. Player A plays on a slot for two minutes and wins 30 mBTC. Player A can now claim his boost reward with the value of 3 mBTC (30 mBTC * 0.1 = 3 mBTC).' },
+          { type: 'paragraph', value: 'Player B has a 20% casino boost on any slot game available. The boost duration is 3 minutes and the maximum boost reward is 5 mBTC. Player B starts playing and immediately wins 100 mBTC. Because the boost amount has reached the 5 mBTC limit (100 mBTC * 0.2 = 20 mBTC), the timer stops immediately. Player B can now claim the maximum boost of 5 mBTC' },
+        ]
+      },
+      {
+        slug: 'how-do-i-enable-a-bonus-', title: 'How do I enable a reward?', content: [
+          { type: 'paragraph', value: 'You need to enable your reward before making a deposit, otherwise, your reward will not be activated.' },
+          { type: 'paragraph', value: 'To enable your reward:' },
+          { type: 'ordered-list', values: ['Click on the "Deposit" button, or on your current balance.', 'In the menu that opens, you can scroll down to find 2 options, "Claim reward" or "My Rewards".', '"Claim reward" allows you to input a bonus code. Available rewards can be found by opening the "My Rewards" section.'] },
+          { type: 'paragraph', value: 'Do take note:' },
+          { type: 'list', values: ['Each user can only have one reward enabled at one time.', 'You need to forfeit your current reward if you want to enable a new reward.'] },
+          { type: 'paragraph', value: '' },
 
-      ] },
+        ]
+      },
       {
         slug: 'bitcasino-bonus-system',
         title: 'Bitcasino Reward System',
@@ -644,7 +662,8 @@ export const HELP_ARTICLE_CATEGORIES = [
           },
         ],
       },
-      {slug: 'how-do-i-get-free-spins',title: 'How do I get free spins at Bitcasino?',content: [
+      {
+        slug: 'how-do-i-get-free-spins', title: 'How do I get free spins at Bitcasino?', content: [
           { type: 'paragraph', value: 'The excitement of slots certainly lies in the jackpot prizes and free spins! Here at Bitcasino, we want to offer players a fun, fast and fair gameplay experience.' },
           { type: 'paragraph', value: 'You can get free spins in 2 ways:' },
           {
@@ -696,15 +715,23 @@ export const HELP_ARTICLE_CATEGORIES = [
           },
         ],
       },
-      { slug: 'what-are-the-bonus-wagering-restrictions-', title: 'What are the reward wagering requirements?', content: [
-        { type: 'link-paragraph', prefix: 'In most cases, once you have claimed the reward, you need to wager it before withdrawing any winnings. For more information on reward wagering, please see the ', href: '/help-center/help-terms-and-conditions/bitcasino-reward-terms-conditions', linkLabel: 'Reward Terms and Conditions.'}
-      ] },
-      { slug: 'how-many-bonuses-can-i-use-at-once-', title: 'How many rewards can I use at once?', content: [{type:'paragraph',value
-        :'You can only have one active reward at any given time.'}] },
-      { slug: 'what-bonuses-am-i-eligible-for-', title: 'What rewards am I eligible for?', content: [
-        { type: 'link-paragraph', prefix:'In order to find out what rewards you can claim, please visit your ', href:'/profile/rewards',linkLabel: 'Rewards', suffix:' page.' },
-        { type: 'link-paragraph', prefix:'You may also check our ', href:'/promotions',linkLabel: 'Promotions', suffix:' page to see what offers are currently available and you can participate in.' },
-      ] }
+      {
+        slug: 'what-are-the-bonus-wagering-restrictions-', title: 'What are the reward wagering requirements?', content: [
+          { type: 'link-paragraph', prefix: 'In most cases, once you have claimed the reward, you need to wager it before withdrawing any winnings. For more information on reward wagering, please see the ', href: '/help-center/help-terms-and-conditions/bitcasino-reward-terms-conditions', linkLabel: 'Reward Terms and Conditions.' }
+        ]
+      },
+      {
+        slug: 'how-many-bonuses-can-i-use-at-once-', title: 'How many rewards can I use at once?', content: [{
+          type: 'paragraph', value
+            : 'You can only have one active reward at any given time.'
+        }]
+      },
+      {
+        slug: 'what-bonuses-am-i-eligible-for-', title: 'What rewards am I eligible for?', content: [
+          { type: 'link-paragraph', prefix: 'In order to find out what rewards you can claim, please visit your ', href: '/profile/rewards', linkLabel: 'Rewards', suffix: ' page.' },
+          { type: 'link-paragraph', prefix: 'You may also check our ', href: '/promotions', linkLabel: 'Promotions', suffix: ' page to see what offers are currently available and you can participate in.' },
+        ]
+      }
     ],
   },
   {
@@ -1035,97 +1062,111 @@ export const HELP_ARTICLE_CATEGORIES = [
           },
         ],
       },
-      {slug:'how-do-i-deposit-in-cryptocurrency',title:'How do I deposit in cryptocurrency?', content:[
-        { type: 'paragraph', value: 'Depositing in the cryptocurrencies that we support (BTC, ETH, LTC, TRX, USDT, USC, XRP, ADA, DOGE, BNB, TON and POL) is the same, with the exception of the destination tag for Ripple (XRP).' },
-        { type: 'heading', value: 'Depositing in BTC, ETH, LTC, TRX, USDT, ADA, DOGE, BNB, TON and POL' },
-        { type: 'paragraph', value: 'The process of depositing in Bitcoin (BTC), Ethereum (ETH), Litecoin (LTC), TRON (TRX), Tether (USDT), DOGE, and Cardano (ADA) is the same.' },
-        {
-          type: 'procedure',
-          values: [
-            { text: 'Log in to Bitcasino.io' },
-            {
-              parts: [
-                { text: 'In the top right of the page, click ' },
-                { bold: 'Deposit' },
-                { text: '.' },
-              ],
-              image: 'https://heathmont.imgix.net/bitcasino/images/promotions/2023/Screenshot-2023-04-25-at-15.06.09.png?auto=compress%2Cformat&w=850&h=850&fit=max&q=50',
-            },
-            {
-              text: 'Open the drop-down menu and select the cryptocurrency of your choice.',
-              image: 'https://heathmont.imgix.net/bitcasino/images/promotions/2023/Screenshot-2023-04-25-at-15.22.01.png?auto=compress%2Cformat&w=850&h=850&fit=max&q=50',
-            },
-            {
-              text: 'In the menu that opens, copy the unique account address and paste it into the address book in your e-wallet to initiate the transaction. Alternatively, you can scan the QR code using your smartphone’s e-wallet app.',
-              image: 'https://heathmont.imgix.net/bitcasino/images/help-center/how+do+i+deposit/img3.png?auto=compress%2Cformat&w=850&h=850&fit=max&q=50',
-            },
-            { text: 'Once your transaction is confirmed, you will receive a notification.' },
-          ],
-        },
-        { type: 'heading', value: 'Depositing in XRP' },
-        { type: 'paragraph', value: 'The process of depositing in Ripple (XRP) differs from the other cryptocurrencies because of the required destination tag.' },
-        {
-          type: 'procedure',
-          values: [
-            { text: 'Log in to Bitcasino.io.' },
-            {
-              parts: [
-                { text: 'In the top right corner of the page, click ' },
-                { bold: 'Deposit' },
-                { text: '.' },
-              ],
-              image: 'https://heathmont.imgix.net/bitcasino/images/promotions/2023/Screenshot-2023-04-25-at-15.06.09.png?auto=compress%2Cformat&w=850&h=850&fit=max&q=50',
-            },
-            {
-              parts: [
-                { text: 'Open the drop-down menu and select ' },
-                { bold: 'Ripple' },
-                { text: '.' },
-              ],
-              image: 'https://heathmont.imgix.net/bitcasino/images/help-center/how+do+i+deposit/img5.png?auto=compress%2Cformat&w=850&h=850&fit=max&q=50',
-            },
-            {
-              parts: [
-                { text: 'In the menu that opens, click on the ' },
-                { bold: 'Destination tag' },
-                { text: ' tab. Copy both the unique account link and destination tag, then paste it into the address book in your e-wallet to initiate the transaction. Alternatively, you can scan the QR code using your smartphone’s e-wallet app.' },
-              ],
-              image: 'https://heathmont.imgix.net/bitcasino/images/help-center/how+do+i+deposit/img6.png?auto=compress%2Cformat&w=850&h=850&fit=max&q=50',
-            },
-            { text: 'Once your transaction is confirmed, you will receive a notification.' },
-          ],
-        },
-      ] },
-      {slug:'connect-your-wallet-or-exchange-account',title:'Connect your Wallet or Exchange account', content:[
-        {type:'paragraph',value:'If you want an easier way to manage your deposits and withdrawals, Bitcasino offers WalletConnect. This will allow you to deposit/withdraw directly between any connected exchange/wallet accounts without needing to manually copy or input any wallet addresses.'},
-        {type:'subheading',value:'For Depositing'},
-        {type:'ordered-list',values:['Click on "Deposit" or on your balance.','Under "Connect Wallet", choose "Deposit from Exchange or Wallet".','Select the exchange/wallet you wish to link.','Once you have selected, you will be instructed on how to connect your wallet (this is normally done by scanning a QR code, for specific information regarding how to do this, please review with the exchange or wallet service you wish to link).','Once your wallet is linked, under "Connect Wallet" you will be able to make a deposit and the transaction confirmation will be sent to the connected exchange/wallet respectively.']},
-        {type:'subheading',value:'For Withdrawing (Once you have connected your wallet)'},
-        {type:'ordered-list',values:['Click on "Withdrawal"','Your connected wallet/exchange address will be a selectable option. Click on it.','Enter your desired amount you wish to withdraw from your Bitcasino balance to this wallet address and click on "Next".','Confirm the details of your withdrawal and once you submit your request, it will be processed as quickly as possible.']},
-        {type:'paragraph',value:''},
-      ]},
-      {slug:'how-to-deposit-with-credit-card-or-online-wallet',title:'How to deposit with Credit/Debit Card or Online Wallet?', content:[{type:'subheading',value:'Deposit via Onramper'},{type:'list',values:['Choose the “Onramper” payment method','Select your Fiat currency and which Crypto you would like to purchase','Fill in the amount you would like to deposit','Fill in your email address','Retrieve the code sent to your email address and fill it in on the webpage','Fill in your details and click continue','Review your payment','Fill in your card details']}
-      ]},
+      {
+        slug: 'how-do-i-deposit-in-cryptocurrency', title: 'How do I deposit in cryptocurrency?', content: [
+          { type: 'paragraph', value: 'Depositing in the cryptocurrencies that we support (BTC, ETH, LTC, TRX, USDT, USC, XRP, ADA, DOGE, BNB, TON and POL) is the same, with the exception of the destination tag for Ripple (XRP).' },
+          { type: 'heading', value: 'Depositing in BTC, ETH, LTC, TRX, USDT, ADA, DOGE, BNB, TON and POL' },
+          { type: 'paragraph', value: 'The process of depositing in Bitcoin (BTC), Ethereum (ETH), Litecoin (LTC), TRON (TRX), Tether (USDT), DOGE, and Cardano (ADA) is the same.' },
+          {
+            type: 'procedure',
+            values: [
+              { text: 'Log in to Bitcasino.io' },
+              {
+                parts: [
+                  { text: 'In the top right of the page, click ' },
+                  { bold: 'Deposit' },
+                  { text: '.' },
+                ],
+                image: 'https://heathmont.imgix.net/bitcasino/images/promotions/2023/Screenshot-2023-04-25-at-15.06.09.png?auto=compress%2Cformat&w=850&h=850&fit=max&q=50',
+              },
+              {
+                text: 'Open the drop-down menu and select the cryptocurrency of your choice.',
+                image: 'https://heathmont.imgix.net/bitcasino/images/promotions/2023/Screenshot-2023-04-25-at-15.22.01.png?auto=compress%2Cformat&w=850&h=850&fit=max&q=50',
+              },
+              {
+                text: 'In the menu that opens, copy the unique account address and paste it into the address book in your e-wallet to initiate the transaction. Alternatively, you can scan the QR code using your smartphone’s e-wallet app.',
+                image: 'https://heathmont.imgix.net/bitcasino/images/help-center/how+do+i+deposit/img3.png?auto=compress%2Cformat&w=850&h=850&fit=max&q=50',
+              },
+              { text: 'Once your transaction is confirmed, you will receive a notification.' },
+            ],
+          },
+          { type: 'heading', value: 'Depositing in XRP' },
+          { type: 'paragraph', value: 'The process of depositing in Ripple (XRP) differs from the other cryptocurrencies because of the required destination tag.' },
+          {
+            type: 'procedure',
+            values: [
+              { text: 'Log in to Bitcasino.io.' },
+              {
+                parts: [
+                  { text: 'In the top right corner of the page, click ' },
+                  { bold: 'Deposit' },
+                  { text: '.' },
+                ],
+                image: 'https://heathmont.imgix.net/bitcasino/images/promotions/2023/Screenshot-2023-04-25-at-15.06.09.png?auto=compress%2Cformat&w=850&h=850&fit=max&q=50',
+              },
+              {
+                parts: [
+                  { text: 'Open the drop-down menu and select ' },
+                  { bold: 'Ripple' },
+                  { text: '.' },
+                ],
+                image: 'https://heathmont.imgix.net/bitcasino/images/help-center/how+do+i+deposit/img5.png?auto=compress%2Cformat&w=850&h=850&fit=max&q=50',
+              },
+              {
+                parts: [
+                  { text: 'In the menu that opens, click on the ' },
+                  { bold: 'Destination tag' },
+                  { text: ' tab. Copy both the unique account link and destination tag, then paste it into the address book in your e-wallet to initiate the transaction. Alternatively, you can scan the QR code using your smartphone’s e-wallet app.' },
+                ],
+                image: 'https://heathmont.imgix.net/bitcasino/images/help-center/how+do+i+deposit/img6.png?auto=compress%2Cformat&w=850&h=850&fit=max&q=50',
+              },
+              { text: 'Once your transaction is confirmed, you will receive a notification.' },
+            ],
+          },
+        ]
+      },
+      {
+        slug: 'connect-your-wallet-or-exchange-account', title: 'Connect your Wallet or Exchange account', content: [
+          { type: 'paragraph', value: 'If you want an easier way to manage your deposits and withdrawals, Bitcasino offers WalletConnect. This will allow you to deposit/withdraw directly between any connected exchange/wallet accounts without needing to manually copy or input any wallet addresses.' },
+          { type: 'subheading', value: 'For Depositing' },
+          { type: 'ordered-list', values: ['Click on "Deposit" or on your balance.', 'Under "Connect Wallet", choose "Deposit from Exchange or Wallet".', 'Select the exchange/wallet you wish to link.', 'Once you have selected, you will be instructed on how to connect your wallet (this is normally done by scanning a QR code, for specific information regarding how to do this, please review with the exchange or wallet service you wish to link).', 'Once your wallet is linked, under "Connect Wallet" you will be able to make a deposit and the transaction confirmation will be sent to the connected exchange/wallet respectively.'] },
+          { type: 'subheading', value: 'For Withdrawing (Once you have connected your wallet)' },
+          { type: 'ordered-list', values: ['Click on "Withdrawal"', 'Your connected wallet/exchange address will be a selectable option. Click on it.', 'Enter your desired amount you wish to withdraw from your Bitcasino balance to this wallet address and click on "Next".', 'Confirm the details of your withdrawal and once you submit your request, it will be processed as quickly as possible.'] },
+          { type: 'paragraph', value: '' },
+        ]
+      },
+      {
+        slug: 'how-to-deposit-with-credit-card-or-online-wallet', title: 'How to deposit with Credit/Debit Card or Online Wallet?', content: [{ type: 'subheading', value: 'Deposit via Onramper' }, { type: 'list', values: ['Choose the “Onramper” payment method', 'Select your Fiat currency and which Crypto you would like to purchase', 'Fill in the amount you would like to deposit', 'Fill in your email address', 'Retrieve the code sent to your email address and fill it in on the webpage', 'Fill in your details and click continue', 'Review your payment', 'Fill in your card details'] }
+        ]
+      },
     ],
   },
   {
     slug: 'help-about-bitcoin', title: 'About Crypto', articles: [
-      { slug: 'what-is-cryptocurrency', title: 'What is Cryptocurrency?', body: ['Cryptocurrency is a digital asset that can be transferred over a blockchain network.'] },
-      { slug: 'what-is-a-crypto-wallet', title: 'What is a Crypto wallet?', content:[
-        {type:'subheading',value:'What is a Crypto wallet?'},
-        {type:'paragraph',value:'A Crypto wallet is a software program in which crypto tokens are stored. There are a number of crypto wallets to choose from. Some are cloud-based, while others are downloaded to your PC, tablet or smartphone. All of the wallets provide the same functionality, i.e. transferring crypto tokens from one place to another, but each wallet has its own benefits.'},
-        {type:'heading',value:'Cloud wallets'},
-        {type:'paragraph',value:'Cloud wallets are the easiest & most convenient to use. However, when storing your crypto tokens in the cloud you are ultimately handing the responsibility over to the business holding your crypto. Therefore, trust is essential when it comes to storing crypto tokens in a cloud wallet.'},
-        {type:'paragraph',value:'The cloud wallets that we recommend are:'},
-        {type:'heading',value:'Software wallets'},
-        {type:'paragraph',value:'Software wallets are downloadable programs that run on your computer, tablet or smartphone. They are considered more secure than cloud wallets because you have total control over them. However, they do still come with their own risks.'},
-        {type:'paragraph',value:'The software wallets that we recommend are:'},
-        {type:'list',values:['copay.io','Breadwallet','Mycelium']},
-        {type:'heading',value:'Hardware wallets'},
-        {type:'paragraph',value:'A hardware wallet stores your private keys on a secure hardware device. The major advantages compared to software wallets are the immunity to any computer viruses and, since the private keys are often stored in a protected area of a microcontroller, they cannot be transferred out of the device in plain text.'},
-        {type:'paragraph',value:'The hardware wallets that we recommend are:'},
-        {type:'list',values:['Trezor','Ledger']},
-      ]},
+      {
+        slug: 'what-is-cryptocurrency', title: 'What is Cryptocurrency?', content: [
+          { type: 'paragraph', value: 'Cryptocurrency is a digital or virtual form of money that uses cryptography for security, making it highly secure and difficult to counterfeit. Unlike traditional currencies issued by governments, cryptocurrencies operate on decentralized networks based on blockchain technology—a distributed ledger that records all transactions across a network of computers.' },
+          { type: 'paragraph', value: 'This decentralization means that no single authority, such as a government or bank, controls the currency, allowing for greater financial autonomy and freedom. The primary purpose of cryptocurrency is to enable secure, fast, and cost-effective online transactions without relying on traditional banking systems.' },
+          { type: 'paragraph', value: 'Cryptocurrencies also offer new opportunities for innovation in the financial sector, including smart contracts and decentralized financial applications, which could transform how we interact with money and digital assets.' },
+        ]
+      },
+      {
+        slug: 'what-is-a-crypto-wallet', title: 'What is a Crypto wallet?', content: [
+          { type: 'subheading', value: 'What is a Crypto wallet?' },
+          { type: 'paragraph', value: 'A Crypto wallet is a software program in which crypto tokens are stored. There are a number of crypto wallets to choose from. Some are cloud-based, while others are downloaded to your PC, tablet or smartphone. All of the wallets provide the same functionality, i.e. transferring crypto tokens from one place to another, but each wallet has its own benefits.' },
+          { type: 'heading', value: 'Cloud wallets' },
+          { type: 'paragraph', value: 'Cloud wallets are the easiest & most convenient to use. However, when storing your crypto tokens in the cloud you are ultimately handing the responsibility over to the business holding your crypto. Therefore, trust is essential when it comes to storing crypto tokens in a cloud wallet.' },
+          { type: 'paragraph', value: 'The cloud wallets that we recommend are:' },
+          { type: 'heading', value: 'Software wallets' },
+          { type: 'paragraph', value: 'Software wallets are downloadable programs that run on your computer, tablet or smartphone. They are considered more secure than cloud wallets because you have total control over them. However, they do still come with their own risks.' },
+          { type: 'paragraph', value: 'The software wallets that we recommend are:' },
+          { type: 'list', values: ['copay.io', 'Breadwallet', 'Mycelium'] },
+          { type: 'heading', value: 'Hardware wallets' },
+          { type: 'paragraph', value: 'A hardware wallet stores your private keys on a secure hardware device. The major advantages compared to software wallets are the immunity to any computer viruses and, since the private keys are often stored in a protected area of a microcontroller, they cannot be transferred out of the device in plain text.' },
+          { type: 'paragraph', value: 'The hardware wallets that we recommend are:' },
+          { type: 'list', values: ['Trezor', 'Ledger'] },
+        ]
+      },
       {
         slug: 'how-do-crypto-transactions-work',
         title: 'How do Crypto transactions work?',
@@ -1185,9 +1226,9 @@ export const HELP_ARTICLE_CATEGORIES = [
         ],
       },
       {
-        slug:'why-use-cryptocurrency', title:'Why use Cryptocurrency?', content:[
-          {type:'paragraph',value:'Using cryptocurrencies offers several compelling benefits that make them an attractive option for modern financial transactions. First, they provide enhanced security, thanks to advanced cryptographic techniques that protect your transactions from fraud and unauthorized access. Additionally, cryptocurrencies often come with lower transaction fees, especially for cross-border payments, making them cost-effective for international transfers. The speed of transactions is another advantage, as cryptocurrencies can be transferred quickly, often within minutes, regardless of geographical boundaries. Their decentralized nature ensures that no central authority can interfere with or manipulate the currency, offering greater financial autonomy.'},
-          {type:'paragraph',value:'Moreover, cryptocurrencies are accessible to anyone with an internet connection, making them a powerful tool for those in regions with limited access to traditional banking services. Lastly, the transparency of blockchain technology ensures that all transactions are publicly recorded and verifiable, enhancing trust and accountability in financial dealings.'},
+        slug: 'why-use-cryptocurrency', title: 'Why use Cryptocurrency?', content: [
+          { type: 'paragraph', value: 'Using cryptocurrencies offers several compelling benefits that make them an attractive option for modern financial transactions. First, they provide enhanced security, thanks to advanced cryptographic techniques that protect your transactions from fraud and unauthorized access. Additionally, cryptocurrencies often come with lower transaction fees, especially for cross-border payments, making them cost-effective for international transfers. The speed of transactions is another advantage, as cryptocurrencies can be transferred quickly, often within minutes, regardless of geographical boundaries. Their decentralized nature ensures that no central authority can interfere with or manipulate the currency, offering greater financial autonomy.' },
+          { type: 'paragraph', value: 'Moreover, cryptocurrencies are accessible to anyone with an internet connection, making them a powerful tool for those in regions with limited access to traditional banking services. Lastly, the transparency of blockchain technology ensures that all transactions are publicly recorded and verifiable, enhancing trust and accountability in financial dealings.' },
         ]
       },
       {
@@ -1215,30 +1256,606 @@ export const HELP_ARTICLE_CATEGORIES = [
     ],
   },
   {
-    slug: 'how-to-buy-crypto',
-    title: 'How to buy Crypto',
-    articles: [
-      { slug: 'buy-cryptocurrency-without-leaving-bitcasino', title: 'Buy Cryptocurrency without leaving Bitcasino', body: ['Available purchase options are shown in the cashier when supported in your location.'] },
-      { slug: 'coinbase-exchange', title: 'Coinbase Exchange', body: ['Coinbase is a third-party cryptocurrency exchange. Review its terms, availability, and fees before using it.'] },
+    slug: 'how-to-buy-crypto', title: 'How to buy Crypto', articles: [{
+      slug: 'bitflyer-exchange', title: 'Bitflyer Exchange', content: [
+        { type: 'paragraph', value: 'Cryptocurrencies enable rapid and anonymous money transactions across the globe. Get started now by setting up your first crypto wallet in a few easy steps.' },
+        { type: 'paragraph', value: 'Bitflyer is a Japanese regulated cryptocurrency exchange that offers crypto exchange and trading services in Japan, the United States, and Europe.' },
+        { type: 'heading', value: 'Create Account' },
+        { type: 'ordered-list', values: ['Go to the Bitflyer website here', 'Click the “Sign Up” button', 'Insert your email and click “Sign Up for Free!”', 'Go to your email and click “Verify email address”', 'Create your password (we recommend that you create a strong password)', 'Fill in the form with your information', 'Answer the questionnaire', 'We recommend that you also configure Two Factor Authentication on your account'] },
+        { type: 'paragraph', value: 'Note: When you create an exchange account, you also have access to crypto wallets that are associated with your specific account.' },
+        { type: 'heading', value: 'Buying cryptocurrency' },
+        { type: 'ordered-list', values: ['After logging in, you need to deposit funds into your account before you can start buying cryptocurrency', 'Click “Account Funding', 'Select the “Bank Transfer” deposit method', 'Bitflyer bank account information will appear, enabling you to make a bank transfer. Important notes on this:', 'Once you have funds on your account, you can click on the “Buy/Sell” button', 'Select the cryptocurrency that you want to buy', 'Click “Buy”', 'Insert the amount, then click confirm', 'Congratulations, you are now a crypto owner!'] },
+        { type: 'subheading', value: 'Sending cryptocurrency from Bitflyer to other wallets' },
+        { type: 'ordered-list', values: ['Click “Account Funding”', 'Select “Withdrawal”', 'Select your desired withdrawal currency, then click “Withdraw”', 'Insert the destination address (public key) of the destination wallet', 'Insert the amount that you want to withdraw', 'Click “Withdraw”, and you are done!'] },
+        { type: 'paragraph', value: 'Important Note: When copying a wallet address, always ensure that you and the receiver are on the same network. For example, you should only send Bitcoin to other Bitcoin addresses. If you send it to other networks like Ethereum, you will lose your funds forever.' },
+        { type: 'paragraph', value: '' },
+      ]
+    },
+    {
+      slug: 'buy-cryptocurrency-without-leaving-bitcasino',
+      title: 'Buy Cryptocurrency without leaving Bitcasino',
+      content: [
+        { type: 'paragraph', value: 'Buy crypto using fiat currencies without switching platforms on Bitcasino using Swapped, a leading platform where you can purchase cryptocurrencies that you can use for your bets. Start your gaming sessions without ever leaving the site.' },
+        { type: 'heading', value: 'Supported cryptos' },
+        {
+          type: 'list',
+          values: [
+            'Tether (USDT)',
+            'Bitcoin (BTC)',
+            'Litecoin (LTC)',
+            'Ethereum (ETH)',
+            'USD Coin (USDC)',
+            'Ton (TON)',
+            'Binance Smart Chain (BNB)',
+            'Dogecoin (DOGE)',
+            'Ripple (XRP)',
+          ],
+        },
+        { type: 'heading', value: 'Supported fiat currencies' },
+        {
+          type: 'list',
+          values: [
+            'AED    UAE-Dirham',
+            'MXN    Mexico Peso',
+            'VND    Vietnam Dong',
+            'NGN    Nigeria Naira',
+            'BRL    Brazil Real',
+            'COP    Colombia Peso',
+            'CLP    Chile Peso',
+            'EUR    Euro',
+            'IDR    Indonesia Rupiah',
+            'KES    Kenyan Shilling',
+            'DKK    Danish Krone',
+            'GHS    Ghanaian Cedi',
+            'JPY    Japanese Yen',
+            'NDZ    New Zealand Dollar',
+            'PHP    Philippine Peso',
+            'ZAR    South African Rand',
+            'ZMW    Zambian Kwacha',
+            'THB    Thai Baht',
+            'PEN    Peruvian Sol',
+          ],
+        },
+        { type: 'heading', value: 'How to buy crypto with Swapped at Bitcasino' },
+        {
+          type: 'ordered-list',
+          values: [
+            'Log in to your Bitcasino account',
+            'Ensure you’re using any of the supported currencies',
+            'Open the cashier by clicking the ‘deposit’ button',
+            'Click the ‘Buy Crypto’ tab',
+            'Choose your preferred payment method',
+          ],
+        },
+        {
+          type: 'image',
+          src: 'https://sportsbet.imgix.net/news/1A%20Bitcasino/swapped-en-gif-1.gif?auto=compress%2Cformat&w=850&h=850&fit=max&q=50',
+          alt: 'Buy crypto with Swapped in the Bitcasino cashier',
+        },
+        { type: 'paragraph', value: 'The ‘Pay.io’ widget option is linked to Swapped.' },
+        {
+          type: 'ordered-list',
+          values: [
+            'Click the payment option.',
+            'You’ll be redirected to the designated Bitcasino cashier without leaving the website',
+            'Pick your currency and enter the amount you want to convert into crypto',
+          ],
+        },
+        {
+          type: 'image',
+          src: 'https://sportsbet.imgix.net/news/1A%20Bitcasino/swapped-en-image-1.jpg?w=850&auto=compress%2Cformat&h=850&fit=max&q=50',
+          alt: 'Select currency and amount in the Swapped cashier',
+        },
+        {
+          type: 'ordered-list',
+          values: ['Select your preferred payment method and follow the on-screen instructions.'],
+        },
+        { type: 'paragraph', value: 'Before proceeding to the next transaction step, Bitcasino will send a verification code to your email so you can proceed. This ensures you are the authorised purchaser of the crypto transaction.' },
+        {
+          type: 'ordered-list',
+          values: ['Finalise your request and complete the transaction.'],
+        },
+        { type: 'heading', value: 'Processing fees with Swapped' },
+        {
+          type: 'rich-paragraph',
+          parts: [
+            { text: 'The ' },
+            { href: 'https://swapped.com/fees', linkLabel: 'fees vary' },
+            { text: ' depending on which payment method you choose. Here are the top methods and their corresponding fees:' },
+          ],
+        },
+        {
+          type: 'table',
+          headers: ['Payment method', 'Fee'],
+          rows: [
+            ['Bank Transfer', '0.5%'],
+            ['Bank Transfer (GBP)', '0.5%'],
+            ['iDeal', '2.9%'],
+            ['Blik', '3.5%'],
+            ['Jeton', '3.75%'],
+            ['PaySafeCard', '10.0%'],
+            ['ePay', '5.0%'],
+            ['Neteller', '3.5%'],
+            ['Skrill', '3.5%'],
+            ['Giropay', '1.5%'],
+          ],
+        },
+      ],
+    },
+    {
+      slug: 'binance-exchange',
+      title: 'Binance Exchange 🎥',
+      content: [
+        { type: 'paragraph', value: 'Cryptocurrencies enable rapid and anonymous money transactions across the globe. Get started now by setting up your first crypto wallet in a few easy steps.' },
+        { type: 'paragraph', value: 'Binance is the world\'s largest online cryptocurrency exchange. The platform supports most common cryptocurrencies and provides users with crypto wallets that can be used for trading and storing funds.' },
+        {
+          type: 'video',
+          src: 'https://player.vimeo.com/video/962225983?h=367b34ecd0&badge=0&autopause=0&player_id=0&app_id=58479',
+          title: 'How to use Binance to buy Crypto',
+        },
+        { type: 'heading', value: 'Create Account' },
+        {
+          type: 'procedure',
+          values: [
+            {
+              parts: [
+                { text: 'Go to the Binance website ' },
+                { href: 'https://www.binance.com/', linkLabel: 'here' },
+              ],
+            },
+            {
+              text: 'Click the “Register” button',
+              image: 'https://heathmont.imgix.net/bitcasino/images/help-center/Binance/Binance.00_00_04_28.Still004.jpg?auto=compress%2Cformat&w=850&h=850&fit=max&q=50',
+            },
+            { text: 'Select your country' },
+            {
+              text: 'Select “Create Personal Account”',
+              image: 'https://heathmont.imgix.net/bitcasino/images/help-center/Binance/Binance.00_00_21_05.Still007.jpg?auto=compress%2Cformat&w=850&h=850&fit=max&q=50',
+            },
+            { text: 'Fill in the form with your information (we recommend that you create a strong password)' },
+            {
+              text: 'Verify your email address',
+              image: 'https://heathmont.imgix.net/bitcasino/images/help-center/Binance/Binance.00_00_40_20.Still012.jpg?auto=compress%2Cformat&w=850&h=850&fit=max&q=50',
+            },
+            { text: 'We recommend that you also configure Two Factor Authentication on your account' },
+          ],
+        },
+        {
+          type: 'rich-paragraph',
+          parts: [
+            { bold: 'Note: ' },
+            { text: 'When you create an exchange account, you also have access to crypto wallets that are associated with your specific account.' },
+          ],
+        },
+        { type: 'heading', value: 'Buying cryptocurrency' },
+        {
+          type: 'procedure',
+          values: [
+            { text: 'After logging in, you need to deposit funds into your account before you can start buying cryptocurrency' },
+            { text: 'Hover over “Wallet” and select “Fiat and Spot”' },
+            {
+              text: 'Select the desired Fiat Currency that you want to Deposit and click “Deposit”',
+              image: 'https://heathmont.imgix.net/bitcasino/images/help-center/Binance/Binance.00_03_01_22.Still051.jpg?auto=compress%2Cformat&w=850&h=850&fit=max&q=50',
+            },
+            { text: 'Select “Bank Card”' },
+            { text: 'Select your Credit Card*' },
+            {
+              text: 'Insert the amount you want to buy, then click “Continue”',
+              image: 'https://heathmont.imgix.net/bitcasino/images/help-center/Binance/Binance.00_03_13_07.Still054.jpg?auto=compress%2Cformat&w=850&h=850&fit=max&q=50',
+            },
+            { text: 'Congratulations, you are now a crypto owner!' },
+          ],
+        },
+        { type: 'paragraph', value: '*The first time you use your card, you will need to add your details. This is necessary to add the card to the list of available cards.' },
+        { type: 'heading', value: 'Sending cryptocurrency from Binance to other wallets' },
+        {
+          type: 'procedure',
+          values: [
+            { text: 'Hover over “Wallet” and select “Fiat and Spot”' },
+            {
+              text: 'Select the desired currency that you want to withdraw, then click “Withdraw”',
+              images: [
+                'https://heathmont.imgix.net/bitcasino/images/help-center/Binance/Binance.00_03_33_26.Still058.jpg?auto=compress%2Cformat&w=850&h=850&fit=max&q=50',
+                'https://heathmont.imgix.net/bitcasino/images/help-center/Binance/Binance.00_03_41_00.Still060.jpg?auto=compress%2Cformat&w=850&h=850&fit=max&q=50',
+              ],
+            },
+            {
+              text: 'Insert the destination address (public key) of the destination wallet',
+              note: 'If you want to make a deposit to Bitcasino.io, just insert the address of the wallet of your Bitcasino.io account.',
+              image: 'https://heathmont.imgix.net/bitcasino/images/help-center/Binance/Binance.00_03_51_26.Still063.jpg?auto=compress%2Cformat&w=850&h=850&fit=max&q=50',
+            },
+            {
+              text: 'Insert the amount that you want to withdraw',
+              image: 'https://heathmont.imgix.net/bitcasino/images/help-center/Binance/Binance.00_03_56_28.Still065.jpg?auto=compress%2Cformat&w=850&h=850&fit=max&q=50',
+            },
+            {
+              text: 'Click “Withdraw”, and you are done!',
+              image: 'https://heathmont.imgix.net/bitcasino/images/help-center/Binance/Binance.00_04_01_24.Still067.jpg?auto=compress%2Cformat&w=850&h=850&fit=max&q=50',
+            },
+          ],
+        },
+        {
+          type: 'rich-paragraph',
+          parts: [
+            { bold: 'Important Note: ' },
+            { text: 'When copying a wallet address, always ensure that you and the receiver are on the same network. For example, you should only send Bitcoin to other Bitcoin addresses. If you send it to other networks like Ethereum, you will lose your funds forever.' },
+          ],
+        },
+      ],
+    },
+    {
+      slug: 'bitstamp-exchange',
+      title: 'Bitstamp Exchange',
+      content: [
+        { type: 'paragraph', value: 'Cryptocurrencies enable rapid and anonymous money transactions across the globe. Get started now by setting up your first crypto wallet in a few easy steps.' },
+        { type: 'paragraph', value: 'Bitstamp is the longest-standing online crypto exchange platform in the world. You can use it to trade between fiat, Bitcoin, and an array of other cryptocurrencies.' },
+        { type: 'heading', value: 'Create Account' },
+        {
+          type: 'ordered-list',
+          values: [
+            {
+              parts: [
+                { text: 'Go to the Bitstamp website ' },
+                { href: 'https://www.bitstamp.net/', linkLabel: 'here' },
+              ],
+            },
+            'Click the “Get Started” button',
+            'Fill in the form with your information, and click “Continue”',
+            'Select your country',
+            'Insert your email address',
+            'Go to your email and click “Complete Registration” on the Bitstamps email that you received',
+            'Create your password (we recommend that you create a strong password)',
+            'Click “Start your Verification”',
+            'Fill in your address information, and click “Continue”',
+            'Insert your phone number, and click “Continue”',
+            'Select your verification document',
+            'Take a photo of your document or upload photos that you already have',
+            'Make a video following the instructions',
+            'Click “Submit Verification”',
+            'Insert your basic financial information, and click “Continue”',
+            'Insert the type of activity for which you will use Bitstamp, and click “Continue”',
+            'Click “Secure your account”',
+            'Set up your 2 Factor Authentication',
+            'Click “Finish” and wait for the verification email to reach you',
+          ],
+        },
+        {
+          type: 'rich-paragraph',
+          parts: [
+            { bold: 'Note: ' },
+            { text: 'When you create an exchange account, you also have access to crypto wallets that are associated with your specific account.' },
+          ],
+        },
+        { type: 'heading', value: 'Buying cryptocurrency' },
+        {
+          type: 'ordered-list',
+          values: [
+            'After logging in, you need to deposit funds into your account before you can start buying cryptocurrency. Click “Deposit”',
+            'Select the “Bank Transfer” deposit method',
+            'Select your deposit amount and currency',
+            {
+              parts: [
+                { text: 'Make a bank transfer with the available Bitstamp bank account information. Important notes on this: Make sure that you add the correct ' },
+                { bold: '“Unique reference”' },
+                { text: ' as a note or comment to your bank transfer' },
+              ],
+            },
+            'Once you have funds on your account, you can click “Find asset” and select which cryptocurrency you want to buy',
+            'Select the cryptocurrency that you want to buy',
+            'Insert the amount and click “Buy”',
+            'Congratulations, you are now a crypto owner!',
+          ],
+        },
+        { type: 'heading', value: 'Sending cryptocurrency from Bitstamp to other wallets' },
+        {
+          type: 'ordered-list',
+          values: [
+            'Click “Withdrawal”',
+            'Select cryptocurrency',
+            'Select the desired cryptocurrency that you want to withdraw',
+            {
+              text: 'Insert the destination address (public key) of the destination wallet',
+              note: 'If you want to make a deposit to Bitcasino.io, just insert the address of the wallet of your Bitcasino.io account',
+            },
+            'Insert the amount that you want to withdraw',
+            'Click “Authenticate and withdraw”, and you are done!',
+          ],
+        },
+        {
+          type: 'rich-paragraph',
+          parts: [
+            { bold: 'Important Note: ' },
+            { text: 'When copying a wallet address, always ensure that you and the receiver are on the same network. For example, you should only send Bitcoin to other Bitcoin addresses. If you send it to other networks like Ethereum, you will lose your funds forever.' },
+          ],
+        },
+      ],
+    },
+    {
+      slug: 'coinbase-exchange',
+      title: 'Coinbase Exchange',
+      content: [
+        { type: 'paragraph', value: 'Cryptocurrencies enable rapid and anonymous money transactions across the globe. Get started now by setting up your first crypto wallet in a few easy steps.' },
+        { type: 'paragraph', value: 'Coinbase is an online platform for buying, storing, and transferring cryptocurrency. You can also convert digital currency to local currency and vice versa.' },
+        { type: 'heading', value: 'Create Account' },
+        {
+          type: 'ordered-list',
+          values: [
+            {
+              parts: [
+                { text: 'Go to the Coinbase website ' },
+                { href: 'https://www.coinbase.com/', linkLabel: 'here' },
+              ],
+            },
+            'Click “Get Started” button',
+            'Fill in the form with your information (we recommend that you create a strong password)',
+            'Verify your email address',
+            'We recommend that you also configure Two Factor Authentication on your account',
+          ],
+        },
+        {
+          type: 'rich-paragraph',
+          parts: [
+            { bold: 'Note: ' },
+            { text: 'When you create an exchange account, you also have access to crypto wallets that are associated with your specific account.' },
+          ],
+        },
+        { type: 'heading', value: 'Buying cryptocurrency' },
+        {
+          type: 'ordered-list',
+          values: [
+            'After logging in, you need to deposit funds into your account before you can start buying cryptocurrency. Click the “Buy/Sell” button',
+            'Click “Deposit funds”',
+            {
+              parts: [
+                { text: 'A pop-up window will appear with the Coinbase bank account information for you to make a bank transfer. Important notes on this: Make sure the name on your bank account exactly matches your name on Coinbase. Make sure that you add the correct “Reference Number” as a note or comment to your bank transfer' },
+              ],
+            },
+            'When you have funds on your account, you can click again on the “Buy/Sell” button',
+            'Select the cryptocurrency that you want to buy',
+            'Insert the desired amount, and click buy',
+            'Congratulations, you are now a crypto owner!',
+          ],
+        },
+        { type: 'heading', value: 'Sending cryptocurrency from Coinbase to other wallets' },
+        {
+          type: 'ordered-list',
+          values: [
+            'Click the “Send/Receive” button',
+            'Select the cryptocurrency that you want to send',
+            'Insert the amount that you want to send/withdraw',
+            {
+              text: 'Insert the destination address (public key) of the destination wallet',
+              note: 'Example: If you want to make a deposit to Bitcasino.io, just insert the address of the wallet of your Bitcasino.io account.',
+            },
+            'Click continue, and you are done!',
+          ],
+        },
+        {
+          type: 'rich-paragraph',
+          parts: [
+            { bold: 'Important: ' },
+            { text: 'When copying a wallet address, always ensure that you and the receiver are on the same network. For example, you should only send Bitcoin to other Bitcoin addresses. If you send it to other networks like Ethereum, you will lose your funds forever.' },
+          ],
+        },
+      ],
+    },
     ],
   },
   {
     slug: 'help-loyalty', title: 'Loyalty Club', articles: [
-      { slug: 'how-loyalty-works', title: 'How does the Loyalty Club work?', body: ['Earn loyalty points while playing eligible games to unlock tiers and their benefits.'] },
-      { slug: 'does-my-loyalty-level-expire', title: 'Does my Loyalty Level expire?', body: ['Your tier is retained for the current and following month. Loyalty points reset monthly, and you need to reach the tier threshold again to retain it.'] },
-      { slug: 'what-loyalty-rewards-can-i-get', title: 'What rewards can I get?', body: ['Loyalty rewards depend on your tier and the current Loyalty Club programme terms.'] },
-      { slug: 'loyalty-programme-info-terms', title: 'Loyalty Club information and Terms & Conditions', body: ['Read the Loyalty Club terms for tier thresholds, reward eligibility, and programme rules.'] },
-      { slug: 'why-was-my-milestone-reward-grouped', title: 'Why was my milestone reward grouped?', body: ['Milestone rewards can be grouped according to the Loyalty Club programme rules and your qualifying activity.'] },
-      { slug: 'loyalty-what-is-the-house-edge-percent-for-each-game-', title: 'What is the House Edge percent for each game?', body: ['Game house edge varies by game. Review the game information and Loyalty Club terms for how eligible play contributes to points.'] },
-      { slug: 'what-are-the-loyalty-points-multipliers-', title: 'What are the Loyalty Points Multipliers?', body: ['Loyalty point multipliers are tier benefits that increase points earned on eligible play.'] },
-      { slug: 'what-are-the-loyalty-levels', title: 'What are the Loyalty tiers?', body: ['Loyalty tiers are reached by earning the required number of points during the qualifying period.'] },
+      {
+        slug: 'how-loyalty-works', title: 'How does the Loyalty Club work?', content: [
+          { type: 'paragraph', value: 'When you play casino games, you collect Loyalty points (LP) that let you move up the Loyalty tiers.' },
+          { type: 'paragraph', value: 'As you move up these tiers, you get personalised rewards. You earn Loyalty points with bets made*.' },
+          { type: 'paragraph', value: 'Loyalty points are given for bet value. For example, if you bet 1 USDT you will get 5 LPs for the bet value.' },
+          { type: 'paragraph', value: 'Only real money gameplay will generate loyalty points. When you have an active reward , your gameplay will not contribute towards Loyalty points generation.' },
+          { type: 'link-paragraph', prefix: '*You can find a list of games excluded from the Loyalty Club in the Loyalty Club terms & conditions page ', linkLabel: 'here', href: '/help-center/help-terms-and-conditions/bitcasino-reward-terms-conditions' },
+        ]
+      },
+      {
+        slug: 'does-my-loyalty-level-expire', title: 'Does my Loyalty Level expire?', content: [
+          { type: 'paragraph', value: 'Yes. Our Loyalty Club has tiers which add additional benefits such as multipliers to increase loyalty points gained. These tiers have a threshold of loyalty points required to reach and maintain them on a monthly basis.' },
+          { type: 'paragraph', value: 'Once you gain enough points for a tier, you will retain that tier for the current month and the next month, but if you fail to meet the required points for that level afterwards, your tiers will stagnate.' },
+          { type: 'paragraph', value: 'At the start of each month, your loyalty points will be reset to zero. Your current tier benefits will still apply, including the points multiplier, to help you reach new milestones even sooner.' },
+          { type: 'rich-paragraph', parts: [{ bold: 'Example:' }] },
+          { type: 'paragraph', value: 'By January 22nd, you have generated 30,000 points, granting you the Master tier. On February 1st, your tier points will be reset to 0 and you need to collect at least 30,000 points again before the end of February to retain that tier for March.' },
+          { type: 'paragraph', value: 'If you collect less than 30,000 tier points during February, you will drop by one tier to Expert on March 1st.' },
+        ]
+      },
+      {
+        slug: 'what-loyalty-rewards-can-i-get', title: 'What rewards can I get?', content: [
+          { type: 'paragraph', value: 'There are the following types of Milestone rewards that you can get:' },
+          { type: 'list', values: ['Free spins and free chips', 'Cashback rewards'] },
+        ]
+      },
+      {
+        slug: 'loyalty-programme-info-terms',
+        title: 'Loyalty Club information and Terms & Conditions',
+        content: [
+          {
+            type: 'ordered-list',
+            values: [
+              {
+                text: 'Loyalty Club levels at Bitcasino.io are as follows:',
+                childList: 'ul',
+                children: [
+                  'Beginner (Level 1) - 0 points',
+                  'Fan (Level 2) – 5 points',
+                  'Expert (Level 3) – 3,750 points',
+                  'Master (Level 4) – 30,000 points',
+                  'Guru (Level 5) – 250,000 points',
+                  'Legend (Level 6) – 750,000 points',
+                  'Hero (Level 7) – 3,750,000 points',
+                ],
+              },
+              {
+                parts: [
+                  { text: 'You will be gaining ' },
+                  { bold: 'Level Points' },
+                  { text: ' with every bet.' },
+                ],
+              },
+              {
+                parts: [
+                  { bold: 'All bet value generated level points are based on an individual user’s gameplay.' },
+                ],
+                childList: 'ul',
+                children: [
+                  'If you bet 1 USDT, you will get 5 level points for the bet value.',
+                  'If you bet 0.1 USDT, you will get 0.5 points for the bet value.',
+                ],
+              },
+              'Only gameplay for real money generates Level Points. Gameplay in poker or virtual sports does not contribute to the loyalty club.',
+              {
+                text: 'Milestone rewards can consist of:',
+                childList: 'ul',
+                children: [
+                  'Free spins or free chips',
+                  'Cashback',
+                ],
+              },
+              {
+                parts: [
+                  { bold: 'Milestone rewards' },
+                  { text: ' will be unlocked when a user generates a certain amount of level points. Milestones and points can be viewed in the Account profile, on the “Loyalty Club” tab. Levels may have a different amount of milestone rewards, these special rewards are unlocked as the user progresses from one level to another. For example, from ' },
+                  { bold: 'Fan to Expert' },
+                  { text: ' the user needs to collect 3,750 points. During that period, the user also receives Milestone rewards like free spins, cash, etc.' },
+                ],
+              },
+              'All Milestone rewards available to the users are fully personalized according to the users’ individual characteristics and gameplay. Rewards may differ from user to user.',
+              'When a user has an active bonus, this user’s gameplay will not contribute towards the Loyalty Club, e.g. the user will not be able to generate level points or reward points.',
+              'Level points are the same for all currencies, and all the gameplay contributes towards the Loyalty Club level.',
+              'The user can see their loyalty level progress, milestone rewards availability and reward points on the Loyalty Club tab in the Account profile.',
+              {
+                text: 'As the user progresses through the Levels, they will start gaining more Level Points. Here is the multiplier table of level points:',
+                table: {
+                  headers: ['Level', 'Name', 'Multiplier', 'Milestones'],
+                  rows: [
+                    ['Level 1', 'Beginner', '1x', 'N/A'],
+                    ['Level 2', 'Fan', '1x', '1 milestone reward'],
+                    ['Level 3', 'Expert', '1x', '6 milestone rewards'],
+                    ['Level 4', 'Master', '1.25x', '12 milestone rewards'],
+                    ['Level 5', 'Guru', '1.5x', '11 milestone rewards'],
+                    ['Level 6', 'Legend', '2x', '12 milestone rewards'],
+                    ['Level 7', 'Hero', '3x', 'Unlimited milestone rewards'],
+                  ],
+                },
+              },
+              'All of the casino games are distributed into “House edge” categories that range from 0.5% to 30% dependant on the games’ house edge.',
+              {
+                parts: [
+                  { bold: 'Certain casino games are excluded' },
+                  { text: ' from Loyalty and reward wagering, the list of which can be accessed by following ' },
+                  { href: '/help-center/help-terms-and-conditions/bitcasino-reward-terms-conditions', linkLabel: 'this link' },
+                  { text: '.' },
+                ],
+              },
+              'At the start of every month your level (loyalty) points will reset BUT you will maintain your current level. For example, if you had reached Master level in June, your level (loyalty) points will reset to 0 but you will maintain the benefits of the Master level for the duration of July (points multiplier, any other rewards).',
+              'To keep your loyalty level you need to collect the points needed for your current level each month. If during the active month you do not collect the points needed to retain your loyalty level from previous month, you will drop 1 level next month. For example: If you managed to reach the Master level in June, then after your level (loyalty) points have reset at the start of July you need to collect at least the required amount of points for Master during July to keep the Master level for August. Should you not achieve that you will drop one level at the start of August as the level (loyalty) points reset - you will then be on Expert level.',
+              'At the start of every month all of your milestone rewards will reset so you could once more claim them during the new month when starting to collect points again.',
+              'Using methods, techniques or software which allow a player to gain an edge over other players and/or the reward system are prohibited and considered abuse. All bonuses are meant for non-professional and entertainment purposes only.',
+              'Bitcasino.io may change or cancel any milestone rewards or any other associated aspects of the Loyalty Club, at its sole discretion at any given time.',
+              'By registering with Bitcasino and participating in real money gameplay you hereby accept these terms and conditions.',
+              'All other Bitcasino.io terms and conditions apply.',
+            ],
+          },
+        ],
+      },
+      { slug: 'why-was-my-milestone-reward-grouped', title: 'Why was my milestone reward grouped?', body: ['Your milestones are combined when you unlock several rewards with a single bet. To make it easier for you, these rewards are grouped into one milestone reward to make it more convenient for you as a customer.'] },
+      {
+        slug: 'loyalty-what-is-the-house-edge-percent-for-each-game-', title: 'What is the House Edge percent for each game?', content: [
+          { type: 'paragraph', value: 'The House Edge of a particular game depends on the game is Return to Player (RTP), which is how frequently you can possibly win payouts over the long term when you play the game.' },
+          { type: 'list', values: ['For example, for a game with 96% RTP, the House Edge is 100% - 96% = 4%.'] },
+          { type: 'paragraph', value: 'The percentages are usually split into 0.5% - 1% ranges: 1.5%, 2%, 2.5% etc.' },
+          { type: 'paragraph', value: 'Most of our games display the RTP statistics right below the game.' },
+          { type: 'paragraph', value: 'For example, in our slot games, the RTP is displayed at the bottom of the game:' },
+          { type: 'image', src: 'https://heathmont.imgix.net/bitcasino/images/promotions/2023/rtp-slot-en.png?auto=compress%2Cformat&w=850&h=850&fit=max&q=50', alt: 'slot game' },
+          { type: 'paragraph', value: 'And similarly, in our table games, the RTP is displayed at the bottom of the game:' },
+          { type: 'image', src: 'https://heathmont.imgix.net/bitcasino/images/promotions/2023/rtp-table-en.png?auto=compress%2Cformat&w=850&h=850&fit=max&q=50' },
+        ]
+      },
+      {
+        slug: 'what-are-the-loyalty-points-multipliers-', title: 'What are the Loyalty Points Multipliers?', content: [
+          { type: 'paragraph', value: 'Loyalty Points Multipliers are tier-based benefits which help you to generate more points from your gameplay, in order to help you to reach your milestones more quickly and to maintain your existing Loyalty Tier.' },
+          {
+            type: 'table', headers: ['Level', 'Points', 'Multiplier'], rows: [
+              ['Beginner(Level 1)', '0 points', '1x'],
+              ['Fan(Level 2)', '5 points', '1x'],
+              ['Expert (Level 3)', '3,750 points', '1x'],
+              ['Master (Level 4)', '30,000 points', '1.25x'],
+              ['Guru (Level 5)', '250,000 points', '1.5x'],
+              ['Legend (Level 6)', '750,000 points', '2x'],
+              ['Hero (Level 7)', '3,750,000 points', '3x'],
+            ]
+          }
+        ]
+      },
+      {
+        slug: 'what-are-the-loyalty-levels', title: 'What are the Loyalty tiers?', content: [
+          { type: 'paragraph', value: 'Loyalty tiers showcase your current status within our Loyalty Club feature. The higher your level, the higher the value of rewards generated based on your gameplay is, in addition to granting a multiplier which helps you earn points quicker. Your tiers increase based on the amount of loyalty points you have earned.' },
+          {
+            type: 'table', headers: ['Level', 'Name', 'Points'], rows: [
+              ['Level 1', 'Beginner', '0 '],
+              ['Level 2', 'Fan', '5 '],
+              ['Level 3', 'Expert', '3,750 '],
+              ['Level 4', 'Master', '30,000 '],
+              ['Level 5', 'Guru', '250,000 '],
+              ['Level 6', 'Legend', '750,000 '],
+              ['Level 7', 'Hero', '3,750,000'],
+            ]
+          }
+        ]
+      },
     ],
-  },{
-    slug:'help-terms-and-conditions', title:'Bitcasino Information', articles:[
-      {slug: 'canadian-dollar-information',
-        title: 'Dispute Information',
+  }, {
+    slug: 'help-terms-and-conditions', title: 'Bitcasino Information', articles: [
+      {
+        slug: 'dispute-resolution', title: 'Dispute Information',
         content: []
-      }]
+      },
+      { slug: 'bitcasino-terms-and-conditions-of-use-of-services-of-the-company', title: 'General Terms & Conditions', content: [
+        {type:'heading',value:'Player Complaint Procedure'},
+        {type:'heading',value:'1. Purpose'},
+        {type:'paragraph',value:'The purpose of this Complaints Handling Procedure (the “Procedure”) is to establish a clear and structured process for managing player complaints fairly, transparently, and efficiently. As a Curaçao eGaming licensed online casino, Moon Technologies B.V. is committed to providing players with a reliable avenue for resolving disputes related to our gaming services, including account issues, transactions, and gameplay concerns.'},
+        {type:'paragraph',value:'This Procedure aims to:'},
+        {type:'list',values:['Provide a standardized approach to managing and resolving customer complaints.','Ensure compliance with regulatory requirements and industry best practices.','Enhance customer satisfaction and maintain the companys reputation.','Identify areas for improvement in Moon Technologies B.V.’s products, services, and processes.']},
+        {type:'heading',value:'2. Statement'},
+        {type:'paragraph',value:'We recognize the importance of customer satisfaction and responsible gaming. This procedure ensures that all complaints are handled professionally, impartially, and in compliance with the regulatory requirements set forth by Curaçao eGaming. Our goal is to provide efficient resolution to disputes while upholding fairness and integrity in our operations.'},
+        {type:'heading',value:'3. Scope'},
+        {type:'paragraph',value:'This procedure applies to all registered players of our online casino who wish to raise a complaint about areas including (but not limited to):'},
+        {type:'list',values:['Account access or security concerns.','Deposits, withdrawals, and payment processing issues.','Technical issues affecting gameplay.','Alleged breaches of our terms and conditions.','Responsible gaming or self-exclusion concerns.','Any other disputes arising from the use of our services.']},
+        {type:'heading',value:'4. Complaint Resolution Process'},
+        {type:'heading',value:'4.1 Submission of Complaint'},
+        {type:'paragraph',value:'Complaints must be submitted using the designated email address complaints@bitcasino.io and the designated Complaint Form provided by mMoon Technologies B.V., in compliance with Curaçao Gaming Authority (CGA) guidelines. Submission of a complaint comes at no cost.'},
+        {type:'paragraph',value:'Complaints must be filed within six (6) months from the date of the incident related to the player’s participation in a Game of Chance. The complaint must include the following details:'},
+        {type:'list',values:['Complainants name, address, and place of residence.','Complainants account number and/or username.','Date of the complaint.','Registered email address.','Description of the conduct being disputed (using pre-determined category topics if applicable).','Language option: English or the language of the target market.','Any supporting documentation the player wishes to include as part of the complaint.']},
+        {type:'heading',value:'4.2 Acknowledgment'},
+        {type:'paragraph',value:'The Casino shall promptly acknowledge receipt of any complaint, and in any event no later than one (1) week after receiving the complaint. A written confirmation will be sent to the complainant, outlining the complaint handling procedure and the steps that will be taken to address the issue.'},
+        {type:'heading',value:'4.3 Investigation'},
+        {type:'paragraph',value:'Our support team will conduct a thorough investigation, gathering all necessary information to assess the validity of the complaint. Players may be asked to provide additional details or documentation if required.'},
+        {type:'heading',value:'4.4 Resolution'},
+        {type:'paragraph',value:'The Casino shall notify the complainant of the status of their complaint within four (4) weeks of receipt. The response shall include:'},
+        {type:'list',values:['If the complaint will not be processed, a written explanation detailing the reason for the decision.','If the complaint is processed, a written notification of the final decision, including supporting details and justification for the ruling.','If additional time is required for investigation, the complainant will be informed of the expected resolution timeline. The time limit may be extended once, in writing, by a further four (4) weeks.']},
+        {type:'paragraph',value:'N.B: Complaints related to responsible gaming will be prioritized due to potential impacts on player well-being. We shall use best efforts to resolve these cases within five (5) business days. If additional time is required, the player will be informed of the delay, which shall not exceed two (2) weeks.'},
+        {type:'paragraph',value:'The Company shall offer its players, at any time, the opportunity to use alternative dispute resolution (ADR) at the Company’s own expense.'},
+        {type:'heading',value:'4.5 Escalation'},
+        {type:'paragraph',value:'If the player is not satisfied with the resolution, they may escalate the complaint to CGA-certified ADR provider(s). In January 2026, the first Curaçao ADR providers were certified by the CGA. As we are currently in the process of acquiring certified ADR services, this procedure will be updated once a designated provider has been appointed.'},
+        {type:'heading',value:'4.6 Final Decision (ADR)'},
+        {type:'paragraph',value:'The decision made by the ADR provider will be considered final and binding.'},
+        {type:'paragraph',value:'By adhering to this policy, we aim to maintain transparency, fairness, and player trust while operating within Curaçao eGaming licensing regulations.'},
+        {type:'paragraph',value:'Please be advised that the CGA will not resolve or make decisions on complaints regarding gambling-related transactions.'},
+        {type:'paragraph',value:'All complaint records shall be securely maintained for a minimum of five years. This includes documentation of unresolved complaints and those escalated to Alternative Dispute Resolution (ADR) or legal proceeding'},
+        {type:'heading',value:'5. Terms and Conditions'},
+        {type:'paragraph',value:'The Complaints procedure statement is visible and accessible on our website. The Complaints procedure is also clearly outlined in the Terms and Conditions.'},
+        {type:'heading',value:'6. Complaint Template'},
+        {type:'paragraph-link',suffix:'The Complaint Template form can be accessed ',linkLabel:'here',href:'.'},
+      ] },
+      { slug: 'bitcasino-terms-and-conditions-of-use-of-services-of-the-company', title: 'General Terms & Conditions', content: [] },
+      { slug: 'aml', title: 'Bitcasino AML policy', content: [] },
+      { slug: 'bitcasino-reward-terms-conditions', title: 'Bitcasino Reward Terms & Conditions', content: [] },
+      { slug: '', title: '', content: [] },
+      { slug: '', title: '', content: [] },
+    ]
   }
 ];
 

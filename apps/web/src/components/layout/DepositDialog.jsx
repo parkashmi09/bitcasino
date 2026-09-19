@@ -1,9 +1,15 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { Icon } from '@/components/ui/Icon';
 import { Skeleton } from '@/components/ui/Skeleton';
 import { CoinMark } from './WalletMenu';
+import { CashierTransactions } from './CashierTransactions';
+import { CashierFAQ } from './CashierFAQ';
+import { WalletSettings } from './WalletSettings';
+import { ClaimRewardDialog } from '@/components/rewards/ClaimRewardDialog';
 import { useBalances, useDisplayCurrency, useFiatCurrency } from '@/hooks/useWallet';
 import { useExchangeRates } from '@/hooks/usePreferences';
+import { useRewards } from '@/hooks/useRewards';
 import { CURRENCY_ORDER, currencyMeta, currencyNetworks } from '@/data/currencies';
 import QRCode from 'qrcode';
 import { compareDecimal, formatBalance, formatFiat, percentOf } from '@/lib/format';
@@ -30,6 +36,12 @@ import { cn } from '@/lib/cn';
  *              a white pill with a shadow; Deposit's glyph is a filled disc
  *   deposit    the exchange-or-wallet card with its `SMART DEPOSIT` strip,
  *              then the network row, then the QR and the address
+ *   home       the landing the reference keeps under the actions on every
+ *              tab: Rewards (Claim reward plus My Rewards), Recent
+ *              transactions (history) and Support & Settings (settings, FAQ,
+ *              Help Centre). The rows are real navigation — they close the
+ *              sheet and change route — and Claim reward opens the same
+ *              dialog the Rewards page does
  *
  * The previous pass had a centred `Currency` chip rail and a two-tab header,
  * which is a different screen wearing the same colours. Everything above is
@@ -47,11 +59,17 @@ import { cn } from '@/lib/cn';
  * below has four explicit states and none of them falls back to something
  * plausible. Note especially the network caveat documented there: the platform
  * stores one address per coin with no chain, so for a multi-network coin the
- * address is NOT captioned with whichever network the player selected.
+ * address is NOT captioned with whichever network the player selected. The
+ * panel carries the reference's always-on `warning-confirm-address` box and a
+ * toggle that hides the QR rather than the address — the address is the thing
+ * being checked, the QR is only a quicker way into it.
  *
  * Buy, and the exchange card's `SMART DEPOSIT`, are still unwired — they carry
- * the reference's shape and say plainly that they are not. Withdraw is a real
- * form over `SUBMIT_NEW_WITHDRAWL`.
+ * the reference's shape and say plainly that they are not. Withdraw lands on
+ * the selected coin's method card — `Withdraw <TICKER>`, network badged on the
+ * disc, a picker where the coin runs on several chains — and tapping it drills
+ * into the same form, bound to that coin and network, over
+ * `SUBMIT_NEW_WITHDRAWL`.
  *
  * The geometry is the reference's drawer, not a centred card, so the panel
  * slides in from the edge it is attached to (`animate-sheet-in`, see
@@ -75,15 +93,23 @@ export function DepositDialog({ open, onClose }) {
   const [closing, setClosing] = useState(false);
   const [picking, setPicking] = useState(false);
   const [hint, setHint] = useState(false);
+  const [claimOpen, setClaimOpen] = useState(false);
+  const [historyOpen, setHistoryOpen] = useState(false);
+  const [faqOpen, setFaqOpen] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
 
   const [currency, setCurrency] = useDisplayCurrency();
   const [fiat] = useFiatCurrency();
   const { balances, status, reload } = useBalances();
   const { rates } = useExchangeRates();
+  const { claim } = useRewards();
 
   const networks = useMemo(() => currencyNetworks(currency), [currency]);
   const [network, setNetwork] = useState(null);
   const [pickingNetwork, setPickingNetwork] = useState(false);
+  /* The method a withdrawal is going out over: `null` shows the withdraw
+     landing, otherwise the form, bound to that coin and network. */
+  const [withdrawing, setWithdrawing] = useState(null);
 
   const openerRef = useRef(null);
   const panelRef = useRef(null);
@@ -96,6 +122,11 @@ export function DepositDialog({ open, onClose }) {
     setTab('deposit');
     setPicking(false);
     setPickingNetwork(false);
+    setClaimOpen(false);
+    setHistoryOpen(false);
+    setFaqOpen(false);
+    setSettingsOpen(false);
+    setWithdrawing(null);
 
     try {
       setHint(localStorage.getItem(HINT_KEY) !== 'seen');
@@ -128,6 +159,13 @@ export function DepositDialog({ open, onClose }) {
     }
   }, []);
 
+  /* Leaving the Withdraw tab drops any half-chosen method, so coming back
+     always lands on the gateway list rather than mid-form. */
+  const changeTab = (next) => {
+    if (next !== 'withdraw') setWithdrawing(null);
+    setTab(next);
+  };
+
   const close = useCallback(() => {
     setClosing(true);
     window.setTimeout(() => {
@@ -140,14 +178,25 @@ export function DepositDialog({ open, onClose }) {
   useEffect(() => {
     if (!open) return undefined;
     const onKey = (event) => {
+      // The claim sheet answers Escape itself; both listen on `window`, where
+      // `stopPropagation` does not silence a sibling listener, so an Escape
+      // in the sheet would otherwise collapse the drawer behind it too.
+      if (claimOpen) return;
       if (event.key === 'Escape') {
         event.stopPropagation();
-        close();
+        // Each step is one level deep: the first Escape returns to the wallet
+        // landing (or, from a method page, to that landing's gateway list),
+        // the next one closes the drawer.
+        if (faqOpen) setFaqOpen(false);
+        else if (historyOpen) setHistoryOpen(false);
+        else if (settingsOpen) setSettingsOpen(false);
+        else if (withdrawing) setWithdrawing(null);
+        else close();
       }
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [open, close]);
+  }, [open, claimOpen, historyOpen, faqOpen, settingsOpen, withdrawing, close]);
 
   if (!open && !closing) return null;
 
@@ -200,6 +249,10 @@ export function DepositDialog({ open, onClose }) {
             'max-sm:pb-[calc(2rem+env(safe-area-inset-bottom))]',
           )}
         >
+          {settingsOpen ? (
+            <WalletSettings onBack={() => setSettingsOpen(false)} onNavigate={close} />
+          ) : (
+            <>
           <h2 className="mb-3 font-primary text-xl font-semibold">Active balance</h2>
 
           <div className="relative">
@@ -241,7 +294,7 @@ export function DepositDialog({ open, onClose }) {
             )}
           </div>
 
-          <Segmented value={tab} onChange={setTab} hasHint={hint && !picking} />
+          <Segmented value={tab} onChange={changeTab} hasHint={hint && !picking} />
 
           {tab === 'deposit' && (
             <div className="grid gap-3">
@@ -273,17 +326,169 @@ export function DepositDialog({ open, onClose }) {
             />
           )}
 
-          {tab === 'withdraw' && (
-            <WithdrawForm
-              currency={currency}
-              balance={balances[currency] ?? '0'}
-              decimals={meta.decimals}
+          {tab === 'withdraw' && (withdrawing ? (
+            <WithdrawPage
+              target={withdrawing}
+              balance={balances[withdrawing.coin] ?? '0'}
+              onBack={() => setWithdrawing(null)}
               onDone={reload}
             />
+          ) : (
+            <WithdrawMethod
+              currency={currency}
+              chain={chain}
+              options={networks}
+              open={pickingNetwork}
+              onToggle={() => setPickingNetwork((value) => !value)}
+              onOpen={() => setWithdrawing({ coin: currency, network: chain?.short })}
+              onPick={(id) => {
+                setNetwork(id);
+                setWithdrawing({
+                  coin: currency,
+                  network: networks.find((entry) => entry.id === id)?.short,
+                });
+              }}
+            />
+          ))}
+
+          {/* The reference keeps a landing page under the actions, whichever
+              tab is showing: a route each for the account's rewards, its
+              history and its settings. The rows are real navigation as well
+              as decoration — `Layout` closes the drawer on route change, so
+              a `Link` here both leaves the sheet and takes the player where
+              it says. `Claim reward` is the one that stays put: it opens the
+              same dialog the Rewards page does. */}
+          <div className="mt-8 grid gap-5">
+            <HomeSection title="Rewards">
+              <HomeRow
+                icon="gift"
+                label="Claim reward"
+                onClick={() => setClaimOpen(true)}
+              />
+              <HomeRow
+                icon="medal"
+                label="My Rewards"
+                to="/profile/rewards"
+                onNavigate={close}
+              />
+            </HomeSection>
+
+            <HomeSection title="Recent transactions">
+              <HomeRow
+                icon="clock"
+                label="Transaction history"
+                onClick={() => setHistoryOpen(true)}
+              />
+            </HomeSection>
+
+            <HomeSection title="Support & Settings">
+              <HomeRow
+                icon="cog"
+                label="Wallet settings"
+                onClick={() => setSettingsOpen(true)}
+              />
+              <HomeRow
+                icon="info"
+                label="FAQ"
+                onClick={() => setFaqOpen(true)}
+              />
+              <HomeRow
+                icon="help"
+                label="Help Centre"
+                to="/help-center/"
+                external
+                onNavigate={close}
+              />
+            </HomeSection>
+          </div>
+            </>
           )}
         </div>
+
+        {/* The reference's transactions sheet lives above the landing: the
+            `Recent transactions` row no longer leaves the wallet, it covers
+            it — back action returns here, the gear goes to settings. */}
+        {historyOpen && (
+          <CashierTransactions
+            onBack={() => setHistoryOpen(false)}
+            onSettings={close}
+          />
+        )}
+
+        {/* The FAQ sheet, the same shape as the transactions one: the
+            `Support & Settings → FAQ` row opens it in the drawer instead of
+            navigating away. */}
+        {faqOpen && (
+          <CashierFAQ
+            onBack={() => setFaqOpen(false)}
+            onNavigate={close}
+          />
+        )}
       </div>
+
+      <ClaimRewardDialog
+        open={claimOpen}
+        onClose={() => setClaimOpen(false)}
+        onClaim={claim}
+      />
     </div>
+  );
+}
+
+/**
+ * One of the reference's `home_rewards` / `home_recent_txs` /
+ * `home_configuration` sections: a hairline caption over stacked rows.
+ */
+function HomeSection({ title, children }) {
+  return (
+    <section className="grid gap-2">
+      <span className="px-1 text-xs font-medium text-trunks">{title}</span>
+      <div className="grid gap-2">{children}</div>
+    </section>
+  );
+}
+
+/**
+ * A row in those sections, `min-h-14`, an icon tile at the start and a chevron
+ * at the end. `to` makes it in-app navigation (the drawer closes and the route
+ * changes), `external` makes it a plain link to the same path in a new tab,
+ * and neither makes it a button that does `onClick`.
+ */
+function HomeRow({ icon, label, to, external, onNavigate, onClick }) {
+  const className = cn(
+    'flex min-h-14 w-full cursor-pointer items-center gap-2 rounded-i-md bg-goku p-2',
+    'text-start transition-colors hover:bg-heles',
+  );
+  const content = (
+    <>
+      <span className="grid h-8 w-9 shrink-0 place-items-center">
+        <Icon name={icon} size={20} />
+      </span>
+      <span className="min-w-0 flex-1 text-base font-medium text-bulma">{label}</span>
+      <span className="grid h-8 w-4 shrink-0 place-items-center">
+        <Icon name="chevron-right" size={18} className="text-trunks" />
+      </span>
+    </>
+  );
+
+  if (external) {
+    return (
+      <a href={to} target="_blank" rel="noreferrer" onClick={onNavigate} className={className}>
+        {content}
+      </a>
+    );
+  }
+  if (to) {
+    return (
+      <Link to={to} onClick={onNavigate} className={className}>
+        {content}
+      </Link>
+    );
+  }
+  return (
+    <button type="button" onClick={onClick} className={className}>
+      {content}
+    </button>
   );
 }
 
@@ -659,11 +864,17 @@ function NetworkMark({ currency, short, size = 40 }) {
 function AddressPanel({ currency, chain: _chain, networks }) {
   const { data, isPending, isError, error, refetch } = useDepositAddress(currency);
   const [copied, setCopied] = useState(false);
+  const [showQr, setShowQr] = useState(true);
 
   const address = data?.allocated ? data.address : null;
   /** The network the PLATFORM names, never the one the player picked. */
   const confirmedChain = data?.chain ?? null;
   const ambiguous = Boolean(address) && !confirmedChain && (networks?.length ?? 0) > 1;
+  /* Only a confirmed network gets badged on to the QR. When the coin runs on
+     several networks and the platform names none, the badge would be picking
+     the one the player happened to have selected — the exact thing the rest
+     of the panel refuses to do. */
+  const badgeShort = ambiguous ? null : _chain?.short;
 
   const copy = async () => {
     try {
@@ -680,22 +891,39 @@ function AddressPanel({ currency, chain: _chain, networks }) {
     <div className="grid justify-items-center gap-3 rounded-i-md border-[0.8px] border-beerus bg-goku px-6 py-8 text-center">
       {isPending ? (
         <Skeleton className="aspect-square w-40 rounded-i-sm" />
-      ) : address ? (
-        <AddressQr value={address} />
+      ) : address && showQr ? (
+        <div className="relative">
+          <AddressQr value={address} />
+          {badgeShort && (
+            <span className="absolute -bottom-1.5 -end-1.5">
+              <NetworkMark currency={currency} short={badgeShort} size={26} />
+            </span>
+          )}
+        </div>
       ) : (
         <span className="grid aspect-square w-40 place-items-center rounded-i-sm border border-dashed border-beerus">
           <Icon name="qr" size={72} className="text-beerus" />
         </span>
       )}
 
-      <p className="text-sm font-semibold text-bulma">
-        {currency} deposit address
-        {confirmedChain ? ` · ${confirmedChain}` : ''}
-      </p>
+      {/* The reference's `warning-confirm-address` is permanent, not a state —
+          the one thing the platform prints for every crypto deposit, and it
+          stays up whether or not the QR is. The best-place check is the one a
+          clipboard and a network picker together cannot make. */}
+      {address && !isError && (
+        <p
+          role="note"
+          className="flex items-start gap-2 rounded-i-sm bg-hit/10 px-3 py-2 text-start"
+        >
+          <Icon name="alert" size={16} className="mt-0.5 shrink-0 text-krillin" />
+          <span className="text-xs leading-relaxed text-bulma">
+            Please ensure both the wallet address and network are correct before
+            sending. Incorrect transfers cannot be recovered.
+          </span>
+        </p>
+      )}
 
-      {isPending ? (
-        <Skeleton className="h-8 w-full max-w-[280px]" />
-      ) : isError ? (
+      {isError ? (
         <>
           <p className="max-w-[280px] text-xs leading-relaxed text-trunks">
             {error?.code === 'SOCKET_TIMEOUT'
@@ -712,25 +940,36 @@ function AddressPanel({ currency, chain: _chain, networks }) {
         </>
       ) : address ? (
         <>
-          <button
-            type="button"
-            onClick={copy}
-            title="Copy address"
-            className="flex w-full max-w-[300px] items-center gap-2 rounded-i-sm border-[0.8px] border-beerus bg-gohan px-3 py-2 text-start transition-colors hover:border-trunks/40"
-          >
-            {/* `break-all` and not truncation: a partly shown address is one
-                somebody can copy by hand and get wrong. */}
-            <span className="min-w-0 flex-1 font-mono text-[11px] leading-4 break-all text-bulma">
-              {address}
-            </span>
-            <Icon
-              name={copied ? 'check' : 'copy'}
-              size={16}
-              className={copied ? 'shrink-0 text-roshi' : 'shrink-0 text-trunks'}
-            />
-          </button>
+          {/* `break-all` and not truncation: a partly shown address is one
+              somebody can copy by hand and get wrong. */}
+          <span className="w-full max-w-[300px] font-mono text-[11px] leading-4 break-all text-bulma">
+            {address}
+          </span>
+          <span className="text-xs text-trunks">
+            Your {currencyMeta(currency).name} address
+          </span>
 
-          {ambiguous ? (
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={copy}
+              className="flex h-10 cursor-pointer items-center justify-center gap-2 rounded-i-sm bg-piccolo px-4 text-sm font-medium text-goten transition-colors hover:bg-piccolo-80"
+            >
+              <Icon name={copied ? 'check' : 'copy'} size={16} />
+              {copied ? 'Copied' : 'Copy'}
+            </button>
+            <button
+              type="button"
+              onClick={() => setShowQr((value) => !value)}
+              aria-pressed={showQr}
+              aria-label={showQr ? 'Hide the address QR code' : 'Show the address QR code'}
+              className="grid h-10 w-10 cursor-pointer place-items-center rounded-i-sm border-[0.8px] border-beerus bg-gohan text-bulma transition-colors hover:bg-heles"
+            >
+              <Icon name="qr" size={18} />
+            </button>
+          </div>
+
+          {ambiguous && (
             <p
               role="alert"
               className="max-w-[300px] rounded-i-sm bg-hit/10 px-3 py-2 text-xs leading-relaxed text-bulma"
@@ -739,11 +978,6 @@ function AddressPanel({ currency, chain: _chain, networks }) {
               {currency} exists on {networks.map((n) => n.label).join(', ')}, and this
               deployment does not record which one this address is on. Sending on the
               wrong network loses the deposit.
-            </p>
-          ) : (
-            <p className="max-w-[280px] text-xs leading-relaxed text-trunks">
-              Send only {currency}
-              {confirmedChain ? ` on ${confirmedChain}` : ''} to this address.
             </p>
           )}
         </>
@@ -818,7 +1052,111 @@ function AddressQr({ value }) {
  * re-implemented here: the client's checks are there to spare a round trip and
  * to say what is wrong, not to be the control.
  */
-function WithdrawForm({ currency, balance, decimals, onDone }) {
+/**
+ * The Withdraw tab's landing: the reference's method card, but only for the
+ * coin the balance card is showing — one card, `method_item_<coin>_withdraw
+ * -<chain>`, not every coin the wallet knows. The coin's name over
+ * `Withdraw <TICKER>`, the disc badged with whichever network is selected.
+ *
+ * A single-network coin is a straight button: tapping it opens the form.
+ * A multi-network coin expands the same network picker the deposit side uses,
+ * and tapping an option chooses that network AND opens the form for it.
+ */
+function WithdrawMethod({ currency, chain, options, open, onToggle, onOpen, onPick }) {
+  const single = options.length < 2;
+
+  return (
+    <div className="overflow-hidden rounded-i-md border-[0.8px] border-beerus bg-goku">
+      <button
+        type="button"
+        onClick={() => (single ? onOpen() : onToggle())}
+        aria-expanded={single ? undefined : open}
+        data-testid={`method_item_${currency.toLowerCase()}_withdraw-${chain?.id.toLowerCase()}`}
+        className={cn(
+          'flex w-full cursor-pointer items-center gap-3 px-4 py-3.5 text-start transition-colors',
+          single && 'hover:bg-heles',
+        )}
+      >
+        <NetworkMark currency={currency} short={chain?.short} />
+
+        <span className="min-w-0 flex-1">
+          <span className="block truncate text-base font-semibold text-bulma">
+            {currencyMeta(currency).name}
+          </span>
+          <span className="block text-sm text-trunks">{`Withdraw ${currency}`}</span>
+        </span>
+
+        <Icon
+          name={single ? 'chevron-right' : 'chevron-down'}
+          size={22}
+          className={cn(
+            'shrink-0 text-bulma transition-transform duration-150',
+            !single && open && 'rotate-180',
+          )}
+        />
+      </button>
+
+      {open && !single && (
+        <ul className="grid gap-0.5 border-t-[0.8px] border-beerus p-2">
+          {options.map((option) => (
+            <li key={option.id}>
+              <button
+                type="button"
+                role="menuitemradio"
+                aria-checked={option.id === chain?.id}
+                onClick={() => onPick(option.id)}
+                className={cn(
+                  'flex w-full cursor-pointer items-center gap-3 rounded-i-sm px-2 py-2',
+                  'text-start text-sm font-medium transition-colors',
+                  option.id === chain?.id ? 'bg-jiren text-bulma' : 'text-bulma hover:bg-heles',
+                )}
+              >
+                <NetworkMark currency={currency} short={option.short} size={32} />
+                {option.label}
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
+/**
+ * One method tapped open: the back action and heading in the same shape as
+ * `WalletSettings`, then the withdrawal form bound to the selected coin — and
+ * its network, because the chain is a real part of the submit.
+ */
+function WithdrawPage({ target, balance, onBack, onDone }) {
+  const meta = currencyMeta(target.coin);
+  return (
+    <div className="grid gap-6">
+      <div>
+        <button
+          type="button"
+          onClick={onBack}
+          aria-label="Back"
+          data-testid="back_action"
+          className="grid size-8 cursor-pointer place-items-center rounded-i-sm border-[0.8px] border-beerus bg-gohan text-bulma transition-colors hover:bg-heles"
+        >
+          <Icon name="chevron-left" size={18} className="rtl:-scale-x-100" />
+        </button>
+      </div>
+
+      <p className="font-primary text-xl font-medium">{`Withdraw ${target.coin}`}</p>
+
+      <WithdrawForm
+        currency={target.coin}
+        chain={target.network}
+        balance={balance}
+        decimals={meta.decimals}
+        onDone={onDone}
+      />
+    </div>
+  );
+}
+
+function WithdrawForm({ currency, chain, balance, decimals, onDone }) {
   const [address, setAddress] = useState('');
   const [amount, setAmount] = useState('');
   const [password, setPassword] = useState('');
@@ -845,6 +1183,7 @@ function WithdrawForm({ currency, balance, decimals, onDone }) {
     try {
       const result = await submit.mutateAsync({
         coin: currency,
+        ...(chain ? { chain } : {}),
         amount,
         wallet: address,
         password,
@@ -943,6 +1282,7 @@ function WithdrawForm({ currency, balance, decimals, onDone }) {
               is about to happen — not a form they have stopped looking at. */}
           <div className="grid gap-1 rounded-i-md bg-goku px-3 py-2.5 text-xs">
             <Row label="Sending" value={`${formatBalance(amount, decimals)} ${currency}`} />
+            {chain && <Row label="Network" value={chain} />}
             <Row label="To" value={address} mono />
           </div>
 
