@@ -19,8 +19,9 @@ const ADMIN = '/api/v1/admin';
 
 export const ENDPOINTS = {
   // ── Auth ────────────────────────────────────────────────────────────
-  // `register` answers 201 with the same session payload `login` returns —
-  // one round trip creates the account AND signs it in.
+  // `register` answers 201 with the new account — `{id, name, email}` — and
+  // deliberately opens no session. AuthProvider signs in with the same
+  // credentials right after, so the form still lands on a signed-in home.
   register: `${USER}/auth/register`,
   login: `${USER}/auth/login`,
   refresh: `${USER}/auth/refresh`,

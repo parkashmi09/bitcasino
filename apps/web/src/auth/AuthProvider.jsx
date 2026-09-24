@@ -159,14 +159,17 @@ export function AuthProvider({ children }) {
 
   const register = useCallback(
     async (fields) => {
-      const session = await api(ENDPOINTS.register, {
+      // Answers the account, not a session: `{id, name, email}`, no tokens.
+      // Adopting that would leave the header "signed in" with nothing to send,
+      // so sign in with the credentials the form just used.
+      await api(ENDPOINTS.register, {
         method: 'POST',
         auth: false,
         body: fields,
       });
-      return adopt(session);
+      return login({ identifier: fields.username, password: fields.password });
     },
-    [adopt],
+    [login],
   );
 
   const logout = useCallback(async (allSessions = false) => {
