@@ -12,7 +12,8 @@ import { cn } from '@/lib/utils'
  */
 type PublicBranding = { markUrl?: string | null; logoUrl?: string | null; siteName?: string | null }
 
-export const DEFAULT_MARK = '/brand-mark.webp?v=308'
+// Bitcasino's own mark (frontend/apps/web/public/images/brand/logo-icon.svg): the shared API's branding is another site's.
+export const DEFAULT_MARK = '/brand-mark.svg'
 
 // The asset route answers on the platform; the browser reaches it through the `/api/gw` proxy.
 const proxied = (url: string | null | undefined) => {
@@ -22,10 +23,7 @@ const proxied = (url: string | null | undefined) => {
 }
 
 const BrandMark = ({ className }: { className?: string }) => {
-  const branding = useApi<PublicBranding>('admin/branding/public', undefined, { staleTime: Infinity, retry: false })
-  const markUrl = proxied(branding.data?.markUrl)
-  const [failed, setFailed] = useState<string | null>(null)
-  const src = markUrl && failed !== markUrl ? markUrl : DEFAULT_MARK
+  const src = DEFAULT_MARK
 
   useEffect(() => {
     document.querySelectorAll<HTMLLinkElement>('link[rel~="icon"]').forEach(link => (link.href = src))
@@ -36,7 +34,6 @@ const BrandMark = ({ className }: { className?: string }) => {
       src={src}
       alt=''
       className={cn('size-8 shrink-0 rounded-md object-contain', className)}
-      onError={() => setFailed(markUrl)}
     />
   )
 }
