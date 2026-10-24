@@ -78,6 +78,8 @@
   --secondary: rgb(202 207 216 / 16%);
   --secondary-foreground: #1f2025;
   --brand-secondary: #3c6ff5;
+  /* ccpayment's Secondary-main: the lime of its sign-in headline. */
+  --brand-lime: #bee072;
   --icon-accent: #3c6ff5;
   --muted: #e8ecf2;
   --muted-foreground: #71757e;

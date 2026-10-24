@@ -14,10 +14,11 @@ import { toast } from 'sonner'
 // Component Imports
 import { BrandLogo } from '@/components/shared/BrandMark'
 import Logo from '@/components/shared/Logo'
+import OutlinedField from '@/components/shared/OutlinedField'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { Field, FieldGroup, FieldLabel } from '@/components/ui/field'
+import { Field, FieldGroup } from '@/components/ui/field'
 import { Input } from '@/components/ui/input'
 import { InputGroup, InputGroupAddon, InputGroupInput } from '@/components/ui/input-group'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
@@ -145,23 +146,23 @@ const Login = () => {
   }
 
   return (
-    <div className='bg-background flex min-h-screen'>
-      {/* ccpayment's sign-in: a primary-blue brand panel on the left, the form on the page background on the right. */}
-      <div className='bg-primary hidden w-[44%] max-w-[640px] flex-col justify-between p-12 text-white lg:flex'>
+    <div className='bg-primary relative flex min-h-screen overflow-hidden bg-[url(/images/login-pattern.svg)] bg-cover bg-center'>
+      {/* ccpayment's sign-in: the whole page in primary blue with a tile pattern, brand and headline on the left,
+          a white 16px card with the form on the right. */}
+      <div className='hidden flex-1 flex-col justify-between p-[100px] pt-16 text-white lg:flex'>
         <BrandLogo fallback={<Logo className='gap-3 [&_span]:text-[28px] [&_span]:font-semibold [&_span]:text-white [&>*:first-child]:size-11' />} />
         <div>
-          <h1 className='text-[40px] leading-tight font-semibold'>{siteConfig.name}</h1>
-          <p className='mt-4 max-w-md text-lg text-white/80'>{siteConfig.tagline}</p>
+          <h1 className='text-(--brand-lime) text-[72px] leading-[1.15] font-bold uppercase'>{siteConfig.name}</h1>
+          <p className='mt-4 max-w-xl text-[36px] leading-tight font-semibold uppercase'>{siteConfig.tagline}</p>
         </div>
-        <p className='text-sm text-white/60'>© {new Date().getFullYear()} {siteConfig.name}</p>
       </div>
-      <div className='flex flex-1 items-center justify-center px-4 py-10 sm:px-6'>
-        <Card className='animate-in fade-in slide-in-from-bottom-4 mx-auto w-full max-w-[480px] gap-8 rounded-2xl py-10 shadow-(--shadow-card) duration-500 motion-reduce:animate-none sm:px-4'>
-          <CardHeader className='gap-6 px-6'>
-            <Logo className='gap-3 [&>*:first-child]:size-10' />
+      <div className='flex flex-1 items-center justify-center px-4 py-10 sm:px-6 lg:w-[580px] lg:flex-none lg:justify-start lg:py-[63px] lg:pr-[100px] lg:pl-0'>
+        <Card className='animate-in fade-in slide-in-from-bottom-4 mx-auto w-full max-w-[480px] gap-8 py-14 shadow-none duration-500 motion-reduce:animate-none sm:px-[6px] lg:min-h-full lg:self-stretch lg:justify-center'>
+          <CardHeader className='items-center gap-6 px-6 text-center'>
+            <Logo className='justify-center gap-3 lg:hidden [&>*:first-child]:size-10' />
             <div>
-              <CardTitle className='text-primary mb-2 text-[36px] leading-tight font-bold'>Sign in</CardTitle>
-              <CardDescription className='text-sm'>Staff sign-in to {siteConfig.name}</CardDescription>
+              <CardTitle className='text-primary mb-2 text-[36px] leading-[54px] font-bold'>Sign in</CardTitle>
+              <CardDescription className='text-muted-foreground text-base font-medium'>Staff sign-in to {siteConfig.name}</CardDescription>
             </div>
           </CardHeader>
 
@@ -178,11 +179,8 @@ const Login = () => {
             </Tabs>
 
             <form onSubmit={submit}>
-              <FieldGroup className='gap-4'>
-                <Field className='gap-2'>
-                  <FieldLabel htmlFor='identifier'>
-                    {mode === 'staff' ? 'Email address' : 'Executive username'}
-                  </FieldLabel>
+              <FieldGroup className='gap-8'>
+                <OutlinedField htmlFor='identifier' label={mode === 'staff' ? 'Email' : 'Executive username'}>
                   <Input
                     id='identifier'
                     type={mode === 'staff' ? 'email' : 'text'}
@@ -190,13 +188,13 @@ const Login = () => {
                     value={identifier}
                     onChange={e => setIdentifier(e.target.value)}
                     required
-                    placeholder={mode === 'staff' ? 'admin@example.com' : 'username'}
+                    placeholder=' '
+                    className='h-14 border-0 px-3.5 text-base'
                   />
-                </Field>
+                </OutlinedField>
 
-                <Field className='w-full gap-2'>
-                  <FieldLabel htmlFor='password'>{mustChange ? 'Current password' : 'Password'}</FieldLabel>
-                  <InputGroup>
+                <OutlinedField htmlFor='password' label={mustChange ? 'Current password' : 'Password'}>
+                  <InputGroup className='h-14 border-0'>
                     <InputGroupInput
                       id='password'
                       type={visible ? 'text' : 'password'}
@@ -204,7 +202,8 @@ const Login = () => {
                       value={password}
                       onChange={e => setPassword(e.target.value)}
                       required
-                      placeholder='••••••••••••'
+                      placeholder=' '
+                      className='h-14 px-3.5 text-base'
                     />
                     <InputGroupAddon align='inline-end' className='pr-1.5'>
                       <Button
@@ -219,11 +218,10 @@ const Login = () => {
                       </Button>
                     </InputGroupAddon>
                   </InputGroup>
-                </Field>
+                </OutlinedField>
 
                 {mustChange && (
-                  <Field className='gap-2'>
-                    <FieldLabel htmlFor='newPassword'>New password</FieldLabel>
+                  <OutlinedField htmlFor='newPassword' label='New password'>
                     <Input
                       id='newPassword'
                       type='password'
@@ -232,13 +230,14 @@ const Login = () => {
                       onChange={e => setNewPassword(e.target.value)}
                       required
                       minLength={8}
+                      placeholder=' '
+                      className='h-14 border-0 px-3.5 text-base'
                     />
-                  </Field>
+                  </OutlinedField>
                 )}
 
                 {needsCode && (
-                  <Field className='gap-2'>
-                    <FieldLabel htmlFor='code'>Authenticator code</FieldLabel>
+                  <OutlinedField htmlFor='code' label='Authenticator code'>
                     <Input
                       id='code'
                       inputMode='numeric'
@@ -247,9 +246,10 @@ const Login = () => {
                       value={code}
                       onChange={e => setCode(e.target.value.replace(/\D/g, ''))}
                       autoFocus
-                      placeholder='123456'
+                      placeholder=' '
+                      className='h-14 border-0 px-3.5 text-base'
                     />
-                  </Field>
+                  </OutlinedField>
                 )}
 
                 {error && (
