@@ -2,6 +2,7 @@ import { resolveOptions } from '@/configs/entitlementCatalogue'
 import { cleanRegion, type RegionSetting } from './region'
 import { diffWithdrawalCap, type WithdrawalCap } from './withdrawalCap'
 import { diffWithdrawalDailyLimit, type WithdrawalDailyLimit } from './withdrawalDailyLimit'
+import { diffPaymentMethods, type PaymentMethods } from './paymentMethods'
 import { diffBranding, type Branding, type BrandingChange } from './branding'
 
 /** Shapes shared by the routes and the screens — contract §2. */
@@ -57,6 +58,12 @@ export type EntitlementsDoc = {
   withdrawalDailyLimit?: WithdrawalDailyLimit
 
   /**
+   * Payment gateway deposit methods per currency (./paymentMethods), e.g. F2Pay's UPI for INR and
+   * QRIS / DANA … for IDR, each active or not. Absent in an older document = none listed.
+   */
+  paymentMethods?: PaymentMethods
+
+  /**
    * Master switch for player withdrawals on every rail (bank, crypto, gateway payouts, P2P sell).
    * Absent in an older document = on.
    */
@@ -102,11 +109,21 @@ export type SiteCoin = {
   networks: { key: string; name: string }[]
 }
 
+/** One row of the site's `payment_methods` table (`GET /api/owner/payment-methods`). */
+export type SiteMethod = {
+  gateway: string
+  currency: string
+  code: string
+  ownerEnabled: boolean
+  siteEnabled: boolean
+  addedBy: 'site' | 'owner'
+}
+
 /** Where the variants of an older document (without `variants`) were filled from for editing. */
 export type VariantsSeed = 'backend' | 'template' | null
 
 /** What the owner screen edits: the document with a full `variants` map. */
-export type EditableDoc = EntitlementsDoc & { variants: Record<string, string>; options: Record<string, Record<string, boolean>>; region: RegionSetting; withdrawalCap: WithdrawalCap; withdrawalDailyLimit: WithdrawalDailyLimit; withdrawalsEnabled: boolean; branding: Branding; seededFrom: VariantsSeed }
+export type EditableDoc = EntitlementsDoc & { variants: Record<string, string>; options: Record<string, Record<string, boolean>>; region: RegionSetting; withdrawalCap: WithdrawalCap; withdrawalDailyLimit: WithdrawalDailyLimit; paymentMethods: PaymentMethods; withdrawalsEnabled: boolean; branding: Branding; seededFrom: VariantsSeed }
 
 export type ToggleChange = { kind: 'feature' | 'flag'; key: string; from: boolean; to: boolean }
 export type TemplateChange = { kind: 'template'; key: 'template'; from: string | null; to: string }
@@ -130,11 +147,14 @@ export type WithdrawalCapChange = { kind: 'withdrawal_cap'; key: 'withdrawalCap'
 /** The daily withdrawal limit switched or a currency's amount changed (audit kind `withdrawal_daily_limit`). */
 export type WithdrawalDailyLimitChange = { kind: 'withdrawal_daily_limit'; key: 'withdrawalDailyLimit'; from: WithdrawalDailyLimit; to: WithdrawalDailyLimit }
 
+/** A gateway's deposit methods added, removed or switched (audit kind `payment_methods`). */
+export type PaymentMethodsChange = { kind: 'payment_methods'; key: 'paymentMethods'; from: PaymentMethods; to: PaymentMethods }
+
 /** Player withdrawals switched on or off on every rail (audit kind `withdrawals_enabled`). */
 export type WithdrawalsEnabledChange = { kind: 'withdrawals_enabled'; key: 'withdrawalsEnabled'; from: boolean; to: boolean }
 
 export type { BrandingChange }
-export type Change = ToggleChange | TemplateChange | VariantChange | CoinsChange | CoinChange | OptionChange | RegionChange | WithdrawalCapChange | WithdrawalDailyLimitChange | WithdrawalsEnabledChange | BrandingChange
+export type Change = ToggleChange | TemplateChange | VariantChange | CoinsChange | CoinChange | OptionChange | RegionChange | WithdrawalCapChange | WithdrawalDailyLimitChange | PaymentMethodsChange | WithdrawalsEnabledChange | BrandingChange
 
 export type AuditEntry = { at: string; user: string; version: number; changes: Change[]; seededFrom?: Exclude<VariantsSeed, null> }
 
@@ -153,6 +173,7 @@ type Diffable = Pick<EntitlementsDoc, 'features' | 'flags'> & {
   region?: RegionSetting
   withdrawalCap?: WithdrawalCap
   withdrawalDailyLimit?: WithdrawalDailyLimit
+  paymentMethods?: PaymentMethods
   withdrawalsEnabled?: boolean
   branding?: Branding
 }
@@ -212,6 +233,11 @@ export function diffDocs(before: Diffable, after: Diffable) {
   const dailyChange = after.withdrawalDailyLimit ? diffWithdrawalDailyLimit(before.withdrawalDailyLimit, after.withdrawalDailyLimit) : null
 
   if (dailyChange) changes.push(dailyChange)
+
+  // Payment methods: compared cleaned, so an older document (no block) equals none listed.
+  const methodsChange = after.paymentMethods ? diffPaymentMethods(before.paymentMethods, after.paymentMethods) : null
+
+  if (methodsChange) changes.push(methodsChange)
 
   // Withdrawals master switch: an older document (no key) equals on.
   if (after.withdrawalsEnabled !== undefined && (before.withdrawalsEnabled !== false) !== after.withdrawalsEnabled) {

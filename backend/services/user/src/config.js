@@ -127,18 +127,14 @@ const config = loadEnv(
     CCPAYMENT_COIN_IDS: coercers.optionalStr(),
     CCPAYMENT_RETURN_URL: coercers.optionalStr(),
 
-    // F2Pay — INR deposits (UPI cashier page). Every request is RSA-SHA256 signed with our
+    // F2Pay — deposits (cashier page). Only its keys live here; its methods are the
+    // `payment_methods` table (owner panel + Super Admin). Every request is RSA-SHA256 signed with our
     // private key; every answer and callback is verified with F2PAY_PUBLIC_KEY (the key F2Pay
     // gave for checking its signatures). Keys: PEM, or the bare base64 body on one line.
     F2PAY_MERCHANT_ID: coercers.optionalStr(),
     F2PAY_BASE_URL: coercers.optionalStr(),
     F2PAY_PRIVATE_KEY: coercers.optionalStr(),
     F2PAY_PUBLIC_KEY: coercers.optionalStr(),
-    // The deposit methods per currency: comma-separated method codes (F2Pay's docs). The player pays
-    // in the currency they deposit and is credited in it — no conversion. INR → /payin/inr/order/create,
-    // IDR → /payin/idr/order/create. The owner switches each currency (owner panel → F2Pay). Empty = none.
-    F2PAY_INR_METHODS: coercers.optionalStr(),
-    F2PAY_IDR_METHODS: coercers.optionalStr(),
     // Where the cashier page sends the player back after paying.
     F2PAY_RETURN_URL: coercers.optionalStr(),
 

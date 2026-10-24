@@ -7,6 +7,7 @@ import type { CoinDefinition } from '@/lib/entitlements/types'
 import type { RegionSetting } from '@/lib/entitlements/region'
 import type { WithdrawalCap } from '@/lib/entitlements/withdrawalCap'
 import type { WithdrawalDailyLimit } from '@/lib/entitlements/withdrawalDailyLimit'
+import type { PaymentMethods } from '@/lib/entitlements/paymentMethods'
 import type { Branding } from '@/lib/entitlements/branding'
 import { handler, HttpError, ok } from '@/lib/owner/guard'
 
@@ -73,6 +74,7 @@ export const PUT = handler(async (req: NextRequest) => {
     region?: unknown
     withdrawalCap?: unknown
     withdrawalDailyLimit?: unknown
+    paymentMethods?: unknown
     withdrawalsEnabled?: unknown
     branding?: unknown
   } | null
@@ -106,6 +108,9 @@ export const PUT = handler(async (req: NextRequest) => {
       // Daily withdrawal limit per currency; validated strictly in the store (bad code / amount → 422).
       withdrawalDailyLimit:
         body.withdrawalDailyLimit === undefined ? undefined : (body.withdrawalDailyLimit as WithdrawalDailyLimit),
+
+      // Payment gateway methods per currency; validated strictly in the store (bad code / repeat → 422).
+      paymentMethods: body.paymentMethods === undefined ? undefined : (body.paymentMethods as PaymentMethods),
 
       // Player withdrawals on every rail; validated strictly in the store (not a boolean → 422).
       withdrawalsEnabled: body.withdrawalsEnabled as boolean | undefined,

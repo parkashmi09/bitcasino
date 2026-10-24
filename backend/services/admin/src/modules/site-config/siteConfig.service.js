@@ -29,9 +29,10 @@ const PAYMENT_GATEWAYS = Object.freeze([
   {
     name: 'f2pay',
     label: 'F2Pay (deposits)',
+    // Each currency's methods are rows of `payment_methods` (migration 153).
     currencies: [
-      { key: 'f2pay_inr', label: 'INR (UPI)' },
-      { key: 'f2pay_idr', label: 'IDR (QRIS, DANA, CIMB, BRI, MANDIRI, BNI)' },
+      { code: 'INR', key: 'f2pay_inr', label: 'INR' },
+      { code: 'IDR', key: 'f2pay_idr', label: 'IDR' },
     ],
   },
 ]);
@@ -796,15 +797,27 @@ class SiteConfigService {
    * user-service reads the Super Admin's side as `payment_gateways_off` (internal `/settings`).
    */
   async paymentGateways() {
-    const off = await this.paymentGatewaysOff();
+    const [off, { flags }, methods] = await Promise.all([
+      this.paymentGatewaysOff(),
+      entitlements.getEntitlements(),
+      // Every method the owner has on, for the gateways switched per currency — one query.
+      this.models.PaymentMethod
+        ? this.models.PaymentMethod.findAll({ where: { owner_enabled: true }, order: [['id', 'ASC']], raw: true })
+        : [],
+    ]);
     const shown = [];
     for (const gateway of PAYMENT_GATEWAYS) {
-      if (!(await entitlements.isFlagEntitled(`gateway_${gateway.name}`))) continue;
-      // Only the currencies the owner has on, each with the Super Admin's switch.
-      const currencies = [];
-      for (const c of gateway.currencies ?? []) {
-        if (await entitlements.isFlagEntitled(c.key)) currencies.push({ ...c, enabled: !off.includes(c.key) });
-      }
+      if (flags[`gateway_${gateway.name}`] === false) continue;
+      // Only the currencies the owner has on, each with the Super Admin's switch and its methods.
+      const currencies = (gateway.currencies ?? [])
+        .filter((c) => flags[c.key] !== false)
+        .map((c) => ({
+          ...c,
+          enabled: !off.includes(c.key),
+          methods: methods
+            .filter((m) => m.gateway === gateway.name && m.currency === c.code)
+            .map((m) => ({ id: Number(m.id), code: m.code, enabled: m.site_enabled, addedBy: m.added_by, updatedBy: m.updated_by, updatedAt: m.updated_at })),
+        }));
       shown.push({ ...gateway, enabled: !off.includes(gateway.name), ...(gateway.currencies ? { currencies } : {}) });
     }
     return shown;
@@ -837,6 +850,80 @@ class SiteConfigService {
 
     this.logger?.warn({ staffId, gateway: name, enabled }, `Payment gateway ${name} switched ${enabled ? 'ON' : 'OFF'} by the Super Admin`);
     return this.paymentGateways();
+  }
+
+  /**
+   * The Super Admin adds a deposit method to a gateway currency (Payment Methods), with the
+   * transaction password. Already listed: it is switched back on. One the owner has off is the
+   * owner's (NOT_ENTITLED). Recorded with who added it (`added_by 'site'`, `updated_by staff:<id>`).
+   */
+  async addPaymentMethod({ name, currency, code, staffId = null, executiveId = null, transactionPassword }) {
+    await assertTransactionPassword(this.models, staffId, transactionPassword, { required: true, executiveId });
+    const c = PAYMENT_GATEWAYS.find((g) => g.name === name)?.currencies?.find((x) => x.code === currency);
+    if (!c) throw errors.PAYMENT_CURRENCY_NOT_TAKEN({ gateway: name, currency });
+    await this.#assertFlagsEntitled([`gateway_${name}`, c.key]);
+
+    const by = `staff:${staffId}`;
+    const row = await this.models.PaymentMethod.findOne({ where: { gateway: name, currency, code }, raw: true });
+    if (row && !row.owner_enabled) throw errors.NOT_ENTITLED({ kind: 'payment_method', key: `${name}:${currency}:${code}` });
+    if (row) await this.models.PaymentMethod.update({ site_enabled: true, updated_by: by }, { where: { id: row.id } });
+    else await this.models.PaymentMethod.create({ gateway: name, currency, code, added_by: 'site', updated_by: by });
+
+    this.logger?.warn({ staffId, gateway: name, currency, code }, `Payment method ${name} ${currency} ${code} added by the Super Admin`);
+    return this.paymentGateways();
+  }
+
+  /** Every `payment_methods` row, for the owner panel's methods editor (owner-key read). */
+  async ownerPaymentMethods() {
+    const rows = this.models.PaymentMethod ? await this.models.PaymentMethod.findAll({ order: [['id', 'ASC']], raw: true }) : [];
+    return rows.map((m) => ({
+      gateway: m.gateway, currency: m.currency, code: m.code,
+      ownerEnabled: m.owner_enabled, siteEnabled: m.site_enabled, addedBy: m.added_by,
+    }));
+  }
+
+  /** The Super Admin's switch for one method (`payment_methods.site_enabled`), with the transaction password. */
+  async setPaymentMethod({ name, id, enabled, staffId = null, executiveId = null, transactionPassword }) {
+    await assertTransactionPassword(this.models, staffId, transactionPassword, { required: true, executiveId });
+    const row = await this.models.PaymentMethod.findOne({ where: { id, gateway: name }, raw: true });
+    if (!row) throw errors.PAYMENT_METHOD_NOT_FOUND({ id });
+    if (!row.owner_enabled) throw errors.NOT_ENTITLED({ kind: 'payment_method', key: `${name}:${row.currency}:${row.code}` });
+    await this.models.PaymentMethod.update({ site_enabled: enabled, updated_by: `staff:${staffId}` }, { where: { id } });
+
+    this.logger?.warn({ staffId, gateway: name, currency: row.currency, code: row.code, enabled }, `Payment method ${row.code} switched ${enabled ? 'ON' : 'OFF'} by the Super Admin`);
+    return this.paymentGateways();
+  }
+
+  /**
+   * The owner document's `paymentMethods` → `payment_methods`: a method the owner lists is added
+   * (`added_by 'owner'`) or set to its `active` (`owner_enabled`). One the owner added and no longer
+   * lists goes off; a site-added one the owner does not list is on (missing = on). A default document
+   * (no owner reachable) changes nothing. Few rows, so one read and at most a handful of writes.
+   */
+  async applyOwnerPaymentMethods(doc) {
+    if (!this.models.PaymentMethod || !doc || doc.source === 'default') return;
+    const rows = await this.models.PaymentMethod.findAll({ raw: true });
+    const keyOf = (gateway, currency, code) => `${gateway}|${currency}|${code}`;
+    const byKey = new Map(rows.map((r) => [keyOf(r.gateway, r.currency, r.code), r]));
+    const listed = new Set();
+
+    for (const [gateway, currencies] of Object.entries(doc.paymentMethods ?? {})) {
+      for (const [currency, methods] of Object.entries(currencies)) {
+        for (const { code, active } of methods) {
+          const key = keyOf(gateway, currency, code);
+          listed.add(key);
+          const row = byKey.get(key);
+          if (!row) await this.models.PaymentMethod.create({ gateway, currency, code, owner_enabled: active, added_by: 'owner', updated_by: 'owner' });
+          else if (row.owner_enabled !== active) await this.models.PaymentMethod.update({ owner_enabled: active, updated_by: 'owner' }, { where: { id: row.id } });
+        }
+      }
+    }
+
+    const unlisted = rows.filter((r) => !listed.has(keyOf(r.gateway, r.currency, r.code)));
+    const off = unlisted.filter((r) => r.added_by === 'owner' && r.owner_enabled).map((r) => r.id);
+    const on = unlisted.filter((r) => r.added_by !== 'owner' && !r.owner_enabled).map((r) => r.id);
+    if (off.length) await this.models.PaymentMethod.update({ owner_enabled: false, updated_by: 'owner' }, { where: { id: off } });
+    if (on.length) await this.models.PaymentMethod.update({ owner_enabled: true, updated_by: 'owner' }, { where: { id: on } });
   }
 
   /**

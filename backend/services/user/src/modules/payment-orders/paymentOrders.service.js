@@ -121,17 +121,21 @@ class PaymentOrdersService {
     // CCPayment's coin ids come from its live coin list (cached) — see `ccpaymentCoinId`.
     if (providerName === 'ccpayment') await refreshCcpaymentCoinIds(this.config, this.http);
 
-    if (!gateway.supports(currency, FLOW.PAY_IN, this.config) || !(await this.#allowsCurrency(gateway, currency))) {
+    if (!gateway.supports(currency, FLOW.PAY_IN, this.config)) {
       throw errors.CURRENCY_NOT_SUPPORTED({ provider: providerName, currency });
     }
 
     // The deployment's min / max is an INR figure (1 / 10L), so a ccpayment coin deposit has none.
     if (providerName !== 'ccpayment') await this.#assertWithinLimits(amount, currency, FLOW.PAY_IN);
 
-    // F2Pay: a method offered in this currency (UPI for INR, QRIS / DANA / … for IDR), checked
-    // before the order is recorded. No conversion: F2Pay collects what the wallet is credited.
-    if (gateway.payIn && !gateway.payIn(currency, method, this.config)) {
-      throw errors.METHOD_NOT_SUPPORTED({ provider: providerName, method });
+    // F2Pay: an on method in an on currency (`#methods`), checked before the order is recorded.
+    // No conversion: F2Pay collects what the wallet is credited.
+    let payIn = null;
+    if (gateway.methodsInDb) {
+      const methods = await this.#methods(providerName, gateway);
+      if (!methods.some((m) => m.currency === currency)) throw errors.CURRENCY_NOT_SUPPORTED({ provider: providerName, currency });
+      payIn = gateway.payIn(currency, method, methods);
+      if (!payIn) throw errors.METHOD_NOT_SUPPORTED({ provider: providerName, method });
     }
 
     const reference = this.#reference('DEP');
@@ -162,6 +166,7 @@ class PaymentOrdersService {
           // F2Pay's cashier page wants the payer's own name / email / phone and IP.
           customer: gateway.needsCustomer ? await this.#customer(userId) : null,
           ip,
+          payIn,
         },
         this.config,
         { http: this.http }
@@ -411,14 +416,12 @@ class PaymentOrdersService {
   async getAvailableMethods({ provider: providerName }) {
     const gateway = this.#gateway(providerName);
     await this.#assertOwnerAllows(providerName);
+    if (gateway.methodsInDb) return { provider: providerName, methods: await this.#methods(providerName, gateway) };
     if (!gateway.getAvailableMethods) return { provider: providerName, methods: null };
-    let methods = await gateway.getAvailableMethods(this.config, { http: this.http });
-    if (gateway.currencySwitch) {
-      const kept = [];
-      for (const m of methods) if (await this.#allowsCurrency(gateway, m.currency)) kept.push(m);
-      methods = kept;
-    }
-    return { provider: providerName, methods };
+    return {
+      provider: providerName,
+      methods: await gateway.getAvailableMethods(this.config, { http: this.http }),
+    };
   }
 
   /**
@@ -557,14 +560,29 @@ class PaymentOrdersService {
   }
 
   /**
-   * A gateway switched per currency (F2Pay: `f2pay_<code>`): on only when the owner's flag is on
-   * (missing = on) AND the Super Admin has not switched it off (Payment Methods, `payment_gateways_off`).
+   * A gateway's deposit methods that are on — `[{ method, currency }]`: rows of `payment_methods`
+   * with the owner's AND the Super Admin's switch on, in currencies on for the gateway (owner flag
+   * `f2pay_<code>`, missing = on, AND not in the Super Admin's `payment_gateways_off`).
+   * One query, one read of the owner's plan, one of the Super Admin's list.
    */
-  async #allowsCurrency(gateway, currency) {
-    if (!gateway.currencySwitch) return true;
-    const key = gateway.currencySwitch(currency);
-    const off = await this.settings.read('payment_gateways_off', []);
-    return (await entitlements.isFlagEntitled(key)) && !(Array.isArray(off) && off.includes(key));
+  async #methods(providerName, gateway) {
+    const [rows, plan, off] = await Promise.all([
+      this.models.PaymentMethod.findAll({
+        where: { gateway: providerName, owner_enabled: true, site_enabled: true },
+        attributes: ['currency', 'code'],
+        order: [['id', 'ASC']],
+        raw: true,
+      }),
+      entitlements.getEntitlements(),
+      this.settings.read('payment_gateways_off', []),
+    ]);
+    const currencyOn = (currency) => {
+      const key = gateway.currencySwitch(currency);
+      return plan.flags[key] !== false && !(Array.isArray(off) && off.includes(key));
+    };
+    return rows
+      .filter((r) => gateway.supports(r.currency, FLOW.PAY_IN) && currencyOn(r.currency))
+      .map((r) => ({ method: r.code, currency: r.currency }));
   }
 
   /**

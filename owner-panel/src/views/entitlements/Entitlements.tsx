@@ -69,8 +69,10 @@ import {
   type Change,
   type EditableDoc,
   type EntitlementsDoc,
+  type SiteMethod,
   type ToggleChange
 } from '@/lib/entitlements/types'
+import { isMethodCode, MAX_METHODS_PER_CURRENCY, type PaymentMethod } from '@/lib/entitlements/paymentMethods'
 import { cn } from '@/lib/utils'
 import ChangeList from './ChangeList'
 
@@ -173,7 +175,7 @@ const POLICY_KEYS = new Set(FEATURE_CATALOGUE.filter(f => f.policy).map(f => f.k
 const tabOf = (c: Change): Tab => {
   if (c.kind === 'template') return 'template'
   if (c.kind === 'withdrawal_cap' || c.kind === 'withdrawal_daily_limit' || c.kind === 'withdrawals_enabled' || c.key === WITHDRAWAL_REQUIREMENTS) return 'withdrawals'
-  if (c.kind === 'flag') return 'flags'
+  if (c.kind === 'flag' || c.kind === 'payment_methods') return 'flags'
   if ((c.kind === 'variant' || c.kind === 'feature') && POLICY_KEYS.has(c.key)) return 'policies'
 
   return 'features'
@@ -507,6 +509,109 @@ const DailyLimitEditor = ({
   )
 }
 
+/** An F2Pay currency row of Site flags (`f2pay_idr`) → its currency (`IDR`); its methods are edited under it. */
+const F2PAY_CURRENCY_ROW = /^f2pay_([a-z0-9]{2,10})$/
+
+/**
+ * One gateway currency's deposit methods: every method the site has (its seeded rows, the Super
+ * Admin's, the owner's) plus the document's entries not on the site yet. The owner's Active switch
+ * is the document entry's `active`, or on when there is none (missing = on); switching a site-only
+ * method writes an entry, so the owner can switch off one the Super Admin added. Remove drops a
+ * document entry only (the method goes back to "missing = on"). A bad or repeated code is refused inline.
+ */
+const MethodsEditor = ({
+  currency,
+  value,
+  site,
+  siteNote,
+  changed,
+  onChange
+}: {
+  currency: string
+  value: PaymentMethod[]
+  site: SiteMethod[]
+  siteNote?: string
+  changed: boolean
+  onChange: (list: PaymentMethod[]) => void
+}) => {
+  const [code, setCode] = useState('')
+  const typed = code.trim()
+  const codes = [...new Set([...site.map(m => m.code), ...value.map(m => m.code)])]
+
+  const problem = !typed
+    ? null
+    : !isMethodCode(typed)
+      ? 'Letters, digits and _ only (e.g. QRIS, UpiMixed)'
+      : codes.includes(typed)
+        ? `${typed} is already listed`
+        : value.length >= MAX_METHODS_PER_CURRENCY
+          ? `At most ${MAX_METHODS_PER_CURRENCY} methods`
+          : null
+
+  const add = () => {
+    if (!typed || problem) return
+    onChange([...value, { code: typed, active: true }])
+    setCode('')
+  }
+
+  const setActive = (c: string, active: boolean) =>
+    onChange(value.some(m => m.code === c) ? value.map(m => (m.code === c ? { ...m, active } : m)) : [...value, { code: c, active }])
+
+  return (
+    <div className={cn('mt-2 flex flex-col gap-1.5 border-l pl-3', changed && 'bg-primary/5 -mx-1 rounded px-1')} data-methods={currency}>
+      {codes.map(c => {
+        const entry = value.find(m => m.code === c)
+        const row = site.find(m => m.code === c)
+        const active = entry?.active ?? true
+
+        return (
+          <div key={c} className='flex flex-wrap items-center gap-2' data-method={`${currency}:${c}`}>
+            <Switch size='sm' checked={active} onCheckedChange={v => setActive(c, v)} aria-label={`${currency} ${c} active`} />
+            <span className='font-mono text-xs'>{c}</span>
+            <Badge variant='outline' className='font-normal'>
+              {row ? row.addedBy : 'not on the site yet'}
+            </Badge>
+            <span className='text-muted-foreground text-xs'>{active ? 'active' : 'inactive'}</span>
+            {row && !row.siteEnabled && <span className='text-destructive text-xs'>off by Super Admin</span>}
+            {entry && (
+              <Button
+                type='button'
+                variant='ghost'
+                size='icon-sm'
+                aria-label={`Remove ${currency} ${c}`}
+                onClick={() => onChange(value.filter(m => m.code !== c))}
+              >
+                <XIcon />
+              </Button>
+            )}
+          </div>
+        )
+      })}
+      {!codes.length && <p className='text-muted-foreground text-xs'>No {currency} method yet: add one F2Pay offers.</p>}
+      {siteNote && <p className='text-muted-foreground text-xs'>Site list unavailable: {siteNote}</p>}
+      <div className='flex items-center gap-2'>
+        <Input
+          value={code}
+          placeholder='Method code'
+          aria-label={`New ${currency} method code`}
+          aria-invalid={Boolean(problem)}
+          className='h-7 w-40'
+          onChange={e => setCode(e.target.value)}
+          onKeyDown={e => e.key === 'Enter' && (e.preventDefault(), add())}
+        />
+        <Button type='button' variant='outline' size='sm' disabled={!typed || Boolean(problem)} onClick={add}>
+          <PlusIcon /> Add
+        </Button>
+      </div>
+      {problem && (
+        <span className='text-destructive text-xs' data-warning='payment-method-code'>
+          {problem}
+        </span>
+      )}
+    </div>
+  )
+}
+
 /**
  * Withdrawal requirements as switches, any combination: KYC and wagering are the policy's variant
  * (none / kyc / wager / kyc_and_wager), the deposit cap is the document's `withdrawalCap`.
@@ -699,6 +804,9 @@ const TemplateCard = ({
 const Entitlements = () => {
   const { data: doc, error, isLoading, refetch, isRefetching } = useApi<EditableDoc>('/api/owner/entitlements')
 
+  // The site's payment methods (seeded, the Super Admin's, the owner's), shown with the document's.
+  const { data: siteMethods } = useApi<{ methods: SiteMethod[]; source: 'site' | 'unavailable'; reason?: string }>('/api/owner/payment-methods')
+
   // Edits on top of the loaded document; null = nothing touched yet.
   const [edits, setEdits] = useState<Draft | null>(null)
   const [query, setQuery] = useState('')
@@ -750,6 +858,7 @@ const Entitlements = () => {
         ...(prev?.withdrawalDailyLimit
           ? { withdrawalDailyLimit: { ...prev.withdrawalDailyLimit, limits: { ...prev.withdrawalDailyLimit.limits } } }
           : {}),
+        ...(prev?.paymentMethods ? { paymentMethods: prev.paymentMethods } : {}),
         ...(prev?.withdrawalsEnabled !== undefined ? { withdrawalsEnabled: prev.withdrawalsEnabled } : {})
       }
 
@@ -777,6 +886,17 @@ const Entitlements = () => {
         next.features[r.key] = value
         if (variant && variant !== current) next.variants[r.key] = variant
       }
+    })
+
+  /** One F2Pay currency's methods; an emptied currency (or gateway) leaves the document. */
+  const setMethods = (currency: string, list: PaymentMethod[]) =>
+    edit(next => {
+      const all = next.paymentMethods ?? draft?.paymentMethods ?? {}
+      const f2pay = { ...all.f2pay, [currency]: list }
+
+      if (!list.length) delete f2pay[currency]
+      next.paymentMethods = { ...all, f2pay }
+      if (!Object.keys(f2pay).length) delete next.paymentMethods.f2pay
     })
 
   /** An owner-only option of a feature (e.g. when the spin wheel grants a spin). */
@@ -810,6 +930,7 @@ const Entitlements = () => {
         region: draft!.region,
         withdrawalCap: draft!.withdrawalCap,
         withdrawalDailyLimit: draft!.withdrawalDailyLimit,
+        paymentMethods: draft!.paymentMethods,
         withdrawalsEnabled: draft!.withdrawalsEnabled
       }),
     invalidate: [['api']],
@@ -886,6 +1007,7 @@ const Entitlements = () => {
                     const canTurnOn = r.kind !== 'feature' || value(r) || !!firstVariant(r.key, draft!.template)
                     const status = statusOf(r)
                     const rowKey = `${r.kind === 'policy' ? 'feature' : r.kind}:${r.key}`
+                    const methodsCurrency = r.kind === 'flag' ? F2PAY_CURRENCY_ROW.exec(r.key)?.[1].toUpperCase() : undefined
 
                     return (
                       <div
@@ -945,6 +1067,17 @@ const Entitlements = () => {
                               value={draft!.region ?? { listType: 'blocklist', countries: [] }}
                               changed={changed.has('region:region')}
                               onChange={region => edit(next => void (next.region = region))}
+                            />
+                          )}
+                          {methodsCurrency && (
+                            <MethodsEditor
+                              key={`methods-${methodsCurrency}-${epoch}`}
+                              currency={methodsCurrency}
+                              value={draft!.paymentMethods?.f2pay?.[methodsCurrency] ?? []}
+                              site={(siteMethods?.methods ?? []).filter(m => m.gateway === 'f2pay' && m.currency === methodsCurrency)}
+                              siteNote={siteMethods?.source === 'unavailable' ? siteMethods.reason : undefined}
+                              changed={changed.has('payment_methods:paymentMethods')}
+                              onChange={list => setMethods(methodsCurrency, list)}
                             />
                           )}
                           {r.key === 'default_currency' && variant && coinBlocked(variant) && (

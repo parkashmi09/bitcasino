@@ -595,30 +595,26 @@ const f2pay = {
   // missing = on) AND the Super Admin (Settings → Payment Methods). One key for both.
   currencySwitch: (currency) => `f2pay_${String(currency).toLowerCase()}`,
 
-  supports(currency, flow, config) {
-    // Deposits only for now (user, 2026-10-24) — the payout below stays commented out. A currency
-    // is supported when it has methods in env; the player pays in it and is credited in it.
-    return flow !== 'payout' && f2payMethods(config).some((m) => m.currency === currency);
-  },
+  // Its methods are rows of `payment_methods` (owner + Super Admin, migration 153); the service reads them.
+  methodsInDb: true,
 
-  /** `[{ method, currency }]` — what the Fiat tab's Automatic deposit offers. */
-  async getAvailableMethods(config) {
-    return f2payMethods(config);
+  supports(currency, flow) {
+    // Deposits only for now (user, 2026-10-24) — the payout below stays commented out. The player
+    // pays in the currency they deposit and is credited in it: no conversion anywhere.
+    return flow !== 'payout' && Boolean(F2PAY_PAYIN[currency]);
   },
 
   /**
-   * The method the player picked among `currency`'s (none = its first), with that currency's
-   * endpoint and decimals. Null = not offered in that currency. No conversion anywhere: F2Pay
-   * collects exactly the amount and currency the wallet is credited.
+   * The method the player picked among `methods` (the on ones, `[{ method, currency }]`) in
+   * `currency` — none picked = its first — with that currency's endpoint and decimals. Null = not offered.
    */
-  payIn(currency, method, config) {
-    const methods = f2payMethods(config).filter((m) => m.currency === currency);
-    const picked = method ? methods.find((m) => m.method === method) : methods[0];
-    return picked ? { ...picked, ...F2PAY_PAYIN[picked.currency] } : null;
+  payIn(currency, method, methods) {
+    const own = methods.filter((m) => m.currency === currency);
+    const picked = method ? own.find((m) => m.method === method) : own[0];
+    return picked ? { ...picked, ...F2PAY_PAYIN[currency] } : null;
   },
 
-  async createDeposit({ reference, userId, currency, amount, method, notifyUrl, returnUrl, customer, ip }, config, { http }) {
-    const payIn = this.payIn(currency, method, config);
+  async createDeposit({ reference, userId, amount, payIn, notifyUrl, returnUrl, customer, ip }, config, { http }) {
     if (!payIn) return { ok: false, message: 'That payment method is not available' };
     // More decimals than F2Pay takes (INR 2, IDR 0) would make its callback amount differ from ours.
     if (!new RegExp(`^\\d+${payIn.decimals ? `(\\.\\d{1,${payIn.decimals}})?` : ''}$`).test(String(amount))) {
@@ -673,17 +669,6 @@ const F2PAY_PAYIN = Object.freeze({
   INR: { path: '/payin/inr/order/create', decimals: 2, placeholderPhone: '9999999999' },
   IDR: { path: '/payin/idr/order/create', decimals: 0, placeholderPhone: '081234567890' },
 });
-
-/** F2PAY_INR_METHODS / F2PAY_IDR_METHODS (comma-separated codes) as `[{ method, currency }]`, INR first. */
-function f2payMethods(config) {
-  return Object.keys(F2PAY_PAYIN).flatMap((currency) =>
-    String(config[`F2PAY_${currency}_METHODS`] ?? '')
-      .split(',')
-      .map((method) => method.trim())
-      .filter(Boolean)
-      .map((method) => ({ method, currency }))
-  );
-}
 
 /** A key from .env: PEM as-is (`\n` escapes allowed), or the bare base64 body F2Pay's dashboard shows. */
 function f2payKey(value, kind) {

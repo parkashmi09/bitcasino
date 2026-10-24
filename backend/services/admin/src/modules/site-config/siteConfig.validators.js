@@ -1,7 +1,7 @@
 'use strict';
 
-const { z, REWARD_CURRENCY_CHOICES } = require('@ibitplay/common');
-const { PAYMENT_SWITCHES } = require('./siteConfig.service');
+const { z, REWARD_CURRENCY_CHOICES, paymentMethods } = require('@ibitplay/common');
+const { PAYMENT_GATEWAYS, PAYMENT_SWITCHES } = require('./siteConfig.service');
 
 /**
  * Wallet currency codes an operator may pick for reward payouts.
@@ -234,6 +234,25 @@ const setPaymentGateway = {
   body: z.object({ enabled: z.boolean(), transactionPassword: z.string().min(1).max(200) }).strict(),
 };
 
+/** A gateway whose methods are listed per currency (F2Pay). */
+const methodGateway = z.enum(PAYMENT_GATEWAYS.filter((g) => g.currencies).map((g) => g.name));
+
+const addPaymentMethod = {
+  params: z.object({ name: methodGateway }),
+  body: z
+    .object({
+      currency: z.string().regex(/^[A-Z][A-Z0-9]{1,9}$/, 'is not a currency code'),
+      code: z.string().trim().regex(paymentMethods.PAYMENT_METHOD_CODE, 'letters, digits and _ only (max 40)'),
+      transactionPassword: z.string().min(1).max(200),
+    })
+    .strict(),
+};
+
+const setPaymentMethod = {
+  params: z.object({ name: methodGateway, id: z.coerce.number().int().positive() }),
+  body: z.object({ enabled: z.boolean(), transactionPassword: z.string().min(1).max(200) }).strict(),
+};
+
 /**
  * The site's reward currency (one coin for every reward). On an owner-managed
  * site a change is `403 OWNER_MANAGED` (the owner panel sets it); the old
@@ -394,6 +413,8 @@ module.exports = {
   updateReferralUnlockSettings,
   setSportsEnabled,
   setPaymentGateway,
+  addPaymentMethod,
+  setPaymentMethod,
   updateRewardCurrencies,
   updateEmailSettings,
   updateGlobalSettings,

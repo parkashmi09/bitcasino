@@ -481,6 +481,12 @@ class FeaturesService {
    */
   async applyOwner(current) {
     await this.#applyOwnerCoins(current);
+    // The owner's gateway methods → `payment_methods.owner_enabled`. Logged, never thrown.
+    try {
+      await this.siteConfig.applyOwnerPaymentMethods(current);
+    } catch (error) {
+      this.logger?.error({ err: error.message, version: current?.version }, 'Could not apply the owner document to payment methods');
+    }
     try {
       return hasVariants(current) ? await this.applyOwnerDocument(current) : await this.applyOwnerTemplate(current?.template);
     } catch (error) {

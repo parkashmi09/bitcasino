@@ -1,13 +1,13 @@
 'use strict';
 
-const { PROVIDER_CALLBACK_PREFIXES } = require('@ibitplay/common');
+const { isProviderCallback } = require('@ibitplay/common');
 
 /**
  * ENCRYPTION RULE — read this before touching API encryption (apiEncryption.js) or adding a
  * provider / payment route.
  *
  * Every callback and webhook BYPASSES encryption, always, whatever the owner's `api_encryption`
- * switch says. These callers are servers, not our site: they expect plain JSON, and an encrypted
+ * switch says — and CORS too (createApp, the same `isProviderCallback` rule). These callers are servers, not our site: they expect plain JSON, and an encrypted
  * answer breaks a bet, a deposit or a payout.
  *
  *   game callbacks      GIS / Slotegrator (/casino/gis/callback/), Original games wallet
@@ -21,9 +21,7 @@ const { PROVIDER_CALLBACK_PREFIXES } = require('@ibitplay/common');
  * its prefix to PROVIDER_CALLBACK_PREFIXES (packages/common/src/createApp.js), and add a line to
  * __tests__/apiEncryption.test.js proving it stays plain.
  */
-const CALLBACK_PATH = /callback|webhook/i;
-
 /** True when `path` is a game / payment callback: its answer is never encrypted. */
-const isCallback = (path) => CALLBACK_PATH.test(path) || PROVIDER_CALLBACK_PREFIXES.some((p) => path.startsWith(p));
+const isCallback = isProviderCallback;
 
 module.exports = { isCallback };

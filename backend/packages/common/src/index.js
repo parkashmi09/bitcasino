@@ -10,7 +10,7 @@ const env = require('./env');
 const errors = require('./errors');
 const money = require('./money');
 const { createLogger } = require('./logger');
-const { createApp, PROVIDER_CALLBACK_PREFIXES } = require('./createApp');
+const { createApp, PROVIDER_CALLBACK_PREFIXES, isProviderCallback } = require('./createApp');
 const { startServer } = require('./server');
 const { createHealthRouter } = require('./health');
 const { ServiceClient, CircuitBreaker } = require('./serviceClient');
@@ -76,6 +76,8 @@ const wagerCategory = require('./wagerCategory');
 const directLedger = require('./directLedger');
 /** Daily withdrawal limit per currency: the owner's `withdrawalDailyLimit` block (withdrawalDailyLimit.js). */
 const withdrawalDailyLimit = require('./withdrawalDailyLimit');
+/** The owner's `paymentMethods` block (paymentMethods.js), applied to the `payment_methods` table. */
+const paymentMethods = require('./paymentMethods');
 const currencyRegistry = require('./currencyRegistry');
 /** What the operator set in the site admin, read by the services that act on it. */
 const { operatorSettings } = require('./operatorSettings');
@@ -137,6 +139,7 @@ module.exports = {
   directLedger,
   directLedgerContext: directLedger.directLedgerContext,
   withdrawalDailyLimit,
+  paymentMethods,
   configureEntitlements: entitlements.configureEntitlements,
   currencyRegistry,
   configureCurrencyRegistry: currencyRegistry.configureCurrencyRegistry,
@@ -144,6 +147,7 @@ module.exports = {
   createLogger,
   createApp,
   PROVIDER_CALLBACK_PREFIXES,
+  isProviderCallback,
   startServer,
   createHealthRouter,
   ServiceClient,

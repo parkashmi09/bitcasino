@@ -10,7 +10,7 @@
     "lint:fix": "eslint --fix",
     "format": "prettier --write \"src/**/*.{js,jsx,ts,tsx}\"",
     "check-types": "tsc --noEmit",
-    "test": "node --test scripts/coins.test.mjs scripts/rewardCurrency.test.mjs scripts/featureOptions.test.mjs scripts/draft.test.mjs scripts/seedOwner.test.mjs scripts/region.test.mjs scripts/withdrawalRequirements.test.mjs scripts/withdrawalDailyLimit.test.mjs scripts/siteUi.test.mjs scripts/branding.test.mjs scripts/coinGate.test.mjs",
+    "test": "node --test scripts/coins.test.mjs scripts/rewardCurrency.test.mjs scripts/featureOptions.test.mjs scripts/draft.test.mjs scripts/seedOwner.test.mjs scripts/region.test.mjs scripts/withdrawalRequirements.test.mjs scripts/withdrawalDailyLimit.test.mjs scripts/siteUi.test.mjs scripts/branding.test.mjs scripts/coinGate.test.mjs scripts/paymentMethods.test.mjs",
     "seed:owner": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/seed-owner.mjs",
     "e2e:flow": "node scripts/e2e-flow.mjs",
     "clean": "rm -rf .next dist",

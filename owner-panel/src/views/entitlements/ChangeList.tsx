@@ -8,6 +8,7 @@ import type { Change, CoinChange, CoinDefinition, ToggleChange } from '@/lib/ent
 import { regionLabel } from '@/lib/entitlements/region'
 import { withdrawalCapLabel } from '@/lib/entitlements/withdrawalCap'
 import { withdrawalDailyLimitLabel } from '@/lib/entitlements/withdrawalDailyLimit'
+import { paymentMethodsLabel } from '@/lib/entitlements/paymentMethods'
 import { BRANDING_LABELS } from '@/lib/entitlements/branding'
 
 /** An image change shows its content hash, shortened; text shows quoted. */
@@ -102,6 +103,14 @@ const ChangeList = ({ changes, labelOf }: { changes: Change[]; labelOf: (c: Togg
           <span className='font-medium'>Withdrawal requirements: daily limit</span>
           <span className='text-muted-foreground font-mono text-xs'>
             {withdrawalDailyLimitLabel(c.from)} → {withdrawalDailyLimitLabel(c.to)}
+          </span>
+        </li>
+      ) : c.kind === 'payment_methods' ? (
+        <li key='payment_methods' className='flex flex-wrap items-center gap-2 text-sm'>
+          <span className='text-muted-foreground w-14 text-xs uppercase'>flag</span>
+          <span className='font-medium'>Payment methods</span>
+          <span className='text-muted-foreground font-mono text-xs break-all'>
+            {paymentMethodsLabel(c.from)} → {paymentMethodsLabel(c.to)}
           </span>
         </li>
       ) : c.kind === 'withdrawals_enabled' ? (

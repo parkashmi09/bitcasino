@@ -508,9 +508,31 @@ test('site-config', async (t) => {
       // A gateway or currency the owner has off is not the Super Admin's to switch.
       await assert.rejects(() => as('cricpay', true), (err) => err.status === 403);
       await assert.rejects(() => as('f2pay_inr', true), (err) => err.status === 403);
+
+      // A gateway currency's methods (payment_methods): the Super Admin adds and switches, with the code.
+      const idr = async () => (await service.paymentGateways()).find((g) => g.name === 'f2pay').currencies.find((c) => c.code === 'IDR').methods;
+      const add = (code, currency = 'IDR', transactionPassword = TXN) => service.addPaymentMethod({ name: 'f2pay', currency, code, staffId, transactionPassword });
+      await assert.rejects(() => add('OVO_TEST', 'IDR', 'wrong'), (err) => err.code === 'TXN_PASSWORD_INVALID');
+      await add('OVO_TEST');
+      const ovo = (await idr()).find((m) => m.code === 'OVO_TEST');
+      assert.deepEqual([ovo.enabled, ovo.addedBy, ovo.updatedBy], [true, 'site', `staff:${staffId}`], 'stored with who added it');
+      await service.setPaymentMethod({ name: 'f2pay', id: ovo.id, enabled: false, staffId, transactionPassword: TXN });
+      assert.equal((await idr()).find((m) => m.code === 'OVO_TEST').enabled, false);
+      await assert.rejects(() => add('X_TEST', 'INR'), (err) => err.status === 403, 'INR is off at the owner');
+
+      // The owner's document: switches the site's OVO_TEST off and adds GOPAY_TEST …
+      await service.applyOwnerPaymentMethods({ source: 'owner', paymentMethods: { f2pay: { IDR: [{ code: 'OVO_TEST', active: false }, { code: 'GOPAY_TEST', active: true }] } } });
+      let codes = (await idr()).map((m) => m.code);
+      assert.ok(!codes.includes('OVO_TEST') && codes.includes('GOPAY_TEST'), codes.join());
+      await assert.rejects(() => add('OVO_TEST'), (err) => err.status === 403, 'owner-off is the owner’s');
+      // … then lists nothing: its own goes off, the site's is the site's again (missing = on).
+      await service.applyOwnerPaymentMethods({ source: 'owner', paymentMethods: {} });
+      codes = (await idr()).map((m) => m.code);
+      assert.ok(codes.includes('OVO_TEST') && !codes.includes('GOPAY_TEST'), codes.join());
     } finally {
       entitlements.resetEntitlements();
       await connection.models.Staff.destroy({ where: { id: staffId } });
+      await connection.models.PaymentMethod.destroy({ where: { code: ['OVO_TEST', 'GOPAY_TEST', 'X_TEST'] } });
     }
   });
 

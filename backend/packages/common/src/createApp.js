@@ -37,6 +37,14 @@ const PROVIDER_CALLBACK_PREFIXES = Object.freeze([
   '/api/v1/casino/x-casino/',
 ]);
 
+/**
+ * A game / payment callback or webhook: a provider's SERVER calling us, authenticated by its own
+ * signature. Never encrypted (gateway/src/encryptionRule.js) and never held to CORS, a browser rule —
+ * F2Pay posts its callback with `Origin: https://example.com` and CORS refused it with a 403.
+ */
+const CALLBACK_PATH = /callback|webhook/i;
+const isProviderCallback = (path) => CALLBACK_PATH.test(path) || PROVIDER_CALLBACK_PREFIXES.some((p) => path.startsWith(p));
+
 function skipGlobal(internal, prefixes) {
   const list = [...(prefixes ?? [])];
   if (!internal && !list.length) return null;
@@ -155,20 +163,22 @@ function createApp({
     );
   }
 
-  app.use(
-    cors({
-      origin(origin, callback) {
-        // No Origin header: server-to-server, curl, mobile app — allow.
-        if (!origin || allowAnyOrigin) return callback(null, true);
-        if (allowedOrigins.includes(origin)) return callback(null, true);
-        return callback(new ForbiddenError(`Origin ${origin} is not allowed by CORS`));
-      },
-      credentials: true,
-      methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-      allowedHeaders: ['Content-Type', 'Authorization', REQUEST_ID_HEADER, 'x-internal-key', 'x-internal-service', 'x-2fa-code'],
-      exposedHeaders: [REQUEST_ID_HEADER, 'RateLimit-Limit', 'RateLimit-Remaining', 'RateLimit-Reset', 'Retry-After'],
-      maxAge: 86_400,
-    })
+  const corsHandler = cors({
+    origin(origin, callback) {
+      // No Origin header: server-to-server, curl, mobile app — allow.
+      if (!origin || allowAnyOrigin) return callback(null, true);
+      if (allowedOrigins.includes(origin)) return callback(null, true);
+      return callback(new ForbiddenError(`Origin ${origin} is not allowed by CORS`));
+    },
+    credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization', REQUEST_ID_HEADER, 'x-internal-key', 'x-internal-service', 'x-2fa-code'],
+    exposedHeaders: [REQUEST_ID_HEADER, 'RateLimit-Limit', 'RateLimit-Remaining', 'RateLimit-Reset', 'Retry-After'],
+    maxAge: 86_400,
+  });
+  // Callbacks skip CORS: no browser reads their answer, and a provider may send any Origin.
+  app.use((req, res, next) =>
+    isProviderCallback(String(req.originalUrl ?? req.path ?? '').split('?')[0]) ? next() : corsHandler(req, res, next)
   );
 
   app.use(compression());
@@ -268,4 +278,4 @@ function createApp({
 }
 
 module.exports = {
-  PROVIDER_CALLBACK_PREFIXES, createApp };
+  PROVIDER_CALLBACK_PREFIXES, isProviderCallback, createApp };
