@@ -1,7 +1,7 @@
 'use strict';
 
 const { z, REWARD_CURRENCY_CHOICES } = require('@ibitplay/common');
-const { PAYMENT_GATEWAYS } = require('./siteConfig.service');
+const { PAYMENT_SWITCHES } = require('./siteConfig.service');
 
 /**
  * Wallet currency codes an operator may pick for reward payouts.
@@ -230,8 +230,8 @@ const setSportsEnabled = {
 };
 
 const setPaymentGateway = {
-  params: z.object({ name: z.enum(PAYMENT_GATEWAYS.map((g) => g.name)) }),
-  body: z.object({ enabled: z.boolean() }).strict(),
+  params: z.object({ name: z.enum(PAYMENT_SWITCHES) }),
+  body: z.object({ enabled: z.boolean(), transactionPassword: z.string().min(1).max(200) }).strict(),
 };
 
 /**

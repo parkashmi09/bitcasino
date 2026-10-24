@@ -42,7 +42,7 @@ const COINGECKO_IDS = {
   cardano: 'ADA', tron: 'TRX', dogecoin: 'DOGE', 'matic-network': 'MATIC', 'shiba-inu': 'SHIB', nexo: 'NEXO', maker: 'MKR',
 };
 const STABLECOINS = ['USDT', 'USDC', 'BUSD', 'TUSD', 'USDP'];
-const FIAT_CODES = ['INR', 'PKR', 'AED', 'NPR', 'BDT', 'MVR', 'EUR'];
+const FIAT_CODES = ['INR', 'PKR', 'AED', 'NPR', 'BDT', 'MVR', 'EUR', 'IDR'];
 
 async function getJson(url) {
   const res = await fetch(url, { signal: AbortSignal.timeout(15000) });

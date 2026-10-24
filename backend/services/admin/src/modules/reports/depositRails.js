@@ -12,6 +12,7 @@ const { COIN_IDS, DEPOSIT_SUCCESS } = require('../dashboard/dashboard.constants'
  *   pay_in_transactions  WayPay                           currency
  *   ccdeposit            CCPayment crypto                 coinid → coin; `price`
  *   cricpaytransactions  CricPay                          INR
+ *   f2paydeposits        F2Pay                            currency (INR)
  *   upideposit           legacy UPI                       INR (text uid / amount, no timestamp column)
  *
  * NOT deposits (owner, 19 Oct 2026): the Super Admin's Direct User Wallet credit (credits_ledger
@@ -56,6 +57,9 @@ function realDepositsSql({ range = () => '', who = () => '', currency = false } 
     `SELECT k.uid::bigint, k.created_at, 'INR', k.amount, 'cricpay'
        FROM cricpaytransactions k
       WHERE LOWER(k.status) = 'successful'${range('k.created_at')}${who('k.uid', false)}${cur("'INR'")}`,
+    `SELECT fp.user_id, fp.created_at, UPPER(fp.currency), fp.amount, 'f2pay'
+       FROM f2paydeposits fp
+      WHERE LOWER(fp.status) = 'success'${range('fp.created_at')}${who('fp.user_id', false)}${cur('fp.currency')}`,
     `SELECT CASE WHEN u.uid ~ '^[0-9]{1,18}$' THEN u.uid::bigint END, ${upiAt}, 'INR',
             CASE WHEN u.amount ~ '^[0-9]+(\\.[0-9]+)?$' THEN u.amount::numeric ELSE 0 END, 'upi'
        FROM upideposit u

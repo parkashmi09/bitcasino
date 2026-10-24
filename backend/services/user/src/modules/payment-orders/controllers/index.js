@@ -18,7 +18,7 @@ function createControllers({ service }) {
      * @legacy POST /create-order            (UPI, inline in index.js)
      */
     createDeposit: asyncHandler(async (req, res) =>
-      response.created(res, await service.createDeposit({ ...req.body, userId: req.user.id }))
+      response.created(res, await service.createDeposit({ ...req.body, userId: req.user.id, ip: req.ip }))
     ),
 
     /**

@@ -69,6 +69,7 @@ const DEPOSIT_RAIL_LABELS = Object.freeze({
   waypay: 'WayPay deposit',
   ccpayment: 'Crypto deposit',
   cricpay: 'CricPay deposit',
+  f2pay: 'F2Pay deposit',
   upi: 'UPI deposit',
 });
 

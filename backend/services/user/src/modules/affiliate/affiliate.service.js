@@ -1294,8 +1294,8 @@ class AffiliateService {
 
   /**
    * Commission by Friends' "Total Deposits (Past 7D)", in USD per member.
-   * shortcut: approved manual deposits only (the one deposit rail live uses; admin credits are not
-   * deposits); add the other rails from withdrawalCapFigures' DEPOSITED_SQL if a gateway goes live.
+   * shortcut: approved manual deposits + F2Pay only (the deposit rails live uses; admin credits are
+   * not deposits); add the other rails from withdrawalCapFigures' DEPOSITED_SQL if a gateway goes live.
    */
   async #deposits7dUsd(ids) {
     const totals = new Map();
@@ -1304,6 +1304,9 @@ class AffiliateService {
       `SELECT uid, cur, SUM(amt)::text AS amt FROM (
          SELECT user_id::text AS uid, upper(currency) AS cur, amount AS amt FROM fiat_deposits
           WHERE user_id IN (:ids) AND lower(status) = 'approved' AND COALESCE(handled_at, created_at) >= now() - interval '7 days'
+         UNION ALL
+         SELECT user_id::text, upper(currency), amount FROM f2paydeposits
+          WHERE user_id IN (:ids) AND lower(status) = 'success' AND updated_at >= now() - interval '7 days'
        ) d GROUP BY uid, cur`,
       { replacements: { ids }, type: QueryTypes.SELECT }
     );

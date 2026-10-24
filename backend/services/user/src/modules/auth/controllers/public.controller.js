@@ -5,7 +5,7 @@ const google = require('../google');
 
 /** Unauthenticated auth endpoints — the ones that MINT a session. */
 function createPublicController({ service }) {
-  const context = (req) => ({ ip: req.ip, userAgent: req.headers['user-agent'] });
+  const context = (req) => ({ ip: req.ip, userAgent: req.headers['user-agent'], origin: req.headers.origin });
 
   return {
     register: asyncHandler(async (req, res) => {

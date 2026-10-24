@@ -59,6 +59,7 @@ function creditableCurrency(code, fallback = REWARD_CURRENCY) {
 const BUILTIN_CURRENCIES = Object.freeze([
   'BTC', 'ETH', 'LTC', 'BCH', 'USDT', 'TRX', 'DOGE', 'ADA', 'XRP', 'BNB', 'USDP', 'NEXO', 'MKR', 'TUSD',
   'USDC', 'BUSD', 'NC', 'INR', 'SHIB', 'MATIC', 'SC', 'MVR', 'BJB', 'AED', 'NPR', 'PKR', 'EUR', 'BDT',
+  'IDR', // migration 151
 ]);
 
 /**

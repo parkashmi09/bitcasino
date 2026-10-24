@@ -3,6 +3,7 @@
 const crypto = require('crypto');
 
 const { PSP_STATUS } = require('../psp.constants');
+const { f2payVerify } = require('../../payment-orders/gateways');
 
 /**
  * Payment-provider adapters.
@@ -309,7 +310,45 @@ const upi = {
   },
 };
 
-const PROVIDERS = { waypay, apay, cricpay, upi };
+// ══════════════════════════════════════════════════════════════════════
+//  F2Pay — RSA-SHA256 over `bizContent`, checked with F2Pay's public key
+// ══════════════════════════════════════════════════════════════════════
+const f2pay = {
+  name: 'f2pay',
+  requiredConfig: ['F2PAY_PUBLIC_KEY'],
+  // `bizContent` carries `mchOrderNo`, so one signature settles exactly one order.
+  selfIdentifying: true,
+
+  verify(body, config) {
+    return f2payVerify(body.bizContent, body.sign, config);
+  },
+
+  /** The bytes F2Pay signed — what the replay guard fingerprints. */
+  signedPayload(body) {
+    return String(body.bizContent ?? '');
+  },
+
+  parse(body) {
+    let biz = {};
+    try {
+      biz = JSON.parse(body.bizContent);
+    } catch {
+      // Unreadable: no reference, so the service refuses it.
+    }
+    // Paid = the order's amount arrived. UnequalPaid = a different amount did; its `actualAmount`
+    // then fails the shared amount check and is not credited automatically.
+    const paid = biz.state === 'Paid' || biz.state === 'UnequalPaid';
+    return {
+      reference: biz.mchOrderNo,
+      providerReference: biz.platNo ?? null,
+      status: paid ? PSP_STATUS.SUCCESS : biz.state === 'Failed' || biz.state === 'Closed' ? PSP_STATUS.FAILED : PSP_STATUS.PENDING,
+      amount: String((biz.state === 'UnequalPaid' ? biz.actualAmount : biz.amount) ?? '0'),
+      utr: biz.utr ?? null,
+    };
+  },
+};
+
+const PROVIDERS = { waypay, apay, cricpay, upi, f2pay };
 
 /**
  * Boot-time checks on the adapter set.

@@ -9,7 +9,7 @@ import type { CoinChange, CoinDefinition } from './types'
 /** The coins with a `credits` column on the site (backend BUILTIN_CURRENCIES). Never definable here. */
 export const BUILTIN_COINS = [
   'BTC', 'ETH', 'LTC', 'BCH', 'USDT', 'TRX', 'DOGE', 'ADA', 'XRP', 'BNB', 'USDP', 'NEXO', 'MKR', 'TUSD',
-  'USDC', 'BUSD', 'NC', 'INR', 'SHIB', 'MATIC', 'SC', 'MVR', 'BJB', 'AED', 'NPR', 'PKR', 'EUR', 'BDT'
+  'USDC', 'BUSD', 'NC', 'INR', 'SHIB', 'MATIC', 'SC', 'MVR', 'BJB', 'AED', 'NPR', 'PKR', 'EUR', 'BDT', 'IDR'
 ] as const
 
 export const COIN_CODE = /^[A-Z][A-Z0-9]{1,9}$/

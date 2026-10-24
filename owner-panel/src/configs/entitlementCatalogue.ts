@@ -548,7 +548,7 @@ export const FLAG_GROUPS: FlagGroup[] = [
   {
     title: 'Fiat currencies',
     description: 'Wallet currencies a player may hold.',
-    keys: ['inr', 'mvr', 'aed', 'pkr', 'bdt', 'npr', 'eur']
+    keys: ['inr', 'mvr', 'aed', 'pkr', 'bdt', 'npr', 'eur', 'idr']
   },
   {
     title: 'Crypto currencies',
@@ -558,7 +558,13 @@ export const FLAG_GROUPS: FlagGroup[] = [
   {
     title: 'Payment gateways',
     description: 'Off: the gateway takes no new deposits or withdrawals and leaves the site. Orders already open still settle.',
-    keys: ['gateway_ccpayment', 'gateway_apay', 'gateway_waypay', 'gateway_cricpay', 'gateway_upi']
+    keys: ['gateway_ccpayment', 'gateway_apay', 'gateway_waypay', 'gateway_cricpay', 'gateway_upi', 'gateway_f2pay']
+  },
+  {
+    // Not "… currencies": a title matching /currenc/i is read as a coin group (lib/entitlements/siteCoins.ts).
+    title: 'F2Pay',
+    description: 'The wallet currencies F2Pay opens for: a player depositing in an ON one is offered F2Pay and pays in it. Several may be on.',
+    keys: ['f2pay_inr', 'f2pay_idr']
   },
   {
     title: 'Home page sections',
@@ -614,6 +620,10 @@ export const FLAG_LABELS: Record<string, string> = {
   gateway_waypay: 'WayPay',
   gateway_cricpay: 'CricPay',
   gateway_upi: 'UPI (EkQR)',
+  gateway_f2pay: 'F2Pay (deposits)',
+  f2pay_inr: 'INR (UPI)',
+  f2pay_idr: 'IDR (QRIS, DANA, CIMB, BRI, MANDIRI, BNI)',
+  idr: 'IDR',
   home_heroSection: 'Hero carousel',
   home_welcomebanner: 'Welcome banner',
   home_latestwins: 'Latest wins ticker',

@@ -20,6 +20,7 @@ const QueryTypes = Object.freeze({ SELECT: 'SELECT' });
  *   upideposit           'success'                            always INR (uid, amount are text)
  *   pay_in_transactions  status 1 (WayPay)                    currency
  *   ccdeposit            'Success' (CCPayment crypto)         coinid → coin; `price`
+ *   f2paydeposits        'Success' (F2Pay)                    currency
  *   staff_transfers      to_type 'user', a player-funding type  always INR (no currency column)
  *     (transfer / refill / issuance / adjust; the gt / casino settlement rows are not funding)
  *   NOT owner_direct_ledger: the Super Admin's Direct User Wallet credit (and debit) is the
@@ -68,6 +69,8 @@ const DEPOSITED_SQL = `
         WHERE user_id = :uid AND upper(currency) = :cur AND status = 1)
     + (SELECT COALESCE(SUM(price), 0) FROM ccdeposit
         WHERE userid = :uidText AND ${CC_CASE} = :cur AND lower(status) = 'success')
+    + (SELECT COALESCE(SUM(amount), 0) FROM f2paydeposits
+        WHERE user_id = :uid AND upper(currency) = :cur AND lower(status) = 'success')
     + (SELECT COALESCE(SUM(amount), 0) FROM staff_transfers
         WHERE :cur = 'INR' AND to_type = 'user' AND to_id = :uid AND transfer_type IN ${FUNDING})
     AS total`;
@@ -164,6 +167,7 @@ const CURRENCIES_SQL = `
     UNION SELECT 'INR' FROM upideposit WHERE uid = :uidText AND lower(status) = 'success'
     UNION SELECT upper(currency) FROM pay_in_transactions WHERE user_id = :uid AND status = 1
     UNION SELECT ${CC_CASE} FROM ccdeposit WHERE userid = :uidText AND lower(status) = 'success'
+    UNION SELECT upper(currency) FROM f2paydeposits WHERE user_id = :uid AND lower(status) = 'success'
     UNION SELECT 'INR' FROM staff_transfers WHERE to_type = 'user' AND to_id = :uid AND transfer_type IN ${FUNDING}
     UNION SELECT upper(currency) FROM fiat_withdrawals WHERE uid = :uid AND lower(status) NOT IN ${NOT_OUT}
     UNION SELECT upper(coin) FROM withdrawals WHERE uid = :uid AND lower(status) NOT IN ${NOT_OUT}

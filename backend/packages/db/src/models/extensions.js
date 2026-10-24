@@ -103,6 +103,8 @@ const EXTENSIONS = {
   // dropped the attribute and the route reported success storing nothing.
   Credits: {
     credit_limit: { type: DataTypes.DECIMAL, allowNull: true, defaultValue: '0', field: 'credit_limit' },
+    // ── migration 151-idr-currency: the IDR balance (F2Pay's Indonesian deposits).
+    idr: { type: DataTypes.DECIMAL, allowNull: true, defaultValue: '0', field: 'idr' },
     // ── migration 095-credits-sports-wallet: the wallet's own id (BIGSERIAL;
     // `point_ledger.wallet_id` stores it). Postgres fills it — never written here.
     id: { type: DataTypes.BIGINT, allowNull: true, field: 'id' },

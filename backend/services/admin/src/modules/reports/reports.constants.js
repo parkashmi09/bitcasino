@@ -35,6 +35,7 @@ const CURRENCY_COLUMNS = Object.freeze({
   SC: 'sc',
   MVR: 'mvr',
   AED: 'aed',
+  IDR: 'idr',
   SHIB: 'shib',
   MATIC: 'matic',
   USDP: 'usdp',

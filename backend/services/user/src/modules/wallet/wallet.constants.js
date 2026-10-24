@@ -49,6 +49,8 @@ const CURRENCY_COLUMN = Object.freeze({
   PKR: 'pkr',
   EUR: 'eur',
   BDT: 'bdt',
+  // Migration 151: F2Pay's Indonesian deposits are paid and held in IDR.
+  IDR: 'idr',
 });
 
 /**

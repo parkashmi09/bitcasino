@@ -2,6 +2,7 @@
 
 const test = require('node:test');
 const assert = require('node:assert');
+const crypto = require('node:crypto');
 
 const db = require('@ibitplay/db');
 const { createLogger, money, entitlements } = require('@ibitplay/common');
@@ -767,5 +768,161 @@ test('payment orders', async (t) => {
     const sent = calls.find((c) => c.url.endsWith('/createAppOrderDepositAddress'));
     assert.equal(JSON.parse(sent.body).coinId, 1280);
     assert.equal(calls.filter((c) => c.url.endsWith('/getCoinList')).length, 1, 'the list is cached, not asked per deposit');
+  });
+
+  // ══════════════════════════════════════════════════════════════════════
+  //  F2Pay — RSA-signed INR deposits
+  // ══════════════════════════════════════════════════════════════════════
+
+  // Ours signs the request; F2Pay's (another pair) signs its answer. F2Pay's public key goes in as
+  // the bare base64 body, the form its dashboard shows; ours as PEM.
+  const ours = crypto.generateKeyPairSync('rsa', { modulusLength: 2048 });
+  const theirs = crypto.generateKeyPairSync('rsa', { modulusLength: 2048 });
+  const F2PAY = {
+    F2PAY_MERCHANT_ID: 'F2_TEST',
+    F2PAY_BASE_URL: 'https://f2pay.test',
+    F2PAY_PRIVATE_KEY: ours.privateKey.export({ type: 'pkcs8', format: 'pem' }),
+    F2PAY_PUBLIC_KEY: theirs.publicKey.export({ type: 'spki', format: 'der' }).toString('base64'),
+    F2PAY_INR_METHODS: 'UpiMixed',
+    F2PAY_IDR_METHODS: 'QRIS, BNI',
+  };
+  const f2payAnswer = (biz, key = theirs.privateKey) => {
+    const bizContent = JSON.stringify(biz);
+    return { code: '0000', msg: 'success', bizContent, sign: crypto.sign('sha256', Buffer.from(bizContent), key).toString('base64') };
+  };
+  const cashier = (url, body) =>
+    f2payAnswer({ mchOrderNo: JSON.parse(body.bizContent).mchOrderNo, platNo: 'F2P-1', payUrl: 'https://cashier.f2pay.test/abc' });
+
+  await t.test('an F2Pay deposit is signed with our key and opens F2Pay’s cashier page', async () => {
+    const uid = newUid();
+    await seed(uid, '0');
+    const { service, calls } = build(cashier, F2PAY);
+
+    const order = await service.createDeposit({ userId: uid, provider: 'f2pay', currency: 'INR', amount: '500', ip: '203.0.113.5' });
+    assert.equal(order.redirectUrl, 'https://cashier.f2pay.test/abc');
+
+    const sent = calls[0].body;
+    assert.equal(calls[0].url, 'https://f2pay.test/payin/inr/order/create');
+    assert.equal(sent.merchantId, 'F2_TEST');
+    assert.ok(crypto.verify('sha256', Buffer.from(sent.bizContent), ours.publicKey, Buffer.from(sent.sign, 'base64')), 'signed over the exact string sent');
+    const biz = JSON.parse(sent.bizContent);
+    assert.equal(biz.mchOrderNo, order.reference);
+    assert.equal(biz.amount, '500.00');
+    assert.equal(biz.methodCode, 'UpiMixed', 'no method picked = the first configured one');
+    assert.equal(biz.notifyUrl, 'https://api.example.test/api/v1/user/psp/f2pay/callback');
+    assert.equal(biz.customerName, `pay-${uid}`);
+    assert.equal(biz.customerIpAddress, '203.0.113.5');
+
+    const row = await connection.models.F2payDeposits.findOne({ where: { mch_order_no: order.reference }, raw: true });
+    assert.equal(row.status, 'Pending');
+    assert.equal(row.plat_no, 'F2P-1');
+    assert.equal(await balanceOf(uid), '0.00000000', 'nothing is credited until the callback is verified');
+  });
+
+  await t.test('an F2Pay answer that F2Pay did not sign is refused and the order marked failed', async () => {
+    const uid = newUid();
+    await seed(uid, '0');
+    // Signed with OUR key — anyone in the middle could produce that, F2Pay would not.
+    const { service } = build((url, body) => f2payAnswer({ mchOrderNo: JSON.parse(body.bizContent).mchOrderNo, payUrl: 'https://evil.test' }, ours.privateKey), F2PAY);
+
+    await assert.rejects(
+      () => service.createDeposit({ userId: uid, provider: 'f2pay', currency: 'INR', amount: '500' }),
+      (err) => err.code === 'PAYORDER_PROVIDER_REJECTED'
+    );
+    const row = await connection.models.F2payDeposits.findOne({ where: { user_id: uid }, raw: true });
+    assert.equal(row.status, 'Failed');
+  });
+
+  await t.test('F2Pay takes deposits only, in rupees and paise', async () => {
+    const uid = newUid();
+    await seed(uid, '1000');
+    const { service, calls } = build(cashier, F2PAY);
+
+    await assert.rejects(
+      () => service.createWithdrawal({ userId: uid, provider: 'f2pay', currency: 'INR', amount: '100', details: BANK }),
+      (err) => err.code === 'PAYORDER_CURRENCY_NOT_SUPPORTED'
+    );
+    await assert.rejects(
+      () => service.createDeposit({ userId: uid, provider: 'f2pay', currency: 'INR', amount: '100.555' }),
+      (err) => err.code === 'PAYORDER_PROVIDER_REJECTED'
+    );
+    assert.equal(calls.length, 0, 'neither reached F2Pay');
+    assert.equal(await balanceOf(uid), '1000.00000000');
+  });
+
+  await t.test('F2Pay offers each currency its own methods; an IDR method is refused for an INR deposit', async () => {
+    const uid = newUid();
+    await seed(uid, '0');
+    const { service, calls } = build(cashier, F2PAY);
+
+    const { methods } = await service.getAvailableMethods({ provider: 'f2pay' });
+    assert.deepEqual(methods, [
+      { method: 'UpiMixed', currency: 'INR' },
+      { method: 'QRIS', currency: 'IDR' },
+      { method: 'BNI', currency: 'IDR' },
+    ]);
+
+    await assert.rejects(
+      () => service.createDeposit({ userId: uid, provider: 'f2pay', currency: 'INR', amount: '500', method: 'BNI' }),
+      (err) => err.code === 'PAYORDER_METHOD_NOT_SUPPORTED'
+    );
+    assert.equal(calls.length, 0);
+    assert.equal(await connection.models.F2payDeposits.count({ where: { user_id: uid } }), 0);
+  });
+
+  await t.test('an IDR deposit goes to F2Pay’s IDR endpoint in IDR, whole rupiah, no conversion', async () => {
+    const { getGateway } = require('../gateways');
+    const sent = [];
+    const http = { post: async (url, body) => { sent.push({ url, body }); return cashier(url, body); } };
+    const gateway = getGateway('f2pay');
+    const config = { ...F2PAY };
+
+    assert.equal(gateway.supports('IDR', 'payin', config), true);
+    assert.equal(gateway.supports('PKR', 'payin', config), false, 'a currency with no methods in env');
+
+    const ok = await gateway.createDeposit({ reference: 'DEP_IDR_1', userId: 1, currency: 'IDR', amount: '20000', method: 'QRIS' }, config, { http });
+    assert.equal(ok.ok, true);
+    assert.equal(sent[0].url, 'https://f2pay.test/payin/idr/order/create');
+    const biz = JSON.parse(sent[0].body.bizContent);
+    assert.equal(biz.amount, '20000');
+    assert.equal(biz.methodCode, 'QRIS');
+
+    const cents = await gateway.createDeposit({ reference: 'DEP_IDR_2', userId: 1, currency: 'IDR', amount: '20000.50', method: 'QRIS' }, config, { http });
+    assert.equal(cents.ok, false, 'IDR takes whole rupiah');
+    assert.equal(sent.length, 1);
+  });
+
+  await t.test('the owner picks the currencies F2Pay opens for (flags.f2pay_<code>)', async () => {
+    const uid = newUid();
+    await seed(uid, '0');
+    const { service, calls } = build(cashier, F2PAY);
+    entitlements.configureEntitlements({ read: () => ({ features: {}, flags: { f2pay_inr: false } }) });
+
+    try {
+      const { methods } = await service.getAvailableMethods({ provider: 'f2pay' });
+      assert.deepEqual(methods.map((m) => m.currency), ['IDR', 'IDR'], 'INR is off, IDR left alone (missing = on)');
+      await assert.rejects(
+        () => service.createDeposit({ userId: uid, provider: 'f2pay', currency: 'INR', amount: '500' }),
+        (err) => err.code === 'PAYORDER_CURRENCY_NOT_SUPPORTED'
+      );
+      assert.equal(calls.length, 0);
+    } finally {
+      entitlements.resetEntitlements();
+    }
+  });
+
+  await t.test('the Super Admin can switch one F2Pay currency off too (Payment Methods, same key)', async () => {
+    const uid = newUid();
+    await seed(uid, '0');
+    const admin = { get: async () => ({ payment_gateways_off: ['f2pay_inr'] }) };
+    const { service, calls } = build(cashier, F2PAY, { clients: { admin } });
+
+    const { methods } = await service.getAvailableMethods({ provider: 'f2pay' });
+    assert.deepEqual(methods.map((m) => m.currency), ['IDR', 'IDR'], 'INR is off at the Super Admin');
+    await assert.rejects(
+      () => service.createDeposit({ userId: uid, provider: 'f2pay', currency: 'INR', amount: '500' }),
+      (err) => err.code === 'PAYORDER_CURRENCY_NOT_SUPPORTED'
+    );
+    assert.equal(calls.length, 0);
   });
 });

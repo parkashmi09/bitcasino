@@ -112,6 +112,11 @@ class PspService {
       return { status: 'ok', duplicate: true, reference: parsed.reference };
     }
 
+    // An in-between state (F2Pay reports more than paid / failed): nothing to do yet.
+    if (parsed.status === PSP_STATUS.PENDING) {
+      return { status: 'ok', settled: false, reference: parsed.reference };
+    }
+
     // ── 3. A failure is recorded, not credited ────────────────────────
     if (parsed.status !== PSP_STATUS.SUCCESS) {
       await this.#markStatus(providerName, record, PSP_STATUS.FAILED);
@@ -563,6 +568,17 @@ class PspService {
       };
     }
 
+    if (providerName === 'f2pay') {
+      const row = await this.models.F2payDeposits.findOne({ where: { mch_order_no: reference }, raw: true });
+      return row && {
+        model: 'F2payDeposits', key: { mch_order_no: reference },
+        userId: row.user_id, amount: row.amount, currency: row.currency,
+        // 'Pending' / 'Success' / 'Failed'.
+        status: row.status, settled: SETTLED_STATUSES.has(String(row.status).toLowerCase()),
+        createdAt: row.created_at,
+      };
+    }
+
     const row = await PayInTransactions.findOne({ where: { out_trade_no: reference }, raw: true });
     return row && {
       model: 'PayInTransactions', key: { out_trade_no: reference },
@@ -631,6 +647,7 @@ class PspService {
       Apaydeposits: success ? 'Success' : 'Failed',
       Cricpaytransactions: success ? 'Successful' : 'Failed',
       Upideposit: success ? 'success' : 'failed',
+      F2payDeposits: success ? 'Success' : 'Failed',
     };
 
     const patch = {

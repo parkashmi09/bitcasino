@@ -22,7 +22,7 @@ function createControllers({ service }) {
         ip: req.ip,
       });
 
-      if (req.params.provider === 'waypay') return res.send('success');
+      if (['waypay', 'f2pay'].includes(req.params.provider)) return res.send('success');
       return res.json({ status: true, ...result });
     }),
 

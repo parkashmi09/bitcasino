@@ -784,4 +784,91 @@ test('payment provider callbacks', async (t) => {
     const own = await psp.getStatus({ provider: 'upi', reference, userId: owner });
     assert.equal(own.reference, reference);
   });
+
+  // ══════════════════════════════════════════════════════════════════════
+  //  F2Pay — RSA-SHA256 over bizContent
+  // ══════════════════════════════════════════════════════════════════════
+
+  const f2pay = crypto.generateKeyPairSync('rsa', { modulusLength: 2048 });
+  const stranger = crypto.generateKeyPairSync('rsa', { modulusLength: 2048 });
+  const f2psp = new PspService({
+    models: connection.models,
+    db: connection,
+    logger,
+    config: { SERVICE_NAME: 'user-service', F2PAY_PUBLIC_KEY: f2pay.publicKey.export({ type: 'spki', format: 'pem' }) },
+  });
+  const f2payCallback = (biz, key = f2pay.privateKey) => {
+    const bizContent = JSON.stringify(biz);
+    const body = { merchantId: 'F2_TEST', signType: 'RSA', bizContent, sign: crypto.sign('sha256', Buffer.from(bizContent), key).toString('base64') };
+    return f2psp.handleCallback({ provider: 'f2pay', body, ip: '203.0.113.9' });
+  };
+  const pendingF2pay = async (uid, amount) => {
+    const reference = newRef();
+    await connection.models.F2payDeposits.create({ user_id: uid, mch_order_no: reference, amount, currency: 'INR', status: 'Pending' });
+    return reference;
+  };
+  const f2payRow = (reference) => connection.models.F2payDeposits.findOne({ where: { mch_order_no: reference }, raw: true });
+
+  await t.test('F2Pay: a Paid callback signed by F2Pay credits the recorded amount once', async () => {
+    const uid = newUid();
+    await seed(uid, '0');
+    const reference = await pendingF2pay(uid, '500');
+    const paid = { mchOrderNo: reference, platNo: 'F2P-9', state: 'Paid', amount: '500.00', utr: 'UTR123456' };
+
+    assert.equal((await f2payCallback(paid)).settled, true);
+    assert.equal(await balanceOf(uid), '500.00000000');
+    const row = await f2payRow(reference);
+    assert.equal(row.status, 'Success');
+    assert.equal(row.utr_number, 'UTR123456');
+
+    assert.equal((await f2payCallback(paid)).duplicate, true, 'F2Pay retries; the second one is acknowledged, not credited');
+    assert.equal(await balanceOf(uid), '500.00000000');
+  });
+
+  await t.test('F2Pay: a callback not signed by F2Pay moves nothing', async () => {
+    const uid = newUid();
+    await seed(uid, '0');
+    const reference = await pendingF2pay(uid, '500');
+
+    await assert.rejects(
+      () => f2payCallback({ mchOrderNo: reference, state: 'Paid', amount: '500.00' }, stranger.privateKey),
+      (err) => err.code === 'PSP_INVALID_SIGNATURE'
+    );
+    assert.equal(await balanceOf(uid), '0.00000000');
+  });
+
+  await t.test('F2Pay: UnequalPaid is not credited automatically; an in-between state changes nothing', async () => {
+    const uid = newUid();
+    await seed(uid, '0');
+    const reference = await pendingF2pay(uid, '500');
+
+    await assert.rejects(
+      () => f2payCallback({ mchOrderNo: reference, state: 'UnequalPaid', amount: '500.00', actualAmount: '400.00' }),
+      (err) => err.code === 'PSP_AMOUNT_MISMATCH'
+    );
+    assert.equal((await f2payCallback({ mchOrderNo: reference, state: 'Paying', amount: '500.00' })).settled, false);
+    assert.equal((await f2payRow(reference)).status, 'Pending');
+    assert.equal(await balanceOf(uid), '0.00000000');
+
+    await f2payCallback({ mchOrderNo: reference, state: 'Closed', amount: '500.00' });
+    assert.equal((await f2payRow(reference)).status, 'Failed');
+  });
+
+  await t.test('F2Pay: an IDR order is paid and credited in IDR, and lands on the direct ledger', async () => {
+    const uid = newUid();
+    await seed(uid, '0');
+    const reference = newRef();
+    await connection.models.F2payDeposits.create({ user_id: uid, mch_order_no: reference, amount: '20000', currency: 'IDR', status: 'Pending' });
+
+    assert.equal((await f2payCallback({ mchOrderNo: reference, state: 'Paid', amount: '20000' })).settled, true);
+    const row = await connection.models.Credits.findOne({ where: { uid }, raw: true });
+    assert.equal(money.toDecimalString(money.toMinor(row.idr)), '20000.00000000');
+    assert.equal(money.toDecimalString(money.toMinor(row.inr)), '0.00000000', 'nothing converted into INR');
+
+    const [ledger] = await connection.sequelize.query(
+      "SELECT delta::text AS delta FROM mssports.point_ledger_direct WHERE user_id = :uid AND currency = 'IDR'",
+      { replacements: { uid }, type: 'SELECT' }
+    );
+    assert.equal(Number(ledger?.delta), 20000, 'the trigger knows the idr column');
+  });
 });

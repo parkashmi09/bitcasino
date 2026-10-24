@@ -260,7 +260,16 @@ module.exports = function adminRoutes(deps) {
       }),
     }),
     asyncHandler(async (req, res) =>
-      response.ok(res, await service.setPaymentGateway({ name: req.params.name, enabled: req.body.enabled, staffId: req.staff?.id ?? null }))
+      response.ok(
+        res,
+        await service.setPaymentGateway({
+          name: req.params.name,
+          enabled: req.body.enabled,
+          transactionPassword: req.body.transactionPassword,
+          staffId: req.staff?.id ?? null,
+          executiveId: req.staff?.executiveId ?? null,
+        })
+      )
     )
   );
 

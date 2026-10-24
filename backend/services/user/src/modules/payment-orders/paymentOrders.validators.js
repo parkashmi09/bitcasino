@@ -18,7 +18,7 @@ const { moneyAmount } = require('../wallet/wallet.validators');
  * where the provider reported the result.
  */
 
-const provider = z.enum(['waypay', 'apay', 'cricpay', 'upi', 'ccpayment']);
+const provider = z.enum(['waypay', 'apay', 'cricpay', 'upi', 'ccpayment', 'f2pay']);
 
 /** Provider payment-system identifiers: lowercase, underscores. */
 const method = z

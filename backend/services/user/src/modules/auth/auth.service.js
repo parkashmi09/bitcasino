@@ -60,6 +60,7 @@ function withClientIp(context = {}) {
 const LOCKOUT_WINDOW_MINUTES = 15;
 const MAX_FAILED_ATTEMPTS = 8;
 const SESSION_TTL_DAYS = 30;
+const LOCAL_ORIGIN = /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/;
 
 /**
  * How long withdrawals are frozen after a self-service password change.
@@ -120,7 +121,7 @@ class AuthService {
    * valid password from an invalid one.
    */
   async login({ identifier, password, twoFactorCode, deviceLabel }, context = {}) {
-    const { ip, userAgent } = withClientIp(context);
+    const { ip, userAgent, origin } = withClientIp(context);
 
     // Before anything about the account: a restricted region learns nothing about it.
     await this.region.assertAllowed(ip);
@@ -208,7 +209,7 @@ class AuthService {
 
     await user.update({ last_login_at: new Date(), last_ip: ip || null });
 
-    const session = await this.#issueSession(user, { ip, userAgent, deviceLabel });
+    const session = await this.#issueSession(user, { ip, userAgent, origin, deviceLabel });
     this.#trackLogin(user.id, { ip, userAgent }, 'login');
     return session;
   }
@@ -246,7 +247,7 @@ class AuthService {
     return this.db.transaction(async (transaction) => {
       const next = await this.#createSession(
         user,
-        { ip: context.ip, userAgent: context.userAgent, deviceLabel: session.device_label },
+        { ip: context.ip, userAgent: context.userAgent, origin: context.origin, deviceLabel: session.device_label },
         transaction,
         session.expires_at
       );
@@ -1069,10 +1070,11 @@ class AuthService {
      old end instead of starting a new one, and the access token never outlives it. Default 5
      (owner's call, 23 Oct 2026) when nothing is stored, also when admin-service is unreachable. Off (0), a
      rotation slides another 30 days as before. A session signed in before the setting was turned
-     on keeps its own end. */
-  async #createSession(user, { ip, userAgent, deviceLabel }, transaction, rotatedFrom = null) {
+     on keeps its own end. A sign-in from a localhost page (the dev copy of the player site,
+     Origin set by the browser) is never cut short: the limit is for production players. */
+  async #createSession(user, { ip, userAgent, origin, deviceLabel }, transaction, rotatedFrom = null) {
     const refreshToken = randomToken(48);
-    const minutes = Number(await this.settings.read('player_session_minutes', 5)) || 0;
+    const minutes = LOCAL_ORIGIN.test(origin ?? '') ? 0 : Number(await this.settings.read('player_session_minutes', 5)) || 0;
     const expiresAt =
       minutes > 0
         ? new Date(rotatedFrom ?? Date.now() + minutes * 60_000)

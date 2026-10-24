@@ -4,6 +4,7 @@ const test = require('node:test');
 const assert = require('node:assert');
 
 const db = require('@ibitplay/db');
+const { hashPassword } = require('@ibitplay/auth');
 const { createLogger, entitlements } = require('@ibitplay/common');
 
 const { SiteConfigService, OPERATOR_FLAGS } = require('../siteConfig.service');
@@ -466,24 +467,50 @@ test('site-config', async (t) => {
     await setRewardCurrency(null);
   });
 
-  await t.test('payment gateways: only the ones the owner has on, each with the Super Admin switch', async () => {
+  await t.test('payment gateways: only the ones the owner has on, each with the Super Admin switch and the transaction password', async () => {
     await seedConfig();
-    entitlements.configureEntitlements({ read: () => ({ features: {}, flags: { gateway_cricpay: false } }) });
+    // A staff member whose login and transaction password are both TXN (either TXN_PASSWORD_MODE).
+    const TXN = 'payment methods txn';
+    const roleId = 8380 + (process.pid % 40);
+    await connection.sequelize.query(
+      'INSERT INTO roles (id, name, level) VALUES (:id, :name, 1) ON CONFLICT (id) DO UPDATE SET level = 1',
+      { replacements: { id: roleId, name: `pm-sa-${roleId}` } }
+    );
+    const staffId = 975_000 + (process.pid % 1000);
+    await connection.models.Staff.destroy({ where: { id: staffId } });
+    await connection.models.Staff.create({
+      id: staffId, name: `pm-sa-${staffId}`, email: `pm-sa-${staffId}@test.invalid`,
+      password: await hashPassword(TXN, 4), transaction_password: await hashPassword(TXN, 4), role_id: roleId, status: 'active',
+    });
+    const as = (name, enabled, transactionPassword = TXN) => service.setPaymentGateway({ name, enabled, staffId, transactionPassword });
+
+    entitlements.configureEntitlements({ read: () => ({ features: {}, flags: { gateway_cricpay: false, f2pay_inr: false } }) });
     const states = (list) => list.map((g) => [g.name, g.enabled]);
     try {
-      assert.deepEqual(states(await service.paymentGateways()), [['ccpayment', true], ['apay', true], ['waypay', true], ['upi', true]]);
+      assert.deepEqual(states(await service.paymentGateways()), [['ccpayment', true], ['apay', true], ['waypay', true], ['upi', true], ['f2pay', true]]);
+      const f2pay = (await service.paymentGateways()).find((g) => g.name === 'f2pay');
+      assert.deepEqual(f2pay.currencies.map((c) => [c.key, c.enabled]), [['f2pay_idr', true]], 'only the currencies the owner has on');
 
-      const after = await service.setPaymentGateway({ name: 'apay', enabled: false });
-      assert.deepEqual(states(after), [['ccpayment', true], ['apay', false], ['waypay', true], ['upi', true]]);
+      await assert.rejects(() => as('apay', false, ''), (err) => err.code === 'TXN_PASSWORD_REQUIRED');
+      await assert.rejects(() => as('apay', false, 'wrong'), (err) => err.code === 'TXN_PASSWORD_INVALID');
+
+      const after = await as('apay', false);
+      assert.deepEqual(states(after), [['ccpayment', true], ['apay', false], ['waypay', true], ['upi', true], ['f2pay', true]]);
       assert.deepEqual(await service.paymentGatewaysOff(), ['apay'], 'what user-service reads');
+      await as('apay', true);
 
-      await service.setPaymentGateway({ name: 'apay', enabled: true });
+      // One currency of a gateway: the same list, under the owner's key.
+      await as('f2pay_idr', false);
+      assert.deepEqual(await service.paymentGatewaysOff(), ['f2pay_idr']);
+      await as('f2pay_idr', true);
       assert.deepEqual(await service.paymentGatewaysOff(), []);
 
-      // A gateway the owner has off is not the Super Admin's to switch.
-      await assert.rejects(() => service.setPaymentGateway({ name: 'cricpay', enabled: true }), (err) => err.status === 403);
+      // A gateway or currency the owner has off is not the Super Admin's to switch.
+      await assert.rejects(() => as('cricpay', true), (err) => err.status === 403);
+      await assert.rejects(() => as('f2pay_inr', true), (err) => err.status === 403);
     } finally {
       entitlements.resetEntitlements();
+      await connection.models.Staff.destroy({ where: { id: staffId } });
     }
   });
 

@@ -164,6 +164,25 @@ const DEPOSIT_SOURCES = Object.freeze([
       date: row.created_at,
     }),
   },
+  {
+    method: 'f2pay',
+    type: 'Fiat',
+    model: 'F2payDeposits',
+    userColumn: 'user_id',
+    userIdIsText: false,
+    dateColumn: 'created_at',
+    orderColumn: 'id',
+    currencyColumn: 'currency',
+    present: (row) => ({
+      id: row.id,
+      reference: row.mch_order_no,
+      amount: row.amount,
+      currency: row.currency,
+      status: row.status,
+      details: `UTR: ${row.utr_number ?? 'N/A'}`,
+      date: row.created_at,
+    }),
+  },
 ]);
 
 /**

@@ -89,6 +89,10 @@ const SOURCES = Object.freeze({
           table: 'cricpaytransactions', owner: 'uid', time: 'created_at', amount: 'amount',
           fixedCurrency: 'INR', status: DEPOSIT_STATUS, dimension: `'CricPay'`,
         },
+        {
+          table: 'f2paydeposits', owner: 'user_id', time: 'created_at', amount: 'amount',
+          currency: 'currency', status: DEPOSIT_STATUS, dimension: `'F2Pay'`,
+        },
       ],
     },
     crypto: {

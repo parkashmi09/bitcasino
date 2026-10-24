@@ -13,14 +13,33 @@ const REWARD_CURRENCY_FEATURE = 'reward_currency';
 /** The `site_features` row holding the owner's default coin (a catalogue policy). */
 const DEFAULT_CURRENCY_FEATURE = 'default_currency';
 const { visibleStaffIds } = require('../staff-directory/staffDirectory.service');
+const { assertTransactionPassword } = require('../staff-auth/transactionPassword');
 
-/** user-service's payment gateways, as the owner panel names them (its flag is `gateway_<name>`). */
+/**
+ * user-service's payment gateways, as the owner panel names them (its flag is `gateway_<name>`).
+ * `currencies`: a gateway switched per currency — each key is the owner's flag AND the Super Admin's
+ * switch (both must be on), the same key user-service checks (`currencySwitch` in payment-orders/gateways).
+ */
 const PAYMENT_GATEWAYS = Object.freeze([
   { name: 'ccpayment', label: 'CCPayment (crypto deposits)' },
   { name: 'apay', label: 'A-Pay' },
   { name: 'waypay', label: 'WayPay' },
   { name: 'cricpay', label: 'CricPay' },
   { name: 'upi', label: 'UPI (EkQR)' },
+  {
+    name: 'f2pay',
+    label: 'F2Pay (deposits)',
+    currencies: [
+      { key: 'f2pay_inr', label: 'INR (UPI)' },
+      { key: 'f2pay_idr', label: 'IDR (QRIS, DANA, CIMB, BRI, MANDIRI, BNI)' },
+    ],
+  },
+]);
+
+/** A Payment Methods switch: a gateway (`apay`) or one of its currencies (`f2pay_idr`). */
+const PAYMENT_SWITCHES = Object.freeze([
+  ...PAYMENT_GATEWAYS.map((g) => g.name),
+  ...PAYMENT_GATEWAYS.flatMap((g) => (g.currencies ?? []).map((c) => c.key)),
 ]);
 
 /**
@@ -780,7 +799,13 @@ class SiteConfigService {
     const off = await this.paymentGatewaysOff();
     const shown = [];
     for (const gateway of PAYMENT_GATEWAYS) {
-      if (await entitlements.isFlagEntitled(`gateway_${gateway.name}`)) shown.push({ ...gateway, enabled: !off.includes(gateway.name) });
+      if (!(await entitlements.isFlagEntitled(`gateway_${gateway.name}`))) continue;
+      // Only the currencies the owner has on, each with the Super Admin's switch.
+      const currencies = [];
+      for (const c of gateway.currencies ?? []) {
+        if (await entitlements.isFlagEntitled(c.key)) currencies.push({ ...c, enabled: !off.includes(c.key) });
+      }
+      shown.push({ ...gateway, enabled: !off.includes(gateway.name), ...(gateway.currencies ? { currencies } : {}) });
     }
     return shown;
   }
@@ -791,9 +816,14 @@ class SiteConfigService {
     return Array.isArray(row?.settings?.payment_gateways_off) ? row.settings.payment_gateways_off : [];
   }
 
-  /** The Super Admin's switch for one gateway. One the owner has off cannot be touched (NOT_ENTITLED). */
-  async setPaymentGateway({ name, enabled, staffId = null }) {
-    await this.#assertFlagsEntitled([`gateway_${name}`]);
+  /**
+   * The Super Admin's switch for one gateway (`apay`) or one gateway currency (`f2pay_idr`), with the
+   * transaction password. One the owner has off cannot be touched (NOT_ENTITLED).
+   */
+  async setPaymentGateway({ name, enabled, staffId = null, executiveId = null, transactionPassword }) {
+    await assertTransactionPassword(this.models, staffId, transactionPassword, { required: true, executiveId });
+    const gateway = PAYMENT_GATEWAYS.find((g) => g.name === name);
+    await this.#assertFlagsEntitled([gateway ? `gateway_${name}` : name]);
     const row = await this.#configRow(['id', 'settings']);
     if (!row) throw errors.NOT_CONFIGURED();
 
@@ -1459,5 +1489,5 @@ function coerceSetting(key, spec, raw) {
 
 module.exports = {
   SiteConfigService, AFFILIATE_FIELDS, OPERATOR_FLAGS, USER_PREFS, OPERATOR_SETTINGS, TIP_LIMIT_FIELDS, TIP_LIMIT_DEFAULTS,
-  REFERRAL_UNLOCK_DEFAULTS, REFERRAL_UNLOCK_MAX, PAYMENT_GATEWAYS,
+  REFERRAL_UNLOCK_DEFAULTS, REFERRAL_UNLOCK_MAX, PAYMENT_GATEWAYS, PAYMENT_SWITCHES,
 };

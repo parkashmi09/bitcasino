@@ -257,7 +257,7 @@ export const SUPPORTED_CURRENCIES = [
 
 export const FIAT_CURRENCIES = ['INR', 'BDT', 'NPR', 'PKR', 'AED', 'EUR'] as const
 
-export const PSP_PROVIDERS = ['waypay', 'apay', 'cricpay', 'upi'] as const
+export const PSP_PROVIDERS = ['waypay', 'apay', 'cricpay', 'upi', 'f2pay'] as const
 
 /** A coin network: `key` is the contract a deposit / withdrawal names; `name` and `enabled` are the site's. */
 export type CoinNetwork = { key: string; name: string; enabled: boolean }
