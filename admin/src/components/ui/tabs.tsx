@@ -24,7 +24,12 @@ const tabsListVariants = cva(
     variants: {
       variant: {
         default: 'bg-transparent',
-        line: 'bg-transparent'
+        line: 'bg-transparent',
+
+        // A mode switch (Direct / Agent): a grey track with the active choice on a raised pill, so it never
+        // reads as the same level as the page's underline tabs beneath it.
+        segmented:
+          'bg-muted rounded-lg p-1 group-data-horizontal/tabs:min-h-0 group-data-horizontal/tabs:gap-1! group-data-horizontal/tabs:shadow-none!'
       }
     },
     defaultVariants: {
@@ -48,7 +53,7 @@ function TabsList({
     >
       {children}
       {/* Box over the active tab (works when the list wraps); its bottom/right border is the indicator. */}
-      <TabsPrimitive.Indicator className='border-heading pointer-events-none absolute top-(--active-tab-top) left-(--active-tab-left) h-(--active-tab-height) w-(--active-tab-width) transition-[left,top,width,height] duration-250 ease-[cubic-bezier(0.4,0,0.2,1)] motion-reduce:transition-none group-data-horizontal/tabs:border-b-2 group-data-vertical/tabs:border-r-2' />
+      <TabsPrimitive.Indicator className='border-heading group-data-[variant=segmented]/tabs-list:bg-card dark:group-data-[variant=segmented]/tabs-list:bg-[rgb(113_117_126/32%)] pointer-events-none group-data-[variant=segmented]/tabs-list:rounded-md group-data-[variant=segmented]/tabs-list:border-0! group-data-[variant=segmented]/tabs-list:shadow-[0_1px_3px_rgb(113_117_126/24%)] absolute top-(--active-tab-top) left-(--active-tab-left) h-(--active-tab-height) w-(--active-tab-width) transition-[left,top,width,height] duration-250 ease-[cubic-bezier(0.4,0,0.2,1)] motion-reduce:transition-none group-data-horizontal/tabs:border-b-2 group-data-vertical/tabs:border-r-2' />
     </TabsPrimitive.List>
   )
 }
@@ -58,7 +63,7 @@ function TabsTrigger({ className, ...props }: TabsPrimitive.Tab.Props) {
     <TabsPrimitive.Tab
       data-slot='tabs-trigger'
       className={cn(
-        "text-muted-foreground not-data-active:hover:text-foreground focus-visible:bg-[rgb(113_117_126/8%)] data-active:text-heading relative inline-flex min-h-12 min-w-12 flex-none items-center justify-center gap-2 px-0 py-3 text-sm leading-[1.5] font-semibold whitespace-nowrap group-data-vertical/tabs:px-4 transition-colors duration-250 ease-[cubic-bezier(0.4,0,0.2,1)] outline-none motion-reduce:transition-none group-data-vertical/tabs:w-full group-data-vertical/tabs:justify-start disabled:pointer-events-none disabled:opacity-50 aria-disabled:pointer-events-none aria-disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
+        "text-muted-foreground not-data-active:hover:text-foreground focus-visible:bg-[rgb(113_117_126/8%)] data-active:text-heading relative inline-flex min-h-12 min-w-12 flex-none items-center justify-center gap-2 px-0 py-3 text-sm leading-[1.5] font-semibold whitespace-nowrap group-data-vertical/tabs:px-4 in-data-[variant=segmented]:z-10 in-data-[variant=segmented]:min-h-9 in-data-[variant=segmented]:px-4 in-data-[variant=segmented]:py-1.5 in-data-[variant=segmented]:not-data-active:hover:text-heading transition-colors duration-250 ease-[cubic-bezier(0.4,0,0.2,1)] outline-none motion-reduce:transition-none group-data-vertical/tabs:w-full group-data-vertical/tabs:justify-start disabled:pointer-events-none disabled:opacity-50 aria-disabled:pointer-events-none aria-disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
         className
       )}
       {...props}
