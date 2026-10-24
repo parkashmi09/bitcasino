@@ -1,0 +1,560 @@
+{
+  "generatedFrom": "legacy/",
+  "total": 79,
+  "ported": 77,
+  "events": [
+    {
+      "event": "002b67aa7d872615cc6ef9ffa78c766d",
+      "via": "C.GET_UID",
+      "source": "../legacy/Users/index.js:100",
+      "handlers": 1,
+      "ported": true
+    },
+    {
+      "event": "05131bff83db9a797b5e9793cfa3bcf6",
+      "via": "C.PLAY_CRASH",
+      "source": "../legacy/Games/index.js:57",
+      "handlers": 1,
+      "ported": true
+    },
+    {
+      "event": "05db5c137ef2e883b7087edce72e2560",
+      "via": "C.PLAY_CLASSIC_DICE",
+      "source": "../legacy/Games/index.js:91",
+      "handlers": 1,
+      "ported": true
+    },
+    {
+      "event": "0a2637735ee07dd5f0e5eba7b9ca1ce7",
+      "via": "C.REGISTER_USER",
+      "source": "../legacy/Users/index.js:154",
+      "handlers": 1,
+      "ported": true
+    },
+    {
+      "event": "0c30c5a602062107a5d356d0eb1ebb8e",
+      "via": "C.BANKROLL",
+      "source": "../legacy/Users/index.js:433",
+      "handlers": 1,
+      "ported": true
+    },
+    {
+      "event": "0fd0a8ecb587292055e1c775d6c39a7e",
+      "via": "C.PLAYERS_CRASH",
+      "source": "../legacy/Games/index.js:50",
+      "handlers": 1,
+      "ported": true
+    },
+    {
+      "event": "1582223323345s19432325311136d91b50",
+      "via": "C.TWO_FA_DISABLE",
+      "source": "../legacy/Users/index.js:208",
+      "handlers": 1,
+      "ported": true
+    },
+    {
+      "event": "158231da5231e9ab76b2323232136d91b50",
+      "via": "C.TWO_FA",
+      "source": "../legacy/Users/index.js:185",
+      "handlers": 1,
+      "ported": true
+    },
+    {
+      "event": "158231da52345s194323232211136d91b50",
+      "via": "C.TWO_FA_CONFIRM",
+      "source": "../legacy/Users/index.js:195",
+      "handlers": 1,
+      "ported": true
+    },
+    {
+      "event": "15e76a8d237dd050a301d1f33967175a",
+      "via": "C.ADMIN_ADD_AVATAR",
+      "source": "../legacy/Admin/index.js:44",
+      "handlers": 1,
+      "ported": true
+    },
+    {
+      "event": "18566cda79f670c2098360799275aa31",
+      "via": "C.USER_INFO",
+      "source": "../legacy/Users/index.js:443",
+      "handlers": 1,
+      "ported": true
+    },
+    {
+      "event": "18867ffabc768e07378cdaa6df18c75c",
+      "via": "C.PLAY_LIMBO",
+      "source": "../legacy/Games/index.js:111",
+      "handlers": 1,
+      "ported": true
+    },
+    {
+      "event": "1c21e823212f96113sd7725Q",
+      "via": "C.PLAY_THREE_CARD_MONTE",
+      "source": "../legacy/Games/index.js:224",
+      "handlers": 1,
+      "ported": true
+    },
+    {
+      "event": "1c21e830837b2f96d129877063d7725Q",
+      "via": "C.PLAY_BLACKJACK",
+      "source": "../legacy/Games/index.js:181",
+      "handlers": 1,
+      "ported": true
+    },
+    {
+      "event": "1c21f3308372251321e3ed7063e7726D",
+      "via": "C.SPORT_GAME",
+      "source": "../legacy/sports/index.js:12",
+      "handlers": 1,
+      "ported": true
+    },
+    {
+      "event": "1c21f730837b2f96d129877063d7720B",
+      "via": "C.PLAY_ROULETTE",
+      "source": "../legacy/Games/index.js:202",
+      "handlers": 1,
+      "ported": true
+    },
+    {
+      "event": "1c21f730837b2f96d129877063d7725Q",
+      "via": "C.PLAY_VIDEOPOKER",
+      "source": "../legacy/Games/index.js:171",
+      "handlers": 1,
+      "ported": true
+    },
+    {
+      "event": "1c21f730837b2f96d129877063d7726E",
+      "via": "C.PLAT_SLOTS",
+      "source": "../legacy/Slots/index.js:9",
+      "handlers": 1,
+      "ported": false
+    },
+    {
+      "event": "1cf37d076d187195c2d7d5e3678dfe0b",
+      "via": "C.USER_CHART",
+      "source": "../legacy/Users/index.js:472",
+      "handlers": 1,
+      "ported": true
+    },
+    {
+      "event": "1e6ccf0ddced017179b173e5cc78beea",
+      "via": "C.ADD_CHAT",
+      "source": "../legacy/Users/index.js:273",
+      "handlers": 1,
+      "ported": true
+    },
+    {
+      "event": "1e73d7d857e371f00a56105a7a38a576",
+      "via": "C.MY_FRIENDS",
+      "source": "../legacy/Users/index.js:316",
+      "handlers": 1,
+      "ported": true
+    },
+    {
+      "event": "1f7009c5312bab76e660578ecbe08350",
+      "via": "C.LOGOUT_USER",
+      "source": "../legacy/Users/index.js:93",
+      "handlers": 1,
+      "ported": true
+    },
+    {
+      "event": "2118e57f1f2bb7979c9a7796d6be671d",
+      "via": "C.ADMIN_ADD_CHAT",
+      "source": "../legacy/Admin/index.js:33",
+      "handlers": 1,
+      "ported": true
+    },
+    {
+      "event": "23678db5efde9ab76bce8c23a6d91b50",
+      "via": "C.RAIN",
+      "source": "../legacy/Users/index.js:291",
+      "handlers": 1,
+      "ported": true
+    },
+    {
+      "event": "265ea6ce905188a0751e8f0273d30bb7",
+      "via": "C.ADD_FRIEND",
+      "source": "../legacy/Users/index.js:326",
+      "handlers": 1,
+      "ported": true
+    },
+    {
+      "event": "292d72d37f7e189059f7f998737de9bb",
+      "via": "C.ADD_MESSAGES",
+      "source": "../legacy/Users/index.js:496",
+      "handlers": 1,
+      "ported": true
+    },
+    {
+      "event": "383f7bf0257c3ef6cab20278dd1579be",
+      "via": "C.LOGIN_USER_GOOGLE",
+      "source": "../legacy/Users/index.js:140",
+      "handlers": 1,
+      "ported": true
+    },
+    {
+      "event": "396bbdcf7c16c3f3795d932b698ef78f",
+      "via": "C.GET_ADDRESS",
+      "source": "../legacy/Users/index.js:421",
+      "handlers": 1,
+      "ported": true
+    },
+    {
+      "event": "4d0779dab780d8b773e7h6fl9jxd7hm7",
+      "via": "C.RAKEBACK_AMOUNT",
+      "source": "../legacy/Users/index.js:105",
+      "handlers": 1,
+      "ported": true
+    },
+    {
+      "event": "573a867973fa586555cab080e7d837ad",
+      "via": "C.SEND_TIP",
+      "source": "../legacy/Users/index.js:337",
+      "handlers": 1,
+      "ported": true
+    },
+    {
+      "event": "5a828e282af3d79f90ad3b7763052d6e",
+      "via": "C.PLAY_SINGLE_KENO",
+      "source": "../legacy/Games/index.js:131",
+      "handlers": 1,
+      "ported": true
+    },
+    {
+      "event": "5eda0ea98752c5a85212a01a960ff77",
+      "via": "C.PLAY_DIAMOND",
+      "source": "../legacy/Games/index.js:254",
+      "handlers": 1,
+      "ported": true
+    },
+    {
+      "event": "5eda0ea98752c5a85223231667e7f0178",
+      "via": "C.PLAY_TOWER",
+      "source": "../legacy/Games/index.js:245",
+      "handlers": 1,
+      "ported": true
+    },
+    {
+      "event": "5eda0ea98768e9123231667e7f0178",
+      "via": "C.PLAY_MAGIC_WHEEL",
+      "source": "../legacy/Games/index.js:235",
+      "handlers": 1,
+      "ported": true
+    },
+    {
+      "event": "62a0b91a9b98a7ec19f27e72c13de207",
+      "via": "C.RESET_PASSWORD",
+      "source": "../legacy/Users/index.js:171",
+      "handlers": 1,
+      "ported": true
+    },
+    {
+      "event": "62f8c260fbce6de8e5ed19767977cc1e",
+      "via": "C.LAST_BETS",
+      "source": "../legacy/Users/index.js:531",
+      "handlers": 1,
+      "ported": true
+    },
+    {
+      "event": "657cdcaf1b9072c7d708bb3766bd3915",
+      "via": "C.GAME_DETAILS",
+      "source": "../legacy/Users/index.js:462",
+      "handlers": 1,
+      "ported": true
+    },
+    {
+      "event": "660cb6fe7737d7b70e7a07b706b93f70",
+      "via": "C.CREDIT",
+      "source": "../legacy/Users/index.js:228",
+      "handlers": 1,
+      "ported": true
+    },
+    {
+      "event": "6ea7f87223223242348c5dd2833b8b2",
+      "via": "C.PLAY_HIGHLOW",
+      "source": "../legacy/Games/index.js:264",
+      "handlers": 1,
+      "ported": true
+    },
+    {
+      "event": "7a7fe97bbc5ff21a561b79986db975c5",
+      "via": "C.CHATS",
+      "source": "../legacy/Users/index.js:263",
+      "handlers": 1,
+      "ported": true
+    },
+    {
+      "event": "7c0b37955cf21c7f2f3773c1268edc08",
+      "via": "C.SUBMIT_NEW_WITHDRAWL",
+      "source": "../legacy/Users/index.js:390",
+      "handlers": 1,
+      "ported": true
+    },
+    {
+      "event": "7f76165777d11ee5836777d85df2cdab",
+      "via": "C.ONLINE",
+      "source": "../legacy/Users/index.js:68",
+      "handlers": 1,
+      "ported": true
+    },
+    {
+      "event": "893295c0a9bc0fe35edf976858c08ba9",
+      "via": "C.PLAY_HASH_DICE",
+      "source": "../legacy/Games/index.js:101",
+      "handlers": 1,
+      "ported": true
+    },
+    {
+      "event": "97c73db9a306213ac2b5c3bdecd20e75",
+      "via": "C.FINISH_CRASH",
+      "source": "../legacy/Games/index.js:66",
+      "handlers": 1,
+      "ported": true
+    },
+    {
+      "event": "9ce3bafdf91d8deaae771e67bb2b3eea",
+      "via": "C.PLAY_HILO",
+      "source": "../legacy/Games/index.js:141",
+      "handlers": 1,
+      "ported": true
+    },
+    {
+      "event": "a68791c6937532f98fa1be087171f1cc",
+      "via": "C.PLAY_KENO",
+      "source": "../legacy/Games/index.js:82",
+      "handlers": 1,
+      "ported": true
+    },
+    {
+      "event": "admin_notify",
+      "via": null,
+      "source": "../legacy/Admin/index.js:13",
+      "handlers": 1,
+      "ported": true
+    },
+    {
+      "event": "b7cafd57089c07ade71b7776085660a0",
+      "via": "C.TOP_WINNERS",
+      "source": "../legacy/Users/index.js:522",
+      "handlers": 1,
+      "ported": true
+    },
+    {
+      "event": "b87a2e8036f0617125ffb69dd5673d7b",
+      "via": "C.LAST_BETS_BY_GAME",
+      "source": "../legacy/Users/index.js:540",
+      "handlers": 1,
+      "ported": true
+    },
+    {
+      "event": "c23c59dd3258d3a53d7132652f8bf98a",
+      "via": "C.WALLET_HISTORY",
+      "source": "../legacy/Users/index.js:373",
+      "handlers": 1,
+      "ported": true
+    },
+    {
+      "event": "c8286908aae1ad02a33b83dd9f827921",
+      "via": "C.PLAY_WHEEL",
+      "source": "../legacy/Games/index.js:151",
+      "handlers": 1,
+      "ported": true
+    },
+    {
+      "event": "ca6e08ddde39ee9f965270b7d8175d17",
+      "via": "C.EDIT_ACCOUNT",
+      "source": "../legacy/Users/index.js:351",
+      "handlers": 1,
+      "ported": true
+    },
+    {
+      "event": "d57cd08cb7980bfea9552583d35bbcb6",
+      "via": "C.STATUS_KENO",
+      "source": "../legacy/Games/index.js:75",
+      "handlers": 1,
+      "ported": true
+    },
+    {
+      "event": "d9fe15b677f93abce07076807291e2d6",
+      "via": "C.HISTORY_CRASH",
+      "source": "../legacy/Games/index.js:43",
+      "handlers": 1,
+      "ported": true
+    },
+    {
+      "event": "dcaa9fd7f23aaf0c29f570becf35b76f",
+      "via": "C.STATUS_CRASH",
+      "source": "../legacy/Games/index.js:36",
+      "handlers": 1,
+      "ported": true
+    },
+    {
+      "event": "de70938879b75d3db63bba721c93e018",
+      "via": "C.MESSAGES",
+      "source": "../legacy/Users/index.js:482",
+      "handlers": 1,
+      "ported": true
+    },
+    {
+      "event": "e2c657021309b57bd7ce999191a10f51",
+      "via": "C.PLAY_SNAKEANDLADDERS",
+      "source": "../legacy/Games/index.js:213",
+      "handlers": 1,
+      "ported": true
+    },
+    {
+      "event": "e2c657038309b57bd7ce999191a10f51",
+      "via": "C.PLAY_GOAL",
+      "source": "../legacy/Games/index.js:191",
+      "handlers": 1,
+      "ported": true
+    },
+    {
+      "event": "e70b7663b91b67a7f7e027c00f5a30e2",
+      "via": "C.CREDIT_COIN",
+      "source": "../legacy/Users/index.js:409",
+      "handlers": 1,
+      "ported": true
+    },
+    {
+      "event": "eca6e08ddde39e22f965270b7d8175d17",
+      "via": "C.ADMIN_SET_MUTE",
+      "source": "../legacy/Admin/index.js:22",
+      "handlers": 1,
+      "ported": true
+    },
+    {
+      "event": "ed7feda03376fd39087183552f093e6a",
+      "via": "C.EDIT_PASSWORD",
+      "source": "../legacy/Users/index.js:362",
+      "handlers": 1,
+      "ported": true
+    },
+    {
+      "event": "efc657038309b57bd7ce999191a10f51",
+      "via": "C.PLAY_MINE",
+      "source": "../legacy/Games/index.js:121",
+      "handlers": 1,
+      "ported": true
+    },
+    {
+      "event": "f2ca6e08d1e7d76f6ddcbcdubci73bd3",
+      "via": "C.SUBMIT_NEW_SWAP",
+      "source": "../legacy/Users/index.js:398",
+      "handlers": 1,
+      "ported": true
+    },
+    {
+      "event": "f31c1e97179a0c766a9da0fdde28d3ed",
+      "via": "C.PLAY_PLINKO",
+      "source": "../legacy/Games/index.js:161",
+      "handlers": 1,
+      "ported": true
+    },
+    {
+      "event": "f37bd2f66651e7d76f6d38770f2bc5dd",
+      "via": "C.NOTIFICATION",
+      "source": "../legacy/Users/index.js:513",
+      "handlers": 1,
+      "ported": true
+    },
+    {
+      "event": "f464cc8e884061eb09553186bdb2e9c1",
+      "via": "C.GAMES",
+      "source": "../legacy/Users/index.js:219",
+      "handlers": 1,
+      "ported": true
+    },
+    {
+      "event": "faf9ba208ad90e7313b6ffafde53b801",
+      "via": "C.LOGIN_USER",
+      "source": "../legacy/Users/index.js:123",
+      "handlers": 1,
+      "ported": true
+    },
+    {
+      "event": "faf9ba208bd90e2313b6faeede53b801",
+      "via": "C.ONLINE_LOGGED",
+      "source": "../legacy/Users/index.js:77",
+      "handlers": 1,
+      "ported": true
+    },
+    {
+      "event": "fd2a0537bcdae1736f552707b3bd3156",
+      "via": "C.MY_BETS",
+      "source": "../legacy/Users/index.js:242",
+      "handlers": 1,
+      "ported": true
+    },
+    {
+      "event": "fd2a0537bcdae1736f552707b3bd3157",
+      "via": "C.MY_HISTORY",
+      "source": "../legacy/Users/index.js:253",
+      "handlers": 1,
+      "ported": true
+    },
+    {
+      "event": "getAdminProfile",
+      "via": null,
+      "source": "../legacy/system/sockets/adminPanelSocket.js:33",
+      "handlers": 1,
+      "ported": true
+    },
+    {
+      "event": "getBonusTimers",
+      "via": null,
+      "source": "../legacy/index.js:6726",
+      "handlers": 1,
+      "ported": true
+    },
+    {
+      "event": "getUsersAllDetails",
+      "via": null,
+      "source": "../legacy/system/sockets/adminPanelSocket.js:60",
+      "handlers": 1,
+      "ported": true
+    },
+    {
+      "event": "identify",
+      "via": null,
+      "source": "../legacy/siteconfig/sockets/configSocket.js:33",
+      "handlers": 1,
+      "ported": true
+    },
+    {
+      "event": "k2089ht7ae660578ed9gffgh8hkk7vxj",
+      "via": "C.ADD_RAKEBACK",
+      "source": "../legacy/Users/index.js:113",
+      "handlers": 1,
+      "ported": true
+    },
+    {
+      "event": "new_query",
+      "via": null,
+      "source": "../legacy/Admin/index.js:55",
+      "handlers": 1,
+      "ported": false
+    },
+    {
+      "event": "stopUsersAllDetails",
+      "via": null,
+      "source": "../legacy/system/sockets/adminPanelSocket.js:155",
+      "handlers": 1,
+      "ported": true
+    },
+    {
+      "event": "subscribeUserConfig",
+      "via": null,
+      "source": "../legacy/siteconfig/sockets/configSocket.js:52",
+      "handlers": 1,
+      "ported": true
+    },
+    {
+      "event": "wheeler",
+      "via": null,
+      "source": "../legacy/Users/index.js:44",
+      "handlers": 1,
+      "ported": true
+    }
+  ]
+}

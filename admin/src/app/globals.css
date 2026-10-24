@@ -1,0 +1,440 @@
+@import 'tailwindcss';
+@import 'tw-animate-css';
+@import 'shadcn/tailwind.css';
+
+@custom-variant dark (&:is(.dark *));
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-nunito);
+  --font-mono: var(--font-geist-mono);
+  --font-heading: var(--font-sans);
+  --color-sidebar-ring: var(--sidebar-ring);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar: var(--sidebar);
+  --color-chart-8: var(--chart-8);
+  --color-chart-7: var(--chart-7);
+  --color-chart-6: var(--chart-6);
+  --color-chart-5: var(--chart-5);
+  --color-chart-4: var(--chart-4);
+  --color-chart-3: var(--chart-3);
+  --color-chart-2: var(--chart-2);
+  --color-chart-1: var(--chart-1);
+  --color-ring: var(--ring);
+  --color-input: var(--input);
+  --color-border: var(--border);
+  --color-destructive: var(--destructive);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-accent: var(--accent);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-muted: var(--muted);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-secondary: var(--secondary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary: var(--primary);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-popover: var(--popover);
+  --color-card-foreground: var(--card-foreground);
+  --color-card: var(--card);
+  --color-heading: var(--heading);
+  --color-brand-secondary: var(--brand-secondary);
+  --color-icon-accent: var(--icon-accent);
+  --color-success: var(--success);
+  --color-success-soft: var(--success-soft);
+  --color-warning: var(--warning);
+  --color-warning-soft: var(--warning-soft);
+  --color-danger: var(--danger);
+  --color-danger-soft: var(--danger-soft);
+  --color-info: var(--info);
+  --color-info-soft: var(--info-soft);
+  --radius-sm: calc(var(--radius) * 0.6);
+  --radius-md: calc(var(--radius) * 0.8);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) * 1.4);
+  --radius-2xl: calc(var(--radius) * 1.8);
+  --radius-3xl: calc(var(--radius) * 2.2);
+  --radius-4xl: calc(var(--radius) * 2.6);
+}
+
+:root {
+  /* ── Luno theme-blue (measured from wrraptheme.com/templates/luno, 22 Oct 2026) ──
+     Page #f4f7f6, white cards with a 1px DASHED #e9e6e1 border and no shadow, ink #363535,
+     blue #2794eb for actions, teal #00ac9a for "you are here" (sidebar, breadcrumb). */
+  --background: #f4f7f6;
+  --foreground: #363535;
+  --heading: #181818;
+  --card: #ffffff;
+  --card-foreground: #363535;
+  --popover: #ffffff;
+  --popover-foreground: #363535;
+  --primary: #2794eb;
+  --primary-foreground: #ffffff;
+  /* shadcn's `secondary` is a neutral button surface, so it stays neutral; Luno's teal
+     "secondary colour" lives in --brand-secondary / --icon-accent. */
+  --secondary: #eef2f1;
+  --secondary-foreground: #363535;
+  --brand-secondary: #00ac9a;
+  --icon-accent: #00ac9a;
+  --muted: #eef2f1;
+  /* Luno's .text-muted is #9399a1 (2.8:1 on white); a step darker keeps small print readable. */
+  --muted-foreground: #7d848c;
+  --accent: #e9f4fd;
+  --accent-foreground: #1f7fcc;
+  --destructive: #e01b4f;
+  --border: #e9e6e1;
+  --border-style-card: dashed;
+  --input: #e9e6e1;
+  --ring: #2794eb;
+
+  /* ── status ───────────────────────────────────────────────────────
+     Money states, named rather than picked per screen: the same green
+     is a credit here, an approved withdrawal there, a passed check in
+     the third. `-soft` is the background a badge sits on. */
+  --success: #0aa352;
+  --success-soft: #e3f8ee;
+  --warning: #cc9b32;
+  --warning-soft: #fff6e0;
+  --danger: #e01b4f;
+  --danger-soft: #fde6ec;
+  --info: #3d62c5;
+  --info-soft: #e8eefd;
+  /* Luno theme-blue chart colours 1–5 (--chart-color1..5); 6–8 keep the earlier extras. */
+  --chart-1: #2794eb;
+  --chart-2: #6382d8;
+  --chart-3: #8d61a5;
+  --chart-4: #90476f;
+  --chart-5: #00ac9a;
+  --chart-6: #008300;
+  --chart-7: #eda100;
+  --chart-8: #e34948;
+  /* rounded-xl (cards) = radius × 1.4 = 12px, Luno's card radius. */
+  --radius: 0.5357rem;
+  --sidebar: #f4f7f6;
+  --sidebar-foreground: #363535;
+  --sidebar-primary: #00ac9a;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: transparent;
+  --sidebar-accent-foreground: #00ac9a;
+  --sidebar-border: #e9e6e1;
+  --sidebar-ring: #2794eb;
+}
+
+.dark {
+  /* Luno dark + theme-blue: page #1d1f20, cards #212324, border #353535, ink #e0e0e0,
+     teal steps up to #00c894. */
+  --background: #1d1f20;
+  --foreground: #e0e0e0;
+  --heading: #f0f0f0;
+  --card: #212324;
+  --card-foreground: #e0e0e0;
+  --popover: #212324;
+  --popover-foreground: #e0e0e0;
+  --primary: #2794eb;
+  --primary-foreground: #ffffff;
+  --secondary: #2a2c2d;
+  --secondary-foreground: #e0e0e0;
+  --brand-secondary: #00c894;
+  --icon-accent: #00c894;
+  --muted: #2a2c2d;
+  --muted-foreground: #9399a1;
+  --accent: rgb(39 148 235 / 15%);
+  --accent-foreground: #6cb6f2;
+  --destructive: #e01b4f;
+
+  --success: #0ecc68;
+  --success-soft: rgb(14 204 104 / 14%);
+  --warning: #ffc23f;
+  --warning-soft: rgb(255 194 63 / 14%);
+  --danger: #e01b4f;
+  --danger-soft: rgb(224 27 79 / 16%);
+  --info: #6cb6f2;
+  --info-soft: rgb(39 148 235 / 15%);
+  --border: #353535;
+  --input: #353535;
+  --ring: #2794eb;
+  --chart-1: #2794eb;
+  --chart-2: #6382d8;
+  --chart-3: #8d61a5;
+  --chart-4: #b0638d;
+  --chart-5: #00c894;
+  --chart-6: #199e70;
+  --chart-7: #c98500;
+  --chart-8: #e66767;
+  --sidebar: #1d1f20;
+  --sidebar-foreground: #e0e0e0;
+  --sidebar-primary: #00c894;
+  --sidebar-primary-foreground: #1d1f20;
+  --sidebar-accent: transparent;
+  --sidebar-accent-foreground: #00c894;
+  --sidebar-border: #353535;
+  --sidebar-ring: #2794eb;
+}
+
+/* Luno's sidebar: 280px, 260px up to 1440px wide. The provider sets the width inline. */
+[data-slot='sidebar-wrapper'] {
+  --sidebar-width: 280px !important;
+}
+@media (max-width: 1440px) {
+  [data-slot='sidebar-wrapper'] {
+    --sidebar-width: 260px !important;
+  }
+}
+
+.input-default {
+  @apply h-9;
+}
+.input-lg {
+  @apply h-10;
+}
+.input-sm {
+  @apply h-8;
+}
+.input-size-lg {
+  @apply size-10;
+}
+
+[data-slot='button'].h-10:not(.px-6),
+button[data-slot='button'].h-10:not(.px-6),
+[data-slot='dropdown-menu-trigger'].h-10:not(.px-6),
+[data-slot='dialog-trigger'].h-10:not(.px-6),
+[data-slot='dialog-close'].h-10:not(.px-6),
+[data-slot='popover-trigger'].h-10:not(.px-6),
+a[data-slot='button'].h-10:not(.px-6) {
+  @apply px-4;
+}
+
+[data-slot='button'].h-9:not(.px-6),
+button[data-slot='button'].h-9:not(.px-6),
+[data-slot='dropdown-menu-trigger'].h-9:not(.px-6),
+[data-slot='dialog-trigger'].h-9:not(.px-6),
+[data-slot='dialog-close'].h-9:not(.px-6),
+[data-slot='dropdown-menu-trigger'].h-9:not(.px-6),
+[data-slot='popover-trigger'].h-9:not(.px-6),
+a[data-slot='button'].h-9:not(.px-6) {
+  @apply px-3;
+}
+
+/* For native button elements and elements with role="button", e.g., button, checkbox, radio, switch etc. */
+button:not(:disabled),
+[role='checkbox']:not(:disabled),
+[role='radio']:not(:disabled),
+[role='switch']:not(:disabled),
+[role='button']:not(:disabled) {
+  cursor: pointer;
+}
+
+/* For labels associated with form controls */
+label[for],
+label:has([role='checkbox']):not(:disabled),
+label:has([role='radio']):not(:disabled),
+label:has([role='switch']):not(:disabled) {
+  cursor: pointer;
+}
+
+/* For slider component */
+[role='slider']:not([data-disabled]),
+[data-slot='slider-track']:not([data-disabled]),
+[data-slot='slider-thumb']:not([data-disabled]) {
+  cursor: pointer;
+}
+
+/* For components with menuitems, e.g., dropdown, context menu, etc. */
+[role='menuitem']:not(:disabled),
+[role='menuitemcheckbox']:not(:disabled),
+[role='menuitemradio']:not(:disabled) {
+  cursor: pointer !important;
+}
+
+/* For components with options, e.g., combobox, command, select etc. */
+[role='option']:not(:disabled),
+select[data-slot='native-select']:not(:disabled) {
+  cursor: pointer !important;
+}
+
+/* For number input spin buttons */
+input[type='number']::-webkit-inner-spin-button,
+input[type='number']::-webkit-outer-spin-button {
+  cursor: pointer;
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+  html {
+    @apply font-sans;
+  }
+}
+
+@theme inline {
+  --animate-heartbeat: heartbeat 2s infinite ease-in-out;
+
+  @keyframes heartbeat {
+    0% {
+      box-shadow: 0 0 0 0 var(--heartbeat-color, var(--primary));
+      transform: scale(1);
+    }
+    50% {
+      box-shadow: 0 0 0 6px transparent;
+      transform: scale(1.03);
+    }
+    100% {
+      box-shadow: 0 0 0 0 transparent;
+      transform: scale(1);
+    }
+  }
+}
+
+/* ── Motion, measured from Luno ──────────────────────────────────────
+   page in      body `fadeInAnimation` 1s ease (+ a 12px rise)
+   morph        `.dropdown.morphing.scale-left`: scale(0)→scale(1), origin top right, .2s ease-in-out
+   collapse     submenu = Bootstrap `.collapsing`: height .35s ease
+   sheet        `.modal-dialog-vertical`: translateX(±100%)→0, Bootstrap modal .3s ease-out
+   lift         `.card` transition .3s
+   shimmer      `placeholder-wave` 2s linear infinite
+   Everything here is off under prefers-reduced-motion (bottom of the file). */
+@theme inline {
+  --ease-luno: ease;
+  --animate-page-in: page-in 1s ease both;
+  --animate-morph-in: morph-in 0.2s ease-in-out both;
+  --animate-morph-out: morph-out 0.2s ease-in-out both;
+  --animate-sheet-in-right: sheet-in-right 0.3s ease-out both;
+  --animate-sheet-in-left: sheet-in-left 0.3s ease-out both;
+  --animate-shimmer: shimmer 2s linear infinite;
+  --animate-count-up: count-up 1s ease-out both;
+
+  @keyframes page-in {
+    from {
+      opacity: 0;
+      transform: translateY(12px);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+  @keyframes morph-in {
+    from {
+      opacity: 0;
+      transform: scale(0);
+    }
+    to {
+      opacity: 1;
+      transform: scale(1);
+    }
+  }
+  @keyframes morph-out {
+    from {
+      opacity: 1;
+      transform: scale(1);
+    }
+    to {
+      opacity: 0;
+      transform: scale(0);
+    }
+  }
+  @keyframes sheet-in-right {
+    from {
+      transform: translateX(100%);
+    }
+    to {
+      transform: none;
+    }
+  }
+  @keyframes sheet-in-left {
+    from {
+      transform: translateX(-100%);
+    }
+    to {
+      transform: none;
+    }
+  }
+  @keyframes shimmer {
+    from {
+      background-position: 200% 0;
+    }
+    to {
+      background-position: -200% 0;
+    }
+  }
+  @keyframes count-up {
+    from {
+      --count: 0;
+    }
+  }
+}
+
+/* Dropdowns open from their top-right corner, as Luno's "morphing scale-left". */
+@utility origin-morph {
+  transform-origin: top right;
+}
+
+/* Card hover lift (Luno cards ease over .3s). */
+@utility hover-lift {
+  transition:
+    transform 0.3s ease,
+    box-shadow 0.3s ease;
+  &:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 8px 16px 0 rgb(25 26 28 / 8%);
+  }
+}
+
+/* Skeleton shimmer: a light band sweeping across the muted surface. */
+@utility skeleton-shimmer {
+  background-image: linear-gradient(
+    90deg,
+    var(--muted) 25%,
+    color-mix(in oklab, var(--muted), var(--card) 70%) 50%,
+    var(--muted) 75%
+  );
+  background-size: 200% 100%;
+  animation: var(--animate-shimmer);
+}
+
+/* Count-up for a whole number, CSS only: <span class='count-up' style={{ '--to': 1234 }} />
+   shortcut: integers only (counter()), so money with decimals keeps its text; upgrade to a JS hook if needed. */
+@property --count {
+  syntax: '<integer>';
+  inherits: false;
+  initial-value: 0;
+}
+@utility count-up {
+  --count: var(--to, 0);
+  counter-reset: count var(--count);
+  animation: var(--animate-count-up);
+  &::after {
+    content: counter(count);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-page-in,
+  .animate-morph-in,
+  .animate-morph-out,
+  .animate-sheet-in-right,
+  .animate-sheet-in-left,
+  .animate-shimmer,
+  .skeleton-shimmer,
+  .count-up,
+  .hover-lift {
+    animation: none !important;
+    transition: none !important;
+  }
+  .hover-lift:hover {
+    transform: none;
+  }
+  [data-slot='sidebar'] *,
+  [data-slot='sidebar-container'] {
+    transition: none !important;
+  }
+}

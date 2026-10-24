@@ -1,0 +1,25 @@
+node_modules
+.next
+dist
+.env
+.env.*
+!.env.example
+.DS_Store
+.ui-compare/
+*.log
+
+# backend / admin / owner panel (stack added from SmartBet)
+logs/
+storage/
+uploads/
+.run/
+coverage/
+e2e-results/
+*.tsbuildinfo
+backend/data/
+owner-panel/data/
+.demo-credentials.local.md
+credentials.md
+CREDENTIALS.local.md
+.claude/settings.local.json
+.claude/worktrees/

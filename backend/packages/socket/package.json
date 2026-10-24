@@ -1,0 +1,11 @@
+{
+  "name": "@ibitplay/socket",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Socket.io transport: the legacy event protocol, audience guards, wire format and rate limiting",
+  "main": "src/index.js",
+  "dependencies": {
+    "@ibitplay/common": "1.0.0",
+    "socket.io": "^4.8.1"
+  }
+}
