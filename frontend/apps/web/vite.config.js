@@ -1,7 +1,10 @@
-import { defineConfig } from 'vite';
+import { defineConfig, loadEnv } from 'vite';
 import react from '@vitejs/plugin-react';
 import tailwindcss from '@tailwindcss/vite';
 import path from 'node:path';
+
+// The dev proxy's backend: API_TARGET in .env (e.g. the shared main-server), else a local backend.
+const { API_TARGET } = loadEnv('development', import.meta.dirname, '');
 
 /**
  * `/api` goes to the iBitPlay gateway on :4000, which is the ONLY public entry
@@ -35,9 +38,8 @@ export default defineConfig({
   server: {
     port: 5173,
     proxy: {
-      // API_TARGET=https://apitest.cfzautomation.com npm run dev → use the shared main-server instead of a local backend
-      '/api': { target: process.env.API_TARGET || 'http://127.0.0.1:4000', changeOrigin: true },
-      '/socket.io': { target: process.env.API_TARGET || 'http://127.0.0.1:4001', changeOrigin: true, ws: true },
+      '/api': { target: API_TARGET || 'http://127.0.0.1:4000', changeOrigin: true },
+      '/socket.io': { target: API_TARGET || 'http://127.0.0.1:4001', changeOrigin: true, ws: true },
       '/casino-socket': {
         target: 'http://127.0.0.1:4003',
         changeOrigin: true,
