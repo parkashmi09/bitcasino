@@ -54,14 +54,17 @@ function ccpBase(theme: ChartTheme, colors: string[], format: ValueFormat): Apex
     chart: { toolbar: { show: false }, zoom: { enabled: false }, background: 'transparent', parentHeightOffset: 0, redrawOnParentResize: true, animations: animations(), fontFamily: theme.fontFamily },
     colors,
     dataLabels: { enabled: false },
+
+    // Axis charts: legend top-right; the donut moves it bottom-centre (ccpayment's dashboard does both).
     legend: {
-      position: 'bottom',
-      horizontalAlign: 'center',
+      position: 'top',
+      horizontalAlign: 'right',
       fontSize: '13px',
       fontWeight: 500,
+      fontFamily: theme.fontFamily,
       labels: { colors: theme.color.foreground },
-      markers: { size: 6, shape: 'circle', strokeWidth: 0 },
-      itemMargin: { horizontal: 10, vertical: 4 }
+      markers: { size: 6, shape: 'circle', strokeWidth: 0, offsetX: -4 },
+      itemMargin: { horizontal: 12, vertical: 2 }
     },
     grid: { borderColor: theme.color['chart-grid'], strokeDashArray: 3, padding: { left: 4, right: 8 } },
     xaxis: { labels: { style: label }, axisBorder: { show: false }, axisTicks: { show: false } },
@@ -228,6 +231,7 @@ export const DonutChart = ({ labels, values, colors, totalLabel = 'Total', heigh
     return {
       ...base,
       chart: { ...base.chart, type: 'donut' },
+      legend: { ...base.legend, position: 'bottom', horizontalAlign: 'center' },
       labels,
       stroke: { colors: [theme.color.card] },
       plotOptions: {

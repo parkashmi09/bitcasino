@@ -180,14 +180,9 @@
   --sidebar-ring: #3c6ff5;
 }
 
-/* Luno's sidebar: 280px, 260px up to 1440px wide. The provider sets the width inline. */
+/* ccpayment's drawer: 280px (its nav scroller measures 279 + the 1px edge) at every width. The provider sets the width inline. */
 [data-slot='sidebar-wrapper'] {
   --sidebar-width: 280px !important;
-}
-@media (max-width: 1440px) {
-  [data-slot='sidebar-wrapper'] {
-    --sidebar-width: 260px !important;
-  }
 }
 
 .input-default {
