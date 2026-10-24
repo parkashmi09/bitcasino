@@ -13,6 +13,7 @@ import { SidebarProvider } from './ui/sidebar'
 import { TooltipProvider } from './ui/tooltip'
 import { SessionProvider } from '@/contexts/SessionContext'
 import { ApiError, errorMessage } from '@/lib/api/client'
+import MuiProvider from '@/theme/MuiProvider'
 
 type Props = {
   children: ReactNode
@@ -46,9 +47,11 @@ const Providers = ({ children, sidebarDefaultOpen }: Props) => {
     <QueryClientProvider client={queryClient}>
       <SessionProvider>
         <ThemeProvider attribute='class' defaultTheme='dark' enableSystem={false}>
-          <TooltipProvider>
-            <SidebarProvider defaultOpen={sidebarDefaultOpen}>{children}</SidebarProvider>
-          </TooltipProvider>
+          <MuiProvider>
+            <TooltipProvider>
+              <SidebarProvider defaultOpen={sidebarDefaultOpen}>{children}</SidebarProvider>
+            </TooltipProvider>
+          </MuiProvider>
         </ThemeProvider>
       </SessionProvider>
     </QueryClientProvider>

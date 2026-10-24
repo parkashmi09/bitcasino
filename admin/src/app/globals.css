@@ -7,7 +7,7 @@
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-nunito);
+  --font-sans: var(--font-poppins);
   --font-mono: var(--font-geist-mono);
   --font-heading: var(--font-sans);
   --color-sidebar-ring: var(--sidebar-ring);
@@ -63,117 +63,116 @@
 }
 
 :root {
-  /* ── Luno theme-blue (measured from wrraptheme.com/templates/luno, 22 Oct 2026) ──
-     Page #f4f7f6, white cards with a 1px DASHED #e9e6e1 border and no shadow, ink #363535,
-     blue #2794eb for actions, teal #00ac9a for "you are here" (sidebar, breadcrumb). */
-  --background: #f4f7f6;
-  --foreground: #363535;
-  --heading: #181818;
+  /* ── ccpayment light, from src/theme/tokens.ts (live console CSS variables, 24 Oct 2026) ──
+     White paper cards with a soft shadow on a #f8f9fb page, ink #1f2025, blue #3c6ff5 for
+     actions and "you are here", #e8ecf2 strokes, 8px controls, 16px cards. */
+  --background: #f8f9fb;
+  --foreground: #1f2025;
+  --heading: #1f2025;
   --card: #ffffff;
-  --card-foreground: #363535;
+  --card-foreground: #1f2025;
   --popover: #ffffff;
-  --popover-foreground: #363535;
-  --primary: #2794eb;
+  --popover-foreground: #1f2025;
+  --primary: #3c6ff5;
   --primary-foreground: #ffffff;
-  /* shadcn's `secondary` is a neutral button surface, so it stays neutral; Luno's teal
-     "secondary colour" lives in --brand-secondary / --icon-accent. */
-  --secondary: #eef2f1;
-  --secondary-foreground: #363535;
-  --brand-secondary: #00ac9a;
-  --icon-accent: #00ac9a;
-  --muted: #eef2f1;
-  /* Luno's .text-muted is #9399a1 (2.8:1 on white); a step darker keeps small print readable. */
-  --muted-foreground: #7d848c;
-  --accent: #e9f4fd;
-  --accent-foreground: #1f7fcc;
-  --destructive: #e01b4f;
-  --border: #e9e6e1;
-  --border-style-card: dashed;
-  --input: #e9e6e1;
-  --ring: #2794eb;
+  --secondary: rgb(202 207 216 / 16%);
+  --secondary-foreground: #1f2025;
+  --brand-secondary: #3c6ff5;
+  --icon-accent: #3c6ff5;
+  --muted: #e8ecf2;
+  --muted-foreground: #71757e;
+  --accent: rgb(60 111 245 / 8%);
+  --accent-foreground: #3c6ff5;
+  --destructive: #ec684c;
+  --border: #e8ecf2;
+  --border-style-card: solid;
+  --input: #b3b9c5;
+  --ring: #3c6ff5;
 
   /* ── status ───────────────────────────────────────────────────────
-     Money states, named rather than picked per screen: the same green
-     is a credit here, an approved withdrawal there, a passed check in
-     the third. `-soft` is the background a badge sits on. */
-  --success: #0aa352;
-  --success-soft: #e3f8ee;
-  --warning: #cc9b32;
-  --warning-soft: #fff6e0;
-  --danger: #e01b4f;
-  --danger-soft: #fde6ec;
-  --info: #3d62c5;
-  --info-soft: #e8eefd;
-  /* Luno theme-blue chart colours 1–5 (--chart-color1..5); 6–8 keep the earlier extras. */
-  --chart-1: #2794eb;
-  --chart-2: #6382d8;
-  --chart-3: #8d61a5;
-  --chart-4: #90476f;
-  --chart-5: #00ac9a;
-  --chart-6: #008300;
-  --chart-7: #eda100;
-  --chart-8: #e34948;
-  /* rounded-xl (cards) = radius × 1.4 = 12px, Luno's card radius. */
-  --radius: 0.5357rem;
-  --sidebar: #f4f7f6;
-  --sidebar-foreground: #363535;
-  --sidebar-primary: #00ac9a;
+     Money states, named rather than picked per screen. `-soft` is the background a badge
+     sits on (ccpayment's `*-bg`). */
+  --success: #218861;
+  --success-soft: rgb(67 190 118 / 16%);
+  --warning: #ac7c1f;
+  --warning-soft: rgb(255 171 0 / 16%);
+  --danger: #a92926;
+  --danger-soft: rgb(236 104 76 / 16%);
+  --info: #3767a3;
+  --info-soft: rgb(110 175 227 / 16%);
+  --chart-1: #3c6ff5;
+  --chart-2: #65aee8;
+  --chart-3: #43be76;
+  --chart-4: #e7b22b;
+  --chart-5: #ec684c;
+  --chart-6: #7aa139;
+  --chart-7: #89affc;
+  --chart-8: #a3a8b1;
+  /* rounded-lg = 8px (controls); cards set 16px themselves. */
+  --radius: 0.5rem;
+  --shadow-card: 0px 12px 24px 0px rgb(113 117 126 / 16%), 0px 0px 2px 0px rgb(113 117 126 / 16%);
+  --shadow-dropdown: -20px 20px 40px 0px rgb(113 117 126 / 16%), 0px 0px 2px 0px rgb(113 117 126 / 16%);
+  --sidebar: #ffffff;
+  --sidebar-foreground: #1f2025;
+  --sidebar-primary: #3c6ff5;
   --sidebar-primary-foreground: #ffffff;
-  --sidebar-accent: transparent;
-  --sidebar-accent-foreground: #00ac9a;
-  --sidebar-border: #e9e6e1;
-  --sidebar-ring: #2794eb;
+  --sidebar-accent: rgb(60 111 245 / 8%);
+  --sidebar-accent-foreground: #3c6ff5;
+  --sidebar-border: #e8ecf2;
+  --sidebar-ring: #3c6ff5;
 }
 
 .dark {
-  /* Luno dark + theme-blue: page #1d1f20, cards #212324, border #353535, ink #e0e0e0,
-     teal steps up to #00c894. */
-  --background: #1d1f20;
-  --foreground: #e0e0e0;
-  --heading: #f0f0f0;
-  --card: #212324;
-  --card-foreground: #e0e0e0;
-  --popover: #212324;
-  --popover-foreground: #e0e0e0;
-  --primary: #2794eb;
+  /* ccpayment dark: page #18181a, paper #1f2125, ink #ebecf2. Muted text is one grey step up
+     from ccpayment's #71757e so small print stays readable (AA). */
+  --background: #18181a;
+  --foreground: #ebecf2;
+  --heading: #ffffff;
+  --card: #1f2125;
+  --card-foreground: #ebecf2;
+  --popover: #1f2125;
+  --popover-foreground: #ebecf2;
+  --primary: #3c6ff5;
   --primary-foreground: #ffffff;
-  --secondary: #2a2c2d;
-  --secondary-foreground: #e0e0e0;
-  --brand-secondary: #00c894;
-  --icon-accent: #00c894;
-  --muted: #2a2c2d;
-  --muted-foreground: #9399a1;
-  --accent: rgb(39 148 235 / 15%);
-  --accent-foreground: #6cb6f2;
-  --destructive: #e01b4f;
+  --secondary: #26282d;
+  --secondary-foreground: #ebecf2;
+  --brand-secondary: #89affc;
+  --icon-accent: #89affc;
+  --muted: #26282d;
+  --muted-foreground: #a3a8b1;
+  --accent: rgb(60 111 245 / 16%);
+  --accent-foreground: #89affc;
+  --destructive: #ec684c;
 
-  --success: #0ecc68;
-  --success-soft: rgb(14 204 104 / 14%);
-  --warning: #ffc23f;
-  --warning-soft: rgb(255 194 63 / 14%);
-  --danger: #e01b4f;
-  --danger-soft: rgb(224 27 79 / 16%);
-  --info: #6cb6f2;
-  --info-soft: rgb(39 148 235 / 15%);
-  --border: #353535;
-  --input: #353535;
-  --ring: #2794eb;
-  --chart-1: #2794eb;
-  --chart-2: #6382d8;
-  --chart-3: #8d61a5;
-  --chart-4: #b0638d;
-  --chart-5: #00c894;
-  --chart-6: #199e70;
-  --chart-7: #c98500;
-  --chart-8: #e66767;
-  --sidebar: #1d1f20;
-  --sidebar-foreground: #e0e0e0;
-  --sidebar-primary: #00c894;
-  --sidebar-primary-foreground: #1d1f20;
-  --sidebar-accent: transparent;
-  --sidebar-accent-foreground: #00c894;
-  --sidebar-border: #353535;
-  --sidebar-ring: #2794eb;
+  --success: #43be76;
+  --success-soft: rgb(67 190 118 / 16%);
+  --warning: #e7b22b;
+  --warning-soft: rgb(255 171 0 / 16%);
+  --danger: #ec684c;
+  --danger-soft: rgb(236 104 76 / 16%);
+  --info: #65aee8;
+  --info-soft: rgb(110 175 227 / 16%);
+  --border: #383a3f;
+  --input: #494c54;
+  --ring: #3c6ff5;
+  --chart-1: #3c6ff5;
+  --chart-2: #65aee8;
+  --chart-3: #43be76;
+  --chart-4: #e7b22b;
+  --chart-5: #ec684c;
+  --chart-6: #bee072;
+  --chart-7: #89affc;
+  --chart-8: #a3a8b1;
+  --shadow-card: 0px 12px 24px 0px rgb(0 0 0 / 24%), 0px 0px 2px 0px rgb(0 0 0 / 24%);
+  --shadow-dropdown: -20px 20px 40px 0px rgb(0 0 0 / 56%), 0 0 2px 0 rgb(0 0 0 / 24%);
+  --sidebar: #1f2125;
+  --sidebar-foreground: #ebecf2;
+  --sidebar-primary: #3c6ff5;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: rgb(60 111 245 / 16%);
+  --sidebar-accent-foreground: #89affc;
+  --sidebar-border: #383a3f;
+  --sidebar-ring: #3c6ff5;
 }
 
 /* Luno's sidebar: 280px, 260px up to 1440px wide. The provider sets the width inline. */
