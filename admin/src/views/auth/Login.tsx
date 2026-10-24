@@ -146,7 +146,7 @@ const Login = () => {
   }
 
   return (
-    <div className='bg-primary relative flex min-h-screen overflow-hidden bg-[url(/images/login-pattern.svg)] bg-cover bg-center'>
+    <div className='relative flex min-h-screen overflow-hidden bg-(--login-bg) bg-[url(/images/login-pattern.svg)] bg-cover bg-center'>
       {/* ccpayment's sign-in: the whole page in primary blue with a tile pattern, brand and headline on the left,
           a white 16px card with the form on the right. */}
       <div className='hidden flex-1 flex-col justify-between p-[100px] pt-16 text-white lg:flex'>

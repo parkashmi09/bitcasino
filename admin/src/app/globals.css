@@ -80,6 +80,8 @@
   --brand-secondary: #3c6ff5;
   /* ccpayment's Secondary-main: the lime of its sign-in headline. */
   --brand-lime: #bee072;
+  /* Sign-in backdrop: ccpayment's primary blue; in dark mode its Primary-darker navy. */
+  --login-bg: #3c6ff5;
   --icon-accent: #3c6ff5;
   --muted: #e8ecf2;
   --muted-foreground: #71757e;
@@ -149,6 +151,7 @@
   --secondary: #26282d;
   --secondary-foreground: #ebecf2;
   --brand-secondary: #89affc;
+  --login-bg: #0b1c75;
   --icon-accent: #89affc;
   --muted: #26282d;
   --muted-foreground: #a3a8b1;
