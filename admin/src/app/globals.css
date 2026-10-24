@@ -110,6 +110,13 @@
   --chart-8: #a3a8b1;
   /* ccpayment's ApexCharts: axis text is the disabled grey, gridlines dashed at the divider tone. */
   --chart-axis: #b3b9c5;
+  /* Status colours as chart marks take ccpayment's *-main, not the darker text tone used on soft badges. */
+  --chart-success: #43be76;
+  --chart-danger: #ec684c;
+  --chart-warning: #e7b22b;
+  --chart-info: #65aee8;
+  /* MUI's placeholder in ccpayment's disabled grey. */
+  --input-placeholder: #b3b9c5;
   --chart-grid: rgb(113 117 126 / 24%);
   /* rounded-lg = 8px (controls); cards set 16px themselves. */
   --radius: 0.5rem;
@@ -167,6 +174,7 @@
   --chart-7: #89affc;
   --chart-8: #a3a8b1;
   --chart-axis: #71757e;
+  --input-placeholder: #71757e;
   --chart-grid: rgb(113 117 126 / 24%);
   --shadow-card: 0px 12px 24px 0px rgb(0 0 0 / 24%), 0px 0px 2px 0px rgb(0 0 0 / 24%);
   --shadow-dropdown: -20px 20px 40px 0px rgb(0 0 0 / 56%), 0 0 2px 0 rgb(0 0 0 / 24%);
@@ -183,6 +191,17 @@
 /* ccpayment's drawer: 280px (its nav scroller measures 279 + the 1px edge) at every width. The provider sets the width inline. */
 [data-slot='sidebar-wrapper'] {
   --sidebar-width: 280px !important;
+}
+
+/* ccpayment cards carry no accent strips and no shouty labels: hide the 2px edge strips views draw inside a
+   card, and set their small uppercase captions in sentence case (the text itself is unchanged). */
+[data-slot='card'] > span[aria-hidden].absolute.inset-x-0:is(.top-0, .bottom-0) {
+  display: none;
+}
+[data-slot='card'] p.uppercase {
+  text-transform: none;
+  letter-spacing: normal;
+  font-size: 0.875rem;
 }
 
 .input-default {

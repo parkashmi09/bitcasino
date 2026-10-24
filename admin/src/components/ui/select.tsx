@@ -4,7 +4,7 @@ import * as React from 'react'
 
 import { Select as SelectPrimitive } from '@base-ui/react/select'
 
-import { ChevronDownIcon, CheckIcon, ChevronUpIcon } from 'lucide-react'
+import { ChevronDownIcon, ChevronUpIcon } from 'lucide-react'
 
 import { cn } from '@/lib/utils'
 
@@ -68,13 +68,13 @@ function SelectTrigger({
       data-slot='select-trigger'
       data-size={size}
       className={cn(
-        "border-input focus-visible:border-ring focus-visible:ring-ring/50 aria-invalid:border-destructive aria-invalid:ring-destructive/20 data-placeholder:text-muted-foreground dark:aria-invalid:border-destructive/50 dark:aria-invalid:ring-destructive/40 hover:border-foreground bg-card flex w-fit items-center justify-between gap-1.5 rounded-lg border py-2 pr-2 pl-3 text-sm whitespace-nowrap transition-[color,border-color,box-shadow] duration-250 ease-[cubic-bezier(0.4,0,0.2,1)] outline-none motion-reduce:transition-none focus-visible:ring-3 disabled:cursor-not-allowed disabled:opacity-50 aria-invalid:ring-3 data-[size=default]:h-9 data-[size=sm]:h-8 *:data-[slot=select-value]:line-clamp-1 *:data-[slot=select-value]:flex *:data-[slot=select-value]:items-center *:data-[slot=select-value]:gap-1.5 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
+        "border-input data-placeholder:text-(--input-placeholder) hover:border-foreground focus-visible:border-foreground aria-invalid:border-destructive aria-invalid:hover:border-destructive bg-transparent text-foreground rounded-lg border transition-[border-color] duration-250 ease-[cubic-bezier(0.4,0,0.2,1)] outline-none motion-reduce:transition-none focus-visible:border-foreground data-popup-open:border-foreground flex w-fit items-center justify-between gap-1.5 py-2 pr-2.5 pl-3.5 text-sm whitespace-nowrap disabled:cursor-not-allowed disabled:opacity-50 data-[size=default]:h-10 data-[size=sm]:h-8 *:data-[slot=select-value]:line-clamp-1 *:data-[slot=select-value]:flex *:data-[slot=select-value]:items-center *:data-[slot=select-value]:gap-1.5 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
         className
       )}
       {...props}
     >
       {children}
-      <SelectPrimitive.Icon render={<ChevronDownIcon className='text-muted-foreground pointer-events-none size-4' />} />
+      <SelectPrimitive.Icon render={<ChevronDownIcon className='text-foreground pointer-events-none size-[18px]! transition-transform duration-250 ease-[cubic-bezier(0.4,0,0.2,1)] in-data-popup-open:rotate-180' />} />
     </SelectPrimitive.Trigger>
   )
 }
@@ -133,7 +133,7 @@ function SelectItem({ className, children, ...props }: SelectPrimitive.Item.Prop
     <SelectPrimitive.Item
       data-slot='select-item'
       className={cn(
-        "data-highlighted:bg-[rgb(113_117_126/8%)] focus:bg-[rgb(113_117_126/8%)] data-selected:bg-primary/8 data-selected:text-primary data-selected:font-semibold data-selected:data-highlighted:bg-primary/12 relative mb-0.5 flex min-h-9 w-full cursor-default items-center gap-2 rounded-md py-1.5 pr-8 pl-2 text-sm outline-hidden select-none data-disabled:pointer-events-none data-disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4 *:[span]:last:flex *:[span]:last:items-center *:[span]:last:gap-2",
+        "data-highlighted:bg-[rgb(113_117_126/8%)] focus:bg-[rgb(113_117_126/8%)] data-selected:bg-[rgb(113_117_126/16%)] data-selected:font-semibold relative mb-1 flex min-h-9 w-full cursor-default items-center gap-2 rounded-md px-2 py-1.5 text-sm last:mb-0 outline-hidden select-none data-disabled:pointer-events-none data-disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4 *:[span]:last:flex *:[span]:last:items-center *:[span]:last:gap-2",
         className
       )}
       {...props}
@@ -141,11 +141,6 @@ function SelectItem({ className, children, ...props }: SelectPrimitive.Item.Prop
       <SelectPrimitive.ItemText className='flex flex-1 shrink-0 gap-2 whitespace-nowrap'>
         {children}
       </SelectPrimitive.ItemText>
-      <SelectPrimitive.ItemIndicator
-        render={<span className='pointer-events-none absolute right-2 flex size-4 items-center justify-center' />}
-      >
-        <CheckIcon className='pointer-events-none' />
-      </SelectPrimitive.ItemIndicator>
     </SelectPrimitive.Item>
   )
 }

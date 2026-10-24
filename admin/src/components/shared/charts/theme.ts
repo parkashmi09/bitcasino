@@ -93,7 +93,10 @@ export function useChartTheme(): ChartTheme {
     const isBrowser = typeof window !== 'undefined' && key !== 'ssr'
     const style = isBrowser ? getComputedStyle(document.documentElement) : null
 
-    for (const t of ALL_TOKENS) color[t] = style ? toRgb(style.getPropertyValue(`--${t}`)) || 'currentColor' : 'currentColor'
+    // A status token drawn as a mark uses its chart shade (`--chart-success`…) when globals.css defines one.
+    const read = (t: string) => (style ? toRgb(style.getPropertyValue(`--chart-${t}`) || style.getPropertyValue(`--${t}`)) || 'currentColor' : 'currentColor')
+
+    for (const t of ALL_TOKENS) color[t] = read(t)
 
     const mode: 'light' | 'dark' = isBrowser && document.documentElement.classList.contains('dark') ? 'dark' : 'light'
     const fontFamily = style ? getComputedStyle(document.body).fontFamily : 'inherit'

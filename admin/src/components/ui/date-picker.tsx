@@ -127,8 +127,10 @@ function PickerTrigger({
             onPointerEnter={preloadCalendar}
             onFocus={preloadCalendar}
             className={cn(
-              'w-full justify-start px-2.5 text-left font-normal',
-              !label && 'text-muted-foreground',
+
+              // Sits in filter rows beside inputs and selects, so it wears the same MUI outlined field.
+              'border-input hover:border-foreground focus-visible:border-foreground focus-visible:ring-0 data-popup-open:border-foreground h-10 w-full justify-start bg-transparent px-3.5 text-left font-normal normal-case hover:bg-transparent hover:text-foreground aria-expanded:bg-transparent aria-expanded:text-foreground',
+              !label && 'text-(--input-placeholder) hover:text-(--input-placeholder)',
               showClear && 'pr-8'
             )}
             aria-label={ariaLabel ? `${ariaLabel}: ${label ?? placeholder}` : undefined}
