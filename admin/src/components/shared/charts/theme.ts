@@ -20,7 +20,7 @@ export const SERIES_TOKENS = ['chart-1', 'chart-2', 'chart-3', 'chart-4', 'chart
 /** Any token a series may be painted with. Status tokens are for status meaning only. */
 export type ChartColor = (typeof SERIES_TOKENS)[number] | 'primary' | 'success' | 'danger' | 'warning' | 'info' | 'muted-foreground'
 
-const UI_TOKENS = ['foreground', 'muted-foreground', 'border', 'card', 'popover', 'popover-foreground', 'muted'] as const
+const UI_TOKENS = ['foreground', 'muted-foreground', 'border', 'card', 'popover', 'popover-foreground', 'muted', 'chart-axis', 'chart-grid'] as const
 const ALL_TOKENS = [...SERIES_TOKENS, ...UI_TOKENS, 'primary', 'success', 'danger', 'warning', 'info'] as const
 
 type Token = (typeof ALL_TOKENS)[number]

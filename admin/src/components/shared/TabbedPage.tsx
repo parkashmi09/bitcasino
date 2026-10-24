@@ -28,7 +28,7 @@ const TabbedPage = ({ tabs }: { tabs: PageTab[] }) => {
   return (
     <div>
       <Tabs value={active.value} onValueChange={v => select(String(v))}>
-        <TabsList className='mb-4 h-auto max-w-full flex-wrap justify-start'>
+        <TabsList className='mb-6 h-auto max-w-full flex-wrap justify-start'>
           {tabs.map(t => (
             <TabsTrigger key={t.value} value={t.value}>
               {t.label}

@@ -467,7 +467,7 @@ function RangeBody({
               key={p.label}
               variant='ghost'
               size='sm'
-              className='h-7 justify-start rounded-[4px] text-xs font-normal'
+              className='h-7 justify-start rounded-md text-xs font-medium'
               onClick={() => onCommit(p.range())}
             >
               {p.label}

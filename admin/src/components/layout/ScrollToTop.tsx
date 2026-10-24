@@ -40,7 +40,7 @@ const ScrollToTop = () => {
   return (
     <Button
       size='icon'
-      className={cn('fixed right-4 bottom-8 z-50 cursor-pointer rounded-full transition-all duration-200', {
+      className={cn('fixed right-4 bottom-8 z-50 size-10 cursor-pointer rounded-full shadow-(--shadow-dropdown) transition-all duration-250', {
         'scale-0': !showScrollButton
       })}
       onClick={scrollToTop}

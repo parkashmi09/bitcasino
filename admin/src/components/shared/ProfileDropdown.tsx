@@ -53,7 +53,7 @@ const ProfileDropdown = () => {
           <Avatar>
             <AvatarFallback>{initials || 'S'}</AvatarFallback>
           </Avatar>
-          <span className='ring-card absolute right-0 bottom-0 block size-2 rounded-full bg-green-600 ring-2' />
+          <span className='ring-card absolute right-0 bottom-0 block size-2.5 rounded-full bg-success ring-2' />
         </DropdownMenuTrigger>
         <DropdownMenuContent align='end' className='w-64'>
           <DropdownMenuGroup>

@@ -35,19 +35,20 @@ const segmentLabel = (segment: string) => {
   return SEGMENT_LABELS[raw.toLowerCase()] ?? raw.replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase())
 }
 
-/** Luno's page toolbar: breadcrumb (teal Home link), title + muted subtitle, actions on the right. */
+/** ccpayment's page title row: 24px semibold title, breadcrumb and muted subtitle under it, actions on the right. */
 const PageHeader = ({ title, description, actions }: Props) => {
   const pathname = usePathname()
   const homeHref = useHomeHref()
   const segments = pathname.split('/').filter(Boolean)
 
   return (
-    <div className='mb-6 flex flex-wrap items-center justify-between gap-x-6 gap-y-3'>
+    <div className='mb-8 flex flex-wrap items-end justify-between gap-x-6 gap-y-3'>
       <div className='min-w-0'>
-        <Breadcrumb className='mb-3'>
-          <BreadcrumbList className='text-[15px]'>
+        <h1 className='text-heading text-2xl leading-normal font-semibold'>{title}</h1>
+        <Breadcrumb className='mt-2'>
+          <BreadcrumbList className='text-[14px]'>
             <BreadcrumbItem>
-              <Link href={homeHref} className='text-brand-secondary hover:underline'>
+              <Link href={homeHref} className='text-foreground hover:underline'>
                 Home
               </Link>
             </BreadcrumbItem>
@@ -57,12 +58,12 @@ const PageHeader = ({ title, description, actions }: Props) => {
 
               return (
                 <Fragment key={href}>
-                  <BreadcrumbSeparator className='[&>svg]:size-3' />
+                  <BreadcrumbSeparator className='text-muted-foreground/60 [&>svg]:size-3' />
                   <BreadcrumbItem>
                     {isLast ? (
-                      <BreadcrumbPage className='text-foreground'>{segmentLabel(segment)}</BreadcrumbPage>
+                      <BreadcrumbPage className='text-muted-foreground'>{segmentLabel(segment)}</BreadcrumbPage>
                     ) : (
-                      <span className='text-muted-foreground'>{segmentLabel(segment)}</span>
+                      <span className='text-foreground'>{segmentLabel(segment)}</span>
                     )}
                   </BreadcrumbItem>
                 </Fragment>
@@ -70,8 +71,7 @@ const PageHeader = ({ title, description, actions }: Props) => {
             })}
           </BreadcrumbList>
         </Breadcrumb>
-        <h1 className='text-heading text-xl font-semibold'>{title}</h1>
-        {description && <p className='text-muted-foreground mt-1 max-w-prose text-[13px]'>{description}</p>}
+        {description && <p className='text-muted-foreground mt-2 max-w-prose text-[14px]'>{description}</p>}
       </div>
       {actions && <div className='flex flex-wrap items-center gap-2'>{actions}</div>}
     </div>

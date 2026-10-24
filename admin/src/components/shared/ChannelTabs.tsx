@@ -27,7 +27,7 @@ const ChannelTabs = ({ children, className }: { children: (channel: Channel) => 
   return (
     <div className={className}>
       <Tabs value={channel} onValueChange={v => setChannel(v === 'agent' ? 'agent' : 'direct')}>
-        <TabsList className='mb-4'>
+        <TabsList className='mb-6'>
           <TabsTrigger value='direct'>
             <UsersIcon /> Direct Users
           </TabsTrigger>

@@ -107,17 +107,17 @@ export default function DataTable<T>({
   }
 
   return (
-    <Card className={cn('ring-border gap-0 overflow-hidden py-0', className)}>
+    <Card className={cn('gap-0 overflow-hidden py-0', className)}>
       {showToolbar && (
-        <div className='border-border flex flex-wrap items-center gap-3 border-b border-dashed px-4 py-3.5'>
+        <div className='flex flex-wrap items-center gap-3 p-5'>
           {onSearchChange && (
-            <div className='relative w-full sm:w-72'>
-              <SearchIcon className='text-muted-foreground pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2' />
+            <div className='relative w-full sm:w-80'>
+              <SearchIcon className='text-muted-foreground pointer-events-none absolute top-1/2 left-3 size-5 -translate-y-1/2' />
               <Input
                 value={search ?? ''}
                 onChange={e => onSearchChange(e.target.value)}
                 placeholder={searchPlaceholder}
-                className='pl-8'
+                className='pl-10'
               />
             </div>
           )}
@@ -134,7 +134,7 @@ export default function DataTable<T>({
         <div className='relative w-full'>
           <Table>
             <TableHeader>
-              <TableRow className={cn('border-border hover:bg-transparent', dense ? 'h-9' : 'h-11')}>
+              <TableRow className={cn('border-0 hover:bg-transparent', dense ? 'h-10' : 'h-14')}>
                 {columns.map(col => {
                   const sortable = Boolean(col.sortKey && onSortChange)
                   const active = col.sortKey && sort?.key === col.sortKey
@@ -143,11 +143,11 @@ export default function DataTable<T>({
                     <TableHead
                       key={col.key}
                       className={cn(
-                        'text-heading bg-card sticky top-0 z-10 px-3 text-xs font-bold tracking-wide whitespace-nowrap uppercase first:pl-5 last:pr-5',
+                        'text-muted-foreground bg-background sticky top-0 z-10 px-4 text-sm font-semibold whitespace-nowrap first:pl-6 last:pr-6',
                         col.align === 'right' && 'text-right tabular-nums',
                         col.align === 'center' && 'text-center',
-                        sortable && 'hover:text-primary cursor-pointer transition-colors select-none',
-                        active && 'text-primary',
+                        sortable && 'hover:text-foreground cursor-pointer transition-colors duration-250 select-none',
+                        active && 'text-foreground',
                         col.headerClassName
                       )}
                       aria-sort={active ? (sort?.order === 'asc' ? 'ascending' : 'descending') : undefined}
@@ -172,9 +172,9 @@ export default function DataTable<T>({
             <TableBody>
               {loading && !rows ? (
                 Array.from({ length: 6 }).map((_, i) => (
-                  <TableRow key={`s${i}`} className={cn('border-border hover:bg-transparent', dense ? 'h-9' : 'h-13')}>
+                  <TableRow key={`s${i}`} className={cn('border-border hover:bg-transparent', dense ? 'h-10' : 'h-[60px]')}>
                     {columns.map(col => (
-                      <TableCell key={col.key} className='px-3 first:pl-5 last:pr-5'>
+                      <TableCell key={col.key} className='px-4 first:pl-6 last:pr-6'>
                         <Skeleton className='h-3.5 w-full max-w-40' />
                       </TableCell>
                     ))}
@@ -188,8 +188,8 @@ export default function DataTable<T>({
                     <Fragment key={rowKey(row, i)}>
                       <TableRow
                         className={cn(
-                          'border-border hover:bg-muted/50',
-                          dense ? 'h-9' : 'h-13',
+                          'border-border hover:bg-[rgb(113_117_126/8%)]',
+                          dense ? 'h-10' : 'h-[60px]',
                           onRowClick && 'cursor-pointer'
                         )}
                         onClick={onRowClick ? () => onRowClick(row) : undefined}
@@ -198,7 +198,7 @@ export default function DataTable<T>({
                           <TableCell
                             key={col.key}
                             className={cn(
-                              'px-3 first:pl-5 last:pr-5',
+                              'px-4 text-sm first:pl-6 last:pr-6',
                               col.align === 'right' && 'text-right tabular-nums',
                               col.align === 'center' && 'text-center',
                               col.className
@@ -210,7 +210,7 @@ export default function DataTable<T>({
                       </TableRow>
                       {expanded != null && expanded !== false && (
                         <TableRow className='border-border bg-muted/30 hover:bg-muted/30'>
-                          <TableCell colSpan={columns.length} className='px-5 py-3'>
+                          <TableCell colSpan={columns.length} className='px-6 py-3'>
                             {expanded}
                           </TableCell>
                         </TableRow>
@@ -222,7 +222,7 @@ export default function DataTable<T>({
                 <TableRow className='hover:bg-transparent'>
                   <TableCell
                     colSpan={columns.length}
-                    className='text-muted-foreground h-28 px-5 text-center text-sm font-normal'
+                    className='text-muted-foreground h-40 px-6 text-center text-sm font-normal'
                   >
                     {emptyMessage}
                   </TableCell>
@@ -234,28 +234,30 @@ export default function DataTable<T>({
       )}
 
       {pagination && (
-        <div className='border-border flex flex-wrap items-center justify-between gap-3 border-t border-dashed px-4 py-3'>
-          <p className='text-muted-foreground text-sm tabular-nums'>
-            {total === 0 ? 'No entries' : `Showing ${from}–${to} of ${total}`}
-          </p>
-          <div className='flex items-center gap-2'>
-            {onLimitChange && (
+        <div className='border-border flex flex-wrap items-center justify-end gap-x-6 gap-y-2 border-t px-4 py-2 text-sm'>
+          {onLimitChange && (
+            <div className='flex items-center gap-2'>
+              <span className='text-foreground'>Rows per page:</span>
               <Select value={String(limit)} onValueChange={v => v && onLimitChange(Number(v))}>
-                <SelectTrigger className='h-8 w-24'>
+                <SelectTrigger aria-label='Rows per page' className='h-8 w-auto min-w-16 border-0 bg-transparent px-2 shadow-none'>
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
                   {LIMITS.map(n => (
                     <SelectItem key={n} value={String(n)}>
-                      {n} / page
+                      {n}
                     </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
-            )}
+            </div>
+          )}
+          <p className='text-foreground tabular-nums'>{total === 0 ? 'No entries' : `${from}–${to} of ${total}`}</p>
+          <div className='flex items-center gap-1'>
             <Button
-              variant='outline'
+              variant='ghost'
               size='icon-sm'
+              className='rounded-full'
               disabled={page <= 1}
               onClick={() => onPageChange?.(1)}
               aria-label='First page'
@@ -263,20 +265,22 @@ export default function DataTable<T>({
               <ChevronsLeftIcon />
             </Button>
             <Button
-              variant='outline'
+              variant='ghost'
               size='icon-sm'
+              className='rounded-full'
               disabled={page <= 1}
               onClick={() => onPageChange?.(page - 1)}
               aria-label='Previous page'
             >
               <ChevronLeftIcon />
             </Button>
-            <span className='text-muted-foreground px-2 text-sm tabular-nums'>
+            <span className='text-muted-foreground px-1.5 text-sm tabular-nums'>
               <span className='text-foreground font-medium'>{page}</span> / {totalPages}
             </span>
             <Button
-              variant='outline'
+              variant='ghost'
               size='icon-sm'
+              className='rounded-full'
               disabled={page >= totalPages}
               onClick={() => onPageChange?.(page + 1)}
               aria-label='Next page'
@@ -284,8 +288,9 @@ export default function DataTable<T>({
               <ChevronRightIcon />
             </Button>
             <Button
-              variant='outline'
+              variant='ghost'
               size='icon-sm'
+              className='rounded-full'
               disabled={page >= totalPages}
               onClick={() => onPageChange?.(totalPages)}
               aria-label='Last page'

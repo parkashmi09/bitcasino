@@ -64,7 +64,7 @@ const StatusBadge = ({ value, className }: { value: string | boolean | null | un
   return (
     <Badge
       variant='outline'
-      className={cn('rounded-[6px] border-transparent px-2 py-0.5 text-xs font-bold capitalize', tone, className)}
+      className={cn('h-6 rounded-md border-transparent px-2 text-xs font-semibold capitalize', tone, className)}
     >
       {text.replace(/[_-]+/g, ' ')}
     </Badge>

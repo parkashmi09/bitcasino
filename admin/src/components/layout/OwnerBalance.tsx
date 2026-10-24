@@ -35,7 +35,7 @@ const OwnerBalanceInner = () => {
       <button
         type='button'
         onClick={() => setLedgerOpen(true)}
-        className='border-border bg-muted/40 hover:bg-muted flex items-center gap-2 rounded-full border px-3 py-1 text-xs transition-colors'
+        className='bg-accent hover:bg-primary/16 flex h-8 items-center gap-2 rounded-full px-3 text-[13px] transition-colors duration-250'
         title={`Direct Users balance${inr !== undefined ? ` (${formatIn(Number(inr) || 0, 'INR')})` : ''} — click for the ledger`}
       >
         <WalletIcon className='text-primary size-3.5 shrink-0' />

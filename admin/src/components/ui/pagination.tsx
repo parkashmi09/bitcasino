@@ -35,7 +35,7 @@ function PaginationLink({ className, isActive, size = 'icon', ...props }: Pagina
     <Button
       variant={isActive ? 'outline' : 'ghost'}
       size={size}
-      className={cn(className)}
+      className={cn('rounded-lg font-medium', isActive && 'border-primary text-primary bg-primary/8', className)}
       nativeButton={false}
       render={
         <a aria-current={isActive ? 'page' : undefined} data-slot='pagination-link' data-active={isActive} {...props} />

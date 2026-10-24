@@ -22,7 +22,7 @@ function BreadcrumbItem({ className, ...props }: React.ComponentProps<'li'>) {
 
 function BreadcrumbLink({ className, ...props }: React.ComponentProps<'a'>) {
   return (
-    <a data-slot='breadcrumb-link' className={cn('hover:text-foreground transition-colors', className)} {...props} />
+    <a data-slot='breadcrumb-link' className={cn('hover:text-foreground transition-colors duration-250 hover:underline', className)} {...props} />
   )
 }
 
@@ -45,7 +45,7 @@ function BreadcrumbSeparator({ children, className, ...props }: React.ComponentP
       data-slot='breadcrumb-separator'
       role='presentation'
       aria-hidden='true'
-      className={cn('[&>svg]:size-3.5', className)}
+      className={cn('text-muted-foreground/70 [&>svg]:size-3.5', className)}
       {...props}
     >
       {children ?? <ChevronRightIcon />}

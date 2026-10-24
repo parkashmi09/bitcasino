@@ -9,7 +9,7 @@ import { TxnPasswordLabel } from '@/views/finance/StaffFloat'
  */
 const TxnCodeInput = ({ id, value, onChange }: { id: string; value: string; onChange: (value: string) => void }) => (
   <div className='grid gap-2'>
-    <label htmlFor={id} className='text-sm font-medium'>
+    <label htmlFor={id} className='text-foreground text-sm font-medium'>
       <TxnPasswordLabel />
     </label>
     <Input id={id} type='password' autoComplete='new-password' value={value} onChange={e => onChange(e.target.value)} />

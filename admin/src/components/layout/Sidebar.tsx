@@ -68,63 +68,44 @@ import { cn } from '@/lib/utils'
 
 const isSubGroup = (item: MenuSubItem): item is MenuGroupSubItem => 'childItems' in item
 
-// ── Shell styling (Luno layout-1) ────────────────────────────────────────────
-// Each section is a dashed box; rows are 44px, split by dashed lines; the current page and an
-// open branch read teal (--sidebar-primary); the open submenu hangs off a thin teal tree line.
+// ── Shell styling (ccpayment console) ────────────────────────────────────────
+// White (dark #1f2125) rail, 44px rows of 14px medium text with the icon, the current page a
+// primary-ink pill on an 8% primary tint, 8px radius; groups collapse over 250ms.
 
-// A top-level row: 44px, 18px icon, label, chevron. Hover and "here" are teal ink, never a fill.
+const EASE = 'ease-[cubic-bezier(0.4,0,0.2,1)]'
+
+// A top-level row: 44px, 20px icon, label, chevron.
 const menuRowClass =
-  'relative h-11 gap-2.5 rounded-none px-0 text-[15px] hover:bg-transparent! hover:text-sidebar-primary active:bg-transparent [&_svg]:size-[18px] group-data-[collapsible=icon]:rounded-md group-data-[collapsible=icon]:justify-center'
+  'relative h-11 gap-3 rounded-lg px-3 text-[14px] font-medium text-muted-foreground transition-colors duration-250 not-data-active:hover:bg-[rgb(113_117_126/8%)]! not-data-active:hover:text-sidebar-foreground [&_svg]:size-5 group-data-[collapsible=icon]:justify-center'
 
 const menuRowActiveClass =
-  'data-active:bg-transparent data-active:text-sidebar-primary data-active:[&_svg]:text-sidebar-primary'
+  'data-active:bg-sidebar-accent! data-active:text-sidebar-accent-foreground data-active:font-semibold data-active:[&_svg]:text-sidebar-accent-foreground'
 
-// A branch that holds the current page, or is open, reads teal like Luno's aria-expanded row.
+// A branch that holds the current page reads primary like ccpayment's open parent; an open one only darkens.
 const menuRowBranchClass =
-  'data-active:bg-transparent! data-active:text-sidebar-primary group-data-open/collapsible:text-sidebar-primary'
+  'data-active:bg-sidebar-accent! data-active:text-sidebar-accent-foreground data-active:font-semibold group-data-open/collapsible:text-sidebar-foreground data-active:group-data-open/collapsible:text-sidebar-accent-foreground'
 
-// The open submenu: indented 28px with a 1px teal line 10px in.
-const subMenuClass =
-  'relative mx-0 translate-x-0 gap-0 border-l-0 px-0 pb-3 pl-7 before:absolute before:top-0 before:left-2.5 before:h-full before:w-px before:bg-sidebar-primary'
+// The open submenu: children indented under the parent's icon.
+const subMenuClass = 'relative mx-0 translate-x-0 gap-0.5 border-l-0 px-0 pt-0.5 pb-1 pl-6'
 
-// Sub-rows: smaller, plain; the current one is teal with a 9px dot sitting on the tree line.
+// Sub-rows: 36px, 14px; the current one gets the same primary pill, an open sub-group only darkens.
 const subRowClass =
-  'relative h-[30px] translate-x-0 justify-between overflow-visible rounded-none px-0 text-[14px] hover:bg-transparent hover:text-sidebar-primary data-active:bg-transparent data-active:text-sidebar-primary data-active:before:absolute data-active:before:top-[10.5px] data-active:before:-left-[22px] data-active:before:size-[9px] data-active:before:rounded-full data-active:before:bg-sidebar-primary [&>svg]:text-current'
+  'relative h-9 translate-x-0 justify-between overflow-visible rounded-lg px-3 text-[14px] text-muted-foreground transition-colors duration-250 not-data-active:hover:bg-[rgb(113_117_126/8%)] not-data-active:hover:text-sidebar-foreground data-active:bg-sidebar-accent data-active:font-semibold data-active:text-sidebar-accent-foreground [&>svg]:text-current'
 
 const subBranchClass =
-  'relative h-[30px] translate-x-0 justify-between rounded-none px-0 text-[14px] hover:bg-transparent hover:text-sidebar-primary data-active:bg-transparent! data-active:text-sidebar-primary [&>svg]:text-current'
+  'relative h-9 translate-x-0 justify-between rounded-lg px-3 text-[14px] text-muted-foreground transition-colors duration-250 hover:bg-[rgb(113_117_126/8%)] hover:text-sidebar-foreground data-active:bg-transparent! data-active:font-semibold data-active:text-sidebar-foreground [&>svg]:text-current'
 
-// Luno's section box and the dashed rule between its rows (dropped on the icon rail).
-const sectionBoxClass =
-  'rounded-xl border border-dashed border-sidebar-border px-4 group-data-[collapsible=icon]:border-0 group-data-[collapsible=icon]:px-0'
+// Sections are plain: no box, no rules between rows.
+const sectionRowsClass = 'gap-1'
 
-const sectionRowsClass =
-  'gap-0 [&>li]:border-b [&>li]:border-dashed [&>li]:border-sidebar-border [&>li:last-child]:border-b-0 group-data-[collapsible=icon]:gap-1 group-data-[collapsible=icon]:[&>li]:border-0'
-
-// A short line under each section title, as Luno's "MAIN / Unique dashboard designs".
-// Only words: the menu itself (labels, hrefs, permissions) still comes from navConfig.
-const GROUP_SUBTITLES: Record<string, string> = {
-  Main: 'Dashboard, players and wallets',
-  'Agent Management': 'Agents, downline and limits',
-  'Sports Exchange': 'Markets, bets and results',
-  Transactions: 'Deposits, withdrawals and KYC',
-  Finance: 'Payments, banks and ledgers',
-  Promotions: 'Bonuses, VIP, races and codes',
-  Casino: 'Providers, games and lobby',
-  'Original Games': 'In-house games and settings',
-  Team: 'Staff and roles',
-  Content: 'Banners, pages and messages',
-  Reports: 'Profit, turnover and audits',
-  'Site Config': 'Branding, coins and switches',
-  Settings: 'Access and your account'
-}
+const collapseClass = `h-(--collapsible-panel-height) overflow-hidden transition-[height] duration-250 ${EASE} data-ending-style:h-0 data-starting-style:h-0`
 
 // Bottom shortcut row: real pages, shown only when the menu shows them to this session.
 const SHORTCUT_HREFS = ['/transactions/deposit', '/transactions/withdraw', '/kyc', '/users']
 
 // Counts are information, not decoration.
 // top-3! re-centres the badge against the 44px row.
-const badgeClass = 'bg-muted top-3! max-w-24 truncate rounded-full px-1.5 font-normal tabular-nums'
+const badgeClass = 'bg-muted top-3! max-w-24 truncate rounded-full px-1.5 text-[11px] font-semibold tabular-nums'
 
 const isExternalLink = (href: string) => href.startsWith('http://') || href.startsWith('https://')
 
@@ -369,9 +350,9 @@ const SidebarGroupedMenuItems = ({
                   {item.badge && (
                     <SidebarMenuBadge className={cn(badgeClass, item.badgeClassName)}>{item.badge}</SidebarMenuBadge>
                   )}
-                  <ChevronRightIcon className='text-muted-foreground ml-auto size-3.5! transition-transform duration-350 group-data-open/collapsible:rotate-90' />
+                  <ChevronRightIcon className='text-muted-foreground ml-auto size-3.5! transition-transform duration-250 group-data-open/collapsible:rotate-90' />
                 </CollapsibleTrigger>
-                <CollapsibleContent className='h-(--collapsible-panel-height) overflow-hidden transition-[height] duration-350 ease-luno data-ending-style:h-0 data-starting-style:h-0'>
+                <CollapsibleContent className={collapseClass}>
                   <SidebarMenuSub className={subMenuClass}>
                     {item.childItems.map(subItem =>
                       isSubGroup(subItem) ? (
@@ -395,9 +376,9 @@ const SidebarGroupedMenuItems = ({
                             >
                               <NavIcon name={subItem.icon} />
                               {subItem.label}
-                              <ChevronRightIcon className='text-muted-foreground ml-auto size-3.5! shrink-0 transition-transform duration-350 group-data-open/subcollapsible:rotate-90' />
+                              <ChevronRightIcon className='text-muted-foreground ml-auto size-3.5! shrink-0 transition-transform duration-250 group-data-open/subcollapsible:rotate-90' />
                             </CollapsibleTrigger>
-                            <CollapsibleContent className='h-(--collapsible-panel-height) overflow-hidden transition-[height] duration-350 ease-luno data-ending-style:h-0 data-starting-style:h-0'>
+                            <CollapsibleContent className={collapseClass}>
                               <SidebarMenuSub className={cn(subMenuClass, 'pb-1')}>
                                 {subItem.childItems.map(leaf => (
                                   <SidebarMenuSubItem key={leaf.label}>
@@ -421,7 +402,7 @@ const SidebarGroupedMenuItems = ({
                                         <SidebarMenuBadge
                                           className={cn(
                                             badgeClass,
-                                            'top-1.5!',
+                                            'top-2!',
                                             isExternalLink(leaf.href) && 'right-6',
                                             leaf.badgeClassName
                                           )}
@@ -461,7 +442,7 @@ const SidebarGroupedMenuItems = ({
                               <SidebarMenuBadge
                                 className={cn(
                                   badgeClass,
-                                  'top-1.5!',
+                                  'top-2!',
                                   isExternalLink(subItem.href) && 'right-6',
                                   subItem.badgeClassName
                                 )}
@@ -517,22 +498,14 @@ const SidebarGroupedMenuItems = ({
     </SidebarGroupContent>
   )
 
-  // Luno's section title: a small caps TITLE with a muted line under it.
+  // ccpayment's section title: a small caps label in disabled ink.
   const title = groupLabel && (
-    <span className='flex min-w-0 flex-1 flex-col items-start gap-0.5 text-left'>
-      <span className='text-sidebar-foreground text-[13px] leading-tight font-semibold tracking-wide uppercase'>
-        {groupLabel}
-      </span>
-      {GROUP_SUBTITLES[groupLabel] && (
-        <span className='text-muted-foreground truncate text-xs leading-tight font-normal'>
-          {GROUP_SUBTITLES[groupLabel]}
-        </span>
-      )}
+    <span className='min-w-0 flex-1 truncate text-left text-[11px] leading-tight font-bold tracking-wider text-[var(--mui-palette-text-disabled,#b3b9c5)] uppercase'>
+      {groupLabel}
     </span>
   )
 
-  const labelClass =
-    'h-auto rounded-none border-b border-dashed border-sidebar-border px-0 py-2.5 group-data-[collapsible=icon]:hidden'
+  const labelClass = 'h-auto rounded-none px-3 pt-4 pb-2 group-data-[collapsible=icon]:hidden'
 
   // Collapsible group (jaise Sports Exchange): label pe click = poora section khule / band ho.
   // Icon rail me label dikhta hi nahi, wahan items hamesha dikhte hain.
@@ -541,23 +514,23 @@ const SidebarGroupedMenuItems = ({
 
     return (
       <Collapsible className='group/section' open={isBranchOpen(key)} onOpenChange={open => setOpenItem(key, open)}>
-        <SidebarGroup className='px-2 py-1.5'>
-          <div className={sectionBoxClass}>
+        <SidebarGroup className='px-4 py-0'>
+          <div>
             <CollapsibleTrigger
               nativeButton={false}
               render={
                 <SidebarGroupLabel
                   className={cn(
                     labelClass,
-                    'hover:[&>span>span:first-child]:text-sidebar-primary cursor-pointer group-data-closed/section:border-b-0'
+                    'hover:[&>span]:text-sidebar-foreground cursor-pointer'
                   )}
                 />
               }
             >
               {title}
-              <ChevronRightIcon className='text-muted-foreground ml-auto size-3.5! transition-transform duration-350 group-data-open/section:rotate-90' />
+              <ChevronRightIcon className='text-muted-foreground ml-auto size-3.5! transition-transform duration-250 group-data-open/section:rotate-90' />
             </CollapsibleTrigger>
-            <CollapsibleContent className='h-(--collapsible-panel-height) overflow-hidden transition-[height] duration-350 ease-luno data-ending-style:h-0 data-starting-style:h-0'>
+            <CollapsibleContent className={collapseClass}>
               {menu}
             </CollapsibleContent>
           </div>
@@ -567,8 +540,8 @@ const SidebarGroupedMenuItems = ({
   }
 
   return (
-    <SidebarGroup className='px-2 py-1.5'>
-      <div className={sectionBoxClass}>
+    <SidebarGroup className='px-4 py-0'>
+      <div>
         {groupLabel && <SidebarGroupLabel className={labelClass}>{title}</SidebarGroupLabel>}
         {menu}
       </div>
@@ -667,12 +640,12 @@ const SidebarLayout = () => {
 
   return (
     <Sidebar collapsible='icon' variant='sidebar'>
-      <SidebarHeader className='gap-0 px-4 pt-4 pb-3 group-data-[collapsible=icon]:px-2' onClick={closeOnNavigate}>
+      <SidebarHeader className='gap-0 px-5 pt-5 pb-4 group-data-[collapsible=icon]:px-2' onClick={closeOnNavigate}>
         <div className='flex items-center gap-2'>
           <Link href={homeHref} className='flex min-w-0 flex-1 items-center gap-2.5 rounded-md'>
             <BrandMark className='size-9' />
             <span className='flex min-w-0 flex-col group-data-[collapsible=icon]:hidden'>
-              <span className='text-heading truncate text-[22px] leading-tight font-semibold'>
+              <span className='text-heading truncate text-[18px] leading-tight font-semibold'>
                 {themeConfig.templateName}
               </span>
               <span className='text-muted-foreground truncate text-xs'>{siteConfig.tagline}</span>
@@ -702,7 +675,7 @@ const SidebarLayout = () => {
         <SidebarFooter className='px-4 pt-2 pb-4 group-data-[collapsible=icon]:hidden' onClick={closeOnNavigate}>
           <nav
             aria-label='Shortcuts'
-            className='border-sidebar-border flex rounded-xl border border-dashed px-2'
+            className='bg-muted/60 flex rounded-lg px-2'
           >
             {shortcuts.map(item => {
               const Tag = item.icon ? (navIcons[item.icon] as ComponentType<{ className?: string }>) : null
@@ -714,7 +687,7 @@ const SidebarLayout = () => {
                   title={item.label}
                   aria-label={item.label}
                   className={cn(
-                    'text-muted-foreground hover:text-sidebar-primary flex h-10 flex-1 items-center justify-center rounded-md transition-colors',
+                    'text-muted-foreground hover:text-sidebar-primary flex h-10 flex-1 items-center justify-center rounded-lg transition-colors duration-250',
                     pathname === item.href && 'text-sidebar-primary'
                   )}
                 >

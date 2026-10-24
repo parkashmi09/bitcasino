@@ -82,7 +82,7 @@ export const ChartFrame = ({ ariaLabel, height, loading, error, empty, emptyMess
   else if (error) body = <div className='flex size-full items-center'><ErrorState error={error} title='Could not load this chart' /></div>
   else if (empty)
     body = (
-      <div className='border-border text-muted-foreground flex size-full flex-col items-center justify-center gap-2 rounded-lg border border-dashed text-sm'>
+      <div className='bg-muted/40 text-muted-foreground flex size-full flex-col items-center justify-center gap-2 rounded-lg text-sm'>
         <BarChart3Icon className='size-5 opacity-60' aria-hidden />
         {emptyMessage ?? 'No data for this period.'}
       </div>

@@ -35,7 +35,7 @@ function PopoverContent({
         <PopoverPrimitive.Popup
           data-slot='popover-content'
           className={cn(
-            'bg-popover text-popover-foreground motion-safe:data-open:animate-morph-in motion-safe:data-closed:animate-morph-out z-50 flex w-72 origin-(--transform-origin) flex-col gap-4 rounded-xl p-4 text-sm shadow-[0_8px_16px_0_rgb(25_26_28/15%)] dark:shadow-[0_8px_16px_0_rgb(0_0_0/45%)] outline-hidden',
+            'bg-popover text-popover-foreground motion-safe:data-open:animate-morph-in motion-safe:data-closed:animate-morph-out z-50 flex w-72 origin-(--transform-origin) flex-col gap-4 rounded-lg p-4 text-sm shadow-[var(--shadow-dropdown)] outline-hidden',
             className
           )}
           {...props}
@@ -50,7 +50,7 @@ function PopoverHeader({ className, ...props }: React.ComponentProps<'div'>) {
 }
 
 function PopoverTitle({ className, ...props }: PopoverPrimitive.Title.Props) {
-  return <PopoverPrimitive.Title data-slot='popover-title' className={cn('font-medium', className)} {...props} />
+  return <PopoverPrimitive.Title data-slot='popover-title' className={cn('text-heading font-semibold', className)} {...props} />
 }
 
 function PopoverDescription({ className, ...props }: PopoverPrimitive.Description.Props) {

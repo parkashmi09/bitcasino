@@ -108,6 +108,9 @@
   --chart-6: #7aa139;
   --chart-7: #89affc;
   --chart-8: #a3a8b1;
+  /* ccpayment's ApexCharts: axis text is the disabled grey, gridlines dashed at the divider tone. */
+  --chart-axis: #b3b9c5;
+  --chart-grid: rgb(113 117 126 / 24%);
   /* rounded-lg = 8px (controls); cards set 16px themselves. */
   --radius: 0.5rem;
   --shadow-card: 0px 12px 24px 0px rgb(113 117 126 / 16%), 0px 0px 2px 0px rgb(113 117 126 / 16%);
@@ -163,6 +166,8 @@
   --chart-6: #bee072;
   --chart-7: #89affc;
   --chart-8: #a3a8b1;
+  --chart-axis: #71757e;
+  --chart-grid: rgb(113 117 126 / 24%);
   --shadow-card: 0px 12px 24px 0px rgb(0 0 0 / 24%), 0px 0px 2px 0px rgb(0 0 0 / 24%);
   --shadow-dropdown: -20px 20px 40px 0px rgb(0 0 0 / 56%), 0 0 2px 0 rgb(0 0 0 / 24%);
   --sidebar: #1f2125;

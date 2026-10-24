@@ -43,25 +43,37 @@ const animations = (): NonNullable<ApexOptions['chart']>['animations'] => {
 }
 
 /**
- * The Luno template's chart look: ApexCharts' own defaults (Luno sets only toolbar off, dataLabels off,
- * legend bottom-centre, solid fill), with the grid, axis text and tooltip taken from the admin tokens so
- * dark mode reads.
+ * ccpayment's chart look (its dashboard ApexCharts, read from the console): Poppins 12px axis text in the
+ * disabled grey, dashed gridlines at the divider tone with no axis border or ticks, 3px smooth lines,
+ * an area that fades from 40% to nothing, white-ringed markers on hover, round legend dots.
  */
-function lunoBase(theme: ChartTheme, colors: string[], format: ValueFormat): ApexOptions {
-  const label = { colors: theme.color['muted-foreground'], fontSize: '12px' }
+function ccpBase(theme: ChartTheme, colors: string[], format: ValueFormat): ApexOptions {
+  const label = { colors: theme.color['chart-axis'], fontSize: '12px', fontFamily: theme.fontFamily, fontWeight: 400 }
 
   return {
-    chart: { toolbar: { show: false }, zoom: { enabled: false }, background: 'transparent', parentHeightOffset: 0, redrawOnParentResize: true, animations: animations() },
+    chart: { toolbar: { show: false }, zoom: { enabled: false }, background: 'transparent', parentHeightOffset: 0, redrawOnParentResize: true, animations: animations(), fontFamily: theme.fontFamily },
     colors,
     dataLabels: { enabled: false },
-    legend: { position: 'bottom', horizontalAlign: 'center', labels: { colors: theme.color.foreground } },
-    grid: { borderColor: theme.color.border, strokeDashArray: 0, padding: { left: 4, right: 8 } },
-    xaxis: { labels: { style: label }, axisBorder: { color: theme.color.border }, axisTicks: { color: theme.color.border } },
+    legend: {
+      position: 'bottom',
+      horizontalAlign: 'center',
+      fontSize: '13px',
+      fontWeight: 500,
+      labels: { colors: theme.color.foreground },
+      markers: { size: 6, shape: 'circle', strokeWidth: 0 },
+      itemMargin: { horizontal: 10, vertical: 4 }
+    },
+    grid: { borderColor: theme.color['chart-grid'], strokeDashArray: 3, padding: { left: 4, right: 8 } },
+    xaxis: { labels: { style: label }, axisBorder: { show: false }, axisTicks: { show: false } },
     yaxis: { labels: { style: label, formatter: (v: number) => formatAxisValue(v, format) } },
-    tooltip: { theme: theme.mode },
+    markers: { strokeColors: theme.color.card, strokeWidth: 2 },
+    tooltip: { theme: theme.mode, style: { fontFamily: theme.fontFamily, fontSize: '12px' } },
     states: { active: { filter: { type: 'none' } } }
   }
 }
+
+/** ccpayment's area fill: the series colour at 40% fading to 0. */
+const areaGradient = { type: 'gradient', gradient: { shadeIntensity: 1, opacityFrom: 0.4, opacityTo: 0, stops: [0, 100] } }
 
 /** Line/area/bar over time buckets. One y-axis, always — two measures of different scale are two charts. */
 export type TimeSeriesChartProps = CommonChartProps & {
@@ -98,17 +110,22 @@ export const TimeSeriesChart = ({
     const colors = series.map((s, i) => theme.resolve(s.color, i))
     const kinds = series.map(s => s.kind ?? kind)
     const mixed = new Set(kinds).size > 1
-    const base = lunoBase(theme, colors, format)
+    const base = ccpBase(theme, colors, format)
     const fmt = valueFormatter(format, currency)
 
     return {
       ...base,
       chart: { ...base.chart, type: mixed ? 'line' : kind, stacked: Boolean(stacked) },
-      stroke: { curve: 'smooth', width: kinds.map(k => (k === 'bar' ? 0 : 2)) },
+      stroke: { curve: 'smooth', width: kinds.map(k => (k === 'bar' ? 0 : 3)) },
 
-      // Mixed charts need the fill per series; a pure area keeps Apex's own area gradient.
-      ...(mixed ? { fill: { type: kinds.map(k => (k === 'area' ? 'gradient' : 'solid')), opacity: kinds.map(k => (k === 'area' ? 0.35 : 1)) } } : {}),
-      markers: { size: categories.length === 1 ? 4 : 0, strokeWidth: 0, hover: { size: 5 } },
+      // Mixed charts need the fill per series.
+      fill: mixed
+        ? { type: kinds.map(k => (k === 'area' ? 'gradient' : 'solid')), opacity: kinds.map(() => 1), gradient: areaGradient.gradient }
+        : kind === 'area'
+          ? areaGradient
+          : { opacity: 1 },
+      plotOptions: { bar: { borderRadius: 4, borderRadiusApplication: 'end', columnWidth: '45%' } },
+      markers: { ...base.markers, size: categories.length === 1 ? 5 : 0, hover: { size: 6 } },
       legend: { ...base.legend, show: series.length > 1 },
       xaxis: {
         ...base.xaxis,
@@ -155,14 +172,14 @@ export const BarChart = ({ categories, series, horizontal, stacked, height = 280
 
   const options = useMemo<ApexOptions>(() => {
     const colors = series.map((s, i) => theme.resolve(s.color, i))
-    const base = lunoBase(theme, colors, format)
+    const base = ccpBase(theme, colors, format)
     const fmt = valueFormatter(format, currency)
     const axisFmt = (v: string | number) => formatAxisValue(Number(v), format)
 
     return {
       ...base,
       chart: { ...base.chart, type: 'bar', stacked: Boolean(stacked) },
-      plotOptions: { bar: { horizontal: Boolean(horizontal) } },
+      plotOptions: { bar: { horizontal: Boolean(horizontal), borderRadius: 4, borderRadiusApplication: 'end', barHeight: '60%', columnWidth: '45%' } },
       fill: { opacity: 1 },
       legend: { ...base.legend, show: series.length > 1 },
 
@@ -172,7 +189,7 @@ export const BarChart = ({ categories, series, horizontal, stacked, height = 280
         categories,
         labels: { ...base.xaxis?.labels, trim: true, ...(horizontal ? { formatter: axisFmt } : {}) }
       },
-      yaxis: horizontal ? { labels: { style: { colors: theme.color.foreground, fontSize: '12px' }, maxWidth: 160 } } : base.yaxis,
+      yaxis: horizontal ? { labels: { style: { colors: theme.color.foreground, fontSize: '12px', fontFamily: theme.fontFamily }, maxWidth: 160 } } : base.yaxis,
       tooltip: { ...base.tooltip, shared: true, intersect: false, y: { formatter: fmt } }
     }
   }, [series, categories, horizontal, stacked, theme, format, currency])
@@ -201,7 +218,7 @@ export const DonutChart = ({ labels, values, colors, totalLabel = 'Total', heigh
   const data = useMemo(() => values.map(v => Math.max(0, Number(v) || 0)), [values])
 
   const options = useMemo<ApexOptions>(() => {
-    const base = lunoBase(theme, labels.map((_, i) => theme.resolve(colors?.[i], i)), format)
+    const base = ccpBase(theme, labels.map((_, i) => theme.resolve(colors?.[i], i)), format)
     const fmt = valueFormatter(format, currency)
     const text = (c: string) => ({ show: true, color: c })
 
@@ -219,8 +236,8 @@ export const DonutChart = ({ labels, values, colors, totalLabel = 'Total', heigh
             size: '72%',
             labels: {
               show: true,
-              name: { ...text(theme.color['muted-foreground']), fontSize: '13px', offsetY: -4 },
-              value: { ...text(theme.color.foreground), fontSize: '17px', fontWeight: 600, offsetY: 4, formatter: (v: string) => centre(Number(v)) },
+              name: { ...text(theme.color['muted-foreground']), fontSize: '13px', fontFamily: theme.fontFamily, offsetY: -4 },
+              value: { ...text(theme.color.foreground), fontSize: '18px', fontWeight: 600, fontFamily: theme.fontFamily, offsetY: 4, formatter: (v: string) => centre(Number(v)) },
               total: { show: true, showAlways: true, label: totalLabel, fontSize: '13px', color: theme.color['muted-foreground'], formatter: () => centre(data.reduce((a, v) => a + v, 0)) }
             }
           }
@@ -273,11 +290,11 @@ export const Sparkline = ({ data: raw, ariaLabel, color = 'chart-1', kind = 'are
     else if (lo === hi) [lo, hi] = [lo - Math.abs(lo || 1), hi + Math.abs(hi || 1)]
 
     return {
-      chart: { type: kind, sparkline: { enabled: true }, animations: animations(), background: 'transparent' },
+      chart: { type: kind, sparkline: { enabled: true }, animations: animations(), background: 'transparent', fontFamily: theme.fontFamily },
       colors: [theme.resolve(color, 0)],
       stroke: { curve: 'smooth', width: kind === 'bar' ? 0 : 2 },
       plotOptions: { bar: { columnWidth: data.length < 8 ? '18%' : '60%', borderRadius: 2 } },
-      fill: kind === 'area' ? { type: 'gradient', gradient: { opacityFrom: 0.55, opacityTo: 0.08 } } : { opacity: 1 },
+      fill: kind === 'area' ? areaGradient : { opacity: 1 },
 
       // show: false again here: Apex's updateOptions (theme change) merges this over the sparkline defaults.
       yaxis: { show: false, min: lo, max: hi },

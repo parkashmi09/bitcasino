@@ -12,25 +12,27 @@ const Toaster = ({ ...props }: ToasterProps) => {
       theme={theme as ToasterProps['theme']}
       className='toaster group'
       icons={{
-        success: <CircleCheckIcon className='size-4' />,
-        info: <InfoIcon className='size-4' />,
-        warning: <TriangleAlertIcon className='size-4' />,
-        error: <OctagonXIcon className='size-4' />,
-        loading: <Loader2Icon className='size-4 animate-spin' />
+        success: <CircleCheckIcon className='text-success size-5' />,
+        info: <InfoIcon className='text-info size-5' />,
+        warning: <TriangleAlertIcon className='text-warning size-5' />,
+        error: <OctagonXIcon className='text-destructive size-5' />,
+        loading: <Loader2Icon className='text-primary size-5 animate-spin' />
       }}
       style={
         {
           '--normal-bg': 'var(--popover)',
           '--normal-text': 'var(--popover-foreground)',
-          '--normal-border': 'var(--border)',
+          '--normal-border': 'transparent',
 
-          // Luno surfaces: 12px radius (rounded-xl)
-          '--border-radius': 'calc(var(--radius) * 1.4)'
+          // ccpayment snackbar: paper surface, 8px radius, card shadow
+          '--border-radius': '8px'
         } as React.CSSProperties
       }
       toastOptions={{
         classNames: {
-          toast: 'cn-toast border-dashed! font-sans shadow-[0_8px_16px_0_rgb(25_26_28/15%)]!'
+          toast: 'cn-toast font-sans gap-3! p-3! pr-4! shadow-[var(--shadow-card)]!',
+          title: 'text-heading text-sm font-semibold',
+          description: 'text-muted-foreground! text-[13px]'
         }
       }}
       {...props}

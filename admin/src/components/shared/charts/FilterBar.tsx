@@ -34,7 +34,7 @@ const FilterBar = ({ filters, showGranularity = true, children, className }: Pro
   const today = new Date().toISOString().slice(0, 10)
 
   return (
-    <div role='group' aria-label='Report filters' className={cn('bg-card flex flex-wrap items-center gap-2 rounded-xl border p-2.5 shadow-xs', className)}>
+    <div role='group' aria-label='Report filters' className={cn('bg-card flex flex-wrap items-center gap-2 rounded-2xl p-3 shadow-(--shadow-card)', className)}>
       <Select value={filters.preset} onValueChange={v => v && filters.set(v === 'custom' ? { preset: 'custom', from: filters.from, to: filters.to } : { preset: v as Preset })}>
         <SelectTrigger className='w-full font-medium sm:w-44' aria-label='Period'>
           <span className='flex min-w-0 items-center gap-2'>
@@ -61,7 +61,7 @@ const FilterBar = ({ filters, showGranularity = true, children, className }: Pro
           onChange={r => r.from && r.to && filters.set({ preset: 'custom', from: r.from, to: r.to })}
         />
       ) : (
-        <span className='border-input bg-muted/40 text-foreground/80 inline-flex h-9 items-center gap-2 rounded-md border px-3 text-xs font-medium tabular-nums'>
+        <span className='border-input text-foreground/80 inline-flex h-9 items-center gap-2 rounded-lg border px-3 text-xs font-medium tabular-nums'>
           <CalendarDays className='text-muted-foreground size-4' aria-hidden />
           {filters.from === filters.to ? shortDay(filters.from) : `${shortDay(filters.from)} – ${shortDay(filters.to)}`}
           <span className='bg-background text-muted-foreground rounded px-1.5 py-0.5 text-[10px] font-semibold tracking-wide'>UTC</span>
@@ -72,7 +72,7 @@ const FilterBar = ({ filters, showGranularity = true, children, className }: Pro
         <ToggleGroup
           size='sm'
           spacing={0}
-          className='bg-muted h-9 gap-0.5 rounded-md p-0.5'
+          className='bg-muted h-9 gap-0.5 rounded-lg p-0.5'
           aria-label='Group by'
           value={[filters.granularity]}
           onValueChange={(v: unknown[]) => {
@@ -85,7 +85,7 @@ const FilterBar = ({ filters, showGranularity = true, children, className }: Pro
             <ToggleGroupItem
               key={g}
               value={g}
-              className='aria-pressed:bg-background aria-pressed:text-foreground h-8 rounded-[5px] px-3.5 aria-pressed:shadow-xs'
+              className='aria-pressed:bg-card aria-pressed:text-primary h-8 rounded-md px-3.5 font-semibold aria-pressed:shadow-xs'
               disabled={g === 'day' && filters.days > MAX_DAY_SPAN}
               title={g === 'day' && filters.days > MAX_DAY_SPAN ? `Daily buckets are limited to ${MAX_DAY_SPAN} days` : undefined}
             >

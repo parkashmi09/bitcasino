@@ -14,32 +14,25 @@ type Props = {
 }
 
 /**
- * One number, Luno's stat card: CAPS label with the icon top-right, the big
- * number, the hint in muted print, and a teal strip along the bottom edge.
- *
- * The icon is a hint at what the number counts, so it is drawn plain (no chip):
- * on a screen of six tiles, six coloured squares read as six buttons.
- * The strip is decoration (always full), not a progress value.
+ * One number, ccpayment's stat card: 14px secondary label, the 24px semibold number, the hint in
+ * muted print, and the icon in a soft primary tile on the right.
  */
 const StatCard = ({ label, value, hint, icon, loading, className }: Props) => (
-  <Card className={cn('gap-0 py-0 shadow-none', className)}>
-    <CardContent className='flex flex-1 items-start justify-between gap-3 px-5 pt-5 pb-4'>
+  <Card className={cn('gap-0 py-0', className)}>
+    <CardContent className='flex flex-1 items-center justify-between gap-3 p-6'>
       <div className='min-w-0'>
-        <p className='text-muted-foreground text-xs tracking-wide uppercase'>{label}</p>
+        <p className='text-muted-foreground text-sm font-medium'>{label}</p>
         {loading ? (
-          <Skeleton className='mt-2 h-8 w-24' />
+          <Skeleton className='mt-2 h-9 w-24' />
         ) : (
-          <p className='text-heading mt-1.5 truncate text-2xl font-medium tabular-nums motion-safe:animate-in motion-safe:fade-in-0 motion-safe:slide-in-from-bottom-1 motion-safe:duration-500'>
+          <p className='text-heading mt-2 truncate text-2xl font-semibold tabular-nums motion-safe:animate-in motion-safe:fade-in-0 motion-safe:slide-in-from-bottom-1 motion-safe:duration-500'>
             {value}
           </p>
         )}
-        {hint && <p className='text-muted-foreground mt-1 text-xs'>{hint}</p>}
+        {hint && <p className='text-muted-foreground mt-1.5 text-[13px]'>{hint}</p>}
       </div>
-      {icon && <div className='text-foreground/80 shrink-0 [&_svg]:size-6'>{icon}</div>}
+      {icon && <div className='bg-accent text-primary flex size-12 shrink-0 items-center justify-center rounded-xl [&_svg]:size-6'>{icon}</div>}
     </CardContent>
-    <div aria-hidden className='bg-muted h-1 overflow-hidden'>
-      <div className='bg-brand-secondary h-full motion-safe:animate-in motion-safe:slide-in-from-left-full motion-safe:duration-600' />
-    </div>
   </Card>
 )
 

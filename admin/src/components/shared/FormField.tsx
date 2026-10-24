@@ -269,7 +269,7 @@ export const SwitchField = ({
   onChange,
   disabled
 }: Base & { checked: boolean; onChange: (checked: boolean) => void; disabled?: boolean }) => (
-  <Field orientation='horizontal' className='items-center justify-between gap-4 rounded-[6px] border border-dashed px-3 py-2'>
+  <Field orientation='horizontal' className='border-border items-center justify-between gap-4 rounded-lg border px-3 py-2'>
     <div className='min-w-0'>
       <FieldLabel htmlFor={id} className='cursor-pointer'>{label}</FieldLabel>
       {hint && <FieldDescription className='text-xs'>{hint}</FieldDescription>}

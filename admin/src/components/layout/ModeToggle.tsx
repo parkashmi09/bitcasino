@@ -15,7 +15,7 @@ const ModeToggle = () => {
   }
 
   return (
-    <Button variant='ghost' size='icon' className='relative' onClick={handleModeChange}>
+    <Button variant='ghost' size='icon' className='text-muted-foreground hover:text-foreground relative rounded-full' onClick={handleModeChange}>
       <MoonStarIcon className='scale-100 dark:scale-0' />
       <SunIcon className='absolute scale-0 dark:scale-100' />
       <span className='sr-only'>Toggle theme</span>

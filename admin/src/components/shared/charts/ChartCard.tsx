@@ -37,10 +37,10 @@ const ChartCard = ({ title, description, actions, table, footer, className, chil
   const [showTable, setShowTable] = useState(false)
 
   return (
-    <Card className={cn('min-w-0 gap-3 shadow-none', className)}>
+    <Card className={cn('min-w-0 gap-4', className)}>
       <CardHeader>
-        <CardTitle className='text-sm font-medium'>{title}</CardTitle>
-        {description && <CardDescription className='text-xs'>{description}</CardDescription>}
+        <CardTitle className='text-lg font-semibold'>{title}</CardTitle>
+        {description && <CardDescription className='text-sm'>{description}</CardDescription>}
         {(actions || table) && (
           <CardAction className='flex items-center gap-1.5'>
             {actions}
@@ -65,7 +65,7 @@ const ChartCard = ({ title, description, actions, table, footer, className, chil
           {children}
         </div>
         {showTable && table && <ChartTable data={table} />}
-        {footer && <div className='text-muted-foreground mt-3 text-xs'>{footer}</div>}
+        {footer && <div className='text-muted-foreground mt-3 text-[13px]'>{footer}</div>}
       </CardContent>
     </Card>
   )

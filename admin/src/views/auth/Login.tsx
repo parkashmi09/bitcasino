@@ -145,41 +145,23 @@ const Login = () => {
   }
 
   return (
-    <div className='relative flex min-h-screen items-center justify-center overflow-hidden px-4 py-10 sm:px-6 lg:px-8'>
-      {/* Soft brand glow plus Luno's isometric line pattern over the whole page, faded behind the content — our own drawing, not Luno's paths. */}
-      <div
-        aria-hidden='true'
-        className='pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_15%_20%,color-mix(in_oklab,var(--primary)_14%,transparent),transparent_55%),radial-gradient(ellipse_at_85%_85%,color-mix(in_oklab,var(--brand-secondary)_14%,transparent),transparent_55%)]'
-      />
-      <svg
-        aria-hidden='true'
-        className='text-border pointer-events-none absolute inset-0 size-full [mask-image:radial-gradient(ellipse_at_center,transparent_25%,black_85%)]'
-      >
-        <defs>
-          <pattern id='login-cubes' width='96' height='110' patternUnits='userSpaceOnUse'>
-            <path
-              d='M48 0 96 27.5V82.5L48 110 0 82.5V27.5ZM0 27.5 48 55 96 27.5M48 55V110'
-              fill='none'
-              stroke='currentColor'
-              strokeWidth='1.5'
-            />
-          </pattern>
-        </defs>
-        <rect width='100%' height='100%' fill='url(#login-cubes)' />
-      </svg>
-      <div className='grid w-full max-w-[1140px] items-center gap-10 lg:grid-cols-2'>
-        {/* Luno's sign-in: brand and a few lines about the panel on the left, the form card on the right. */}
-        <div className='hidden lg:block lg:pl-6'>
-          <BrandLogo fallback={<Logo className='[&_span]:text-heading gap-3 [&_span]:text-[28px] [&_span]:font-semibold [&>*:first-child]:size-11'/>} />
-          <h1 className='text-heading mt-6 text-[32px] leading-tight font-medium'>{siteConfig.tagline}</h1>
+    <div className='bg-background flex min-h-screen'>
+      {/* ccpayment's sign-in: a primary-blue brand panel on the left, the form on the page background on the right. */}
+      <div className='bg-primary hidden w-[44%] max-w-[640px] flex-col justify-between p-12 text-white lg:flex'>
+        <BrandLogo fallback={<Logo className='gap-3 [&_span]:text-[28px] [&_span]:font-semibold [&_span]:text-white [&>*:first-child]:size-11' />} />
+        <div>
+          <h1 className='text-[40px] leading-tight font-semibold'>{siteConfig.name}</h1>
+          <p className='mt-4 max-w-md text-lg text-white/80'>{siteConfig.tagline}</p>
         </div>
-
-        <Card className='animate-in fade-in slide-in-from-bottom-4 z-1 mx-auto w-full max-w-[512px] gap-8 py-10 duration-500 motion-reduce:animate-none sm:px-6'>
-          <CardHeader className='items-center gap-6 px-6 text-center'>
-            <Logo className='justify-center gap-3 [&>*:first-child]:size-12' />
+        <p className='text-sm text-white/60'>© {new Date().getFullYear()} {siteConfig.name}</p>
+      </div>
+      <div className='flex flex-1 items-center justify-center px-4 py-10 sm:px-6'>
+        <Card className='animate-in fade-in slide-in-from-bottom-4 mx-auto w-full max-w-[480px] gap-8 rounded-2xl py-10 shadow-(--shadow-card) duration-500 motion-reduce:animate-none sm:px-4'>
+          <CardHeader className='gap-6 px-6'>
+            <Logo className='gap-3 [&>*:first-child]:size-10' />
             <div>
-              <CardTitle className='text-heading mb-2 text-[40px] leading-tight font-normal'>Sign in</CardTitle>
-              <CardDescription className='text-base'>Staff sign-in to {siteConfig.name}</CardDescription>
+              <CardTitle className='text-primary mb-2 text-[36px] leading-tight font-bold'>Sign in</CardTitle>
+              <CardDescription className='text-sm'>Staff sign-in to {siteConfig.name}</CardDescription>
             </div>
           </CardHeader>
 
@@ -278,7 +260,7 @@ const Login = () => {
                 )}
 
                 <Field>
-                  <Button className='mt-2 h-11 w-auto self-center px-6 uppercase' type='submit' disabled={busy}>
+                  <Button className='mt-2 h-12 w-full rounded-lg text-base font-semibold capitalize' type='submit' disabled={busy}>
                     {busy && <Loader2Icon className='animate-spin' />}
                     {mustChange ? 'Set new password' : needsCode ? 'Verify and sign in' : 'Sign in'}
                   </Button>

@@ -74,17 +74,17 @@ const KpiCard = ({
   const bleed = Boolean(spark) && sparkKind === 'area'
 
   return (
-    <Card className={cn('min-w-0 gap-0 overflow-hidden pt-6 shadow-none', bleed ? 'pb-0' : 'pb-6', className)}>
+    <Card className={cn('min-w-0 gap-0 overflow-hidden pt-6', bleed ? 'pb-0' : 'pb-6', className)}>
       <CardContent className='flex flex-col gap-2 px-6'>
         <div className='flex items-start justify-between gap-3'>
-          <p className='text-heading text-sm font-medium uppercase'>{label}</p>
+          <p className='text-muted-foreground text-sm font-medium'>{label}</p>
           {icon && <span className='text-muted-foreground shrink-0 [&_svg]:size-4'>{icon}</span>}
         </div>
         {loading ? (
           <Skeleton className='h-8 w-28' />
         ) : (
           <div className='flex min-w-0 items-baseline gap-1.5'>
-            <span className='text-heading truncate text-2xl leading-tight font-medium tracking-tight tabular-nums'>{value}</span>
+            <span className='text-heading truncate text-2xl leading-tight font-semibold tabular-nums'>{value}</span>
             {unit && <span className='text-muted-foreground text-xs font-medium'>{unit}</span>}
           </div>
         )}

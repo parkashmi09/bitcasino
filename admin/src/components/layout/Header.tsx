@@ -75,7 +75,7 @@ const MenuSearch = () => {
         list={listId}
         value={query}
         onChange={e => setQuery(e.target.value)}
-        className='border-input bg-card text-foreground placeholder:text-muted-foreground focus-visible:border-primary focus-visible:ring-primary/20 h-[38px] w-full rounded-md border pr-3 pl-9 text-[15px] outline-none focus-visible:ring-3'
+        className='border-input bg-card text-foreground placeholder:text-muted-foreground hover:border-foreground focus-visible:border-primary focus-visible:ring-primary h-10 w-full rounded-lg border pr-3 pl-9 text-[14px] transition-colors duration-250 outline-none focus-visible:ring-1'
       />
       <datalist id={listId}>
         {pages.map(p => (
@@ -96,7 +96,7 @@ const FullscreenToggle = () => {
   }
 
   return (
-    <Button variant='ghost' size='icon' className='hidden lg:inline-flex' onClick={toggle}>
+    <Button variant='ghost' size='icon' className='text-muted-foreground hover:text-foreground hidden rounded-full lg:inline-flex' onClick={toggle}>
       {full ? <MinimizeIcon /> : <MaximizeIcon />}
       <span className='sr-only'>{full ? 'Exit full screen' : 'Full screen'}</span>
     </Button>
@@ -106,9 +106,9 @@ const FullscreenToggle = () => {
 const Header = () => {
   return (
     <header className='bg-background/95 supports-backdrop-filter:bg-background/80 sticky top-0 z-50 backdrop-blur-md'>
-      <div className='mx-auto flex h-[74px] items-center justify-between gap-4 px-4 sm:px-6'>
+      <div className='mx-auto flex h-16 items-center justify-between gap-4 px-4 sm:px-6 lg:h-[72px] lg:px-10'>
         <div className='flex min-w-0 flex-1 items-center gap-3 lg:gap-6'>
-          <SidebarTrigger className='text-foreground hover:text-primary hover:bg-primary/10 size-9 [&_svg]:size-5!' />
+          <SidebarTrigger className='text-muted-foreground hover:text-foreground size-9 rounded-full hover:bg-[rgb(113_117_126/8%)] [&_svg]:size-5!' />
           {/* On a phone the sidebar is a sheet, so the header carries the brand as Luno does. */}
           <span className='flex min-w-0 items-center gap-2 md:hidden'>
             <BrandMark className='size-7' />
