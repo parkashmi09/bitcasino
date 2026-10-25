@@ -14,6 +14,17 @@ test('feedRunners: runner names come from the feed market, untrimmed, null when 
   assert.strictEqual(feedRunners({ marketList: [{ mid: 7, section: [] }], marketId: 7 }), null);
 });
 
+// Khado: line (back1), band width (lay1) and rate (back1 size) are read off the feed runner, never the slip.
+test('khadoQuote: line, band and rate from the feed runner by selection id, null when any is missing', async () => {
+  const { khadoQuote } = await import('../buffer/betBufferRules.mjs');
+  const odds = (back, lay, size = 100) => [{ otype: 'back', oname: 'back1', tno: 0, odds: back, size }, { otype: 'lay', oname: 'lay1', tno: 0, odds: lay, size: 100 }];
+  const list = [{ mid: 9, gtype: 'khado', section: [{ sid: 2518, nat: '10 over Khado run PAK adv', odds: odds(50, 11) }, { sid: 2519, odds: odds(55, 0) }] }];
+  assert.deepStrictEqual(khadoQuote({ marketList: list, marketId: '9', selectionId: '2518' }), { line: 50, band: 11, rate: 100 });
+  assert.strictEqual(khadoQuote({ marketList: list, marketId: 9, selectionId: 2519 }), null);
+  assert.strictEqual(khadoQuote({ marketList: list, marketId: 9, selectionId: 1 }), null);
+  assert.strictEqual(khadoQuote({ marketList: list, marketId: 9 }), null);
+});
+
 // A lone badlo yes risks nothing, so it needs no legs that fund it.
 test('badloSlipError: a yes leg needs a badlo no of at least its stake, in one currency, unmixed', async () => {
   const { badloSlipError, isBadloLeg } = await import('../../../lib/helper/badloMarket.mjs');

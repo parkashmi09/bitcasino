@@ -104,6 +104,14 @@ function feedRunners({ marketList, marketId }) {
   const names = (mkt?.section || []).map((s) => String(s?.nat || ""));
   return names.length ? names : null;
 }
+// Khado quotes the run line as back1, the band width as lay1 and the rate as back1's size.
+// placeBet books all three off the request, so they must come from here.
+function khadoQuote({ marketList, marketId, selectionId }) {
+  const runner = selectionId ? findRunner(findMarket(marketList, marketId), selectionId) : null;
+  const best = (side) => (runner?.odds || []).find((o) => String(o.otype || "").toLowerCase() === side && (o.tno === 0 || o.oname === `${side}1`));
+  const line = Number(best("back")?.odds), band = Number(best("lay")?.odds), rate = Number(best("back")?.size);
+  return line > 0 && band > 0 && rate > 0 ? { line, band, rate } : null;
+}
 function manualBetLiveCheck({ betType, editedOdds, liveOdds }) {
   const accept = isLaySide(betType) ? liveOdds <= editedOdds + EPSILON : liveOdds >= editedOdds - EPSILON;
   return { accept, finalOdds: liveOdds };
@@ -127,4 +135,4 @@ function readMarketList(body) {
   return Array.isArray(node) ? node : null;
 }
 
-export { isLaySide, readBufferTick, finalSuspensionStatus, fancyOddsDrift, deriveBufferFlags, feedRunners, manualBetLiveCheck, autoBetCheck, readMarketList };
+export { isLaySide, readBufferTick, finalSuspensionStatus, fancyOddsDrift, deriveBufferFlags, feedRunners, khadoQuote, manualBetLiveCheck, autoBetCheck, readMarketList };

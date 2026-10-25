@@ -29,7 +29,10 @@ const { TokenService, TOKEN_TYPES } = require('@ibitplay/auth');
  * ═════════════════════════════════════════════════════════════════════════
  */
 
-const SOCKET_MODULES = [require('./modules/in-house/sockets')];
+/* The in-house socket games (modules/in-house) are off: the site's Originals are the aggregator's
+   iframe games, and an unused handler is still a door a hand-written client can open. Put
+   `require('./modules/in-house/sockets')` back here to bring them back. */
+const SOCKET_MODULES = [];
 
 function attachSockets({ server, container }) {
   const { config, logger } = container;

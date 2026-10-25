@@ -6,7 +6,7 @@ import { isLineMarket } from "../../../lib/helper/lineMarket.mjs";
 import { isBadloBet, isBadloLeg } from "../../../lib/helper/badloMarket.mjs";
 import { leagueNameForBet } from "../../../lib/services/SportsLeagueResolver.mjs";
 import { isHiddenSport, isHiddenLeague } from "../../../lib/constants/hiddenSports.mjs";
-import { isLaySide, readBufferTick, finalSuspensionStatus, fancyOddsDrift, deriveBufferFlags, feedRunners, manualBetLiveCheck, autoBetCheck } from "./betBufferRules.mjs";
+import { isLaySide, readBufferTick, finalSuspensionStatus, fancyOddsDrift, deriveBufferFlags, feedRunners, khadoQuote, manualBetLiveCheck, autoBetCheck } from "./betBufferRules.mjs";
 import { liveOdds_default } from "./liveOdds.mjs";
 import { cleanRef, betInflight_default } from "./betInflight.mjs";
 
@@ -119,9 +119,22 @@ async function runBetBuffer(body, sb, opts = {}) {
     if (feedFlags && isLineMarket(body.market_type) && !feedFlags.lineMarket) {
       return reject(MESSAGES.BET.GAME_SUSPEND, "MARKET_TYPE_MISMATCH");
     }
+    // Settlement reads the band only when market_type is "khado"; any other label on a khado market settles as a plain line.
+    if (feedFlags && (body.market_type === "khado") !== feedFlags.ownLine) {
+      return reject(MESSAGES.BET.GAME_SUSPEND, "MARKET_TYPE_MISMATCH");
+    }
     if (list && marketId) {
       const gs = finalSuspensionStatus({ marketList: list, marketId, selectionId, runnerName, strict: FAIL_CLOSED });
       if (gs) return reject(gs === "BALL RUNNING" ? MESSAGES.BET.BALL_RUNNING : MESSAGES.BET.GAME_SUSPEND, `SUSPENDED:${gs}`);
+    }
+    // Khado: line and band must be the feed's, the rate is the feed's (yes only: lay1 is the band, not a price).
+    if (feedFlags?.ownLine) {
+      const q = khadoQuote({ marketList: list, marketId, selectionId });
+      if (!q || isLaySide(betType)) return reject(MESSAGES.BET.GAME_SUSPEND, "KHADO_NO_QUOTE");
+      if (Math.abs(q.line - slipOdds) > 1e-3 || Number(body.fancy_name) !== q.band) {
+        return reject(MESSAGES.BET.ODDS_CHANGED, `KHADO_DRIFT:${slipOdds}/${body.fancy_name}->${q.line}/${q.band}`);
+      }
+      finalSize = q.rate;
     }
     if (list && !liveTracked && !ownLine && marketId) {
       const drift = fancyOddsDrift({
