@@ -284,6 +284,10 @@ function createAuthMiddleware({ config, loadUser, loadStaff, cache = null }) {
           if (Number(staff.executive.parent_staff_id) !== Number(payload.sub)) {
             throw new UnauthorizedError('Executive no longer belongs to this staff account');
           }
+          // Ended by the executive's own logout (bumps `executives.token_version`).
+          if (Number(payload.etv ?? 0) !== Number(staff.executive.token_version ?? 0)) {
+            throw new UnauthorizedError('Executive session has ended; sign in again', { code: 'SESSION_REVOKED' });
+          }
         }
 
         /**

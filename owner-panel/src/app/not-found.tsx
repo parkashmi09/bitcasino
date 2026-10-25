@@ -1,23 +1,25 @@
-// React Imports
+// Next Imports
 import Link from 'next/link'
 
 // Component Imports
 import { Button } from '@/components/ui/button'
 
-// SVG Imports
-import Icon404 from '@/assets/svg/404'
+export const metadata = { title: 'Page not found' }
 
+// Signed-out visitors never get here: proxy.ts sends every unknown path to /login first,
+// and /overview itself bounces to /login if the session has since expired.
 const NotFound = () => {
   return (
-    <div className='flex h-screen w-screen flex-col items-center justify-center gap-9 p-6'>
-      <Icon404 className='h-auto w-full sm:h-120 sm:w-146' />
-      <div className='flex flex-col items-center gap-4 text-center'>
-        <p className='text-muted-foreground text-xl sm:text-2xl'>We couldn&apos;t find the page you are looking for</p>
-        <Button className='rounded-full' render={<Link href='/' />} nativeButton={false}>
-          Go back to home
-        </Button>
+    <main className='bg-background text-foreground flex min-h-screen w-full flex-col items-center justify-center gap-6 p-6 text-center'>
+      <p className='text-primary text-7xl font-bold tracking-tight sm:text-8xl'>404</p>
+      <div className='flex flex-col gap-2'>
+        <h1 className='text-2xl font-semibold'>Page not found</h1>
+        <p className='text-muted-foreground'>This page does not exist or has moved.</p>
       </div>
-    </div>
+      <Button render={<Link href='/overview' />} nativeButton={false}>
+        Back to overview
+      </Button>
+    </main>
   )
 }
 

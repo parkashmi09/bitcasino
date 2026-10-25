@@ -33,7 +33,16 @@ module.exports = function internalRoutes(deps) {
 
   router.get(
     '/verify',
-    validate({ query: z.object({ staffId: z.coerce.number().int().positive(), tv: z.coerce.number().int().min(0).optional() }).strict() }),
+    validate({
+      query: z
+        .object({
+          staffId: z.coerce.number().int().positive(),
+          tv: z.coerce.number().int().min(0).optional(),
+          executiveId: z.coerce.number().int().positive().optional(),
+          etv: z.coerce.number().int().min(0).optional(),
+        })
+        .strict(),
+    }),
     asyncHandler(async (req, res) => {
       const staff = await models.Staff.findByPk(req.query.staffId, {
         attributes: ['id', 'name', 'email', 'role_id', 'status', 'token_version'],
@@ -48,7 +57,12 @@ module.exports = function internalRoutes(deps) {
        * failure and a policy decision look the same to the code handling it.
        */
       // `tv`: the token's version; logout / password change bump it to end older tokens.
-      const current = req.query.tv === undefined || Number(staff?.token_version ?? 0) === req.query.tv;
+      let current = req.query.tv === undefined || Number(staff?.token_version ?? 0) === req.query.tv;
+      // An executive's own logout bumps `executives.token_version` (`etv`).
+      if (current && req.query.executiveId) {
+        const executive = await models.Executives.findByPk(req.query.executiveId, { attributes: ['status', 'token_version'], raw: true });
+        current = Boolean(executive) && executive.status === 'active' && Number(executive.token_version ?? 0) === (req.query.etv ?? 0);
+      }
       const active = Boolean(staff) && staff.status !== 'disabled' && staff.status !== 'inactive' && current;
 
       return response.ok(res, {

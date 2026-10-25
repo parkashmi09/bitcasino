@@ -56,7 +56,7 @@ async function resolveStaff(models, staffId, executiveId = null) {
 
   if (executiveId) {
     executive = await Executives.findByPk(executiveId, {
-      attributes: ['id', 'username', 'parent_staff_id', 'permissions', 'status', 'kind'],
+      attributes: ['id', 'username', 'parent_staff_id', 'permissions', 'status', 'kind', 'token_version'],
       raw: true,
     });
     // A missing executive is reported as such rather than silently falling back

@@ -123,7 +123,11 @@ function attachSockets({ server, container }) {
      */
     try {
       const result = await container.clients.admin.get('/internal/admin/auth/verify', {
-        query: { staffId: payload.sub, tv: Number(payload.tv ?? 0) },
+        query: {
+          staffId: payload.sub,
+          tv: Number(payload.tv ?? 0),
+          ...(payload.executiveId ? { executiveId: payload.executiveId, etv: Number(payload.etv ?? 0) } : {}),
+        },
       });
 
       const body = result?.data ?? result;

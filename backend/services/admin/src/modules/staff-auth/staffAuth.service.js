@@ -421,24 +421,23 @@ class StaffAuthService {
    * guard then refuses every token this account holds, on every device.
    *
    * An executive sub-login shares its parent's staff row, so bumping it would
-   * sign the parent out too; an executive token is only discarded client-side
-   * and expires on its own.
+   * sign the parent out too; its logout bumps `executives.token_version`
+   * instead, which only that executive's tokens carry (`etv`).
    *
    * The event is recorded, so a session ending is in the audit trail next to
    * the actions that preceded it.
    */
   async logout({ actor }, context = {}) {
-    if (!actor.executiveId) {
+    if (actor.executiveId) {
+      await this.models.Executives.update({ token_version: literal('token_version + 1') }, { where: { id: actor.executiveId } });
+    } else {
       await this.models.Staff.update({ token_version: literal('token_version + 1') }, { where: { id: actor.id } });
     }
     this.logger?.info(
       { staffId: actor.id, executiveId: actor.executiveId ?? null, ip: context.ip },
       'Staff signed out'
     );
-    return {
-      loggedOut: true,
-      ...(actor.executiveId ? { note: 'Discard the token. An executive token remains valid until it expires.' } : {}),
-    };
+    return { loggedOut: true };
   }
 
   // ══════════════════════════════════════════════════════════════════════
@@ -479,6 +478,7 @@ class StaffAuthService {
       executiveId: executive?.id ?? null,
       permissions,
       tokenVersion: staff.token_version,
+      executiveTokenVersion: executive?.token_version,
     });
 
     this.logger?.info(

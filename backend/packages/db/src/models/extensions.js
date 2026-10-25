@@ -504,6 +504,12 @@ const EXTENSIONS = {
     // ── migration 141-originals-lock ───────────────────────────────────
     originals_locked: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: false, field: 'originals_locked' },
   },
+
+  // ── migration 157-executive-token-version ────────────────────────────
+  // Signed into executive tokens (`etv`); an executive's logout bumps it.
+  Executives: {
+    token_version: { type: DataTypes.INTEGER, allowNull: false, defaultValue: 0, field: 'token_version' },
+  },
 };
 
 /**

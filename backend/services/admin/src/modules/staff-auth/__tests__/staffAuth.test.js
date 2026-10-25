@@ -16,7 +16,8 @@ const db = require('@ibitplay/db');
 const { createLogger } = require('@ibitplay/common');
 const speakeasy = require('speakeasy');
 
-const { hashPassword, totp } = require('@ibitplay/auth');
+const { hashPassword, totp, createAuthMiddleware } = require('@ibitplay/auth');
+const { resolveStaff } = require('../../staff-directory/staffDirectory.service');
 
 const { StaffAuthService } = require('../staffAuth.service');
 const { LOGIN_MAX_ATTEMPTS } = require('../staffAuth.constants');
@@ -461,6 +462,41 @@ test('staff auth', async (t) => {
     assert.equal(result.actor.staffId, staffId);
     assert.ok(result.actor.executiveId);
     assert.ok(!result.actor.permissions.includes('*'), 'the wildcard must not survive the intersection');
+  });
+
+  await t.test("an executive's logout ends its token, not its parent's", async () => {
+    const staffId = newStaffId();
+    const email = await seedStaff(staffId);
+    await connection.models.Executives.create({
+      username: `exec-out-${staffId}`,
+      password: await hashPassword(PASSWORD, 4),
+      parent_staff_id: staffId,
+      permissions: { authority: [] },
+      status: 'active',
+      kind: 'executive',
+    });
+
+    // The guard every service runs, loading the staff row as admin-service does.
+    const guard = createAuthMiddleware({
+      config,
+      loadUser: async () => null,
+      loadStaff: (id, executiveId) => resolveStaff(connection.models, id, executiveId),
+    }).authenticateStaff();
+    const check = (token) =>
+      new Promise((resolve) => guard({ headers: { authorization: `Bearer ${token}` }, method: 'GET', path: '/x' }, {}, resolve));
+
+    const parent = await build().login({ email, password: PASSWORD }, { ip: '203.0.113.30' });
+    const { token, actor } = await build().executiveLogin(
+      { username: `exec-out-${staffId}`, password: PASSWORD },
+      { ip: '203.0.113.31' }
+    );
+    assert.equal(await check(token), undefined, 'accepted before logout');
+
+    await build().logout({ actor: { id: staffId, executiveId: actor.executiveId } });
+
+    const refused = await check(token);
+    assert.equal(refused?.details?.code, 'SESSION_REVOKED', 'the same token is refused after logout');
+    assert.equal(await check(parent.token), undefined, 'the parent stays signed in');
   });
 
   // ══════════════════════════════════════════════════════════════════════
