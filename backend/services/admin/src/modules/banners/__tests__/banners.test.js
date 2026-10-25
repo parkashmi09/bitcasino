@@ -227,6 +227,22 @@ test('banners against a database', async (t) => {
     assert.equal(found.byteSize, PNG.length, 'the size is reported without the bytes');
   });
 
+  await t.test('a mode lists only its own placements (agent- prefix = agent mode)', async () => {
+    const direct = newType();
+    const agent = `agent-${newType()}`;
+    await service.putBanner({ staff, type: direct, file: asFile(PNG) });
+    await service.putBanner({ staff, type: agent, file: asFile(PNG) });
+
+    const types = async (mode) => (await service.list({ mode })).rows.map((r) => r.type);
+    assert.ok((await types('agent')).includes(agent));
+    assert.ok(!(await types('agent')).includes(direct));
+    assert.ok((await types('direct')).includes(direct));
+    assert.ok(!(await types('direct')).includes(agent));
+    const both = (await service.list({})).rows;
+    assert.equal(both.find((r) => r.type === agent).mode, 'agent');
+    assert.equal(both.find((r) => r.type === direct).mode, 'direct');
+  });
+
   await t.test('the binary listing base64-encodes them', async () => {
     const type = newType();
     await service.putBanner({ staff, type, file: asFile(PNG) });

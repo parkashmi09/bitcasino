@@ -48,9 +48,9 @@ module.exports = function userRoutes(deps) {
       response.ok(res, await turnover.forPlayer(req.user.id, { currency: req.query.currency }))
     )
   );
-  router.put('/', validate(v.updateProfile), ctrl.update);
+  router.put('/', denyAgentPlayer('profileEdit'), validate(v.updateProfile), ctrl.update);
   /** One of Admin → Avatars' pictures, refused above the player's VIP level (`AVATAR_LOCKED`). */
-  router.post('/avatar', validate(v.setAvatar), ctrl.setAvatar);
+  router.post('/avatar', denyAgentPlayer('profileEdit'), validate(v.setAvatar), ctrl.setAvatar);
   // A referral link is affiliate business — not for agent-tree players.
   router.get('/referral', noQuery(), denyAgentPlayer('promotions'), ctrl.referral);
   /**

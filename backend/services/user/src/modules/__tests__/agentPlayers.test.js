@@ -37,7 +37,7 @@ const SWAP = AGENT_PLAYER_RESTRICTIONS.swap.code;
 const WITHDRAW = AGENT_PLAYER_RESTRICTIONS.withdraw.code;
 
 test('the restriction table', () => {
-  assert.deepEqual(PLAYER_CAPABILITIES, ['promotions', 'vault', 'deposit', 'swap', 'withdraw', 'tips', 'kyc']);
+  assert.deepEqual(PLAYER_CAPABILITIES, ['promotions', 'vault', 'deposit', 'swap', 'withdraw', 'tips', 'kyc', 'profileEdit']);
   assert.equal(PROMO, 'PROMOTIONS_NOT_FOR_AGENT_USERS');
   assert.equal(VAULT, 'VAULT_NOT_FOR_AGENT_USERS');
   assert.equal(DEPOSIT, 'DEPOSIT_NOT_FOR_AGENT_USERS');
@@ -92,14 +92,14 @@ test('createAgentPlayerResolver — who is in the agent tree', async (t) => {
   ]) {
     await t.test(`${label} -> restricted`, async () => {
       assert.equal(await resolver.isAgentPlayer(player), true);
-      assert.deepEqual(await resolver.capabilities(player), { promotions: false, vault: false, deposit: false, swap: false, withdraw: false, tips: false, kyc: false });
+      assert.deepEqual(await resolver.capabilities(player), { promotions: false, vault: false, deposit: false, swap: false, withdraw: false, tips: false, kyc: false, profileEdit: false });
     });
   }
 
   for (const [player, label] of [[7, 'no parent (direct signup)']]) {
     await t.test(`${label} -> allowed`, async () => {
       assert.equal(await resolver.isAgentPlayer(player), false);
-      assert.deepEqual(await resolver.capabilities(player), { promotions: true, vault: true, deposit: true, swap: true, withdraw: true, tips: true, kyc: true });
+      assert.deepEqual(await resolver.capabilities(player), { promotions: true, vault: true, deposit: true, swap: true, withdraw: true, tips: true, kyc: true, profileEdit: true });
     });
   }
 
@@ -381,8 +381,8 @@ test('guarded player routes: agent-tree player refused, direct player served', a
     });
     const agent = await service.me(agentUser.id);
     // manualDeposit / manualWithdraw: admin ke Manual switch (manual_payment_control), default ON.
-    assert.deepEqual(agent.capabilities, { promotions: false, vault: false, deposit: false, swap: false, withdraw: false, tips: false, kyc: false, manualDeposit: true, manualWithdraw: true });
+    assert.deepEqual(agent.capabilities, { promotions: false, vault: false, deposit: false, swap: false, withdraw: false, tips: false, kyc: false, profileEdit: false, manualDeposit: true, manualWithdraw: true });
     const direct = await service.me(directUser.id);
-    assert.deepEqual(direct.capabilities, { promotions: true, vault: true, deposit: true, swap: true, withdraw: true, tips: true, kyc: true, manualDeposit: true, manualWithdraw: true });
+    assert.deepEqual(direct.capabilities, { promotions: true, vault: true, deposit: true, swap: true, withdraw: true, tips: true, kyc: true, profileEdit: true, manualDeposit: true, manualWithdraw: true });
   });
 });

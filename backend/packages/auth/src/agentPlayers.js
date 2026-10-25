@@ -76,12 +76,17 @@ const AGENT_PLAYER_RESTRICTIONS = Object.freeze({
     code: 'KYC_NOT_FOR_AGENT_USERS',
     message: 'Verification is not available for your account',
   }),
+  // Username and avatar: the site admin edits an agent player's profile, not the player (user, 2026-10-25).
+  profileEdit: Object.freeze({
+    code: 'PROFILE_EDIT_NOT_FOR_AGENT_USERS',
+    message: 'Your profile is managed by your agent',
+  }),
 });
 
 /** The capability names the player site is told about, in a stable order. */
 const PLAYER_CAPABILITIES = Object.freeze(Object.keys(AGENT_PLAYER_RESTRICTIONS));
 
-/** `{ promotions, vault, deposit, swap, withdraw, tips, kyc }` — true = the player has it. */
+/** `{ promotions, vault, deposit, swap, withdraw, tips, kyc, profileEdit }` — true = the player has it. */
 function capabilitiesFor(agentTree) {
   const out = {};
   for (const name of PLAYER_CAPABILITIES) out[name] = !agentTree;

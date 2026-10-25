@@ -1,8 +1,14 @@
 /** Row shapes for the content area — mirrors the admin-service banners / blogs / notifications mappers. */
 
+/** Who a banner is for: the direct players' site, or agent mode (/agent). */
+export type BannerMode = 'direct' | 'agent'
+
 export type Banner = {
   id: number
   type: string
+
+  /** `agent` for an `agent-…` placement (shown on /agent), else `direct`. */
+  mode?: BannerMode
   contentType: string | null
   byteSize: number | null
   active: boolean

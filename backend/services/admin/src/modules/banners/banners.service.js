@@ -4,6 +4,7 @@ const { Op } = require('sequelize');
 
 const errors = require('./banners.errors');
 const { inspect } = require('./upload');
+const { AGENT_PREFIX, modeOf } = require('./banners.constants');
 
 /**
  * The banners on the front of the site.
@@ -167,9 +168,12 @@ class BannersService {
   }
 
   /** @legacy GET /api/banners/getBannerAll */
-  async list({ includeInactive = false }) {
+  async list({ includeInactive = false, mode }) {
+    const byMode = mode
+      ? { type: mode === 'agent' ? { [Op.startsWith]: AGENT_PREFIX } : { [Op.notLike]: `${AGENT_PREFIX}%` } }
+      : {};
     const rows = await this.models.Banners.findAll({
-      where: includeInactive ? {} : { is_active: true },
+      where: { ...(includeInactive ? {} : { is_active: true }), ...byMode },
       attributes: this.#metaColumns(),
       /* Slide order, then placement — see migration 037. Ordering on `type`
          alone puts hero-10 before hero-2. */
@@ -267,6 +271,7 @@ class BannersService {
     return {
       id: row.id,
       type: row.type,
+      mode: modeOf(row.type),
       contentType: row.content_type ?? null,
       byteSize: row.byte_size ?? null,
       active: row.is_active !== false,

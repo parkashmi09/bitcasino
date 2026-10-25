@@ -81,6 +81,8 @@ module.exports = {
          * active only, because that is what the site renders.
          */
         includeInactive: z.coerce.boolean().default(false),
+        /** One mode's placements only: `agent` (/agent) or `direct` (the site). Absent = both. */
+        mode: z.enum(['direct', 'agent']).optional(),
       })
       .strict(),
   },

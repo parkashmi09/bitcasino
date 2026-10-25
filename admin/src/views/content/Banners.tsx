@@ -16,7 +16,9 @@ import { Switch } from '@/components/ui/switch'
 import { useApi, useApiMutation } from '@/hooks/use-api'
 import { api } from '@/lib/api/client'
 import { check } from '@/lib/validate'
-import type { Banner } from './types'
+import TabbedPage from '@/components/shared/TabbedPage'
+
+import type { Banner, BannerMode } from './types'
 
 /**
  * Banners are addressed by PLACEMENT, not by id: uploading `hero-1` again
@@ -30,16 +32,26 @@ const bannerImageUrl = (b: Banner) => api.url(`admin/banners/${b.type}`).replace
  * Where a placement shows on the site, and the image that suits it. Picking one fills the
  * placement name; "Other" takes any name for a template that reads its own.
  */
-const PLACEMENTS = [
-  { value: 'home', label: 'Home · hero banner', hint: 'The signed-out home hero, right-aligned at full height (desktop, 260px tall). A finished banner about 2000×520, art on the right; the sign-up copy sits on the left.' },
-  { value: 'home_mobile', label: 'Home · hero banner (mobile)', hint: 'The same hero below 1024px, 230px tall, right-aligned. About 900×460. Falls back to the desktop banner when missing.' },
+const PLACEMENTS: { value: string; label: string; hint: string; mode: BannerMode }[] = [
+  { mode: 'direct', value: 'home', label: 'Home · hero banner', hint: 'The signed-out home hero, right-aligned at full height (desktop, 260px tall). A finished banner about 2000×520, art on the right; the sign-up copy sits on the left.' },
+  { mode: 'direct', value: 'home_mobile', label: 'Home · hero banner (mobile)', hint: 'The same hero below 1024px, 230px tall, right-aligned. About 900×460. Falls back to the desktop banner when missing.' },
   ...[1, 2, 3, 4, 5, 6].map(n => ({
+    mode: 'direct' as const,
     value: `slider-${n}`,
     label: `Promo slider · slide ${n}`,
     hint: 'With a title: copy on the left, the image as art on the right (transparent cut-out, about 700×700). Without a title: a finished banner covering the card, about 900×420.'
   })),
-  { value: 'casino', label: 'Casino · wide promo banner', hint: 'A finished banner across the casino lobby, about 1280×260.' }
-] as const
+  ...[1, 2, 3, 4, 5, 6].map(n => ({
+    mode: 'agent' as const,
+    value: `agent-slider-${n}`,
+    label: `Agent mode slider · slide ${n}`,
+    hint: 'Shown to agent players after sign-in (/agent), on home and casino. A game banner, never a promotion: link it to /casino or /sports. Art on the right of a dark card, about 840×420. With none uploaded the site shows its four built-in game banners.'
+  })),
+  { mode: 'direct', value: 'casino', label: 'Casino · wide promo banner', hint: 'A finished banner across the casino lobby, about 1280×260.' }
+]
+
+/** banners.constants.js AGENT_PREFIX: an `agent-…` placement is agent mode's. */
+const AGENT_PREFIX = 'agent-'
 
 const OTHER = '__other__'
 
@@ -57,10 +69,11 @@ const blankForm = (b?: Banner) => ({
   sortOrder: String(b?.sortOrder ?? 0)
 })
 
-const UploadBanner = ({ existing }: { existing?: Banner }) => {
+const UploadBanner = ({ existing, mode }: { existing?: Banner; mode: BannerMode }) => {
   const [open, setOpen] = useState(false)
   const [form, setForm] = useState(() => blankForm(existing))
   const [file, setFile] = useState<File | null>(null)
+  const placements = PLACEMENTS.filter(p => p.mode === mode)
   const preset = PLACEMENTS.find(p => p.value === form.type)
   const [other, setOther] = useState(() => !!existing && !preset)
 
@@ -123,9 +136,13 @@ const UploadBanner = ({ existing }: { existing?: Banner }) => {
         return {
           [existing ? 'b-type' : other ? 'b-type' : 'b-place']: !form.type.trim()
             ? 'Choose a placement'
-            : TYPE_PATTERN.test(form.type.trim())
-              ? undefined
-              : 'Placement: lowercase letters, digits, dash and underscore only (max 64)',
+            : !TYPE_PATTERN.test(form.type.trim())
+              ? 'Placement: lowercase letters, digits, dash and underscore only (max 64)'
+              : form.type.trim().startsWith(AGENT_PREFIX) !== (mode === 'agent')
+                ? mode === 'agent'
+                  ? `An agent mode placement starts with ${AGENT_PREFIX}`
+                  : `${AGENT_PREFIX}… placements belong to the Agent mode tab`
+                : undefined,
           'b-image': !file
             ? existing
               ? undefined
@@ -161,7 +178,7 @@ const UploadBanner = ({ existing }: { existing?: Banner }) => {
               setOther(v === OTHER)
               setForm({ ...form, type: v === OTHER ? '' : v })
             }}
-            options={[...PLACEMENTS.map(p => ({ value: p.value, label: p.label })), { value: OTHER, label: 'Other (type a name)' }]}
+            options={[...placements.map(p => ({ value: p.value, label: p.label })), { value: OTHER, label: 'Other (type a name)' }]}
             hint={preset?.hint}
           />
           {other && (
@@ -169,7 +186,7 @@ const UploadBanner = ({ existing }: { existing?: Banner }) => {
               id='b-type'
               label='Placement name'
               required
-              hint='Lowercase letters, digits, dash and underscore — e.g. hero-1, home_welcome'
+              hint={mode === 'agent' ? 'Starts with agent- — e.g. agent-slider-7' : 'Lowercase letters, digits, dash and underscore — e.g. hero-1, home_welcome'}
               value={form.type}
               onChange={e => setForm({ ...form, type: e.target.value.toLowerCase() })}
             />
@@ -202,9 +219,9 @@ const UploadBanner = ({ existing }: { existing?: Banner }) => {
   )
 }
 
-const Banners = () => {
+const BannerList = ({ mode }: { mode: BannerMode }) => {
   const [showInactive, setShowInactive] = useState(true)
-  const list = useApi<Banner[]>('admin/banners', { includeInactive: showInactive }, { retry: false })
+  const list = useApi<Banner[]>('admin/banners', { includeInactive: showInactive, mode }, { retry: false })
 
   const setActive = useApiMutation({
     fn: (v: { type: string; active: boolean }) => api.patch(`admin/banners/${v.type}/active`, { active: v.active }),
@@ -236,21 +253,25 @@ const Banners = () => {
     { key: 'sort', header: 'Order', align: 'right', cell: b => <span className='tabular-nums'>{b.sortOrder}</span> },
     { key: 'active', header: 'Visible', cell: b => <Can permission='config:write' fallback={<StatusBadge value={b.active} />}><Switch checked={b.active} disabled={setActive.isPending} onCheckedChange={active => setActive.mutate({ type: b.type, active })} /></Can> },
     { key: 'at', header: 'Updated', cell: b => <DateTime value={b.updatedAt ?? b.createdAt} relative /> },
-    { key: 'actions', header: '', align: 'right', cell: b => <Can permission='config:write'><UploadBanner existing={b} /></Can> }
+    { key: 'actions', header: '', align: 'right', cell: b => <Can permission='config:write'><UploadBanner existing={b} mode={mode} /></Can> }
   ]
 
   return (
     <div>
       <PageHeader
-        title='Banners'
-        description='Hero slides and promo artwork. A placement name is the address — re-uploading it replaces the image everywhere it is shown.'
+        title={mode === 'agent' ? 'Banners · Agent mode' : 'Banners · Direct users'}
+        description={
+          mode === 'agent'
+            ? 'The game slider agent players see after sign-in on /agent. Game banners only, linked to /casino or /sports.'
+            : 'Hero slides and promo artwork for direct players. A placement name is the address — re-uploading it replaces the image everywhere it is shown.'
+        }
         actions={
           <>
             <label className='flex items-center gap-2 text-sm'>
               <Switch checked={showInactive} onCheckedChange={setShowInactive} /> Show hidden
             </label>
             <Can permission='config:write'>
-              <UploadBanner />
+              <UploadBanner mode={mode} />
             </Can>
           </>
         }
@@ -265,12 +286,24 @@ const Banners = () => {
         emptyMessage={
           <span className='flex flex-col items-center gap-1'>
             <ImageIcon className='text-muted-foreground size-5' />
-            No banner uploaded yet. The site falls back to its built-in artwork until one exists.
+            {mode === 'agent'
+              ? 'No agent banner uploaded yet. /agent shows its four built-in game banners until one exists.'
+              : 'No banner uploaded yet. The site falls back to its built-in artwork until one exists.'}
           </span>
         }
       />
     </div>
   )
 }
+
+/** Two modes, each its own list and placements: direct players' site, and agent mode (/agent). */
+const Banners = () => (
+  <TabbedPage
+    tabs={[
+      { value: 'direct', label: 'Direct users', render: () => <BannerList mode='direct' /> },
+      { value: 'agent', label: 'Agent mode', render: () => <BannerList mode='agent' /> }
+    ]}
+  />
+)
 
 export default Banners
