@@ -13,7 +13,7 @@ import { useRewards } from '@/hooks/useRewards';
 import { CURRENCY_ORDER, currencyMeta, currencyNetworks } from '@/data/currencies';
 import QRCode from 'qrcode';
 import { compareDecimal, formatBalance, formatFiat, percentOf } from '@/lib/format';
-import { useDepositAddress, useSubmitWithdrawal } from '@/queries/wallet';
+import { useDepositAddress, useSubmitWithdrawal, usePaymentMethods, useCreateDeposit } from '@/queries/wallet';
 import { cn } from '@/lib/cn';
 
 /**
@@ -314,7 +314,16 @@ export function DepositDialog({ open, onClose }) {
                 />
               )}
 
-              <AddressPanel currency={currency} chain={chain} networks={networks} />
+              {/* The crypto address is a chain's affair — a fiat currency like
+                  INR has no chain, so showing the crypto panel for it would ask
+                  the wallet for an address that cannot exist. Only coins with a
+                  network get it; fiat falls to the F2Pay rail below. */}
+              {chain && <AddressPanel currency={currency} chain={chain} networks={networks} />}
+
+              {/* The F2Pay rail: an instant deposit for whichever currency F2Pay
+                  offers (UPI in INR, USDT on TRON). Self-hiding when the provider
+                  is off or does not cover the selected currency. */}
+              <F2PayPanel currency={currency} />
             </div>
           )}
 
@@ -742,6 +751,141 @@ function ExchangeCard() {
       >
         Smart deposit — not available yet
       </p>
+    </div>
+  );
+}
+
+/** F2Pay's method codes as a player reads them; any other shows as sent. */
+const F2PAY_METHOD_LABELS = { UpiMixed: 'UPI', PI_USDT_TRX: 'USDT · TRC20' };
+
+/**
+ * The F2Pay deposit rail, in bitcasino's own card style.
+ *
+ * ═════════════════════════════════════════════════════════════════════════
+ * THIS STARTS A REAL PAYMENT, so nothing here is improvised:
+ *
+ * - The methods are the backend's own (`GET /user/payments/methods/f2pay`),
+ *   filtered to the selected currency. An off or uncovered provider answers no
+ *   method for it, and the panel renders NOTHING rather than a form that cannot
+ *   reach a provider — the same way the crypto panel refuses to show an address
+ *   it did not receive.
+ * - The amount is a decimal STRING the whole way (`useCreateDeposit`), never
+ *   `Number()`.
+ * - The order is created, then the player LEAVES for F2Pay's cashier page; the
+ *   provider's signed callback is what credits the wallet. So the button stays
+ *   busy through the redirect and there is no "done" state to fake here.
+ * ═════════════════════════════════════════════════════════════════════════
+ */
+function F2PayPanel({ currency }) {
+  const { data: methods } = usePaymentMethods('f2pay');
+  const available = useMemo(
+    () => (methods ?? []).filter((entry) => entry.currency === currency),
+    [methods, currency],
+  );
+  const [picked, setPicked] = useState(0);
+  const [amount, setAmount] = useState('');
+  const create = useCreateDeposit();
+
+  // The chosen method belongs to the currency, so it resets with it.
+  useEffect(() => {
+    setPicked(0);
+    setAmount('');
+  }, [currency]);
+
+  if (available.length === 0) return null;
+
+  const method = available[picked] ?? available[0];
+  const positive = /[1-9]/.test(amount || '');
+
+  const submit = async (event) => {
+    event.preventDefault();
+    if (!positive || create.isPending) return;
+    try {
+      const order = await create.mutateAsync({
+        provider: 'f2pay',
+        currency,
+        amount,
+        method: method.method,
+      });
+      if (!order?.redirectUrl) throw new Error('The payment page did not open. Please try again.');
+      // Stays busy: the page is leaving for F2Pay, which returns the player once paid.
+      window.location.assign(order.redirectUrl);
+    } catch {
+      // `create.error` carries it; the panel below renders from that.
+    }
+  };
+
+  return (
+    <div className="overflow-hidden rounded-i-md border-[0.8px] border-beerus bg-goku">
+      <div className="flex items-center gap-3 border-b-[0.8px] border-beerus px-4 py-3.5">
+        <span className="grid size-9 shrink-0 place-items-center rounded-full bg-piccolo/10 text-piccolo">
+          <Icon name="card" size={18} />
+        </span>
+        <span className="min-w-0 flex-1">
+          <span className="block text-base font-semibold text-bulma">Instant deposit</span>
+          <span className="block text-sm text-trunks">
+            {available.length > 1
+              ? `Pay in ${currency}`
+              : F2PAY_METHOD_LABELS[method.method] ?? method.method}
+          </span>
+        </span>
+      </div>
+
+      <form onSubmit={submit} className="grid gap-3 p-4">
+        {available.length > 1 && (
+          <div className="grid gap-1.5">
+            <span className="text-xs font-medium text-bulma">Pay with</span>
+            <div className="grid grid-cols-2 gap-2">
+              {available.map((row, index) => (
+                <button
+                  key={row.method}
+                  type="button"
+                  onClick={() => setPicked(index)}
+                  className={cn(
+                    'h-10 cursor-pointer rounded-i-sm border-[0.8px] text-sm font-medium transition-colors',
+                    index === picked
+                      ? 'border-piccolo bg-piccolo/10 text-bulma'
+                      : 'border-beerus text-trunks hover:bg-heles',
+                  )}
+                >
+                  {F2PAY_METHOD_LABELS[row.method] ?? row.method}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        <label className="grid gap-1.5">
+          <span className="text-xs font-medium text-bulma">Deposit amount ({currency})</span>
+          <input
+            inputMode="decimal"
+            value={amount}
+            onChange={(e) => setAmount(e.target.value.replace(/[^0-9.]/g, ''))}
+            placeholder="0.00"
+            className="h-11 w-full rounded-i-sm border-[0.8px] border-beerus bg-gohan px-3 text-sm tabular-nums text-bulma outline-none focus:border-piccolo"
+          />
+        </label>
+
+        {create.isError && (
+          <p role="alert" className="rounded-i-sm bg-dodoria/10 px-3 py-2 text-xs text-bulma">
+            {create.error?.message || 'Could not start the deposit.'}
+          </p>
+        )}
+
+        <button
+          type="submit"
+          disabled={!positive || create.isPending}
+          className="flex h-11 cursor-pointer items-center justify-center gap-1.5 rounded-i-sm bg-piccolo text-sm font-medium text-goten transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          {create.isPending ? 'Loading…' : 'Deposit'}
+          {!create.isPending && <Icon name="arrow-right" size={16} />}
+        </button>
+
+        <p className="text-center text-xs leading-relaxed text-trunks">
+          You will pay on the page that opens. Your balance is credited automatically once the
+          payment is confirmed.
+        </p>
+      </form>
     </div>
   );
 }

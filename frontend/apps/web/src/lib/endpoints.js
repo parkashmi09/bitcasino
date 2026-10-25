@@ -222,6 +222,20 @@ export const ENDPOINTS = {
   cryptoCoins: `${USER}/crypto/coins`,
   cryptoChains: `${USER}/crypto/chains`,
 
+  // ── Payment providers (PSP deposits) ────────────────────────────────
+  // The outbound half of the provider integrations, from the `payment-orders`
+  // module (`basePath: '/payments'`). `methods/:provider` answers
+  // `{provider, methods: [{method, currency}]}` for a provider the owner has
+  // switched on, or refuses with `PAYORDER_PROVIDER_DISABLED` when it is off —
+  // which the cashier reads as "do not offer this rail", not an error.
+  //
+  // `deposits` is `POST {provider, currency, amount, method?}` (`.strict()`,
+  // so send nothing else) and answers an order `{reference, redirectUrl, …}`:
+  // the player pays on `redirectUrl` and the provider's signed callback credits
+  // the wallet. F2Pay is the one wired here — UPI in INR, USDT on TRON.
+  paymentMethods: `${USER}/payments/methods/:provider`,
+  paymentDeposits: `${USER}/payments/deposits`,
+
   // ── Player history ──────────────────────────────────────────────────
   // What the header's `Recents` panel lists. Rows are
   // `{game_uuid, played_at, game}` and `game` is null for a title that has

@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api';
-import { ENDPOINTS } from '@/lib/endpoints';
+import { ENDPOINTS, path } from '@/lib/endpoints';
 import { EVENTS, request } from '@/lib/socket';
 import { refreshBalances } from '@/hooks/useWallet';
 import { useAuth } from '@/auth/AuthProvider';
@@ -162,6 +162,59 @@ export function useDeposits({ limit = 25, offset = 0, enabled = true } = {}) {
       api(ENDPOINTS.historyDeposits, { query: { limit, offset }, signal }),
     enabled: enabled && status === 'authenticated',
     staleTime: 30 * 1000,
+  });
+}
+
+/**
+ * The deposit methods a PSP offers, as `[{ method, currency }]`.
+ *
+ * F2Pay is the one the cashier wires: `UpiMixed` in INR, `PI_USDT_TRX` in USDT.
+ * A provider the owner has switched off answers `PAYORDER_PROVIDER_DISABLED`,
+ * and an owner that allows none answers an empty list — both are "no rail here",
+ * not a failure, so the error is swallowed to `[]` and the panel simply hides
+ * itself rather than showing a scary state for a provider that was never meant
+ * to be on. The shape and the disabled-answer are the hash reference's contract
+ * (`GET /user/payments/methods/:provider`), confirmed against this backend's
+ * `payment-orders` module.
+ */
+export function usePaymentMethods(provider, { enabled = true } = {}) {
+  const { status } = useAuth();
+
+  return useQuery({
+    queryKey: ['wallet', 'payment-methods', provider],
+    queryFn: () =>
+      api(path(ENDPOINTS.paymentMethods, { provider })).then(
+        (data) => (Array.isArray(data?.methods) ? data.methods : []),
+        // Disabled / unconfigured / unreachable: offer nothing rather than err.
+        () => [],
+      ),
+    enabled: enabled && status === 'authenticated' && Boolean(provider),
+    staleTime: 5 * 60 * 1000,
+  });
+}
+
+/**
+ * Create a PSP deposit order and get back where to pay.
+ *
+ * `POST /user/payments/deposits {provider, currency, amount, method?}` answers
+ * `{reference, redirectUrl, …}`; the caller sends the player to `redirectUrl`
+ * and the provider's signed callback is what credits the wallet — nothing is
+ * filed here afterwards. The amount is a decimal STRING to the wire, never
+ * `Number()`, for the reason the withdrawal note below gives. `retry: false`
+ * stands (the client default): a deposit order is not idempotent.
+ */
+export function useCreateDeposit() {
+  return useMutation({
+    mutationFn: ({ provider, currency, amount, method }) =>
+      api(ENDPOINTS.paymentDeposits, {
+        method: 'POST',
+        body: {
+          provider,
+          currency,
+          amount: String(amount),
+          ...(method ? { method } : {}),
+        },
+      }),
   });
 }
 
