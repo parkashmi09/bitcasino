@@ -14,6 +14,10 @@ module.exports = defineErrors('VAULT', {
   NOTHING_TO_WITHDRAW: { status: 409, message: 'This deposit has no balance to withdraw' },
   INSUFFICIENT_BALANCE: { status: 402, message: 'Insufficient balance to move into the vault' },
   BELOW_MINIMUM: { status: 422, message: 'The amount is below the vault minimum' },
+  DUPLICATE_REQUEST: {
+    status: 409,
+    message: 'This vault deposit was just made — wait a minute to deposit the same amount again',
+  },
   LOCK_PERIOD_IN_USE: {
     status: 409,
     // Deleting a term with open deposits would orphan them — their rate and

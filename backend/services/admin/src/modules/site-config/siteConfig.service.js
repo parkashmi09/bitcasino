@@ -17,8 +17,8 @@ const { assertTransactionPassword } = require('../staff-auth/transactionPassword
 
 /**
  * user-service's payment gateways, as the owner panel names them (its flag is `gateway_<name>`).
- * `currencies`: a gateway switched per currency — each key is the owner's flag AND the Super Admin's
- * switch (both must be on), the same key user-service checks (`currencySwitch` in payment-orders/gateways).
+ * `currencies`: a gateway the OWNER switches per currency — each key is the owner's flag, the same key
+ * user-service checks (`currencySwitch` in payment-orders/gateways). The Super Admin only sees them.
  */
 const PAYMENT_GATEWAYS = Object.freeze([
   { name: 'ccpayment', label: 'CCPayment (crypto deposits)' },
@@ -31,17 +31,15 @@ const PAYMENT_GATEWAYS = Object.freeze([
     label: 'F2Pay (deposits)',
     // Each currency's methods are rows of `payment_methods` (migration 153).
     currencies: [
+      // INR and crypto only (user, 2026-10-24).
       { code: 'INR', key: 'f2pay_inr', label: 'INR' },
-      { code: 'IDR', key: 'f2pay_idr', label: 'IDR' },
+      { code: 'USDT', key: 'f2pay_usdt', label: 'Crypto (USDT)' },
     ],
   },
 ]);
 
-/** A Payment Methods switch: a gateway (`apay`) or one of its currencies (`f2pay_idr`). */
-const PAYMENT_SWITCHES = Object.freeze([
-  ...PAYMENT_GATEWAYS.map((g) => g.name),
-  ...PAYMENT_GATEWAYS.flatMap((g) => (g.currencies ?? []).map((c) => c.key)),
-]);
+/** A Payment Methods switch: a whole gateway (`apay`, `f2pay`) — the Super Admin switches nothing finer. */
+const PAYMENT_SWITCHES = Object.freeze(PAYMENT_GATEWAYS.map((g) => g.name));
 
 /**
  * The affiliate programme's payout rates, as stored on `siteconfig`.
@@ -766,8 +764,12 @@ class SiteConfigService {
     const enabled = row ? Boolean(row.sports) : true;
     // Effective = the owner's flag (owner panel → Site flags → Sports) AND the Super Admin's
     // switch (Sports Exchange → Sports switch). sports-service reads `sportsEnabled` from here.
-    const entitled = await entitlements.isFlagEntitled('sports');
-    return { sportsEnabled: enabled && entitled, enabled, entitled, configured: Boolean(row) };
+    const doc = await entitlements.getEntitlements();
+    const entitled = entitlements.flagOnIn(doc, 'sports');
+    // The exchange takes bets only in exchange mode: with the owner's sportsbook on, sports-service
+    // refuses new exchange bets (open ones still settle), as the kill switch does.
+    const mode = entitlements.flagOnIn(doc, 'sportsbook') ? 'sportsbook' : entitlements.flagOnIn(doc, 'sportsexchange') ? 'exchange' : 'off';
+    return { sportsEnabled: enabled && entitled && mode === 'exchange', enabled, entitled, mode, configured: Boolean(row) };
   }
 
   /** The Super Admin's sports switch. Pushes the new flags so every open site hides/shows sports. */
@@ -800,7 +802,7 @@ class SiteConfigService {
     const [off, { flags }, methods] = await Promise.all([
       this.paymentGatewaysOff(),
       entitlements.getEntitlements(),
-      // Every method the owner has on, for the gateways switched per currency — one query.
+      // Every method the owner has on, for the gateways the owner switches per currency — one query.
       this.models.PaymentMethod
         ? this.models.PaymentMethod.findAll({ where: { owner_enabled: true }, order: [['id', 'ASC']], raw: true })
         : [],
@@ -808,15 +810,14 @@ class SiteConfigService {
     const shown = [];
     for (const gateway of PAYMENT_GATEWAYS) {
       if (flags[`gateway_${gateway.name}`] === false) continue;
-      // Only the currencies the owner has on, each with the Super Admin's switch and its methods.
+      // Only the currencies the owner has on, with their methods — shown to the Super Admin, not switched.
       const currencies = (gateway.currencies ?? [])
         .filter((c) => flags[c.key] !== false)
         .map((c) => ({
           ...c,
-          enabled: !off.includes(c.key),
           methods: methods
             .filter((m) => m.gateway === gateway.name && m.currency === c.code)
-            .map((m) => ({ id: Number(m.id), code: m.code, enabled: m.site_enabled, addedBy: m.added_by, updatedBy: m.updated_by, updatedAt: m.updated_at })),
+            .map((m) => ({ id: Number(m.id), code: m.code })),
         }));
       shown.push({ ...gateway, enabled: !off.includes(gateway.name), ...(gateway.currencies ? { currencies } : {}) });
     }
@@ -830,13 +831,12 @@ class SiteConfigService {
   }
 
   /**
-   * The Super Admin's switch for one gateway (`apay`) or one gateway currency (`f2pay_idr`), with the
-   * transaction password. One the owner has off cannot be touched (NOT_ENTITLED).
+   * The Super Admin's ON / OFF for one gateway (`apay`, `f2pay`), with the transaction password. One
+   * the owner has off cannot be touched (NOT_ENTITLED).
    */
   async setPaymentGateway({ name, enabled, staffId = null, executiveId = null, transactionPassword }) {
     await assertTransactionPassword(this.models, staffId, transactionPassword, { required: true, executiveId });
-    const gateway = PAYMENT_GATEWAYS.find((g) => g.name === name);
-    await this.#assertFlagsEntitled([gateway ? `gateway_${name}` : name]);
+    await this.#assertFlagsEntitled([`gateway_${name}`]);
     const row = await this.#configRow(['id', 'settings']);
     if (!row) throw errors.NOT_CONFIGURED();
 
@@ -852,27 +852,6 @@ class SiteConfigService {
     return this.paymentGateways();
   }
 
-  /**
-   * The Super Admin adds a deposit method to a gateway currency (Payment Methods), with the
-   * transaction password. Already listed: it is switched back on. One the owner has off is the
-   * owner's (NOT_ENTITLED). Recorded with who added it (`added_by 'site'`, `updated_by staff:<id>`).
-   */
-  async addPaymentMethod({ name, currency, code, staffId = null, executiveId = null, transactionPassword }) {
-    await assertTransactionPassword(this.models, staffId, transactionPassword, { required: true, executiveId });
-    const c = PAYMENT_GATEWAYS.find((g) => g.name === name)?.currencies?.find((x) => x.code === currency);
-    if (!c) throw errors.PAYMENT_CURRENCY_NOT_TAKEN({ gateway: name, currency });
-    await this.#assertFlagsEntitled([`gateway_${name}`, c.key]);
-
-    const by = `staff:${staffId}`;
-    const row = await this.models.PaymentMethod.findOne({ where: { gateway: name, currency, code }, raw: true });
-    if (row && !row.owner_enabled) throw errors.NOT_ENTITLED({ kind: 'payment_method', key: `${name}:${currency}:${code}` });
-    if (row) await this.models.PaymentMethod.update({ site_enabled: true, updated_by: by }, { where: { id: row.id } });
-    else await this.models.PaymentMethod.create({ gateway: name, currency, code, added_by: 'site', updated_by: by });
-
-    this.logger?.warn({ staffId, gateway: name, currency, code }, `Payment method ${name} ${currency} ${code} added by the Super Admin`);
-    return this.paymentGateways();
-  }
-
   /** Every `payment_methods` row, for the owner panel's methods editor (owner-key read). */
   async ownerPaymentMethods() {
     const rows = this.models.PaymentMethod ? await this.models.PaymentMethod.findAll({ order: [['id', 'ASC']], raw: true }) : [];
@@ -880,18 +859,6 @@ class SiteConfigService {
       gateway: m.gateway, currency: m.currency, code: m.code,
       ownerEnabled: m.owner_enabled, siteEnabled: m.site_enabled, addedBy: m.added_by,
     }));
-  }
-
-  /** The Super Admin's switch for one method (`payment_methods.site_enabled`), with the transaction password. */
-  async setPaymentMethod({ name, id, enabled, staffId = null, executiveId = null, transactionPassword }) {
-    await assertTransactionPassword(this.models, staffId, transactionPassword, { required: true, executiveId });
-    const row = await this.models.PaymentMethod.findOne({ where: { id, gateway: name }, raw: true });
-    if (!row) throw errors.PAYMENT_METHOD_NOT_FOUND({ id });
-    if (!row.owner_enabled) throw errors.NOT_ENTITLED({ kind: 'payment_method', key: `${name}:${row.currency}:${row.code}` });
-    await this.models.PaymentMethod.update({ site_enabled: enabled, updated_by: `staff:${staffId}` }, { where: { id } });
-
-    this.logger?.warn({ staffId, gateway: name, currency: row.currency, code: row.code, enabled }, `Payment method ${row.code} switched ${enabled ? 'ON' : 'OFF'} by the Super Admin`);
-    return this.paymentGateways();
   }
 
   /**
@@ -1062,13 +1029,18 @@ class SiteConfigService {
     // an unconfigured deployment, not an operator switching the site off. The
     // client defaults the same way, so first paint does not flicker.
     // A flag outside the owner's plan reads as off; the stored value is kept.
-    const { flags: plan } = await entitlements.getEntitlements();
+    const planDoc = await entitlements.getEntitlements();
+    const { flags: plan } = planDoc;
     const flags = Object.fromEntries(
       PUBLIC_FLAGS.map((name) => [name, plan[name] !== false && (row ? Boolean(row[name]) : true)])
     );
     // Read-only here so a browser can hide sports. Same rule as `sportsEnabled()`: owner flag
     // AND the Super Admin's switch.
     flags.sports = plan.sports !== false && (row ? Boolean(row.sports) : true);
+    // Which sports the site runs (owner panel → Products): the third-party book in an iframe, or
+    // our exchange. Never both; `flagOnIn` closes the exchange while the sportsbook is on.
+    flags.sportsbook = flags.sports && entitlements.flagOnIn(planDoc, 'sportsbook');
+    flags.sportsexchange = flags.sports && entitlements.flagOnIn(planDoc, 'sportsexchange');
 
     const amounts = Object.fromEntries(
       PUBLIC_AMOUNTS.map((name) => [name, this.#amount(row?.[name])])

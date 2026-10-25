@@ -21,7 +21,8 @@ type TwoFactor = { enabled: boolean; enrolledAt?: string | null; pending?: boole
 type Begin = { secret?: string; otpauthUrl?: string; otpauth?: string; qr?: string; qrDataUrl?: string }
 
 const MyAccount = () => {
-  const { actor } = useSession()
+  // Password and 2FA changes end every session of this account (staff.token_version), this one too.
+  const { actor, signOut } = useSession()
   const status = useApi<TwoFactor>('admin/auth/2fa')
   const [setup, setSetup] = useState<Begin | null>(null)
   const [code, setCode] = useState('')
@@ -53,23 +54,25 @@ const MyAccount = () => {
   const confirm = useApiMutation({
     fn: () => api.post('admin/auth/2fa/confirm', { code }),
     invalidate: [['api', 'admin/auth/2fa']],
-    success: 'Two-factor authentication is on',
+    success: 'Two-factor authentication is on. Sign in again',
     onSuccess: () => {
       setSetup(null)
       setCode('')
+      void signOut()
     }
   })
 
   const turnOff = useApiMutation({
     fn: () => api.post('admin/auth/2fa/disable', { password: disable.password, code: disable.code }),
     invalidate: [['api', 'admin/auth/2fa']],
-    success: 'Two-factor authentication is off'
+    success: 'Two-factor authentication is off. Sign in again',
+    onSuccess: () => void signOut()
   })
 
   const changePassword = useApiMutation({
     fn: () => api.patch('admin/staff/password', { oldPassword: pw.oldPassword, newPassword: pw.newPassword }),
-    success: 'Password changed',
-    onSuccess: () => setPw({ oldPassword: '', newPassword: '', confirm: '' })
+    success: 'Password changed. Sign in again',
+    onSuccess: () => void signOut()
   })
 
   const setTxnPassword = useApiMutation({

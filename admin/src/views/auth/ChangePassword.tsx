@@ -4,7 +4,6 @@
 import { useState } from 'react'
 
 // Third-party Imports
-import { useQueryClient } from '@tanstack/react-query'
 import { Loader2Icon } from 'lucide-react'
 
 // Component Imports
@@ -31,7 +30,6 @@ import AuthBackgroundShape from '@/assets/svg/auth-background-shape'
  * sign-out stay open.
  */
 const ChangePassword = () => {
-  const qc = useQueryClient()
   const { actor, signOut } = useSession()
   const [current, setCurrent] = useState('')
   const [next, setNext] = useState('')
@@ -52,9 +50,9 @@ const ChangePassword = () => {
     try {
       await request('admin/staff/password', { method: 'PATCH', body: { oldPassword: current, newPassword: next } })
 
-      // A full load: every query that was refused while the flag was set starts fresh.
-      qc.clear()
-      window.location.assign('/dashboard')
+      // The change ends every session of this account (staff.token_version), this one too: sign in
+      // again with the new password. signOut clears the cookie and the query cache.
+      await signOut()
     } catch (err) {
       setError(errorMessage(err))
       setBusy(false)

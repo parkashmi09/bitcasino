@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 
-import { CreditCardIcon, PlusIcon } from 'lucide-react'
+import { CreditCardIcon } from 'lucide-react'
 
 import ErrorState from '@/components/shared/ErrorState'
 import FormDialog from '@/components/shared/FormDialog'
@@ -12,7 +12,6 @@ import StatusBadge from '@/components/shared/StatusBadge'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
-import { Input } from '@/components/ui/input'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Switch } from '@/components/ui/switch'
 import { useSession } from '@/contexts/SessionContext'
@@ -21,32 +20,29 @@ import { api } from '@/lib/api/client'
 import { TxnPasswordLabel } from '@/views/finance/StaffFloat'
 
 /**
- * `GET admin/site-config/payment-gateways` — only the gateways the owner has on. A gateway switched per
- * currency (F2Pay) also lists the currencies the owner has on, each with its own switch (`key`) and its
- * deposit methods (`payment_methods` rows the owner has on; `enabled` is the Super Admin's switch).
+ * `GET admin/site-config/payment-gateways` — only the gateways the owner has on. F2Pay also lists the
+ * currencies the owner has on (INR, crypto) with their methods — shown only: the owner picks them.
  */
-type Method = { id: number; code: string; enabled: boolean; addedBy: 'owner' | 'site' }
-type Currency = { code: string; key: string; label: string; enabled: boolean; methods: Method[] }
+type Method = { id: number; code: string }
+type Currency = { code: string; key: string; label: string; methods: Method[] }
 type Gateway = { name: string; label: string; enabled: boolean; currencies?: Currency[] }
 
 /** A change waiting for the transaction password: what it says, and the request that makes it. */
 type Pending = { title: string; turnsOff: boolean; done: string; send: (transactionPassword: string) => Promise<unknown> }
 
 const PATH = 'admin/site-config/payment-gateways'
-const METHOD_CODE = /^[A-Za-z0-9_]{1,40}$/
 
 /**
  * Settings → Payment Methods: the payment gateways the owner panel has switched on, each with the
- * Super Admin's own switch — and, for F2Pay, one switch per currency and per method, plus "Add
- * method". A player is offered a method only when its gateway, currency and the method are all on.
- * Every change asks for the transaction password; the site stores who made it.
+ * Super Admin's own ON / OFF switch — the only thing the Super Admin changes here (user, 2026-10-24).
+ * F2Pay's active currencies and methods are listed under it. A switch asks for the transaction
+ * password; the site stores who made it.
  */
 const PaymentMethods = () => {
   const { can } = useSession()
   const q = useApi<Gateway[]>(PATH)
   const [pending, setPending] = useState<Pending | null>(null)
   const [password, setPassword] = useState('')
-  const [codes, setCodes] = useState<Record<string, string>>({})
   const editable = can('config:write')
 
   const run = useApiMutation({
@@ -79,17 +75,6 @@ const PaymentMethods = () => {
     </>
   )
 
-  const addMethod = (g: Gateway, c: Currency) => {
-    const code = (codes[c.key] ?? '').trim()
-
-    setPending({
-      title: `Add ${code} to ${g.label} · ${c.label}?`,
-      turnsOff: false,
-      done: `${code} added to ${c.label}`,
-      send: transactionPassword => api.post(`${PATH}/${g.name}/methods`, { currency: c.code, code, transactionPassword }).then(() => setCodes(s => ({ ...s, [c.key]: '' })))
-    })
-  }
-
   return (
     <div>
       <PageHeader title='Payment Methods' description='The payment gateways the owner has enabled. Switch one off to stop new deposits and withdrawals through it; open orders still settle.' />
@@ -114,48 +99,19 @@ const PaymentMethods = () => {
                 </div>
                 {toggle(g.label, g.enabled, `${PATH}/${g.name}`)}
               </div>
-              {g.currencies?.map(c => {
-                const code = (codes[c.key] ?? '').trim()
-                const bad = code && (!METHOD_CODE.test(code) || c.methods.some(m => m.code === code))
-
-                return (
-                  <div key={c.key} className='pb-2'>
-                    <div className='flex items-center gap-3 py-2 ps-8 pe-4'>
-                      <div className='min-w-0 flex-1'>
-                        <div className='text-sm font-semibold'>{c.label}</div>
-                        <div className='text-muted-foreground font-mono text-xs'>{c.key}</div>
-                      </div>
-                      {toggle(`${g.label} · ${c.label}`, c.enabled, `${PATH}/${c.key}`)}
-                    </div>
+              {g.currencies?.map(c => (
+                <div key={c.key} className='flex items-center gap-2 py-2 ps-8 pe-4'>
+                  <div className='min-w-24 text-sm font-semibold'>{c.label}</div>
+                  <div className='flex flex-wrap gap-1'>
                     {c.methods.map(m => (
-                      <div key={m.id} className='flex items-center gap-3 py-1.5 ps-14 pe-4'>
-                        <div className='flex min-w-0 flex-1 items-center gap-2'>
-                          <span className='font-mono text-sm'>{m.code}</span>
-                          <Badge variant='outline'>{m.addedBy === 'owner' ? 'owner' : 'site'}</Badge>
-                        </div>
-                        {toggle(`${c.label} ${m.code}`, m.enabled, `${PATH}/${g.name}/methods/${m.id}`)}
-                      </div>
+                      <Badge key={m.id} variant='outline' className='font-mono'>
+                        {m.code}
+                      </Badge>
                     ))}
-                    {!c.methods.length && <div className='text-muted-foreground py-1.5 ps-14 pe-4 text-xs'>No {c.label} method yet — players are not offered {g.label} in {c.label}.</div>}
-                    {editable && (
-                      <div className='flex items-center gap-2 py-1.5 ps-14 pe-4'>
-                        <Input
-                          value={codes[c.key] ?? ''}
-                          placeholder='Method code (e.g. QRIS)'
-                          aria-label={`New ${c.label} method code`}
-                          aria-invalid={Boolean(bad)}
-                          className='h-8 w-48'
-                          onChange={e => setCodes(s => ({ ...s, [c.key]: e.target.value }))}
-                        />
-                        <Button type='button' size='sm' variant='outline' disabled={!code || Boolean(bad) || run.isPending} onClick={() => addMethod(g, c)}>
-                          <PlusIcon /> Add method
-                        </Button>
-                        {bad && <span className='text-destructive text-xs'>{METHOD_CODE.test(code) ? 'Already listed' : 'Letters, digits and _ only'}</span>}
-                      </div>
-                    )}
+                    {!c.methods.length && <span className='text-muted-foreground text-xs'>No method yet</span>}
                   </div>
-                )
-              })}
+                </div>
+              ))}
             </div>
           ))}
         </Card>

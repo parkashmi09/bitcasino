@@ -46,8 +46,8 @@ module.exports = function adminRoutes(deps) {
 
   router.post(
     '/adjust',
-    // Either grant is accepted here; the service still records which direction
-    // was used, and the validator refuses anything but credit/debit.
+    // Either grant gets past here; the controller then requires wallet:credit for
+    // a credit and wallet:debit for a debit. The validator refuses anything else.
     auth.requireAnyPermission(PERMISSION.CREDIT, PERMISSION.DEBIT),
     validate(v.adminAdjust),
     withActivity({

@@ -567,7 +567,7 @@ const TIPS = {
 
 /**
  * Peer-to-peer trading — hand-written, like TIPS. The player API is
- * `services/user/src/modules/p2p` (`/user/p2p`), the operator's is `/admin/p2p`;
+ * `services/user/src/modules/_p2p` (`/user/p2p`, unmounted for now: `_` folders are skipped), the operator's is `/admin/p2p`;
  * both routers are guarded by `requireFeature('p2p')`, so an owner who leaves
  * it out of the plan closes the player trades and the staff screens alike.
  */

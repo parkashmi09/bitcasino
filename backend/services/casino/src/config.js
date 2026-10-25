@@ -78,6 +78,13 @@ const config = loadEnv(
     SEAMLESS_SIGN_MODE: coercers.str('legacy'),
 
     /**
+     * The provider's callback source IPs. The legacy signature covers neither the member nor the
+     * amount, so this is what stops a captured one being replayed: set it on any live server.
+     * Empty = any source (local development).
+     */
+    SEAMLESS_ALLOWED_IPS: coercers.list([]),
+
+    /**
      * The operator API — the outbound half of the same integration.
      *
      * Legacy hard-coded `https://staging.gsimw.com/api/operators`. A STAGING

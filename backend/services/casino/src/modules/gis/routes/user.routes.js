@@ -24,7 +24,7 @@ module.exports = function userRoutes(deps) {
 
   // The owner's plan — see `games/gameEntitlement.js`. Demo too: a provider
   // outside the plan is not offered at all.
-  const entitled = requireGameEntitled(deps, (req) => ({ uid: req.body.gameUuid }));
+  const entitled = requireGameEntitled(deps, (req) => ({ uid: req.body.gameUuid }), { mustExist: true });
 
   /** @legacy POST /api/gis/games/init */
   router.post('/launch', validate(v.launch), entitled, ctrl.launch);

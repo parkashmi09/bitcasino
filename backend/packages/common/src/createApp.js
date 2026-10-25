@@ -121,7 +121,9 @@ function createApp({
       // breaks nothing, but CORP would block cross-origin fetches from the SPA.
       contentSecurityPolicy: false,
       crossOriginResourcePolicy: { policy: 'cross-origin' },
-      hsts: config.NODE_ENV === 'production' ? { maxAge: 31_536_000, includeSubDomains: true } : false,
+      // Always on: a browser honours HSTS only over HTTPS, so local http dev is unaffected, and live
+      // gets it whatever NODE_ENV the server runs with (docs/SECURITY-CHECKLIST.md #8).
+      hsts: { maxAge: 31_536_000, includeSubDomains: true },
     })
   );
 

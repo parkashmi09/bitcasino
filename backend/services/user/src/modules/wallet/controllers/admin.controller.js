@@ -1,7 +1,9 @@
 'use strict';
 
-const { response, asyncHandler } = require('@ibitplay/common');
-const { canIssueFunds, assertPlayerCapability } = require('@ibitplay/auth');
+const { response, asyncHandler, ForbiddenError } = require('@ibitplay/common');
+const { canIssueFunds, assertPlayerCapability, hasPermission } = require('@ibitplay/auth');
+
+const { PERMISSION } = require('../wallet.constants');
 
 /** Staff wallet operations. */
 function createAdminController({ service }) {
@@ -11,6 +13,11 @@ function createAdminController({ service }) {
      * @legacy POST /adminwalletadd
      */
     adjust: asyncHandler(async (req, res) => {
+      // The route accepts either grant; the direction must match its own, or a
+      // credit-only executive could debit players (and a debit-only one credit them).
+      const needed = req.body.operation === 'credit' ? PERMISSION.CREDIT : PERMISSION.DEBIT;
+      if (!hasPermission(req.staff.permissions, needed)) throw new ForbiddenError(`Missing required permission: ${needed}`);
+
       await service.assertPlayerVisible(req.staff.id, req.body.userId);
 
       // One key per submit (body, or the standard header). The same key again is

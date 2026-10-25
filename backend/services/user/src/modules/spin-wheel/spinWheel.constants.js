@@ -37,6 +37,8 @@ const DEPOSIT_SOURCES = Object.freeze([
   { provider: 'waypay', model: 'PayInTransactions', userColumn: 'user_id', userIdIsText: false, successValues: [1] },
   // `atColumn`: when the money landed. A manual deposit lands when staff approve it, not when it was filed.
   { provider: 'manual', model: 'FiatDeposits', userColumn: 'user_id', userIdIsText: false, successValues: ['approved', 'Approved'], atColumn: 'handled_at' },
+  // F2Pay lands when its callback settles the row.
+  { provider: 'f2pay', model: 'F2payDeposits', userColumn: 'user_id', userIdIsText: false, successValues: ['Success'], atColumn: 'updated_at' },
 ]);
 
 module.exports = { CODE_SOURCE, CODE_STATUS, CODE_LENGTH, DEPOSIT_SOURCES };

@@ -32,10 +32,6 @@ module.exports = Object.freeze({
     message: 'Set a notification email address before sending a test',
   },
 
-  /** Payment Methods: a currency the gateway takes no methods in (details `{ gateway, currency }`). */
-  PAYMENT_CURRENCY_NOT_TAKEN: { status: 422, message: 'This gateway takes no methods in that currency' },
-  /** Payment Methods: no such method on that gateway. */
-  PAYMENT_METHOD_NOT_FOUND: { status: 404, message: 'No such payment method' },
 
   /**
    * The body named nothing this endpoint is willing to write.

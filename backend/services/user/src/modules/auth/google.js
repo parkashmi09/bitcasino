@@ -25,8 +25,12 @@ const COOKIE_PATH = '/api/v1/user/auth/google';
 
 const configured = (config) => Boolean(config?.GOOGLE_CLIENT_ID && config?.GOOGLE_CLIENT_SECRET && config?.GOOGLE_REDIRECT_URI);
 
+/* The player tab's sessionStorage nonce (login-CSRF binding): the one-time code the callback mints
+   is only redeemable together with it, so a code lifted from someone else's flow is useless. */
+const NONCE = /^[A-Za-z0-9_-]{22,128}$/;
+
 /** The Google URL to send the browser to, and the signed cookie that must come back with it. */
-function startRequest(config) {
+function startRequest(config, nonce) {
   const state = crypto.randomBytes(24).toString('base64url');
   const verifier = crypto.randomBytes(32).toString('base64url');
   const challenge = crypto.createHash('sha256').update(verifier).digest('base64url');
@@ -40,18 +44,18 @@ function startRequest(config) {
     code_challenge_method: 'S256',
     prompt: 'select_account',
   })}`;
-  const cookie = jwt.sign({ state, verifier }, config.JWT_ACCESS_SECRET, { expiresIn: '10m', audience: STATE_AUDIENCE });
+  const cookie = jwt.sign({ state, verifier, nonce }, config.JWT_ACCESS_SECRET, { expiresIn: '10m', audience: STATE_AUDIENCE });
   return { url, cookie };
 }
 
-/** The PKCE verifier when the cookie is ours, unexpired and names this `state`; else null. */
+/** `{ verifier, nonce }` when the cookie is ours, unexpired and names this `state`; else null. */
 function verifierFor(cookieValue, state, config) {
   if (!cookieValue || !state) return null;
   try {
     const claims = jwt.verify(cookieValue, config.JWT_ACCESS_SECRET, { audience: STATE_AUDIENCE });
     const a = Buffer.from(String(claims.state));
     const b = Buffer.from(String(state));
-    return a.length === b.length && crypto.timingSafeEqual(a, b) ? claims.verifier : null;
+    return a.length === b.length && crypto.timingSafeEqual(a, b) ? { verifier: claims.verifier, nonce: claims.nonce } : null;
   } catch {
     return null;
   }
@@ -115,6 +119,7 @@ const usernameBase = (email) => (String(email).split('@')[0].replace(/[^A-Za-z0-
 module.exports = {
   COOKIE,
   COOKIE_PATH,
+  NONCE,
   configured,
   startRequest,
   verifierFor,

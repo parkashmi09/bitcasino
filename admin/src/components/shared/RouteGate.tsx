@@ -15,7 +15,7 @@ import { useHomeHref } from '@/hooks/use-nav-visible'
 
 const isRoute = (pathname: string, route: string) => pathname === route || pathname.startsWith(`${route}/`)
 
-type Refusal = 'promotions' | 'direct' | 'permission' | 'account'
+type Refusal = 'promotions' | 'direct' | 'permission' | 'account' | 'plan'
 
 /** Why the screen is closed, worded for the area the pasted URL points at. */
 const noticeReason = (pathname: string, reason: Refusal) => {
@@ -31,6 +31,7 @@ const noticeReason = (pathname: string, reason: Refusal) => {
 
   if (reason === 'direct') return 'Direct users are managed by the Super Admin and are not part of your account.'
   if (reason === 'account') return 'This screen is only for marketing logins.'
+  if (reason === 'plan') return 'This section is not part of the site right now.'
 
   return 'Your role does not include this screen. Ask the site operator if you need access.'
 }
@@ -71,7 +72,7 @@ export const NotAvailableNotice = ({ pathname = '', reason = 'promotions' }: { p
 const RouteGate = ({ children }: { children: ReactNode }) => {
   const pathname = usePathname()
   const router = useRouter()
-  const { actor, loading, can, flagsLoading } = useSession()
+  const { actor, loading, can, flagsLoading, flagEntitled } = useSession()
   const home = useHomeHref()
   const mustChange = actor?.mustChangePassword === true
 
@@ -104,6 +105,7 @@ const RouteGate = ({ children }: { children: ReactNode }) => {
   else if (direct && actor.direct !== true) refusal = 'direct'
   else if (required?.account === 'marketing' && actor.marketing !== true) refusal = 'account'
   else if (required && !required.permissions.every(p => can(p))) refusal = 'permission'
+  else if (required?.ownerFlags.some(f => !flagEntitled(f))) refusal = 'plan'
 
   if (refusal) return <NotAvailableNotice pathname={pathname} reason={refusal} />
 

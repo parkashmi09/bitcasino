@@ -61,6 +61,16 @@ const SOURCES = Object.freeze([
     currency: 'INR',
     statusValues: { success: ['Successful'], pending: ['Pending', 'Processing'], failed: ['Failed', 'Rejected', 'Error'] },
   },
+  {
+    // F2Pay (INR, USDT) — its own table, credited by the signed callback.
+    provider: 'f2pay',
+    model: 'F2payDeposits',
+    idColumn: 'id',
+    userColumn: 'user_id',
+    referenceColumn: 'mch_order_no',
+    userIdIsText: false,
+    statusValues: { success: ['Success'], pending: ['Pending'], failed: ['Failed'] },
+  },
 ]);
 
 /** Which bucket a raw provider status falls into. */

@@ -60,6 +60,14 @@ const DEPOSIT_SOURCES = Object.freeze([
     // USDT ≈ USD, and this table has no currency column.
     currency: 'USDT',
   },
+  {
+    provider: 'f2pay',
+    model: 'F2payDeposits',
+    idColumn: 'id',
+    userColumn: 'user_id',
+    userIdIsText: false,
+    successValues: ['Success'],
+  },
 ]);
 
 module.exports = { STATUS, DEPOSIT_SOURCES };

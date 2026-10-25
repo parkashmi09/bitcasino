@@ -24,7 +24,7 @@ const { WalletService } = require('../wallet/wallet.service');
 const { REASON } = require('../wallet/wallet.constants');
 const { FirstDepositBonusService } = require('../bonus/firstDepositBonus.service');
 const { notifyPlayer } = require('../notifications/notifyPlayer');
-const { withChannel } = require('../directory/playerScope');
+const { withChannel, assertPlayerVisible } = require('../directory/playerScope');
 
 /**
  * Manual fiat deposits — a player transfers money to the house's bank account,
@@ -408,6 +408,17 @@ class FiatDepositService {
       raw: true,
     });
     if (!row) throw errors.SCREENSHOT_NOT_FOUND({ depositId });
+
+    if (isStaff) {
+      // A staff reader opens only their own tree's receipts (as KYC documents); out of tree reads
+      // exactly like missing.
+      try {
+        await assertPlayerVisible(this, requesterId, row.user_id);
+      } catch (error) {
+        if (error?.status === 404) throw errors.SCREENSHOT_NOT_FOUND({ depositId });
+        throw error;
+      }
+    }
 
     if (!isStaff && Number(row.user_id) !== Number(requesterId)) {
       // Same error as absent: confirming it exists would leak that a deposit

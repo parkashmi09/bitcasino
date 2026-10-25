@@ -4,6 +4,16 @@ const { Router } = require('express');
 const { asyncHandler, createRateLimiter } = require('@ibitplay/common');
 
 const { SeamlessService } = require('../seamless.service');
+const { RESPONSE_CODES } = require('../seamless.constants');
+
+const bareIp = (ip) => String(ip ?? '').replace(/^::ffff:/, '');
+
+/** Refuses a callback from outside SEAMLESS_ALLOWED_IPS, in the provider's own envelope (HTTP 200). */
+function ipGuard(allowed = []) {
+  const list = new Set(allowed.map(bareIp));
+  return (req, res, next) =>
+    !list.size || list.has(bareIp(req.ip)) ? next() : res.json({ code: RESPONSE_CODES.INVALID_SIGN, message: 'Invalid sign' });
+}
 
 /**
  * The casino provider's seamless wallet callbacks.
@@ -24,7 +34,7 @@ const { SeamlessService } = require('../seamless.service');
  * body it does not understand becomes an infinite retry loop against a money
  * endpoint. The refusal has to be expressed in ITS vocabulary.
  */
-module.exports = function publicRoutes(deps) {
+function publicRoutes(deps) {
   const service = new SeamlessService(deps);
   const router = Router();
 
@@ -36,6 +46,8 @@ module.exports = function publicRoutes(deps) {
     max: 6000,
     enabled: deps.config.RATE_LIMIT_ENABLED !== false,
   });
+
+  router.use(ipGuard(deps.config.SEAMLESS_ALLOWED_IPS));
 
   const handle = (method) =>
     asyncHandler(async (req, res) => res.json(await service[method](req.body)));
@@ -56,4 +68,7 @@ module.exports = function publicRoutes(deps) {
   router.post('/pushbet', limiter, handle('pushBet'));
 
   return router;
-};
+}
+
+module.exports = publicRoutes;
+module.exports.ipGuard = ipGuard;

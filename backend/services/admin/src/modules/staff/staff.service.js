@@ -325,6 +325,9 @@ class StaffService {
         // it: they know the password now, so you must replace it.
         must_change_password: !self,
         ...(self ? { first_login: false } : {}),
+        // Ends every session of the target — the caller's own too on a self change — so a
+        // token stolen before the change stops working now, not in 8 h.
+        token_version: literal('token_version + 1'),
       },
       { where: { id: target } }
     );

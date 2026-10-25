@@ -3,10 +3,10 @@ import { BettingConfigService_default } from "../../../lib/services/BettingConfi
 import { MESSAGES } from "../../../lib/constants/messages.mjs";
 import { placeBet } from "../controllers/sportbetscontroller.mjs";
 import { isLineMarket } from "../../../lib/helper/lineMarket.mjs";
-import { isBadloBet } from "../../../lib/helper/badloMarket.mjs";
+import { isBadloBet, isBadloLeg } from "../../../lib/helper/badloMarket.mjs";
 import { leagueNameForBet } from "../../../lib/services/SportsLeagueResolver.mjs";
 import { isHiddenSport, isHiddenLeague } from "../../../lib/constants/hiddenSports.mjs";
-import { isLaySide, readBufferTick, finalSuspensionStatus, fancyOddsDrift, deriveBufferFlags, manualBetLiveCheck, autoBetCheck } from "./betBufferRules.mjs";
+import { isLaySide, readBufferTick, finalSuspensionStatus, fancyOddsDrift, deriveBufferFlags, feedRunners, manualBetLiveCheck, autoBetCheck } from "./betBufferRules.mjs";
 import { liveOdds_default } from "./liveOdds.mjs";
 import { cleanRef, betInflight_default } from "./betInflight.mjs";
 
@@ -112,6 +112,10 @@ async function runBetBuffer(body, sb, opts = {}) {
     const lineMarket = Boolean(flags?.lineMarket);
     const liveTracked = Boolean(flags?.liveTracked) && !ownLine && !lineMarket;
     const edited = bool(sb.edited) && liveTracked;
+    const runners = list && marketId ? feedRunners({ marketList: list, marketId }) : null;
+    if (runners && liveTracked && !runners.includes(String(body.selection_name ?? ""))) {
+      return reject(MESSAGES.BET.GAME_SUSPEND, "RUNNER_NOT_IN_MARKET");
+    }
     if (feedFlags && isLineMarket(body.market_type) && !feedFlags.lineMarket) {
       return reject(MESSAGES.BET.GAME_SUSPEND, "MARKET_TYPE_MISMATCH");
     }
@@ -167,7 +171,7 @@ async function runBetBuffer(body, sb, opts = {}) {
       if (!auto.accept) return reject(MESSAGES.BET.ODDS_CHANGE_NOT_CONFIRMED, `ODDS_MOVED:${selectedOdds}->${finalOdds}`);
       finalOdds = auto.finalOdds;
     }
-    return { accept: true, odds: finalOdds, size: finalSize, stake: finalStake, bufferSeconds, ticks, liveTicks };
+    return { accept: true, odds: finalOdds, size: finalSize, stake: finalStake, runners, bufferSeconds, ticks, liveTicks };
   } finally {
     if (canPoll) liveOdds_default.release(gmid);
   }
@@ -176,6 +180,12 @@ function applyDecision(body, d) {
   const odds = Number(Number(d.odds).toFixed(2));
   body.odds = odds;
   body.user_rate = odds;
+  // shortcut: with BET_FEED_FAIL_CLOSED=false and no feed, the slip's runners are kept.
+  if (d.runners) {
+    body.runners = d.runners;
+    body.team_one = d.runners[0] || "";
+    body.team_two = d.runners[1] || "";
+  }
   if (d.size > 0) {
     body.size = d.size;
     if (body.bet_type === "back" || body.bet_type === "yes") body.back_size = d.size;
@@ -192,6 +202,10 @@ var placeBetBuffered = async (req, res) => {
   // Sports / leagues this site does not offer (Politics, E Games, Virtual Cricket) are refused outright.
   if (isHiddenSport(req.body?.sid) || isHiddenLeague(null, req.body?.league_name)) {
     return res.status(400).json({ success: false, error: "This market is not available" });
+  }
+  // A lone badlo leg is a yes with no liability; badlo only goes through /place-combined.
+  if (isBadloLeg(req.body)) {
+    return res.status(400).json({ success: false, error: "A badlo yes needs a matching badlo no" });
   }
   let sb = req.body?.server_buffer;
   if (req.body) delete req.body.server_buffer;

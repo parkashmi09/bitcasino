@@ -2,6 +2,7 @@
 
 const { Op } = require('sequelize');
 const { AppError, money } = require('@ibitplay/common');
+const { PERMISSIONS, hasPermission } = require('@ibitplay/auth');
 
 const { StaffService } = require('../staff/staff.service');
 const { PlayersService } = require('../players/players.service');
@@ -95,6 +96,13 @@ class CreateAccountService {
    * @param {object} p.playerActor  PlayersService wala actor (req.staff)
    */
   async create({ staffActor, playerActor, username, email, password, phone, creditAmount, userType, percentage, transactionPassword }) {
+    // Route dono me se koi grant le leta hai; staff login banana staff:write hai
+    // (staff module ka create bhi yahi maangta hai), player users:write.
+    const neededGrant = userType === 'USER' ? PERMISSIONS.USERS_WRITE : PERMISSIONS.STAFF_WRITE;
+    if (!hasPermission(staffActor.permissions, neededGrant)) {
+      throw new AppError(`Missing required permission: ${neededGrant}`, 403, 'FORBIDDEN');
+    }
+
     // 1. Naam pehle — zip bhi sabse pehle duplicate check karta hai.
     if (await isUsernameTaken(this.models, username)) {
       throw new AppError(MESSAGES.USERNAME_EXISTS, 409, 'EXCHANGE_ACCOUNTS_USERNAME_EXISTS');

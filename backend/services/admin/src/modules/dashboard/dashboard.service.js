@@ -562,6 +562,7 @@ class DashboardService {
       this.#groupByCurrency(this.models.FiatDeposits, DEPOSIT_SUCCESS.fiat_deposits, 'created_at', since, 'currency', this.#ownerWhere(scope, 'user_id')),
       this.#groupByCurrency(this.models.Apaydeposits, DEPOSIT_SUCCESS.apaydeposits, 'created_at', since, 'currency', this.#ownerWhere(scope, 'user_id')),
       this.#groupPayIn(since, scope),
+      this.#groupByCurrency(this.models.F2payDeposits, DEPOSIT_SUCCESS.f2paydeposits, 'created_at', since, 'currency', this.#ownerWhere(scope, 'user_id')),
     ];
 
     const [lifetime, today, inRange] = await Promise.all([

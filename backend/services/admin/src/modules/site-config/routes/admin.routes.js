@@ -242,7 +242,7 @@ module.exports = function adminRoutes(deps) {
     )
   );
 
-  /** Settings → Payment Methods: the owner's enabled gateways, each with the Super Admin's switch. */
+  /** Settings → Payment Methods: the owner's enabled gateways, each with the Super Admin's ON / OFF switch (the only change here). */
   router.get(
     '/payment-gateways',
     auth.requirePermission(PERMISSIONS.CONFIG_READ),
@@ -270,43 +270,6 @@ module.exports = function adminRoutes(deps) {
           executiveId: req.staff?.executiveId ?? null,
         })
       )
-    )
-  );
-
-  // Payment Methods → one gateway currency's methods (F2Pay): add one, or switch one. Transaction code.
-  const methodActor = (req) => ({
-    transactionPassword: req.body.transactionPassword,
-    staffId: req.staff?.id ?? null,
-    executiveId: req.staff?.executiveId ?? null,
-  });
-
-  router.post(
-    '/payment-gateways/:name/methods',
-    auth.requirePermission(PERMISSIONS.CONFIG_WRITE),
-    validate(v.addPaymentMethod),
-    withActivity({
-      action: 'site-config.payment-method.add',
-      describe: (req) => ({
-        targetType: 'SITE_CONFIG', targetId: `${req.params.name}:${req.body.currency}:${req.body.code}`, details: { currency: req.body.currency, code: req.body.code },
-      }),
-    }),
-    asyncHandler(async (req, res) =>
-      response.ok(res, await service.addPaymentMethod({ name: req.params.name, currency: req.body.currency, code: req.body.code, ...methodActor(req) }))
-    )
-  );
-
-  router.put(
-    '/payment-gateways/:name/methods/:id',
-    auth.requirePermission(PERMISSIONS.CONFIG_WRITE),
-    validate(v.setPaymentMethod),
-    withActivity({
-      action: 'site-config.payment-method.toggle',
-      describe: (req) => ({
-        targetType: 'SITE_CONFIG', targetId: `${req.params.name}:method:${req.params.id}`, details: { enabled: req.body.enabled },
-      }),
-    }),
-    asyncHandler(async (req, res) =>
-      response.ok(res, await service.setPaymentMethod({ name: req.params.name, id: req.params.id, enabled: req.body.enabled, ...methodActor(req) }))
     )
   );
 

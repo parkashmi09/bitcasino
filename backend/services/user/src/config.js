@@ -51,6 +51,10 @@ const config = loadEnv(
     // reachable only through the endpoint that checks ownership first.
     DEPOSIT_STORAGE_DIR: coercers.str(path.resolve(__dirname, '../../../storage/deposits')),
 
+    // A localhost Origin skips the owner's player_session_minutes cap (dev copy of the player site
+    // against a shared API). Off by default: any script can send that header, so never on live.
+    SESSION_CAP_EXEMPT_LOCALHOST: coercers.bool(false),
+
     // Withdrawal policy.
     WITHDRAW_MINIMUM: coercers.str('1'),
     // A payout to an unverified identity is what AML rules exist to prevent.

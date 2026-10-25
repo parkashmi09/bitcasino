@@ -33,10 +33,10 @@ module.exports = function internalRoutes(deps) {
 
   router.get(
     '/verify',
-    validate({ query: z.object({ staffId: z.coerce.number().int().positive() }).strict() }),
+    validate({ query: z.object({ staffId: z.coerce.number().int().positive(), tv: z.coerce.number().int().min(0).optional() }).strict() }),
     asyncHandler(async (req, res) => {
       const staff = await models.Staff.findByPk(req.query.staffId, {
-        attributes: ['id', 'name', 'email', 'role_id', 'status'],
+        attributes: ['id', 'name', 'email', 'role_id', 'status', 'token_version'],
         raw: true,
       });
 
@@ -47,7 +47,9 @@ module.exports = function internalRoutes(deps) {
        * staff" — refuse the connection — and a 404 would make a transport
        * failure and a policy decision look the same to the code handling it.
        */
-      const active = Boolean(staff) && staff.status !== 'disabled' && staff.status !== 'inactive';
+      // `tv`: the token's version; logout / password change bump it to end older tokens.
+      const current = req.query.tv === undefined || Number(staff?.token_version ?? 0) === req.query.tv;
+      const active = Boolean(staff) && staff.status !== 'disabled' && staff.status !== 'inactive' && current;
 
       return response.ok(res, {
         active,

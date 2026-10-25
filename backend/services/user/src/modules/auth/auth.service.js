@@ -59,6 +59,9 @@ function withClientIp(context = {}) {
 
 const LOCKOUT_WINDOW_MINUTES = 15;
 const MAX_FAILED_ATTEMPTS = 8;
+// The email lookup is case-insensitive, so the lockout count must be too, or each case
+// variant of one email would get its own budget of guesses.
+const throttleKey = (identifier) => String(identifier ?? '').trim().toLowerCase().slice(0, 255);
 const SESSION_TTL_DAYS = 30;
 const LOCAL_ORIGIN = /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/;
 
@@ -252,10 +255,14 @@ class AuthService {
         session.expires_at
       );
 
-      await session.update(
+      // Rotate only a session nobody rotated meanwhile: two refreshes racing with one token both
+      // passed the check above. The loser is refused (its new session rolls back); the winner's
+      // chain is left alone, since a tab racing itself is not a stolen token.
+      const [rotated] = await this.models.AuthSession.update(
         { replaced_by: next.session.id, last_used_at: new Date() },
-        { transaction }
+        { where: { id: session.id, replaced_by: null }, transaction }
       );
+      if (!rotated) throw errors.REFRESH_TOKEN_REUSED();
 
       return next.payload;
     });
@@ -618,9 +625,11 @@ class AuthService {
   }
 
   /** `{ url, cookie }`: where to send the browser, and the signed state cookie to set first. */
-  googleStart() {
+  googleStart({ nonce } = {}) {
     if (!this.googleEnabled()) throw errors.GOOGLE_NOT_CONFIGURED();
-    return google.startRequest(this.config);
+    // No tab nonce, nothing to bind the code to: refuse up front rather than mint a dead code.
+    if (!google.NONCE.test(String(nonce ?? ''))) throw errors.GOOGLE_SIGNIN_FAILED();
+    return google.startRequest(this.config, nonce);
   }
 
   /**
@@ -637,8 +646,8 @@ class AuthService {
     if (!this.googleEnabled()) return back({ error: 'AUTH_GOOGLE_NOT_CONFIGURED' });
     const context = withClientIp(rawContext);
     try {
-      const verifier = google.verifierFor(cookie, state, this.config);
-      if (!verifier || !code) throw errors.GOOGLE_SIGNIN_FAILED();
+      const { verifier, nonce } = google.verifierFor(cookie, state, this.config) ?? {};
+      if (!verifier || !nonce || !code) throw errors.GOOGLE_SIGNIN_FAILED();
       let identity;
       try {
         const idToken = await google.exchangeCode({ code, verifier, config: this.config, fetchImpl });
@@ -651,9 +660,10 @@ class AuthService {
       const user = await this.#googleUser(identity, context);
       await this.#assertUsable(user);
       const oneTime = randomToken(32);
+      // Hashed with the starting tab's nonce: only the browser that began this flow can redeem it.
       await this.db.sequelize.query(
         `INSERT INTO oauth_login_codes (code_hash, user_id, expires_at) VALUES (:hash, :userId, NOW() + INTERVAL '2 minutes')`,
-        { replacements: { hash: hashToken(oneTime), userId: user.id } }
+        { replacements: { hash: hashToken(`${oneTime}.${nonce}`), userId: user.id } }
       );
       return back({ code: oneTime });
     } catch (error) {
@@ -679,20 +689,23 @@ class AuthService {
     return created;
   }
 
-  /** The one-time code → the usual token pair. Single use, two minutes. */
-  async googleExchange({ code }, rawContext = {}) {
+  /** The one-time code + the starting tab's nonce → the usual token pair. Single use, two minutes. */
+  async googleExchange({ code, nonce }, rawContext = {}) {
     const context = withClientIp(rawContext);
     const [rows] = await this.db.sequelize.query(
       `UPDATE oauth_login_codes SET used_at = NOW()
         WHERE code_hash = :hash AND used_at IS NULL AND expires_at > NOW()
         RETURNING user_id`,
-      { replacements: { hash: hashToken(String(code ?? '')) } }
+      { replacements: { hash: hashToken(`${code ?? ''}.${nonce ?? ''}`) } }
     );
     const userId = rows?.[0]?.user_id;
     if (!userId) throw errors.GOOGLE_CODE_INVALID();
     const user = await this.models.Users.findByPk(userId);
     if (!user) throw errors.GOOGLE_CODE_INVALID();
     await this.#assertUsable(user);
+    // Google proves the email, not the second factor: with 2FA on, the password sign-in (and its
+    // code) is the only way in, or a taken-over Google account would skip the code.
+    if (user.two_fa_status && user.two_fa) throw errors.GOOGLE_TWO_FACTOR_ON({ userId: user.id });
     await user.update({ last_login_at: new Date(), last_ip: context.ip || null });
     const session = await this.#issueSession(user, context);
     this.#trackLogin(user.id, context, 'login');
@@ -1070,11 +1083,13 @@ class AuthService {
      old end instead of starting a new one, and the access token never outlives it. Default 5
      (owner's call, 23 Oct 2026) when nothing is stored, also when admin-service is unreachable. Off (0), a
      rotation slides another 30 days as before. A session signed in before the setting was turned
-     on keeps its own end. A sign-in from a localhost page (the dev copy of the player site,
-     Origin set by the browser) is never cut short: the limit is for production players. */
+     on keeps its own end. A sign-in from a localhost page (the dev copy of the player site) is
+     never cut short, but only with SESSION_CAP_EXEMPT_LOCALHOST: Origin is a header any script
+     can send, so on live it would turn the cap off for whoever asks. */
   async #createSession(user, { ip, userAgent, origin, deviceLabel }, transaction, rotatedFrom = null) {
     const refreshToken = randomToken(48);
-    const minutes = LOCAL_ORIGIN.test(origin ?? '') ? 0 : Number(await this.settings.read('player_session_minutes', 5)) || 0;
+    const localExempt = this.config?.SESSION_CAP_EXEMPT_LOCALHOST === true && LOCAL_ORIGIN.test(origin ?? '');
+    const minutes = localExempt ? 0 : Number(await this.settings.read('player_session_minutes', 5)) || 0;
     const expiresAt =
       minutes > 0
         ? new Date(rotatedFrom ?? Date.now() + minutes * 60_000)
@@ -1147,7 +1162,7 @@ class AuthService {
   async #recordAttempt(identifier, ip, successful, failureReason) {
     try {
       await this.models.AuthLoginAttempt.create({
-        identifier: String(identifier).slice(0, 255),
+        identifier: throttleKey(identifier),
         ip_address: ip || null,
         successful,
         failure_reason: failureReason,
@@ -1169,7 +1184,7 @@ class AuthService {
 
     const [byIdentifier, byIp] = await Promise.all([
       this.models.AuthLoginAttempt.count({
-        where: { identifier, successful: false, created_at: { [Op.gte]: since } },
+        where: { identifier: throttleKey(identifier), successful: false, created_at: { [Op.gte]: since } },
       }),
       ip
         ? this.models.AuthLoginAttempt.count({

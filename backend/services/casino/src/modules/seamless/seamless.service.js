@@ -348,8 +348,10 @@ class SeamlessService {
       const originalId = String(tx?.id ?? '');
       if (!originalId) return { code: RESPONSE_CODES.API_ERROR, message: 'Transaction id is required' };
 
+      // The member's own movement only: the legacy signature does not cover member_account, so a
+      // rollback naming another player must not refund that player someone else's bet.
       const original = await this.models.SeamlessTransaction.findOne({
-        where: { transaction_id: originalId },
+        where: { transaction_id: originalId, user_id: userId },
         order: [['id', 'ASC']],
         raw: true,
       });

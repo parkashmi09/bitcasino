@@ -82,7 +82,8 @@ function attachSockets({ server, container }) {
     // `verify` throws on anything invalid — expired, wrong type, wrong secret.
     // The caller logs and treats the connection as signed-out.
     const payload = tokens.verify(token, TOKEN_TYPES.ACCESS);
-    return payload?.sub ? { userId: String(payload.sub) } : null;
+    // `expiresAt` lets the transport drop the identity when the token would stop working on HTTP.
+    return payload?.sub ? { userId: String(payload.sub), expiresAt: payload.exp * 1000 } : null;
   };
 
   /**
@@ -122,7 +123,7 @@ function attachSockets({ server, container }) {
      */
     try {
       const result = await container.clients.admin.get('/internal/admin/auth/verify', {
-        query: { staffId: payload.sub },
+        query: { staffId: payload.sub, tv: Number(payload.tv ?? 0) },
       });
 
       const body = result?.data ?? result;

@@ -7,9 +7,6 @@ const Footer = () => {
         <p>
           ©{new Date().getFullYear()} {siteConfig.name} · site-admin
         </p>
-        <p className='font-mono text-xs'>
-          {siteConfig.key} · {siteConfig.environment}
-        </p>
       </div>
     </footer>
   )

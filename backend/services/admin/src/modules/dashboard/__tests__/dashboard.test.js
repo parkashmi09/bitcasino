@@ -258,6 +258,26 @@ test('dashboard against a database', async (t) => {
     assert.equal(drilled.usd, seeded.usd);
   });
 
+  await t.test('an F2Pay deposit is in the drill-down and the headline total; a pending one is not', async () => {
+    const ref = `F2D-${player}`;
+    await models.F2payDeposits.bulkCreate([
+      { user_id: player, mch_order_no: ref, amount: '40', currency: 'TESTCOIN', status: 'Success' },
+      { user_id: player, mch_order_no: `${ref}-P`, amount: '7', currency: 'TESTCOIN', status: 'Pending' },
+    ]);
+    try {
+      const page = await service.movements({ actor: owner, kind: 'deposits', userId: player, source: 'f2pay_deposit', limit: 50, offset: 0 });
+      assert.equal(page.total, 1, 'only the paid one');
+      assert.deepEqual([page.rows[0].sourceLabel, page.rows[0].amount, page.rows[0].currency], ['F2Pay deposit', '40.00000000', 'TESTCOIN']);
+
+      // One row per source: the bank's 100 and F2Pay's 40, each at 2.5.
+      const overview = await service.overview({ actor: owner });
+      const testcoin = overview.deposits.lifetime.byCurrency.filter((c) => c.currency === 'TESTCOIN');
+      assert.ok(testcoin.some((c) => c.amount === '40.00000000' && c.usd === '100.00000000'), JSON.stringify(testcoin));
+    } finally {
+      await models.F2payDeposits.destroy({ where: { mch_order_no: [ref, `${ref}-P`] } });
+    }
+  });
+
   await t.test('a bank withdrawal is withdrawn when Approved or Paid', async () => {
     // Since ebfcdc0 a bank withdrawal goes In Queue → Approved → Paid; legacy
     // rows stop at Approved. cc354f8 dropped Approved, so legacy payouts left

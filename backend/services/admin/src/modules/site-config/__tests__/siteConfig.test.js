@@ -467,7 +467,7 @@ test('site-config', async (t) => {
     await setRewardCurrency(null);
   });
 
-  await t.test('payment gateways: only the ones the owner has on, each with the Super Admin switch and the transaction password', async () => {
+  await t.test('payment gateways: only the ones the owner has on, each with the Super Admin ON / OFF and the transaction password', async () => {
     await seedConfig();
     // A staff member whose login and transaction password are both TXN (either TXN_PASSWORD_MODE).
     const TXN = 'payment methods txn';
@@ -484,12 +484,15 @@ test('site-config', async (t) => {
     });
     const as = (name, enabled, transactionPassword = TXN) => service.setPaymentGateway({ name, enabled, staffId, transactionPassword });
 
-    entitlements.configureEntitlements({ read: () => ({ features: {}, flags: { gateway_cricpay: false, f2pay_inr: false } }) });
+    const plan = (flags) => entitlements.configureEntitlements({ read: () => ({ features: {}, flags: { gateway_cricpay: false, ...flags } }) });
+    plan({});
     const states = (list) => list.map((g) => [g.name, g.enabled]);
+    const f2pay = async () => (await service.paymentGateways()).find((g) => g.name === 'f2pay');
+    const codesIn = async (code) => (await f2pay()).currencies.find((c) => c.code === code).methods.map((m) => m.code);
     try {
       assert.deepEqual(states(await service.paymentGateways()), [['ccpayment', true], ['apay', true], ['waypay', true], ['upi', true], ['f2pay', true]]);
-      const f2pay = (await service.paymentGateways()).find((g) => g.name === 'f2pay');
-      assert.deepEqual(f2pay.currencies.map((c) => [c.key, c.enabled]), [['f2pay_idr', true]], 'only the currencies the owner has on');
+      assert.deepEqual((await f2pay()).currencies.map((c) => c.key), ['f2pay_inr', 'f2pay_usdt'], 'F2Pay is INR and crypto');
+      assert.ok((await codesIn('INR')).includes('UpiMixed'), 'shown with its methods');
 
       await assert.rejects(() => as('apay', false, ''), (err) => err.code === 'TXN_PASSWORD_REQUIRED');
       await assert.rejects(() => as('apay', false, 'wrong'), (err) => err.code === 'TXN_PASSWORD_INVALID');
@@ -499,40 +502,31 @@ test('site-config', async (t) => {
       assert.deepEqual(await service.paymentGatewaysOff(), ['apay'], 'what user-service reads');
       await as('apay', true);
 
-      // One currency of a gateway: the same list, under the owner's key.
-      await as('f2pay_idr', false);
-      assert.deepEqual(await service.paymentGatewaysOff(), ['f2pay_idr']);
-      await as('f2pay_idr', true);
-      assert.deepEqual(await service.paymentGatewaysOff(), []);
+      // F2Pay as a whole is the Super Admin's one switch; its currencies and methods are the owner's.
+      await as('f2pay', false);
+      assert.deepEqual(await service.paymentGatewaysOff(), ['f2pay']);
+      await as('f2pay', true);
+      assert.equal(v.setPaymentGateway.params.safeParse({ name: 'f2pay_inr' }).success, false, 'a currency is not a Super Admin switch');
+      assert.equal(v.setPaymentGateway.params.safeParse({ name: 'f2pay' }).success, true);
 
-      // A gateway or currency the owner has off is not the Super Admin's to switch.
-      await assert.rejects(() => as('cricpay', true), (err) => err.status === 403);
-      await assert.rejects(() => as('f2pay_inr', true), (err) => err.status === 403);
-
-      // A gateway currency's methods (payment_methods): the Super Admin adds and switches, with the code.
-      const idr = async () => (await service.paymentGateways()).find((g) => g.name === 'f2pay').currencies.find((c) => c.code === 'IDR').methods;
-      const add = (code, currency = 'IDR', transactionPassword = TXN) => service.addPaymentMethod({ name: 'f2pay', currency, code, staffId, transactionPassword });
-      await assert.rejects(() => add('OVO_TEST', 'IDR', 'wrong'), (err) => err.code === 'TXN_PASSWORD_INVALID');
-      await add('OVO_TEST');
-      const ovo = (await idr()).find((m) => m.code === 'OVO_TEST');
-      assert.deepEqual([ovo.enabled, ovo.addedBy, ovo.updatedBy], [true, 'site', `staff:${staffId}`], 'stored with who added it');
-      await service.setPaymentMethod({ name: 'f2pay', id: ovo.id, enabled: false, staffId, transactionPassword: TXN });
-      assert.equal((await idr()).find((m) => m.code === 'OVO_TEST').enabled, false);
-      await assert.rejects(() => add('X_TEST', 'INR'), (err) => err.status === 403, 'INR is off at the owner');
-
-      // The owner's document: switches the site's OVO_TEST off and adds GOPAY_TEST …
-      await service.applyOwnerPaymentMethods({ source: 'owner', paymentMethods: { f2pay: { IDR: [{ code: 'OVO_TEST', active: false }, { code: 'GOPAY_TEST', active: true }] } } });
-      let codes = (await idr()).map((m) => m.code);
+      // The owner's document: switches a site-listed OVO_TEST off and adds GOPAY_TEST …
+      await connection.models.PaymentMethod.create({ gateway: 'f2pay', currency: 'INR', code: 'OVO_TEST', added_by: 'site' });
+      await service.applyOwnerPaymentMethods({ source: 'owner', paymentMethods: { f2pay: { INR: [{ code: 'OVO_TEST', active: false }, { code: 'GOPAY_TEST', active: true }] } } });
+      let codes = await codesIn('INR');
       assert.ok(!codes.includes('OVO_TEST') && codes.includes('GOPAY_TEST'), codes.join());
-      await assert.rejects(() => add('OVO_TEST'), (err) => err.status === 403, 'owner-off is the owner’s');
       // … then lists nothing: its own goes off, the site's is the site's again (missing = on).
       await service.applyOwnerPaymentMethods({ source: 'owner', paymentMethods: {} });
-      codes = (await idr()).map((m) => m.code);
+      codes = await codesIn('INR');
       assert.ok(codes.includes('OVO_TEST') && !codes.includes('GOPAY_TEST'), codes.join());
+
+      // The owner switches a currency off: the Super Admin no longer sees it. A gateway the owner has off is not the Super Admin's.
+      plan({ f2pay_usdt: false });
+      assert.deepEqual((await f2pay()).currencies.map((c) => c.key), ['f2pay_inr']);
+      await assert.rejects(() => as('cricpay', true), (err) => err.status === 403);
     } finally {
       entitlements.resetEntitlements();
       await connection.models.Staff.destroy({ where: { id: staffId } });
-      await connection.models.PaymentMethod.destroy({ where: { code: ['OVO_TEST', 'GOPAY_TEST', 'X_TEST'] } });
+      await connection.models.PaymentMethod.destroy({ where: { code: ['OVO_TEST', 'GOPAY_TEST'] } });
     }
   });
 

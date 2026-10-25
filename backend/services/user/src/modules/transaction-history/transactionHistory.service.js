@@ -182,32 +182,22 @@ class TransactionHistoryService {
    * `modules/crypto-withdraw`. This is the read-only view; nothing here can
    * change a withdrawal's state, which is the point of the split.
    */
-  async withdrawals({ userId, currency, status, from, to, limit, offset }) {
-    const result = await this.models.FiatWithdrawals.findAndCountAll({
-      where: {
-        ...(userId ? { uid: userId } : {}),
-        ...(currency ? { currency } : {}),
-        ...(status ? { status } : {}),
-        ...this.#dateRange('date', from, to),
-      },
-      order: [['id', 'DESC']],
-      limit,
-      offset,
-      raw: true,
-    });
-
+  /**
+   * Admin Transactions → Deposit / Withdraw → Fiat: every payment-gateway rail (F2Pay, A-Pay, WayPay),
+   * all players, newest first. Crypto and manual (bank transfer) have their own tabs.
+   */
+  async gatewayTransactions({ kind, ...query }) {
+    const sources = (kind === 'withdrawal' ? WITHDRAWAL_SOURCES : DEPOSIT_SOURCES).filter((s) => s.method !== 'crypto' && s.method !== 'manual');
+    const { count, rows } = await this.#fromSources(sources, { ...query, kind });
     return {
-      count: result.count,
-      rows: result.rows.map((r) => ({
-        id: r.id,
-        userId: r.uid,
-        amount: money.toDecimalString(money.toMinor(r.amount ?? '0')),
-        currency: r.currency,
-        status: r.status,
-        createdAt: r.date,
+      count,
+      rows: rows.map((r) => ({
+        provider: r.method, id: r.id, userId: r.userId, reference: r.reference ?? null,
+        amount: r.amount, currency: r.currency, status: r.status, createdAt: r.date,
       })),
     };
   }
+
 
   async withdrawalStats({ userId, currency }) {
     return this.#sumBy(this.models.FiatWithdrawals, {

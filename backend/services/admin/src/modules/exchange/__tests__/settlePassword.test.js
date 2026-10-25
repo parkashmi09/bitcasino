@@ -15,8 +15,25 @@ test('points settle refuses an owner who has no transaction password set (no sil
     config: {},
   });
   await assert.rejects(
-    service.settle({ actor: { id: 1, canIssueFunds: true }, accountType: 'user', accountId: '1', points: 10, remark: 'x' }),
+    service.settle({ actor: { id: 1, canIssueFunds: true, permissions: ['*'] }, accountType: 'user', accountId: '1', points: 10, remark: 'x' }),
     (e) => e.code === 'TXN_PASSWORD_NOT_SET'
   );
   assert.equal(settled, false);
+});
+
+test('points settle binds the direction to its grant: credit-only cannot W, debit-only cannot D', async () => {
+  let reached = false;
+  const service = new ExchangeService({
+    models: { Staff: { findByPk: async () => { reached = true; return null; } } },
+    db: { transaction: async () => { reached = true; } },
+    logger: { info() {} },
+    config: {},
+  });
+  for (const [permissions, points] of [[['wallet:credit'], -10], [['wallet:debit'], 10]]) {
+    await assert.rejects(
+      service.settle({ actor: { id: 9, permissions }, accountType: 'user', accountId: '1', points, remark: 'x' }),
+      (e) => e.status === 403
+    );
+  }
+  assert.equal(reached, false);
 });

@@ -44,15 +44,30 @@ module.exports = function publicRoutes(deps) {
   router.post('/place-combined', enabled, authMiddleware, controller('placeCombinedBet'));
   router.post('/cancel-bet', authMiddleware, controller('cancelBet'));
 
+  /* These routes take `user_id` from the query/body (the TENEXCH shape the frontend sends). A
+     player may only ever read their OWN rows: after auth, the id is the token's, whatever was sent
+     (docs/SECURITY-CHECKLIST.md, 2026-10-25 findings). */
+  const ownUser = (req, _res, next) => {
+    const id = String(req.user?.account?.id ?? '');
+    if (req.query) req.query.user_id = id;
+    if (req.body && typeof req.body === 'object') req.body.user_id = id;
+    next();
+  };
+  // Every bet on an event, with usernames: staff and the owner only, never a player or a visitor.
+  const staffOnly = (req, res, next) =>
+    req.user?.account?.type && req.user.account.type !== 'USER'
+      ? next()
+      : res.status(403).json({ success: false, error: 'Staff only' });
+
   // ── exposure ────────────────────────────────────────────────────────
-  router.post('/matchexposures/match', authMiddleware, Exposure('getExposureById'));
+  router.post('/matchexposures/match', authMiddleware, ownUser, Exposure('getExposureById'));
 
   // ── current / open bets ─────────────────────────────────────────────
   router.get('/fancy-bets', authMiddleware, controller('getFancyBets'));
   router.get('/cricket/sports-bets/user', authMiddleware, Cricket('getSportsBetsByUserId'));
-  router.get('/cricket/user-open-bets', Cricket('getUserOpenBetsForEvent'));
-  router.get('/cricket/user-open-bets-grouped', Cricket('getUserOpenBetsGrouped')); // { matchedBets, unmatchedBets } split
-  router.get('/cricket/matched-bets/all', Cricket('getMatchedBetsByEvent')); // total bets on particular event - admin
+  router.get('/cricket/user-open-bets', authMiddleware, ownUser, Cricket('getUserOpenBetsForEvent'));
+  router.get('/cricket/user-open-bets-grouped', authMiddleware, ownUser, Cricket('getUserOpenBetsGrouped')); // { matchedBets, unmatchedBets } split
+  router.get('/cricket/matched-bets/all', authMiddleware, staffOnly, Cricket('getMatchedBetsByEvent')); // total bets on particular event - admin
 
   return router;
 };

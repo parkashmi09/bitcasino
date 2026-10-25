@@ -125,7 +125,9 @@ const revokeSession = {
 };
 
 /** The one-time code the Google callback handed the player site. */
-const googleExchange = { body: z.object({ code: z.string().trim().min(16).max(128) }).strict() };
+const googleExchange = {
+  body: z.object({ code: z.string().trim().min(16).max(128), nonce: z.string().regex(/^[A-Za-z0-9_-]{22,128}$/) }).strict(),
+};
 
 module.exports = {
   googleExchange,

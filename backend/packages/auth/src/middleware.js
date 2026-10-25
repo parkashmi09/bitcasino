@@ -265,6 +265,11 @@ function createAuthMiddleware({ config, loadUser, loadStaff, cache = null }) {
           throw new ForbiddenError(`Staff account is ${staff.status}`);
         }
         if (staff.system_locked) throw new ForbiddenError('Staff account is locked');
+        // Ended by logout, a password change/reset or a 2FA change: those bump the row's version.
+        // A token minted before the column existed carries no `tv`, read as 0.
+        if (Number(payload.tv ?? 0) !== Number(staff.token_version ?? 0)) {
+          throw new UnauthorizedError('Staff session has ended; sign in again', { code: 'SESSION_REVOKED' });
+        }
         // Suspended or locked ANYWHERE above (resolveStaff walks staff_hierarchy):
         // suspending an upline stops every session beneath it immediately.
         if (staff.uplineBlocked) throw new ForbiddenError('Staff account is blocked by an upline account');

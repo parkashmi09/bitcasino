@@ -1,5 +1,5 @@
 import { serverConfig } from '@/configs/site'
-import { decodeToken, readSessionToken } from '@/lib/auth/session'
+import { clearSessionToken, decodeToken, readSessionToken } from '@/lib/auth/session'
 
 export const dynamic = 'force-dynamic'
 
@@ -27,6 +27,10 @@ export async function GET() {
     })
 
     if (res.status === 401) {
+      // Expired or revoked (logout / password or 2FA change elsewhere): drop the cookie, or the
+      // proxy keeps sending /login back to /dashboard while the token's `exp` is still ahead.
+      await clearSessionToken()
+
       return Response.json({ success: false, error: { code: 'UNAUTHENTICATED', message: 'Session expired' } }, { status: 401 })
     }
 

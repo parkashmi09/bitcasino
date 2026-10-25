@@ -242,3 +242,11 @@ test('rate limiting', async (t) => {
     limiter.stop();
   });
 });
+
+test('the client IP is the x-forwarded-for entry the gateway appended (the last)', () => {
+  const { ipOf } = require('../src/createSocketServer');
+  // The gateway's HTTP proxy (socket.io polling) keeps the client's own header in front.
+  const socket = { handshake: { headers: { 'x-forwarded-for': '203.0.113.9, 198.51.100.7' }, address: '10.0.0.2' } };
+  assert.equal(ipOf(socket), '198.51.100.7');
+  assert.equal(ipOf({ handshake: { headers: {}, address: '10.0.0.2' } }), '10.0.0.2');
+});

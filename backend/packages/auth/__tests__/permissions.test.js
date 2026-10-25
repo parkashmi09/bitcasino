@@ -123,6 +123,26 @@ test('a staff token is refused when an upline account is suspended or locked', a
   assert.equal(await call(), undefined, 'reactivated upline: the same token works again');
 });
 
+test('a staff token is refused once logout / a password or 2FA change bumps token_version', async () => {
+  const config = { JWT_ACCESS_SECRET: 'test-access-secret-0123456789', JWT_REFRESH_SECRET: 'test-refresh-secret-0123456789' };
+  const tokens = new TokenService(config);
+  let row = { id: 5, status: 'active', level: 6, permissions: ['*'], token_version: 0 };
+  const auth = createAuthMiddleware({ config, loadStaff: async () => row });
+  const guard = auth.authenticateStaff();
+  const call = (token) =>
+    new Promise((resolve) => {
+      guard({ method: 'GET', originalUrl: '/api/v1/admin/staff', headers: { authorization: `Bearer ${token}` } }, {}, (err) => resolve(err));
+    });
+
+  const old = tokens.signAdminToken({ staffId: 5, roleId: 6, level: 6 });
+  assert.equal(await call(old), undefined, 'a token without `tv` matches the column default 0');
+  row = { ...row, token_version: 1 };
+  const err = await call(old);
+  assert.ok(err);
+  assert.equal(err.status, 401);
+  assert.equal(await call(tokens.signAdminToken({ staffId: 5, roleId: 6, level: 6, tokenVersion: 1 })), undefined, 'a fresh sign-in works');
+});
+
 test('only a Super Admin issues funds — level 1, not 0', () => {
   assert.equal(canIssueFunds({ level: 1 }), true);
   assert.equal(canIssueFunds({ level: '1' }), true);

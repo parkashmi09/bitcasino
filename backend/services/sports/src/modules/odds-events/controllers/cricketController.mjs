@@ -466,7 +466,7 @@ var CricketController = {
         });
       }
       const page = parseInt(req.query.page) || 1;
-      const limit = parseInt(req.query.limit) || 50;
+      const limit = Math.min(parseInt(req.query.limit) || 50, 200);
       const offset = (page - 1) * limit;
       const { count, rows } = await SportsBet_default.findAndCountAll({
         where: {
@@ -478,7 +478,7 @@ var CricketController = {
           attributes: ["username"],
           required: false
         }],
-        attributes: { exclude: ["job_id"] },
+        attributes: { exclude: ["job_id", "ip_address"] },
         order: [["created_at", "DESC"]],
         limit,
         offset,

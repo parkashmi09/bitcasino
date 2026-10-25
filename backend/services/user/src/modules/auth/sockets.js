@@ -112,8 +112,8 @@ function register({ on, deps }) {
          * never update it — which is why it had a separate `C.ONLINE_LOGGED`
          * round trip just to re-authenticate the socket it was already on.
          */
-        context.userId = session.user.id;
-        context.socket.join(`user:${session.user.id}`);
+        // Through `bind`, so the identity carries the new token's expiry like every other one.
+        await context.bind(session.accessToken);
 
         return ok({
           uid: String(session.user.id),

@@ -118,8 +118,8 @@ test('points settlement and the account list', async (t) => {
   const dec = (v) => Number(money.fromStored(v ?? '0'));
   const playerWallet = (uid) => models.Credits.findOne({ where: { uid }, raw: true });
   const staffWallet = (id) => models.StaffCredits.findOne({ where: { staff_id: id }, raw: true });
-  const ownerActor = (id) => ({ id, level: 1, canIssueFunds: true });
-  const agentActor = (id) => ({ id, level: 6, canIssueFunds: false });
+  const ownerActor = (id) => ({ id, level: 1, canIssueFunds: true, permissions: ['*'] });
+  const agentActor = (id) => ({ id, level: 6, canIssueFunds: false, permissions: ['wallet:credit', 'wallet:debit'] });
   const settle = (actor, accountId, points, accountType = 'user') =>
     exchange.settle({ actor, accountType, accountId, points, transactionPassword: TXN_PASSWORD });
 

@@ -68,7 +68,7 @@ class TokenService {
   }
 
   /** Staff token. Permissions are embedded so routine checks need no DB round trip. */
-  signAdminToken({ staffId, roleId, roleName, level, executiveId = null, permissions = null }) {
+  signAdminToken({ staffId, roleId, roleName, level, executiveId = null, permissions = null, tokenVersion = 0 }) {
     return jwt.sign(
       {
         sub: String(staffId),
@@ -76,6 +76,8 @@ class TokenService {
         roleId,
         roleName,
         level,
+        // `staff.token_version` at issue; the guard refuses it once logout / a password or 2FA change bumps it.
+        tv: Number(tokenVersion) || 0,
         ...(executiveId ? { executiveId } : {}),
         ...(permissions ? { permissions } : {}),
       },

@@ -23,7 +23,7 @@ module.exports = function userRoutes(deps) {
   // The owner's plan (docs/OWNER-PANEL.md §4): casino and the game's provider
   // and category — or `sports` for the sportsbook and esports books, which
   // launch through v2 like any slot. See `games/gameEntitlement.js`.
-  const entitled = requireGameEntitled(deps, (req) => ({ uid: req.body.gameUid }));
+  const entitled = requireGameEntitled(deps, (req) => ({ uid: req.body.gameUid }), { mustExist: true });
 
   /** @legacy POST /jsGames/game/launch */
   router.post('/v1/launch', validate(v.launchV1), entitled, ctrl.launchV1);

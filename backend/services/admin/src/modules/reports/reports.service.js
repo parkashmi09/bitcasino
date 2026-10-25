@@ -1557,6 +1557,15 @@ class ReportsService {
       push(row.created_at, 'Deposit', 'CREDIT', `Gateway deposit${row.order_id ? ` (${row.order_id})` : ''}`, row.amount, Number(row.id) || 0);
     }
 
+    // 3b. F2Pay deposits (INR, USDT) — credited when F2Pay's callback settles them (`updated_at`).
+    const f2payDeposits = await this.models.F2payDeposits.findAll({
+      where: { user_id: uid, currency: { [Op.iLike]: currency }, status: 'Success' },
+      raw: true,
+    });
+    for (const row of f2payDeposits) {
+      push(row.updated_at ?? row.created_at, 'Deposit', 'CREDIT', `F2Pay deposit (${row.mch_order_no})`, row.amount, Number(row.id) || 0);
+    }
+
     // 4. Bank withdrawals. Anything not rejected still holds the money out.
     const fiatWithdrawals = await this.models.FiatWithdrawals.findAll({
       where: {

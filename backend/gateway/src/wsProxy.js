@@ -40,10 +40,16 @@ function attachWsProxy(server, { targets, logger }) {
     const base = new URL(target);
     const transport = base.protocol === 'https:' ? https : http;
     const remote = (socket.remoteAddress || '').replace(/^::ffff:/, '');
+    /* The client's address, resolved HERE as the HTTP side resolves it (TRUST_PROXY=1: one proxy
+       in front, so the last address it appended). Sent alone: the socket server reads the first
+       entry, and appending kept the client's own forged value first — a fake IP per attempt then
+       walked past the per-IP login limit and the region block. */
+    const chain = String(req.headers['x-forwarded-for'] ?? '').split(',').map((s) => s.trim()).filter(Boolean);
+    const client = chain.length ? chain[chain.length - 1] : remote;
     const headers = {
       ...req.headers,
       host: base.host,
-      'x-forwarded-for': [req.headers['x-forwarded-for'], remote].filter(Boolean).join(', '),
+      'x-forwarded-for': client,
       'x-forwarded-proto': socket.encrypted ? 'https' : 'http',
       'x-forwarded-host': req.headers.host || '',
     };

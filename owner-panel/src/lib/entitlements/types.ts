@@ -58,8 +58,8 @@ export type EntitlementsDoc = {
   withdrawalDailyLimit?: WithdrawalDailyLimit
 
   /**
-   * Payment gateway deposit methods per currency (./paymentMethods), e.g. F2Pay's UPI for INR and
-   * QRIS / DANA … for IDR, each active or not. Absent in an older document = none listed.
+   * Payment gateway deposit methods per currency (./paymentMethods), e.g. F2Pay's UPI for INR, each
+   * active or not. Absent in an older document = none listed.
    */
   paymentMethods?: PaymentMethods
 

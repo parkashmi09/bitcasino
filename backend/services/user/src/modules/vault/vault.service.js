@@ -111,6 +111,10 @@ class VaultService {
         throw error;
       }
 
+      // A replayed key moved no money (same coin + amount within the minute):
+      // opening a deposit for it would mint vault balance with no debit behind it.
+      if (movement.replayed) throw errors.DUPLICATE_REQUEST();
+
       const deposit = await this.models.VaultPro.create(
         {
           userid: userId,

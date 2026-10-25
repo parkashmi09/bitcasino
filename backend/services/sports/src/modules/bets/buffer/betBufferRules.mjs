@@ -97,6 +97,13 @@ function deriveBufferFlags({ marketList, marketId }) {
     marketType: mname
   };
 }
+// The market's runner names as the feed lists them (what the slip's `runners` is built from).
+// placeBet works the per-runner book off this list, so it must never come from the request.
+function feedRunners({ marketList, marketId }) {
+  const mkt = findMarket(marketList, marketId);
+  const names = (mkt?.section || []).map((s) => String(s?.nat || ""));
+  return names.length ? names : null;
+}
 function manualBetLiveCheck({ betType, editedOdds, liveOdds }) {
   const accept = isLaySide(betType) ? liveOdds <= editedOdds + EPSILON : liveOdds >= editedOdds - EPSILON;
   return { accept, finalOdds: liveOdds };
@@ -120,4 +127,4 @@ function readMarketList(body) {
   return Array.isArray(node) ? node : null;
 }
 
-export { isLaySide, readBufferTick, finalSuspensionStatus, fancyOddsDrift, deriveBufferFlags, manualBetLiveCheck, autoBetCheck, readMarketList };
+export { isLaySide, readBufferTick, finalSuspensionStatus, fancyOddsDrift, deriveBufferFlags, feedRunners, manualBetLiveCheck, autoBetCheck, readMarketList };

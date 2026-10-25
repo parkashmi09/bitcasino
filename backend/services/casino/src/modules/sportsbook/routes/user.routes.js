@@ -51,7 +51,8 @@ module.exports = function userRoutes(deps) {
    * the book the frontend opens, so the feed's guard alone closed nothing.
    * `logout` and `sessions` stay open so a player can still end one.
    */
-  const sports = entitlements.requireFlag('sports');
+  // The owner's sports switch AND sportsbook mode (off by default; on, it replaces the exchange).
+  const sports = [entitlements.requireFlag('sports'), entitlements.requireFlag('sportsbook')];
 
   /** @legacy POST /sportsbooks/init */
   router.post('/init', sports, limiter, validate(v.init), ctrl.init);

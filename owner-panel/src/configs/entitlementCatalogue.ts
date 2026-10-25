@@ -397,16 +397,7 @@ const CATALOGUE: FeatureEntry[] = [
       { key: 'none', label: 'Off', description: 'No tips.' }
     ]
   },
-  {
-    key: 'p2p',
-    label: 'P2P trading',
-    category: 'wallet',
-    flag: null,
-    variants: [
-      { key: 'order_book', label: 'P2P trading', description: 'Players buy and sell crypto against staff-run fiat offers (GET /user/p2p/offers, POST /user/p2p/orders, /sell-orders), with payment proofs, disputes and a staff release desk.' },
-      { key: 'none', label: 'Off', description: 'No P2P trading.' }
-    ]
-  },
+  // P2P trading is not offered for now (backend module unmounted as modules/_p2p), so it has no switch.
   {
     key: 'chat',
     label: 'Chat / social / presence',
@@ -533,7 +524,7 @@ export const FLAG_GROUPS: FlagGroup[] = [
   {
     title: 'Products',
     description: 'Whole sections of the site. Off hides the section and its navigation.',
-    keys: ['casino', 'sports', 'lotto', 'vipclub', 'clubmembership', 'bonus', 'affiliate', 'giftcards', 'welcomepack', 'wheelspin', 'provablyfair']
+    keys: ['casino', 'sports', 'sportsexchange', 'sportsbook', 'lotto', 'vipclub', 'clubmembership', 'bonus', 'affiliate', 'giftcards', 'welcomepack', 'wheelspin', 'provablyfair']
   },
   {
     title: 'Game categories',
@@ -563,8 +554,8 @@ export const FLAG_GROUPS: FlagGroup[] = [
   {
     // Not "… currencies": a title matching /currenc/i is read as a coin group (lib/entitlements/siteCoins.ts).
     title: 'F2Pay',
-    description: 'The wallet currencies F2Pay opens for: a player depositing in an ON one is offered F2Pay and pays in it. Several may be on.',
-    keys: ['f2pay_inr', 'f2pay_idr']
+    description: 'What F2Pay is active for: INR (UPI) and crypto (USDT). ON = a player depositing in it is offered F2Pay and pays in it. The site admin sees these and can only switch F2Pay as a whole.',
+    keys: ['f2pay_inr', 'f2pay_usdt']
   },
   {
     title: 'Home page sections',
@@ -586,12 +577,22 @@ export const FLAG_GROUPS: FlagGroup[] = [
   }
 ]
 
+/* Flags that read OFF when the stored document has no value: switching one on changes what the
+   site IS (the sportsbook replaces the exchange), so it never happens by default or by "Allow all".
+   Same set in backend/packages/common/src/entitlements.js. */
+export const DEFAULT_OFF_FLAGS = new Set(['sportsbook'])
+
+/* Sports runs one mode at a time: switching one of these on switches the other off. */
+export const EXCLUSIVE_FLAGS: Record<string, string> = { sportsbook: 'sportsexchange', sportsexchange: 'sportsbook' }
+
 export const FEATURE_KEYS = FEATURE_CATALOGUE.map(f => f.key)
 export const FLAG_KEYS = [...new Set(FLAG_GROUPS.flatMap(g => g.keys))]
 
 export const FLAG_LABELS: Record<string, string> = {
   casino: 'Casino',
   sports: 'Sports (kill switch: off refuses every new bet, open bets still settle)',
+  sportsexchange: 'Sports exchange (our own exchange: markets, back/lay, agent system)',
+  sportsbook: 'Sportsbook (third-party book in an iframe; on hides the whole exchange)',
   lotto: 'Lottery',
   vipclub: 'VIP club',
   clubmembership: 'Club membership',
@@ -622,7 +623,7 @@ export const FLAG_LABELS: Record<string, string> = {
   gateway_upi: 'UPI (EkQR)',
   gateway_f2pay: 'F2Pay (deposits)',
   f2pay_inr: 'INR (UPI)',
-  f2pay_idr: 'IDR (QRIS, DANA, CIMB, BRI, MANDIRI, BNI)',
+  f2pay_usdt: 'Crypto (USDT, TRC20)',
   idr: 'IDR',
   home_heroSection: 'Hero carousel',
   home_welcomebanner: 'Welcome banner',

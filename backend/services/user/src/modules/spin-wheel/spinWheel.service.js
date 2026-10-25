@@ -397,10 +397,14 @@ class SpinWheelService {
        * until the first has committed its new claim row — and then reads it,
        * and fails the cooldown. Without it both read the same last claim.
        *
-       * A player with no history locks no rows, which is correct: their first
-       * spin is free and there is nothing to serialise against except the
-       * insert itself.
+       * A player with no history locks no rows, so concurrent first spins all
+       * passed and each left an ACTIVE code. The per-player advisory lock
+       * (released at commit) makes them wait; the read after it sees the claim.
        */
+      await this.db.sequelize.query('SELECT pg_advisory_xact_lock(hashtext(:key))', {
+        replacements: { key: `spin:${userId}` },
+        transaction,
+      });
       const last = await this.models.SpinWheelClaims.findOne({
         where: { user_id: userId },
         order: [['claimed_at', 'DESC']],

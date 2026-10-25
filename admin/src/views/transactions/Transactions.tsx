@@ -92,7 +92,7 @@ const WITHDRAW_PARTS: Part[] = [
  * Tab URL me `?tab=direct|agent`.
  */
 const Transactions = ({ direction }: { direction: 'deposit' | 'withdraw' }) => {
-  const { can } = useSession()
+  const { can, flagEntitled } = useSession()
   const router = useRouter()
   const pathname = usePathname()
   const params = useSearchParams()
@@ -102,7 +102,9 @@ const Transactions = ({ direction }: { direction: 'deposit' | 'withdraw' }) => {
     can(deposit ? 'deposits:read' : 'withdrawals:read')
       ? { id: 'direct', label: 'Direct Users', icon: <WalletIcon className='size-4' />, view: () => <DirectUsers parts={deposit ? DEPOSIT_PARTS : WITHDRAW_PARTS} /> }
       : null,
-    can('users:read') ? { id: 'agent', label: 'Agent System', icon: <ArrowLeftRightIcon className='size-4' />, view: () => <AgentLedger direction={direction} /> } : null
+
+    // The exchange's point ledger: gone while the owner runs the sportsbook.
+    can('users:read') && flagEntitled('sportsexchange') ? { id: 'agent', label: 'Agent System', icon: <ArrowLeftRightIcon className='size-4' />, view: () => <AgentLedger direction={direction} /> } : null
   ].filter(t => t !== null)
 
   if (!tabs.length) return <p className='p-6 text-sm text-muted-foreground'>You do not have access to this page.</p>

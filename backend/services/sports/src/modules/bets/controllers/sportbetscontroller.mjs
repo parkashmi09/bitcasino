@@ -16,7 +16,7 @@ import { MESSAGES } from "../../../lib/constants/messages.mjs";
 import { UserExposure_default } from "../../../models/user/UserExposure.mjs";
 import { METER_MAX_RUNS, isMeterMarket, meterPnl, meterLiability } from "../../../lib/helper/meterMarket.mjs";
 import { isLineMarket, linePnl, exposureIdentity } from "../../../lib/helper/lineMarket.mjs";
-import { isBadloBet, badloPnl, badloLiability } from "../../../lib/helper/badloMarket.mjs";
+import { isBadloBet, isBadloLeg, badloSlipError, badloPnl, badloLiability } from "../../../lib/helper/badloMarket.mjs";
 import { PlatformGames_default } from "../../../models/admin/PlatformGames.mjs";
 import { UserMatchLocks_default } from "../../../models/admin/UserMatchLocks.mjs";
 import { UserEventMarketLocks_default } from "../../../models/admin/UserEventMarketLocks.mjs";
@@ -1707,6 +1707,12 @@ var placeBet = async (req, res, opts) => {
       "HT/FT"
       // 'oddeven'
     ];
+    // The MO/BM book only debits the runners it lists: a selection outside `runners` (feed list,
+    // set by the buffer) books no loss anywhere. game_type/market_type are client-set, so this
+    // guards every market that reaches the book, not only the ones the buffer sees as live-tracked.
+    if (!isFancyMarketType && (normGameType === "MO" || normGameType === "BM") && !(Array.isArray(runners) && runners.length >= 2 && runners.includes(sel))) {
+      throw new Error(MESSAGES.BET.GAME_SUSPEND);
+    }
     if (isFancyMarketType) {
       console.log("marketsforfancy", marketsforfancy);
       console.log("market_type", market_type);
@@ -2067,7 +2073,9 @@ var placeBet = async (req, res, opts) => {
         counts: count,
         sport_id: sid,
         market_type,
-        unmatched: unmatched || false,
+        // No matching engine: the buffer fills every accepted bet at the live price, so a
+        // bet is never resting. The body's flag would make a filled bet refundable via /cancel-bet.
+        unmatched: false,
         unmatched_odds: unmatched_odds || null,
         is_cashout: is_cashout === true,
         size,
@@ -2165,7 +2173,9 @@ var placeCombinedBet = async (req, res) => {
     if (!legs.every((l) => String(l?.eventid) === String(first.eventid) && String(l?.match_id) === String(first.match_id))) {
       return res.status(400).json({ success: false, error: "All combined selections must belong to the same market" });
     }
-    const isBadloSlip = legs.every((l) => isBadloBet(l));
+    const badloErr = badloSlipError(legs);
+    if (badloErr) return res.status(400).json({ success: false, error: badloErr });
+    const isBadloSlip = legs.every((l) => isBadloLeg(l));
     const firstSide = String(first.bet_type || "").toLowerCase();
     if (!isBadloSlip && !legs.every((l) => String(l?.bet_type || "").toLowerCase() === firstSide)) {
       return res.status(400).json({ success: false, error: "All combined selections must be the same bet type (all back or all lay)" });

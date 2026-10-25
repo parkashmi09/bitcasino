@@ -119,7 +119,7 @@ module.exports = function adminRoutes(deps) {
         details: { points: req.body.points, remark: req.body.remark },
       }),
     }),
-    asyncHandler(async (req, res) => response.ok(res, await service.settle({ ...req.body, actor: actorFrom(req) })))
+    asyncHandler(async (req, res) => response.ok(res, await service.settle({ ...req.body, actor: { ...actorFrom(req), permissions: req.staff.permissions } })))
   );
 
   // Zip ka ledger/user/history — Credit Activity / More modal ka "Credit History".

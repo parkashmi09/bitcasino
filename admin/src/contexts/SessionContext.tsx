@@ -210,8 +210,17 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     [entitlements.data, liveFeatures.data]
   )
 
+  /* Same rule as the backend's `flagOnIn` (packages/common/src/entitlements.js): the sportsbook is
+     off unless the owner switched it on, and while it is on the exchange reads off — sports runs
+     one mode at a time, so every exchange screen hides. */
   const flagEntitled = useCallback(
-    (key?: string | null) => !key || entitlements.data?.flags[key] !== false,
+    (key?: string | null): boolean => {
+      if (!key) return true
+      const flagsDoc = entitlements.data?.flags ?? {}
+      const on = (k: string) => (flagsDoc[k] === undefined ? k !== 'sportsbook' : flagsDoc[k] !== false)
+
+      return key === 'sportsexchange' ? on(key) && !on('sportsbook') : on(key)
+    },
     [entitlements.data]
   )
 

@@ -96,7 +96,11 @@ class LordsService {
 
     const model = accountType === ACCOUNT_TYPE.STAFF ? this.models.Staff : this.models.Users;
     const [affected] = await model.update(
-      { password: await hashPassword(newPassword, PASSWORD_ROUNDS) },
+      {
+        password: await hashPassword(newPassword, PASSWORD_ROUNDS),
+        // A reset ends the staff account's open sessions, like the other password paths.
+        ...(accountType === ACCOUNT_TYPE.STAFF ? { token_version: literal('token_version + 1') } : {}),
+      },
       { where: { id: accountId } }
     );
     if (!affected) throw errors.NOT_FOUND({ accountId });

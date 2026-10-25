@@ -27,6 +27,18 @@ let connection;
 let nextStaffId = 1_240_000 + (process.pid % 1000) * 100;
 const newStaffId = () => (nextStaffId += 1);
 
+test('Create Account: staff login needs staff:write, users:write alone is refused before any write', async () => {
+  const touched = [];
+  const models = new Proxy({}, { get: (_, name) => { touched.push(name); return {}; } });
+  const accounts = new CreateAccountService({ models, db: {}, logger: null });
+  const staffActor = { id: 9, level: 7, executiveId: 3, permissions: ['users:write', 'wallet:credit'] };
+  await assert.rejects(
+    accounts.create({ staffActor, playerActor: staffActor, username: 'x', email: 'x@example.com', password: 'StrongPassword12', userType: 6, transactionPassword: TXN }),
+    (e) => e.status === 403
+  );
+  assert.deepEqual(touched, []);
+});
+
 test('exchange accounts screens', async (t) => {
   const logger = createLogger({ name: 'exchange-accounts-test', level: 'silent' });
 

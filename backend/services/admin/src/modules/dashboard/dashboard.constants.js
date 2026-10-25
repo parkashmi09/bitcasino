@@ -37,6 +37,7 @@ const DEPOSIT_SUCCESS = Object.freeze({
   fiat_deposits: ['approved', 'success', 'done', 'completed'],
   apaydeposits: ['success'],
   pay_in_transactions: [1],
+  f2paydeposits: ['success'],
 });
 
 /**
@@ -185,6 +186,20 @@ const MOVEMENT_SOURCES = Object.freeze([
     statuses: DEPOSIT_SUCCESS.pay_in_transactions,
     /** SMALLINT. `LOWER(status)` on it is a type error, not a no-op. */
     statusIsText: false,
+  },
+  /** F2Pay — the site's payment gateway (INR, USDT); deposits only, it has no withdrawal table. */
+  {
+    key: 'f2pay_deposit',
+    label: 'F2Pay deposit',
+    direction: 'deposit',
+    model: 'F2payDeposits',
+    id: 'id',
+    user: 'user_id',
+    date: 'created_at',
+    amount: 'amount',
+    currency: 'currency',
+    statuses: DEPOSIT_SUCCESS.f2paydeposits,
+    statusIsText: true,
   },
   {
     key: 'crypto_withdrawal',

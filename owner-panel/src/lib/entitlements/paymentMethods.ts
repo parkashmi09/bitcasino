@@ -1,7 +1,7 @@
 /**
  * Payment gateway deposit methods per currency — the document's `paymentMethods` block:
  *
- *   { f2pay: { INR: [{ code: 'UpiMixed', active: true }], IDR: [{ code: 'QRIS', active: true }] } }
+ *   { f2pay: { INR: [{ code: 'UpiMixed', active: true }] } }
  *
  * The owner's methods for each gateway currency; the site writes them into its `payment_methods`
  * table (owner_enabled = active) next to the ones the Super Admin adds. A method the owner has

@@ -561,27 +561,22 @@ class PaymentOrdersService {
 
   /**
    * A gateway's deposit methods that are on — `[{ method, currency }]`: rows of `payment_methods`
-   * with the owner's AND the Super Admin's switch on, in currencies on for the gateway (owner flag
-   * `f2pay_<code>`, missing = on, AND not in the Super Admin's `payment_gateways_off`).
-   * One query, one read of the owner's plan, one of the Super Admin's list.
+   * the owner has on, in currencies the owner has on (flag `f2pay_<code>`, missing = on). The owner
+   * alone picks currencies and methods; the Super Admin only switches the whole gateway
+   * (user, 2026-10-24). One query, one read of the owner's plan.
    */
   async #methods(providerName, gateway) {
-    const [rows, plan, off] = await Promise.all([
+    const [rows, plan] = await Promise.all([
       this.models.PaymentMethod.findAll({
-        where: { gateway: providerName, owner_enabled: true, site_enabled: true },
+        where: { gateway: providerName, owner_enabled: true },
         attributes: ['currency', 'code'],
         order: [['id', 'ASC']],
         raw: true,
       }),
       entitlements.getEntitlements(),
-      this.settings.read('payment_gateways_off', []),
     ]);
-    const currencyOn = (currency) => {
-      const key = gateway.currencySwitch(currency);
-      return plan.flags[key] !== false && !(Array.isArray(off) && off.includes(key));
-    };
     return rows
-      .filter((r) => gateway.supports(r.currency, FLOW.PAY_IN) && currencyOn(r.currency))
+      .filter((r) => gateway.supports(r.currency, FLOW.PAY_IN) && plan.flags[gateway.currencySwitch(r.currency)] !== false)
       .map((r) => ({ method: r.code, currency: r.currency }));
   }
 

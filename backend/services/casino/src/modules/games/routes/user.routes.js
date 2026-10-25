@@ -28,7 +28,7 @@ module.exports = function userRoutes(deps) {
   router.post(
     '/launch',
     validate(v.launch),
-    requireGameEntitled(deps, (req) => ({ uid: req.body.gameUuid })),
+    requireGameEntitled(deps, (req) => ({ uid: req.body.gameUuid }), { mustExist: true }),
     asyncHandler(async (req, res) => response.created(res, await launchGame(deps, { ...req.body, userId: req.user.id })))
   );
 

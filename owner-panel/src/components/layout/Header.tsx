@@ -9,7 +9,6 @@ import { usePathname } from 'next/navigation'
 // Component Imports
 import ModeToggle from '@/components/layout/ModeToggle'
 import ProfileDropdown from '@/components/shared/ProfileDropdown'
-import { Badge } from '@/components/ui/badge'
 import {
   Breadcrumb,
   BreadcrumbItem,
@@ -22,7 +21,6 @@ import { Separator } from '@/components/ui/separator'
 import { SidebarTrigger } from '@/components/ui/sidebar'
 
 // Config Imports
-import { siteConfig } from '@/configs/site'
 
 /** Pages whose title differs from their URL (the URL stays for old links). */
 const SEGMENT_LABELS: Record<string, string> = { entitlements: 'Features & plan' }
@@ -57,9 +55,6 @@ const Header = () => {
           </Breadcrumb>
         </div>
         <div className='flex items-center gap-1.5'>
-          <Badge variant='outline' className='hidden font-mono text-xs sm:inline-flex'>
-            {siteConfig.key} · {siteConfig.environment}
-          </Badge>
           <ModeToggle />
           <ProfileDropdown />
         </div>

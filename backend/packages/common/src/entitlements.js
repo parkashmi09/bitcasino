@@ -152,8 +152,22 @@ async function isFeatureEntitled(key) {
   return isFeatureEntitledIn(await getEntitlements(), key);
 }
 
+/* Flags that read OFF when the owner never set them (owner-panel DEFAULT_OFF_FLAGS): the
+   sportsbook replaces the exchange, so it is never on by default. */
+const DEFAULT_OFF_FLAGS = new Set(['sportsbook']);
+
+/**
+ * Sync flag read for code that holds the document. Sports runs one mode at a time: with the
+ * sportsbook on, `sportsexchange` reads off whatever is stored, so every exchange gate closes.
+ */
+function flagOnIn(doc, key) {
+  const value = doc?.flags?.[key];
+  const on = value === undefined ? !DEFAULT_OFF_FLAGS.has(key) : value !== false;
+  return key === 'sportsexchange' ? on && !flagOnIn(doc, 'sportsbook') : on;
+}
+
 async function isFlagEntitled(key) {
-  return (await getEntitlements()).flags[key] !== false;
+  return flagOnIn(await getEntitlements(), key);
 }
 
 async function assertFeatureEntitled(key) {
@@ -207,6 +221,7 @@ module.exports = {
   isFeatureEntitled,
   isFeatureEntitledIn,
   isFlagEntitled,
+  flagOnIn,
   assertFeatureEntitled,
   assertFlagEntitled,
   requireFeature,

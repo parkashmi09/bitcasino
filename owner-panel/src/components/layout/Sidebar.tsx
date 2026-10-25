@@ -51,7 +51,6 @@ import {
 // Config Imports
 import { navItems } from '@/configs/navConfig'
 import themeConfig from '@/configs/themeConfig'
-import { siteConfig } from '@/configs/site'
 import { useSession } from '@/contexts/SessionContext'
 
 // Util Imports
@@ -519,10 +518,7 @@ const SidebarLayout = () => {
               render={<Link href={`${themeConfig.homePageUrl}`} />}
             >
               <LogoSvg className='[&_rect]:fill-sidebar [&_rect:first-child]:fill-primary' />
-              <div className='flex flex-col items-start'>
-                <span className='text-lg font-semibold text-nowrap'>{themeConfig.templateName}</span>
-                <span className='text-xs font-light text-nowrap'>{siteConfig.tagline} · {siteConfig.environment}</span>
-              </div>
+              <span className='text-lg font-semibold text-nowrap'>{themeConfig.templateName}</span>
             </SidebarMenuButton>
           </SidebarMenuItem>
         </SidebarMenu>

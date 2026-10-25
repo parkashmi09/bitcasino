@@ -170,6 +170,20 @@ test('transaction history: every rail', async (t) => {
     assert.deepEqual(rows.map((r) => r.method).sort(), ['apay', 'crypto', 'manual']);
   });
 
+  await t.test('admin Transactions → Fiat lists the payment-gateway rails, F2Pay included', async () => {
+    const uid = await seedPlayer();
+    await models.F2payDeposits.create({ user_id: uid, mch_order_no: `DEP_F2_${uid}`, amount: '600', currency: 'INR', status: 'Success' });
+
+    const deposits = await service.gatewayTransactions({ kind: 'deposit', userId: uid, limit: 50, offset: 0 });
+    assert.deepEqual(deposits.rows.map((r) => r.provider).sort(), ['apay', 'f2pay', 'waypay'], 'crypto and manual have their own tabs');
+    const f2 = deposits.rows.find((r) => r.provider === 'f2pay');
+    assert.deepEqual([String(f2.userId), f2.reference, f2.amount, f2.currency, f2.status], [String(uid), `DEP_F2_${uid}`, '600.00000000', 'INR', 'success']);
+    assert.ok(f2.createdAt, 'the UI reads createdAt');
+
+    const withdrawals = await service.gatewayTransactions({ kind: 'withdrawal', userId: uid, limit: 50, offset: 0 });
+    assert.deepEqual(withdrawals.rows.map((r) => r.provider), ['apay']);
+  });
+
   await t.test('the A-Pay rail is not returned twice', async () => {
     // Legacy merged A-Pay into `fiatWithdrawals` AND repeated it under
     // `apayWithdrawals`, so a client reading both double-counted every payout.

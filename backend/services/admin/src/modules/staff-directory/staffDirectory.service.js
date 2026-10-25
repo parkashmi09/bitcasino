@@ -40,6 +40,7 @@ async function resolveStaff(models, staffId, executiveId = null) {
       'agent_code',
       'percentage',
       'must_change_password',
+      'token_version',
     ],
     include: [{ model: Roles, as: 'role', attributes: ['id', 'name', 'level', 'responsibilities'], required: false }],
     raw: true,

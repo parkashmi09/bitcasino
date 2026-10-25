@@ -36,7 +36,7 @@ import { appendFile, mkdir, readFile, rename, writeFile } from 'node:fs/promises
 import path from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 
-import { FEATURE_CATALOGUE, FEATURE_KEYS, FLAG_KEYS, isVariantOf, resolveOptions } from '../src/configs/entitlementCatalogue.ts'
+import { DEFAULT_OFF_FLAGS, FEATURE_CATALOGUE, FEATURE_KEYS, FLAG_KEYS, isVariantOf, resolveOptions } from '../src/configs/entitlementCatalogue.ts'
 import { DEFAULT_TEMPLATE, resolveTemplateKey, templateByKey, TEMPLATE_KEYS } from '../src/configs/templateCatalogue.ts'
 
 const panel = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
@@ -86,7 +86,7 @@ const isObject = v => !!v && typeof v === 'object' && !Array.isArray(v)
 function complete(map, keys) {
   const out = {}
 
-  for (const key of keys) out[key] = map?.[key] !== false
+  for (const key of keys) out[key] = map && key in map ? map[key] !== false : !DEFAULT_OFF_FLAGS.has(key)
   for (const [key, value] of Object.entries(map ?? {})) if (!(key in out)) out[key] = value !== false
 
   return out
@@ -188,7 +188,7 @@ export function planSeed(stored, { site, reset = false, template: templateArg, n
   const flags = complete(storedFlags, FLAG_KEYS)
 
   for (const key of FLAG_KEYS) {
-    if (reset) flags[key] = true
+    if (reset) flags[key] = !DEFAULT_OFF_FLAGS.has(key)
     else if (storedFlags[key] === false) kept.push(`flag ${key}: not entitled by the owner — kept (--reset entitles it)`)
   }
 

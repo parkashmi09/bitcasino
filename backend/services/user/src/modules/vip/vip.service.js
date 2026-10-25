@@ -470,6 +470,7 @@ class VipService {
 
       try {
         await this.models.BonusClaim.sequelize.transaction(async (transaction) => {
+          await this.#lockAward(userId, type, transaction);
           const last = await this.models.BonusClaim.findOne({
             where: { userid: userId, bonus_type: type },
             order: [['created_at', 'DESC']],
@@ -548,6 +549,7 @@ class VipService {
         );
         if (!money.gt(amount, '0')) continue;
         await this.models.BonusClaim.sequelize.transaction(async (transaction) => {
+          await this.#lockAward(userId, type, transaction);
           const again = await this.models.BonusClaim.findOne({
             where: { userid: userId, bonus_type: type, created_at: { [Op.gte]: end } },
             transaction,
@@ -573,6 +575,19 @@ class VipService {
       }
     }
     return { awarded: rows.length, rows };
+  }
+
+  /**
+   * One awarder per (player, period type) at a time, released at commit. The FOR UPDATE reads
+   * below lock nothing when the period's row does not exist yet (no gap locks under READ
+   * COMMITTED), so two overlapping reads could each insert one; after this wait the re-check
+   * sees the first's committed row.
+   */
+  async #lockAward(userId, type, transaction) {
+    await this.models.BonusClaim.sequelize.query('SELECT pg_advisory_xact_lock(hashtext(:key))', {
+      replacements: { key: `vip-award:${userId}:${type}` },
+      transaction,
+    });
   }
 
   /**

@@ -42,7 +42,6 @@ export const SITE_UI: Record<string, UiSupport> = {
 
   spin_wheel: { status: 'absent', why: 'The backend has it; this UI has no wheel screen.' },
   tips: { status: 'absent', why: 'No tip-sending screen in this UI.' },
-  p2p: { status: 'absent', why: 'No P2P trading screen in this UI.' },
   chat: { status: 'absent', why: 'Chat is socket-only and this UI has no socket client.' },
   club_membership: { status: 'absent', why: 'No club screens in this UI.' },
   push_notifications: { status: 'absent', why: 'This UI does not load a push SDK.' },

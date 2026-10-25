@@ -459,7 +459,7 @@ test('custom coins are refused by deposits, withdrawals, games and sports', asyn
       'user/src/modules/crypto-withdraw/routes/user.routes.js': 'WITHDRAWAL',
       'user/src/modules/fiat-withdraw/routes/user.routes.js': 'WITHDRAWAL',
       'user/src/modules/bank-details/routes/user.routes.js': 'WITHDRAWAL',
-      'user/src/modules/p2p/routes/user.routes.js': 'P2P',
+      'user/src/modules/_p2p/routes/user.routes.js': 'P2P',
       'casino/src/modules/gis/routes/user.routes.js': 'GAMES',
       'casino/src/modules/js-games/routes/user.routes.js': 'GAMES',
       'casino/src/modules/x-casino/routes/user.routes.js': 'GAMES',

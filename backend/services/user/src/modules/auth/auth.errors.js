@@ -122,6 +122,10 @@ module.exports = defineErrors('AUTH', {
   GOOGLE_SIGNIN_FAILED: { status: 401, message: 'Google sign-in did not complete. Try again.' },
   /** One code for missing, used and expired — same reasoning as the reset link. */
   GOOGLE_CODE_INVALID: { status: 401, message: 'That sign-in link is not valid or has expired' },
+  GOOGLE_TWO_FACTOR_ON: {
+    status: 403,
+    message: 'Two-factor authentication is on for this account. Sign in with your username, password and code.',
+  },
 
   ALREADY_REGISTERED: {
     status: 409,

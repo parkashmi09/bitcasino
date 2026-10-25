@@ -7,7 +7,7 @@ import { tmpdir } from 'node:os'
 import path from 'node:path'
 import test from 'node:test'
 
-import { FEATURE_KEYS, FLAG_KEYS } from '../src/configs/entitlementCatalogue.ts'
+import { DEFAULT_OFF_FLAGS, FEATURE_KEYS, FLAG_KEYS } from '../src/configs/entitlementCatalogue.ts'
 import { demoVariants, planSeed, runSeed } from './seed-owner.mjs'
 
 const site = 'casino-sportsbook'
@@ -46,7 +46,7 @@ test('creates a complete document, then a re-run is a no-op', async () => {
     assert.equal(doc.site, site)
     assert.equal(statSync(path.join(dir, 'entitlements.json')).mode & 0o777, 0o600)
     for (const key of FEATURE_KEYS) assert.equal(doc.features[key], key !== 'club_membership', key)
-    for (const key of FLAG_KEYS) assert.equal(doc.flags[key], true, key)
+    for (const key of FLAG_KEYS) assert.equal(doc.flags[key], !DEFAULT_OFF_FLAGS.has(key), key) // the sportsbook starts off
     assert.equal(doc.options.bonus.wagering_lock, true)
     assert.equal(doc.options.spin_wheel.grant_on_registration, true)
 

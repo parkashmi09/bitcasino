@@ -369,6 +369,21 @@ test('reports against a database', async (t) => {
     }
   });
 
+  await t.test('an F2Pay deposit is on the sheet once paid; a pending one is not', async () => {
+    const ref = `F2S-${playerA}`;
+    await models.F2payDeposits.bulkCreate([
+      { user_id: playerA, mch_order_no: ref, amount: '250', currency: 'INR', status: 'Success' },
+      { user_id: playerA, mch_order_no: `${ref}-P`, amount: '99', currency: 'INR', status: 'Pending' },
+    ]);
+    try {
+      const sheet = await service.balanceSheet({ staff: asA, userId: playerA, limit: 500 });
+      const f2 = sheet.rows.filter((r) => String(r.description).startsWith('F2Pay deposit'));
+      assert.deepEqual(f2.map((r) => [r.category, r.description, r.amount]), [['Deposit', `F2Pay deposit (${ref})`, '250.00000000']]);
+    } finally {
+      await models.F2payDeposits.destroy({ where: { mch_order_no: [ref, `${ref}-P`] } });
+    }
+  });
+
   await t.test('a swap is on the sheet, one leg per currency, with its sign', async () => {
     const leg = (currency, amount, reason) => ({
       user_id: String(playerA), currency, amount, netamount: 0, reason, source_service: 'user-service',

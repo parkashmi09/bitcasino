@@ -29,6 +29,7 @@ import { siteConfig } from '@/configs/site'
 
 // Lib Imports
 import { ApiError, errorMessage, request } from '@/lib/api/client'
+import { safeNext } from '@/lib/safeNext'
 
 type Mode = 'staff' | 'executive'
 
@@ -115,11 +116,9 @@ const Login = () => {
       // A password somebody else chose must be replaced before anything else opens.
       if (data?.mustChangePassword) return window.location.assign('/change-password')
 
-      const next = params.get('next')
-
-      if (next) return window.location.assign(next)
-
-      window.location.assign('/dashboard')
+      // Only a path on this site: `?next=javascript:…`, `?next=https://evil` or `?next=/%09/evil` in a
+      // mailed link must not run or redirect after a staff sign-in.
+      window.location.assign(safeNext(params.get('next')))
     } catch (err) {
       if (err instanceof ApiError) {
         if (err.is('TWO_FACTOR_REQUIRED')) {

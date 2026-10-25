@@ -80,7 +80,7 @@ export function decodePlatformToken(token) {
   if (level >= 7) throw new Error('Executive accounts cannot use the sportsbook');
   // `platform_staff_id`: the platform's own staff id, which the owner mapping (owner_id 1) loses —
   // the transaction-password check in TXN_PASSWORD_MODE=login verifies against that account.
-  const ids = { platform_staff_id: Number(p.sub), platform_executive_id: p.executiveId ?? null };
+  const ids = { platform_staff_id: Number(p.sub), platform_executive_id: p.executiveId ?? null, tv: Number(p.tv ?? 0) };
   if (level === OWNER_LEVEL) return { owner_id: OWNER_ID, role: 'OWNER', ...ids };
   const mapped = STAFF_ROLES[level];
   if (!mapped) throw new Error(`No sportsbook role for staff level ${p.level}`);
@@ -96,8 +96,14 @@ export function decodePlatformToken(token) {
 export async function verifyPlatformToken(token, { refresh = false } = {}) {
   const decoded = decodePlatformToken(token);
   if (decoded.user_id && refresh) fresh.delete(`user:${decoded.user_id}`);
-  if (decoded.user_id) await ensureUser(decoded.user_id);
-  else if (decoded.staff_id) await ensureStaff(decoded.staff_id);
+  if (decoded.user_id) {
+    await ensureUser(decoded.user_id);
+    return decoded;
+  }
+  // Never from the mirror cache: logout / password change bump token_version to end a staff token early.
+  const row = await one('SELECT token_version FROM public.staff WHERE id = :id', { id: decoded.platform_staff_id });
+  if (!row || Number(row.token_version ?? 0) !== decoded.tv) throw new Error('Session ended — sign in again');
+  if (decoded.staff_id) await ensureStaff(decoded.staff_id);
   else await ensureOwner();
   return decoded;
 }

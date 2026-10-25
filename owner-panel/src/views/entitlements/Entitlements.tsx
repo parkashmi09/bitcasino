@@ -25,6 +25,8 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { Switch } from '@/components/ui/switch'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import {
+  DEFAULT_OFF_FLAGS,
+  EXCLUSIVE_FLAGS,
   FEATURE_CATALOGUE,
   FEATURE_CATEGORIES,
   FLAG_GROUPS,
@@ -509,7 +511,7 @@ const DailyLimitEditor = ({
   )
 }
 
-/** An F2Pay currency row of Site flags (`f2pay_idr`) → its currency (`IDR`); its methods are edited under it. */
+/** An F2Pay currency row of Site flags (`f2pay_inr`) → its currency (`INR`); its methods are edited under it. */
 const F2PAY_CURRENCY_ROW = /^f2pay_([a-z0-9]{2,10})$/
 
 /**
@@ -874,7 +876,10 @@ const Entitlements = () => {
         if (r.kind === 'policy') continue
 
         if (r.kind === 'flag') {
+          // "Allow all" never switches the sportsbook on: it would replace the exchange.
+          if (value && rows.length > 1 && DEFAULT_OFF_FLAGS.has(r.key)) continue
           next.flags[r.key] = value
+          if (value && EXCLUSIVE_FLAGS[r.key]) next.flags[EXCLUSIVE_FLAGS[r.key]] = false
           continue
         }
 

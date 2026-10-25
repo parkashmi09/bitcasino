@@ -3,6 +3,7 @@
 const { z } = require('@ibitplay/common');
 
 const { currency } = require('../exchange-rate/exchangeRate.validators');
+const { SOURCES } = require('./depositReports.constants');
 
 /** ISO date, or an ISO datetime. Both are accepted; both mean a whole day. */
 const date = z.string().trim().min(8).max(35);
@@ -33,7 +34,7 @@ const cryptoStats = {
 const fiatList = {
   query: listing.extend({
     currency: currency.optional(),
-    provider: z.enum(['waypay', 'apay', 'manual', 'cricpay']).optional(),
+    provider: z.enum(SOURCES.map((s) => s.provider)).optional(),
   }),
 };
 

@@ -1,6 +1,6 @@
 'use strict';
 
-const { Op } = require('sequelize');
+const { Op, literal } = require('sequelize');
 const {
   hashPassword,
   verifyPassword,
@@ -304,6 +304,8 @@ class StaffAuthService {
         two_fa_secret: this.secrets.seal(secret),
         two_fa_last_step: result.step,
         two_fa_enrolled_at: new Date(),
+        // Ends every session, this one too: one opened before the second factor existed must not outlive it.
+        token_version: literal('token_version + 1'),
       },
       { where: { id: staffId } }
     );
@@ -349,7 +351,8 @@ class StaffAuthService {
     // Cleared, not just flagged off — re-enrolling issues a new secret, so an
     // old QR screenshot cannot be reused.
     await this.models.Staff.update(
-      { two_fa_enabled: false, two_fa_secret: null, two_fa_last_step: null, two_fa_enrolled_at: null },
+      // The version bump ends every session, so turning 2FA off means signing in again.
+      { two_fa_enabled: false, two_fa_secret: null, two_fa_last_step: null, two_fa_enrolled_at: null, token_version: literal('token_version + 1') },
       { where: { id: staffId } }
     );
 
@@ -393,6 +396,8 @@ class StaffAuthService {
         first_login: false,
         must_change_password: false,
         // Never `password2`. Legacy wrote the plaintext there on every change.
+        // A token issued on the old password stops working.
+        token_version: literal('token_version + 1'),
       },
       { where: { id: staff.id } }
     );
@@ -400,7 +405,11 @@ class StaffAuthService {
     this.#clearFailures(email, ip);
     this.logger?.warn({ staffId: staff.id }, 'Staff password set on first sign-in');
 
-    return this.#issue({ staff: { ...staff, first_login: false, must_change_password: false }, executive: null, ip });
+    return this.#issue({
+      staff: { ...staff, first_login: false, must_change_password: false, token_version: Number(staff.token_version ?? 0) + 1 },
+      executive: null,
+      ip,
+    });
   }
 
   /**
@@ -408,23 +417,27 @@ class StaffAuthService {
    *
    * ── WHAT THIS CAN AND CANNOT DO ──────────────────────────────────────
    *
-   * Staff tokens are stateless and short-lived, so "log out" cannot revoke the
-   * token that is already issued — it stays valid until it expires. Saying so
-   * is better than pretending otherwise, which is what legacy's logout did: it
-   * returned success and took no action at all.
+   * Staff tokens are stateless, so logout bumps `staff.token_version`: the
+   * guard then refuses every token this account holds, on every device.
    *
-   * What it does do is record the event, so a session ending is in the audit
-   * trail next to the actions that preceded it.
+   * An executive sub-login shares its parent's staff row, so bumping it would
+   * sign the parent out too; an executive token is only discarded client-side
+   * and expires on its own.
+   *
+   * The event is recorded, so a session ending is in the audit trail next to
+   * the actions that preceded it.
    */
   async logout({ actor }, context = {}) {
+    if (!actor.executiveId) {
+      await this.models.Staff.update({ token_version: literal('token_version + 1') }, { where: { id: actor.id } });
+    }
     this.logger?.info(
       { staffId: actor.id, executiveId: actor.executiveId ?? null, ip: context.ip },
       'Staff signed out'
     );
     return {
       loggedOut: true,
-      // The client must discard it; the server cannot.
-      note: 'Discard the token. It remains valid until it expires.',
+      ...(actor.executiveId ? { note: 'Discard the token. An executive token remains valid until it expires.' } : {}),
     };
   }
 
@@ -465,6 +478,7 @@ class StaffAuthService {
       level: role?.level ?? null,
       executiveId: executive?.id ?? null,
       permissions,
+      tokenVersion: staff.token_version,
     });
 
     this.logger?.info(

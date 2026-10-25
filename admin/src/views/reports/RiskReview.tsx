@@ -13,6 +13,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { useApi } from '@/hooks/use-api'
+import { useSession } from '@/contexts/SessionContext'
 import { formatNumber } from '@/lib/format'
 import { RiskManagementPanel } from '@/views/players/RiskManagement'
 import { type Exposure } from './types'
@@ -75,22 +76,29 @@ const ExposureTab = () => {
   )
 }
 
-const RiskReview = () => (
-  <div>
-    <PageHeader title='Risk review' description='Exposure, velocity and flags for one user; net sports exposure; and account locks.' />
-    <Tabs defaultValue='user'>
-      <TabsList className='mb-4'>
-        <TabsTrigger value='user'>User risk</TabsTrigger>
-        <TabsTrigger value='exposure'>Net exposure</TabsTrigger>
-      </TabsList>
-      <TabsContent value='user'>
-        <UserRiskTab />
-      </TabsContent>
-      <TabsContent value='exposure'>
-        <ExposureTab />
-      </TabsContent>
-    </Tabs>
-  </div>
-)
+const RiskReview = () => {
+  // Net exposure is the exchange's open book: no tab while the owner runs the sportsbook.
+  const exchange = useSession().flagEntitled('sportsexchange')
+
+  return (
+    <div>
+      <PageHeader title='Risk review' description='Exposure, velocity and flags for one user; net sports exposure; and account locks.' />
+      <Tabs defaultValue='user'>
+        <TabsList className='mb-4'>
+          <TabsTrigger value='user'>User risk</TabsTrigger>
+          {exchange && <TabsTrigger value='exposure'>Net exposure</TabsTrigger>}
+        </TabsList>
+        <TabsContent value='user'>
+          <UserRiskTab />
+        </TabsContent>
+        {exchange && (
+          <TabsContent value='exposure'>
+            <ExposureTab />
+          </TabsContent>
+        )}
+      </Tabs>
+    </div>
+  )
+}
 
 export default RiskReview

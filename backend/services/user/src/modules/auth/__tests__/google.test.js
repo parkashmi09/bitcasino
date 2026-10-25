@@ -35,15 +35,17 @@ const fakeFetch = (token) => async (url) => ({
 
 test.beforeEach(() => google._resetKeyCache());
 
+const NONCE = 'tab-nonce-0123456789abcdef';
+
 test('start: the S256 challenge matches the cookie verifier, and the cookie names the state', () => {
-  const { url, cookie } = google.startRequest(CONFIG);
+  const { url, cookie } = google.startRequest(CONFIG, NONCE);
   const q = new URL(url).searchParams;
   const { state, verifier } = jwt.verify(cookie, CONFIG.JWT_ACCESS_SECRET, { audience: 'google-oauth-state' });
   assert.equal(q.get('state'), state);
   assert.equal(q.get('code_challenge_method'), 'S256');
   assert.equal(q.get('code_challenge'), crypto.createHash('sha256').update(verifier).digest('base64url'));
   assert.ok(!url.includes(verifier), 'the verifier never goes to Google');
-  assert.equal(google.verifierFor(cookie, state, CONFIG), verifier);
+  assert.deepEqual(google.verifierFor(cookie, state, CONFIG), { verifier, nonce: NONCE });
   assert.equal(google.verifierFor(cookie, `${state}x`, CONFIG), null, 'another state is refused');
   assert.equal(google.verifierFor(jwt.sign({ state, verifier }, 'forged-secret-forged-secret-forged'), state, CONFIG), null);
   assert.equal(google.verifierFor(null, state, CONFIG), null);
@@ -92,7 +94,7 @@ function harness({ linked = null, emailHolder = null, businessModel = 'hybrid' }
 }
 
 const callback = (service, claims) => {
-  const { url, cookie } = google.startRequest(CONFIG);
+  const { url, cookie } = google.startRequest(CONFIG, NONCE);
   const state = new URL(url).searchParams.get('state');
   return service.googleCallback({ code: 'auth-code', state, cookie }, { ip: '1.2.3.4' }, { fetchImpl: fakeFetch(idToken(claims)) });
 };
@@ -106,6 +108,23 @@ test('callback: a linked Google account signs in → site URL with a one-time co
   assert.equal(codes.length, 1);
   assert.equal(codes[0].userId, 77);
   assert.notEqual(codes[0].hash, code, 'only the hash is stored');
+});
+
+test('exchange: the code alone, or with another tab\'s nonce, is refused (login CSRF)', async () => {
+  const { service, codes } = harness({ linked: { id: 77, status: 'active' } });
+  const code = new URL(await callback(service)).searchParams.get('code');
+  const stored = codes[0].hash;
+  // The UPDATE matches only the stored hash, as the table would.
+  service.db = { sequelize: { query: async (_sql, { replacements }) => [replacements.hash === stored ? [{ user_id: 77 }] : []] } };
+  let redeemed = 0;
+  service.models.Users.findByPk = async () => ((redeemed += 1), null); // reached only past the hash check
+  const refused = (e) => e.code === 'AUTH_GOOGLE_CODE_INVALID';
+  await assert.rejects(service.googleExchange({ code }), refused);
+  await assert.rejects(service.googleExchange({ code, nonce: 'another-tab-nonce-000000000' }), refused);
+  assert.equal(redeemed, 0, 'a foreign browser never redeems the code');
+  await assert.rejects(service.googleExchange({ code, nonce: NONCE }), refused);
+  assert.equal(redeemed, 1, 'the starting tab does');
+  assert.throws(() => service.googleStart({}), (e) => e.code === 'AUTH_GOOGLE_SIGNIN_FAILED', 'no nonce, no start');
 });
 
 test('callback: an email held by a password account is refused, not linked', async () => {

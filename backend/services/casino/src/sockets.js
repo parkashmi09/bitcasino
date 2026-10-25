@@ -47,7 +47,8 @@ function attachSockets({ server, container }) {
     // The same token service the HTTP middleware uses, and the same one
     // user-service's socket transport uses — one notion of a session.
     const payload = tokens.verify(token, TOKEN_TYPES.ACCESS);
-    return payload?.sub ? { userId: String(payload.sub) } : null;
+    // `expiresAt` lets the transport drop the identity when the token would stop working on HTTP.
+    return payload?.sub ? { userId: String(payload.sub), expiresAt: payload.exp * 1000 } : null;
   };
 
   const socketServer = createSocketServer({ io, authenticate, logger, config });

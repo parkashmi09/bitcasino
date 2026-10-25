@@ -298,24 +298,25 @@ export const navItems: NavItem[] = [
   },
   {
     // Sports Exchange ka agent system — sidebar me alag section. Create Account Account List ke button se.
+    // Its screens run on the exchange's ledger: they hide when the owner runs the sportsbook instead.
     groupLabel: 'Agent Management',
     groupIcon: 'Network',
     collapsible: true,
     items: [
-      { icon: 'LayoutDashboard', label: 'Dashboard', href: '/exchange/dashboard', permission: WALLET_ANY },
-      { icon: 'BookUser', label: 'Account List', href: '/exchange/users', activePath: '/exchange/users', permission: ['users:read', 'staff:read'] } as MenuItem,
-      { icon: 'Landmark', label: 'Bank', href: '/exchange/bank', permission: WALLET_ANY },
+      { icon: 'LayoutDashboard', label: 'Dashboard', href: '/exchange/dashboard', ownerFlag: 'sportsexchange', permission: WALLET_ANY },
+      { icon: 'BookUser', label: 'Account List', href: '/exchange/users', ownerFlag: 'sportsexchange', activePath: '/exchange/users', permission: ['users:read', 'staff:read'] } as MenuItem,
+      { icon: 'Landmark', label: 'Bank', href: '/exchange/bank', ownerFlag: 'sportsexchange', permission: WALLET_ANY },
 
       // Every staff login (Super Admin down to Agent) makes its own executives (user, 2026-10-17).
       { icon: 'KeyRound', label: 'Executives', href: '/access/executives', notExecutive: true },
       { icon: 'ScrollText', label: 'Activity log', href: '/audit', permission: 'audit:read' },
 
       // Agent ke reports.
-      { icon: 'ReceiptText', label: 'Account Statement', href: '/exchange/reports/account-statement', permission: 'reports:read' },
-      { icon: 'Scale', label: 'Party Win Loss', href: '/exchange/reports/party-win-loss', permission: 'reports:read' },
-      { icon: 'TrendingUp', label: 'Total Profit Loss', href: '/exchange/reports/total-profit-loss', permission: 'reports:read' },
-      { icon: 'UserRoundCheck', label: 'User Win Loss', href: '/exchange/reports/user-win-loss', permission: 'reports:read' },
-      { icon: 'Lock', label: 'General Lock', href: '/exchange/reports/general-lock', permission: 'reports:read' }
+      { icon: 'ReceiptText', label: 'Account Statement', href: '/exchange/reports/account-statement', ownerFlag: 'sportsexchange', permission: 'reports:read' },
+      { icon: 'Scale', label: 'Party Win Loss', href: '/exchange/reports/party-win-loss', ownerFlag: 'sportsexchange', permission: 'reports:read' },
+      { icon: 'TrendingUp', label: 'Total Profit Loss', href: '/exchange/reports/total-profit-loss', ownerFlag: 'sportsexchange', permission: 'reports:read' },
+      { icon: 'UserRoundCheck', label: 'User Win Loss', href: '/exchange/reports/user-win-loss', ownerFlag: 'sportsexchange', permission: 'reports:read' },
+      { icon: 'Lock', label: 'General Lock', href: '/exchange/reports/general-lock', ownerFlag: 'sportsexchange', permission: 'reports:read' }
     ]
   },
   {
@@ -324,20 +325,22 @@ export const navItems: NavItem[] = [
      * sidebar me the; jo zip me sub-menu the (Account, Reports, Settlement) wo yahan bhi sub-menu
      * hain. Casino ka kuch nahi. Sabka balance `credits` table me hai (owner, staff, player).
      */
-    groupLabel: 'Sports Exchange',
+    // Everything sports lives here. Exchange screens carry `ownerFlag: 'sportsexchange'` and hide
+    // when the owner runs the sportsbook (owner panel → Products); the switch shows in both modes.
+    groupLabel: 'Sports',
     groupIcon: 'Trophy',
     collapsible: true,
     items: [
-      { icon: 'ChartColumn', label: 'Market Analysis', href: '/exchange/market-analysis', permission: 'sports:read' },
-      { icon: 'Radio', label: 'Current Bets', href: '/exchange/reports/current-bets', permission: 'reports:read' },
-      { icon: 'RotateCw', label: 'Turn Over', href: '/exchange/reports/turnover', permission: 'reports:read' },
+      { icon: 'ChartColumn', label: 'Market Analysis', href: '/exchange/market-analysis', ownerFlag: 'sportsexchange', permission: 'sports:read' },
+      { icon: 'Radio', label: 'Current Bets', href: '/exchange/reports/current-bets', ownerFlag: 'sportsexchange', permission: 'reports:read' },
+      { icon: 'RotateCw', label: 'Turn Over', href: '/exchange/reports/turnover', ownerFlag: 'sportsexchange', permission: 'reports:read' },
 
       // Zip me owner only. Casino Settlement nahi. Match / Fancy / Void Bets ek page pe tabs me.
-      { icon: 'Gavel', label: 'Settlement', href: '/exchange/settlement', permission: 'sports:settle', direct: true },
+      { icon: 'Gavel', label: 'Settlement', href: '/exchange/settlement', ownerFlag: 'sportsexchange', permission: 'sports:settle', direct: true },
 
       // Zip me owner only (sports config): Buffer Time, Commission, Max Odds, Auto Void, Virtual / Bet Limits — tabs me.
-      { icon: 'SlidersHorizontal', label: 'Global Settings', href: '/exchange/settings', permission: 'sports:manage', direct: true },
-      { icon: 'CalendarDays', label: 'Events', href: '/exchange/events', permission: 'sports:read' },
+      { icon: 'SlidersHorizontal', label: 'Global Settings', href: '/exchange/settings', ownerFlag: 'sportsexchange', permission: 'sports:manage', direct: true },
+      { icon: 'CalendarDays', label: 'Events', href: '/exchange/events', ownerFlag: 'sportsexchange', permission: 'sports:read' },
 
       // Super Admin's on/off; hidden when the owner has sports off (owner panel → Site flags).
       { icon: 'Power', label: 'Sports switch', href: '/exchange/sports-switch', permission: 'config:write', ownerFlag: 'sports', direct: true }
@@ -388,10 +391,9 @@ export const navItems: NavItem[] = [
       },
 
       // Player-to-player tips (read-only). Hidden when the owner left `tips` out of the plan.
-      { icon: 'HandCoins', label: 'Tips', href: '/tips', permission: 'reports:read', feature: 'tips' },
+      { icon: 'HandCoins', label: 'Tips', href: '/tips', permission: 'reports:read', feature: 'tips' }
 
-      // Hidden when the owner left `p2p` out of the plan (the /admin/p2p routes refuse it too).
-      { icon: 'Handshake', label: 'P2P trading', href: '/p2p', permission: 'config:write', feature: 'p2p' }
+      // P2P trading is off for now: its backend module is unmounted (modules/_p2p), so no menu entry.
     ]
   },
   {
@@ -577,9 +579,12 @@ export type RouteRequirement = {
   promotions: boolean
   direct: boolean
   account?: 'marketing'
+
+  /** Owner flags the chain needs (e.g. `sportsexchange`): a pasted URL is closed like the sidebar entry. */
+  ownerFlags: string[]
 }
 
-type Marks = { permission?: string | string[]; promotions?: boolean; direct?: boolean; account?: 'marketing' }
+type Marks = { permission?: string | string[]; promotions?: boolean; direct?: boolean; account?: 'marketing'; ownerFlag?: string }
 
 const collectRoutes = (): RouteRequirement[] => {
   const out: RouteRequirement[] = []
@@ -593,7 +598,8 @@ const collectRoutes = (): RouteRequirement[] => {
         permissions: marks.map(m => m.permission).filter((p): p is string | string[] => !!p && (!Array.isArray(p) || p.length > 0)),
         promotions: marks.some(m => m.promotions),
         direct: marks.some(m => m.direct),
-        account: marks.find(m => m.account)?.account
+        account: marks.find(m => m.account)?.account,
+        ownerFlags: marks.map(m => m.ownerFlag).filter((f): f is string => !!f)
       })
     }
 

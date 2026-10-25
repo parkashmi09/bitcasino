@@ -2,7 +2,7 @@ import 'server-only'
 
 import { createHmac, createPrivateKey, sign as edSign, type KeyObject } from 'node:crypto'
 
-import { FEATURE_CATALOGUE, FEATURE_KEYS, FEATURE_OPTIONS, featureByKey, FLAG_GROUPS, FLAG_KEYS, isPolicy, isVariantOf, resolveOptions } from '@/configs/entitlementCatalogue'
+import { DEFAULT_OFF_FLAGS, FEATURE_CATALOGUE, FEATURE_KEYS, FEATURE_OPTIONS, featureByKey, FLAG_GROUPS, FLAG_KEYS, isPolicy, isVariantOf, resolveOptions } from '@/configs/entitlementCatalogue'
 import { serverConfig } from '@/configs/site'
 import { pinToUi, SITE_UI } from '@/configs/siteUi'
 import { DEFAULT_TEMPLATE, resolveTemplateKey, templateByKey, TEMPLATE_KEYS } from '@/configs/templateCatalogue'
@@ -30,7 +30,7 @@ import { diffDocs, type AuditEntry, type Change, type CoinDefinition, type Edita
 function complete(map: Record<string, unknown> | undefined, keys: string[]) {
   const out: Record<string, boolean> = {}
 
-  for (const key of keys) out[key] = map?.[key] !== false
+  for (const key of keys) out[key] = map && key in map ? map[key] !== false : !DEFAULT_OFF_FLAGS.has(key)
 
   // Keep keys the catalogue no longer lists, so an older value is not silently dropped.
   for (const [key, value] of Object.entries(map ?? {})) if (!(key in out)) out[key] = value !== false

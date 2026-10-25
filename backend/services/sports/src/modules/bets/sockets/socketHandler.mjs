@@ -6,11 +6,18 @@ import { walletService_default } from "../../../lib/services/walletService.mjs";
 var BALANCE_INTERVAL_MS = 3e3;
 var setupSocketHandlers = (io) => {
   io.on("connection", (socket) => {
+    // The room comes from the verified token, never the payload's userId: user_<id> carries that
+    // player's balance and exposure pushes, so a bare id let anyone stream another player's.
     socket.on("authenticate", (data) => {
-      const { userId, token } = data;
-      if (userId) {
-        socket.join(`user_${userId}`);
-        socket.userId = userId;
+      try {
+        const token = socket.handshake.auth?.token || data?.token;
+        const userId = token ? verifyToken(token).user_id : null;
+        if (userId) {
+          socket.join(`user_${userId}`);
+          socket.userId = userId;
+        }
+      } catch {
+        // bad or expired token: no room
       }
     });
     socket.on("getBalance", async (data) => {

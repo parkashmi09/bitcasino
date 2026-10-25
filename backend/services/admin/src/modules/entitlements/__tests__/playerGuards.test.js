@@ -72,12 +72,15 @@ const refused = (r, kind, key) => {
 test('player guards', async (t) => {
   t.after(() => entitlements.resetEntitlements());
 
-  await t.test('casino sportsbook session: init and refresh need `sports`', async () => {
+  await t.test('casino sportsbook session: init and refresh need `sports` and sportsbook mode', async () => {
     const call = await mount(t, 'casino/src/modules/sportsbook/routes/user.routes');
-    plan({}, { sports: false });
+    plan({}, { sports: false, sportsbook: true });
     refused(await call('POST', '/init', {}), 'flag', 'sports');
     refused(await call('POST', '/refresh', {}), 'flag', 'sports');
+    // Nothing stored: the exchange runs, so the book stays shut.
     plan({});
+    refused(await call('POST', '/init', {}), 'flag', 'sportsbook');
+    plan({}, { sportsbook: true });
     assert.notEqual((await call('POST', '/init', {})).code, 'NOT_ENTITLED');
   });
 
@@ -94,14 +97,17 @@ test('player guards', async (t) => {
     const launch = (gameUid) => call('POST', '/v2/launch', { gameUid, currencyCode: 'INR' });
 
     // Sports off: the esports book and the LuckySports book (not in any table) are refused…
-    plan({}, { sports: false });
+    plan({}, { sports: false, sportsbook: true });
     refused(await launch('4ee8e0051a035b463b47c3c473ce317d'), 'flag', 'sports');
     refused(await launch('8a704858d5deb4af1ddc722092ac7614'), 'flag', 'sports');
+    // Exchange mode (the default): the books are the sportsbook, so they stay shut.
+    plan({});
+    refused(await launch('8a704858d5deb4af1ddc722092ac7614'), 'flag', 'sportsbook');
     // …and a slot is not a sport.
     assert.notEqual((await launch('slot-uid')).code, 'NOT_ENTITLED');
 
     // Casino off: every game, known or not — but the books still open.
-    plan({}, { casino: false });
+    plan({}, { casino: false, sportsbook: true });
     refused(await launch('slot-uid'), 'flag', 'casino');
     refused(await launch('unknown-uid'), 'flag', 'casino');
     assert.notEqual((await launch('4ee8e0051a035b463b47c3c473ce317d')).code, 'NOT_ENTITLED');
@@ -129,8 +135,8 @@ test('player guards', async (t) => {
     ['user/src/modules/gift-cards/routes/user.routes', 'POST', '/claim', 'gift_cards', 'giftcards'],
     ['user/src/modules/tip/routes/user.routes', 'POST', '/send', 'tips', null],
     ['user/src/modules/tip/routes/user.routes', 'GET', '/users?q=ab', 'tips', null],
-    ['user/src/modules/p2p/routes/user.routes', 'GET', '/offers', 'p2p', null],
-    ['user/src/modules/p2p/routes/user.routes', 'POST', '/orders', 'p2p', null],
+    ['user/src/modules/_p2p/routes/user.routes', 'GET', '/offers', 'p2p', null],
+    ['user/src/modules/_p2p/routes/user.routes', 'POST', '/orders', 'p2p', null],
   ]) {
     await t.test(`${feature}: refused by the feature${flag ? ' and by its product flag' : ''}`, async () => {
       const call = await mount(t, routerPath);
@@ -149,7 +155,7 @@ test('player guards', async (t) => {
     const app = express();
     app.use(express.json());
     app.use(requestContext());
-    app.use(require(`${SERVICES}/user/src/modules/p2p/routes/admin.routes`)(adminDeps));
+    app.use(require(`${SERVICES}/user/src/modules/_p2p/routes/admin.routes`)(adminDeps));
     app.use(errorHandler({ logger }));
     const server = app.listen(0);
     t.after(() => server.close());

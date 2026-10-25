@@ -30,7 +30,7 @@ function createPublicController({ service }) {
 
     /** 302 to Google, after setting the signed state cookie the callback needs. */
     googleStart: asyncHandler(async (req, res) => {
-      const { url, cookie } = service.googleStart();
+      const { url, cookie } = service.googleStart({ nonce: req.query.nonce });
       res.cookie(google.COOKIE, cookie, {
         httpOnly: true,
         secure: req.secure || req.headers['x-forwarded-proto'] === 'https',

@@ -494,6 +494,9 @@ const EXTENSIONS = {
     must_change_password: {
       type: DataTypes.BOOLEAN, allowNull: false, defaultValue: false, field: 'must_change_password',
     },
+    // ── migration 156-staff-token-version ──────────────────────────────
+    // Signed into staff tokens; bumping it ends every session (see the auth guard).
+    token_version: { type: DataTypes.INTEGER, allowNull: false, defaultValue: 0, field: 'token_version' },
     // ── migration 062-agent-money ──────────────────────────────────────
     lock_sources: { type: DataTypes.JSONB, allowNull: false, defaultValue: {}, field: 'lock_sources' },
     // ── migration 091-withdraw-lock ────────────────────────────────────

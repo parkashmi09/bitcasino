@@ -2,6 +2,7 @@
 
 const { Op, QueryTypes } = require('sequelize');
 const { money, AppError } = require('@ibitplay/common');
+const { PERMISSIONS, hasPermission } = require('@ibitplay/auth');
 
 const { manageableStaffIds } = require('../staff-directory/staffDirectory.service');
 const { assertTransactionPassword } = require('../staff-auth/transactionPassword');
@@ -181,6 +182,13 @@ class ExchangeService {
    * + points = parent deta hai (D), − points = parent leta hai (W).
    */
   async settle({ actor, accountType, accountId, points, remark, transactionPassword }) {
+    // The route takes any wallet grant; D (+) needs wallet:credit, W (−) wallet:debit,
+    // unless the caller holds the operator's wallet:adjust.
+    const needed = Number(points) > 0 ? PERMISSIONS.WALLET_CREDIT : PERMISSIONS.WALLET_DEBIT;
+    if (!hasPermission(actor.permissions, PERMISSIONS.WALLET_ADJUST) && !hasPermission(actor.permissions, needed)) {
+      throw new AppError(`Missing required permission: ${needed}`, 403, 'FORBIDDEN');
+    }
+
     // Hamesha zaroori — owner ke liye bhi, baaki money routes (add-balance, direct-wallet adjust) jaisa.
     await assertTransactionPassword(this.models, actor.id, transactionPassword, {
       required: true,

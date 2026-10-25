@@ -825,6 +825,27 @@ test('payment provider callbacks', async (t) => {
     assert.equal(await balanceOf(uid), '500.00000000');
   });
 
+  await t.test('F2Pay: a crypto (USDT) order is paid and credited in USDT, nothing in INR', async () => {
+    const uid = newUid();
+    await seed(uid, '0');
+    const reference = newRef();
+    await connection.models.F2payDeposits.create({ user_id: uid, mch_order_no: reference, amount: '10.5', currency: 'USDT', status: 'Pending' });
+
+    assert.equal((await f2payCallback({ mchOrderNo: reference, state: 'Paid', amount: '10.50' })).settled, true);
+    const row = await connection.models.Credits.findOne({ where: { uid }, raw: true });
+    assert.equal(money.toDecimalString(money.toMinor(row.usdt)), '10.50000000');
+    assert.equal(await balanceOf(uid), '0.00000000', 'nothing converted into INR');
+
+    // A direct user: the callback's credit is one DEPOSIT row on the direct ledger.
+    const ledger = await connection.sequelize.query(
+      'SELECT event_type, category, ref, delta::text AS delta, balance_after::text AS after FROM mssports.point_ledger_direct WHERE user_id = :uid',
+      { replacements: { uid }, type: 'SELECT' }
+    );
+    assert.equal(ledger.length, 1, JSON.stringify(ledger));
+    assert.deepEqual([ledger[0].event_type, ledger[0].category, ledger[0].ref], ['DEPOSIT', 'DEPOSIT', `PSP_F2PAY:${reference}`]);
+    assert.deepEqual([Number(ledger[0].delta), Number(ledger[0].after)], [10.5, 10.5]);
+  });
+
   await t.test('F2Pay: a callback not signed by F2Pay moves nothing', async () => {
     const uid = newUid();
     await seed(uid, '0');
@@ -852,23 +873,5 @@ test('payment provider callbacks', async (t) => {
 
     await f2payCallback({ mchOrderNo: reference, state: 'Closed', amount: '500.00' });
     assert.equal((await f2payRow(reference)).status, 'Failed');
-  });
-
-  await t.test('F2Pay: an IDR order is paid and credited in IDR, and lands on the direct ledger', async () => {
-    const uid = newUid();
-    await seed(uid, '0');
-    const reference = newRef();
-    await connection.models.F2payDeposits.create({ user_id: uid, mch_order_no: reference, amount: '20000', currency: 'IDR', status: 'Pending' });
-
-    assert.equal((await f2payCallback({ mchOrderNo: reference, state: 'Paid', amount: '20000' })).settled, true);
-    const row = await connection.models.Credits.findOne({ where: { uid }, raw: true });
-    assert.equal(money.toDecimalString(money.toMinor(row.idr)), '20000.00000000');
-    assert.equal(money.toDecimalString(money.toMinor(row.inr)), '0.00000000', 'nothing converted into INR');
-
-    const [ledger] = await connection.sequelize.query(
-      "SELECT delta::text AS delta FROM mssports.point_ledger_direct WHERE user_id = :uid AND currency = 'IDR'",
-      { replacements: { uid }, type: 'SELECT' }
-    );
-    assert.equal(Number(ledger?.delta), 20000, 'the trigger knows the idr column');
   });
 });

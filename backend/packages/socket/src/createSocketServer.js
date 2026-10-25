@@ -78,7 +78,8 @@ const DEFAULT_LIMITS = Object.freeze({
  *
  * @param {object} deps
  * @param {import('socket.io').Server} deps.io
- * @param {(token: string) => Promise<{userId: string}|null>} deps.authenticate
+ * @param {(token: string) => Promise<{userId: string, expiresAt?: number}|null>} deps.authenticate
+ *   `expiresAt` (ms) is the token's `exp`: the identity is dropped then, as HTTP drops the token.
  * @param {(token: string) => Promise<{id: string}|null>} [deps.authenticateStaff]
  *   Resolves a STAFF token. Only admin-service passes one; without it no
  *   connection can ever satisfy `AUDIENCE.STAFF`, which is the right default
@@ -145,7 +146,9 @@ function createSocketServer({ io, authenticate, authenticateStaff, logger, confi
         };
 
         try {
-          if (spec.audience === AUDIENCE.USER && !context.userId) {
+          // Expired = signed out, as on HTTP: revocation and lock stop refreshes, so this ends the socket's reach too.
+          const expired = context.expiresAt != null && Date.now() >= context.expiresAt;
+          if (spec.audience === AUDIENCE.USER && (!context.userId || expired)) {
             return refuse(errors.UNAUTHENTICATED({ event: name }));
           }
 
@@ -199,6 +202,7 @@ function createSocketServer({ io, authenticate, authenticateStaff, logger, confi
     const token = socket.handshake.auth?.token ?? socket.handshake.query?.auth_token ?? null;
 
     let userId = null;
+    let expiresAt = null;
     let staff = null;
 
     if (token) {
@@ -226,6 +230,7 @@ function createSocketServer({ io, authenticate, authenticateStaff, logger, confi
         try {
           const session = await authenticate(String(token));
           userId = session?.userId ?? null;
+          expiresAt = session?.expiresAt ?? null;
         } catch (error) {
           logger?.warn({ err: error, socketId: socket.id }, 'Socket token did not verify');
         }
@@ -240,6 +245,7 @@ function createSocketServer({ io, authenticate, authenticateStaff, logger, confi
      */
     const context = {
       userId,
+      expiresAt,
       /** The verified staff row, or null. Only ever set by the transport. */
       staff,
       socket,
@@ -269,9 +275,11 @@ function createSocketServer({ io, authenticate, authenticateStaff, logger, confi
       if (!candidateToken) return null;
 
       let bound = null;
+      let boundExpiresAt = null;
       try {
         const session = await authenticate(String(candidateToken));
         bound = session?.userId ?? null;
+        boundExpiresAt = session?.expiresAt ?? null;
       } catch (error) {
         logger?.warn({ err: error, socketId: socket.id }, 'Socket re-authentication failed');
         return null;
@@ -293,6 +301,8 @@ function createSocketServer({ io, authenticate, authenticateStaff, logger, confi
       limiter.forget(bucketKey(context, socket));
 
       context.userId = bound;
+      context.expiresAt = boundExpiresAt;
+      context.armExpiry?.();
       socket.join(roomForUser(bound));
 
       return bound;
@@ -300,11 +310,25 @@ function createSocketServer({ io, authenticate, authenticateStaff, logger, confi
 
     socket.data.context = context;
 
+    /* At expiry the transport is closed, so user:<id> pushes stop too; the client reconnects and its
+       auth callback refreshes the token first (frontend/src/services/realtime.js). */
+    let expiryTimer = null;
+    const armExpiry = () => {
+      clearTimeout(expiryTimer);
+      if (context.expiresAt == null) return;
+      const left = Math.min(Math.max(0, context.expiresAt - Date.now()), 2 ** 31 - 1);
+      expiryTimer = setTimeout(() => socket.conn?.close(), left);
+      expiryTimer.unref?.();
+    };
+    context.armExpiry = armExpiry;
+    armExpiry();
+
     if (userId) socket.join(roomForUser(userId));
 
     attach(socket, context);
 
     socket.on('disconnect', () => {
+      clearTimeout(expiryTimer);
       /**
        * `context.userId`, not the `userId` from the handshake.
        *
@@ -341,15 +365,16 @@ const roomForUser = (userId) => `user:${userId}`;
 /**
  * The client's address.
  *
- * `x-forwarded-for` first, because the gateway terminates TLS — but only its
- * FIRST entry, which is the one the gateway appended. The rest of the header is
- * whatever the client sent and is not evidence of anything.
+ * `x-forwarded-for`, because the gateway terminates TLS — but only its LAST
+ * entry, the one the gateway appended (the same entry TRUST_PROXY=1 gives HTTP's
+ * `req.ip`). The HTTP proxy that carries polling keeps the client's own header
+ * in front, so the first entry is whatever the client chose to send.
  */
 function ipOf(socket) {
   const headers = socket.handshake.headers ?? {};
   const forwarded = headers['x-forwarded-for'];
-  const first = (Array.isArray(forwarded) ? forwarded[0] : forwarded ?? '').split(',')[0].trim();
-  return first || headers['x-real-ip'] || socket.handshake.address || null;
+  const chain = (Array.isArray(forwarded) ? forwarded.join(',') : forwarded ?? '').split(',').map((s) => s.trim()).filter(Boolean);
+  return chain[chain.length - 1] || headers['x-real-ip'] || socket.handshake.address || null;
 }
 
-module.exports = { createSocketServer, AUDIENCE, roomForUser, EVENTS, encode, decode };
+module.exports = { createSocketServer, AUDIENCE, roomForUser, EVENTS, encode, decode, ipOf };

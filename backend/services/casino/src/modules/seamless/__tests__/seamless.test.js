@@ -517,6 +517,22 @@ test('casino seamless wallet', async (t) => {
     assert.equal(balances.get(String(uid)), '100.00000000');
   });
 
+  await t.test("a rollback naming another member does not refund them someone else's bet", async () => {
+    const victim = player('100');
+    const other = player('0');
+    const { service } = build(new Map([...victim.balances, ...other.balances]));
+    const id = newTxId();
+
+    await service.withdraw(
+      request('withdraw', { member_account: String(victim.uid), transactions: [{ id, amount: '40' }] })
+    );
+    const result = await service.rollback(
+      request('rollback', { member_account: String(other.uid), transactions: [{ id }] })
+    );
+
+    assert.equal(result.code, RESPONSE_CODES.BET_NOT_EXIST);
+  });
+
   await t.test('rolling back something we never applied is refused', async () => {
     const { uid, balances } = player('100');
     const { service } = build(balances);
