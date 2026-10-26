@@ -1,7 +1,8 @@
 import { Navigate, useParams } from 'react-router-dom';
 import { TournamentCard } from '@/components/sections/TournamentCard';
 import { Breadcrumb } from '@/components/ui/Breadcrumb';
-import { ACTIVE_TOURNAMENTS, FINISHED_TOURNAMENTS } from '@/data/tournaments';
+import { Skeleton } from '@/components/ui/Skeleton';
+import { useTournaments } from '@/queries';
 
 /**
  * `/tournaments/all/current` and `/tournaments/all/past` — where the two
@@ -22,12 +23,12 @@ import { ACTIVE_TOURNAMENTS, FINISHED_TOURNAMENTS } from '@/data/tournaments';
 const FILTERS = {
   current: {
     heading: 'Active now',
-    tournaments: ACTIVE_TOURNAMENTS,
+    list: 'active',
     empty: 'No tournaments are running right now. Check back shortly.',
   },
   past: {
     heading: 'Finished',
-    tournaments: FINISHED_TOURNAMENTS,
+    list: 'finished',
     empty: 'No tournaments have finished yet.',
   },
 };
@@ -35,12 +36,14 @@ const FILTERS = {
 export function TournamentList() {
   const { filter } = useParams();
   const config = FILTERS[filter];
+  const lists = useTournaments();
 
   // An unknown segment is not a 404 here: `/tournaments/all/anything` is still
   // the tournaments area, and the index is a better answer than an error page.
   if (!config) return <Navigate to="/tournaments" replace />;
 
-  const { heading, tournaments, empty } = config;
+  const { heading, empty } = config;
+  const tournaments = lists[config.list];
 
   return (
     <div className="flex flex-col gap-6 py-2">
@@ -48,7 +51,9 @@ export function TournamentList() {
         {heading} ({tournaments.length})
       </h1>
 
-      {tournaments.length === 0 ?
+      {lists.isPending ?
+        <Skeleton className="h-[24.625rem] max-w-[36.125rem] rounded-s-md" />
+      : tournaments.length === 0 ?
         <p className="py-16 text-center text-sm text-trunks">{empty}</p>
       : <ul className="grid gap-4 [grid-template-columns:repeat(auto-fill,minmax(min(100%,28rem),1fr))]">
           {tournaments.map((tournament) => (

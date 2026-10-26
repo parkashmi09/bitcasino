@@ -8,6 +8,7 @@ import { useExchangeRates } from '@/hooks/usePreferences';
 import { fiatPair } from '@/lib/format';
 import { useSiteConfig } from '@/queries';
 import { CURRENCY_ORDER } from '@/data/currencies';
+import { useGates } from '@/hooks/useGates';
 
 /**
  * Fat footer, laid out to the reference site's measurements.
@@ -141,6 +142,7 @@ const COLLAPSED_HEIGHT = 44; // h-11 — p-3 + one 20px heading line + p-3
 const HEADING_MARGIN = 16; // mb-4 below the heading, clipped while collapsed
 
 function LinkColumn({ heading, links, wide }) {
+  const gates = useGates();
   const [open, setOpen] = useState(false);
   const [openHeight, setOpenHeight] = useState(0);
   const bodyRef = useRef(null);
@@ -182,7 +184,7 @@ function LinkColumn({ heading, links, wide }) {
 
       <div id={bodyId} ref={bodyRef}>
         <nav aria-label={heading} className="grid justify-start gap-4">
-          {links.map((link) => (
+          {links.filter((link) => gates.routeOn(link.to)).map((link) => (
             <Link
               key={link.label}
               to={link.to}

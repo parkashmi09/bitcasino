@@ -1,40 +1,19 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { HOME_BANNERS } from '@/data/catalog';
-import { useBanners } from '@/queries';
+import { useGates } from '@/hooks/useGates';
+import { useHomeSlides } from '@/queries';
 import { cn } from '@/lib/cn';
 
 /**
  * ═════════════════════════════════════════════════════════════════════════
- * WHY THE COPY IS STILL LOCAL, AND ONLY THE ART COMES FROM THE PLATFORM
+ * THE CARDS ARE THE SITE ADMIN'S SLIDES, IN DIRECT MODE
  *
- * `docs/10`'s Phase 7 bullet says `GET /api/v1/admin/banners` "replaces the
- * hand-written `HOME_BANNERS` in `catalog.js`". It cannot. The row is:
- *
- *     (id, type, image, content_type, byte_size, uploaded_by, is_active, …)
- *
- * An image and a placement name. **There is no title, no blurb and no
- * destination anywhere in it**, and each of these three cards has all three.
- * So the platform can say which PICTURE a placement shows and nothing else.
- *
- * The split this file makes:
- *
- *   art     from `admin/banners` when a placement has one, else the local file
- *   copy    always local — the platform has nowhere to put it
- *   link    always local, for the same reason
- *
- * `banner.id` is the placement key, so uploading a banner of type
- * `banner-league` swaps the League card's artwork with no code change. That is
- * the whole of what the endpoint buys, and it is worth having: art is the part
- * an operator actually wants to change without a deploy.
- *
- * The table is **empty** on this deployment, which is the normal state where
- * nobody has uploaded anything — so the fixture art is what renders, and that
- * is not a fallback for a failure. Nothing is wrong.
- *
- * Giving the platform the copy too would need a migration adding
- * `title`, `subtitle` and `href` to `banners`, plus admin-panel fields for
- * them. Flagged in `docs/10` as backend work rather than faked here.
+ * `GET /admin/banners?mode=direct` (`useHomeSlides`): every `slider-<n>`
+ * placement, in `sortOrder`, with its own title, subtitle and CTA link. When
+ * the admin has uploaded none, `HOME_BANNERS` in `catalog.js` is drawn
+ * instead. Either way a card into a switched-off section is dropped, and the
+ * whole row follows the site's `home_heroSection` toggle (off = no request).
  * ═════════════════════════════════════════════════════════════════════════
  */
 
@@ -110,9 +89,13 @@ const AUTOPLAY_MS = 5000;
  * and what is left is the reference's row, three children and all.
  */
 export function HomeBanner() {
-  const N = HOME_BANNERS.length;
-  /** Placement -> uploaded art. Empty when no operator has uploaded any. */
-  const { data: uploaded } = useBanners();
+  const { flag, routeOn } = useGates();
+  const show = flag('home_heroSection');
+  const { data: slides } = useHomeSlides({ enabled: show });
+  const banners = (slides?.length ? slides : HOME_BANNERS).filter(
+    (banner) => !banner.href || routeOn(banner.href),
+  );
+  const N = banners.length;
   const trackRef = useRef(null);
   const settleRef = useRef(0);
   const pausedRef = useRef(false);
@@ -243,6 +226,8 @@ export function HomeBanner() {
     el.scrollBy({ left: offsets()[i + N], behavior: smooth ? 'smooth' : 'instant' });
   };
 
+  if (!show || N === 0) return null;
+
   return (
     <section
       aria-label="Featured"
@@ -268,7 +253,7 @@ export function HomeBanner() {
         ].join(' ')}
       >
         {Array.from({ length: COPIES * N }, (_, i) => {
-          const banner = HOME_BANNERS[i % N];
+          const banner = banners[i % N];
           const copy = Math.floor(i / N);
           const spare = copy !== MIDDLE;
 
@@ -285,7 +270,7 @@ export function HomeBanner() {
               )}
             >
               <div
-                style={{ backgroundImage: `url(${uploaded?.get(banner.id)?.url ?? banner.art})` }}
+                style={{ backgroundImage: `url(${banner.art})` }}
                 className={[
                   'relative flex flex-col justify-end gap-2 overflow-hidden rounded-2xl',
                   'bg-[#0F0025] bg-cover bg-center bg-no-repeat',
@@ -312,15 +297,17 @@ export function HomeBanner() {
 
               {/* Stretched hit target. Sits above the card so the whole tile is
                   clickable, and carries the accessible name for the link. */}
-              <Link
-                to={banner.href}
-                aria-label={banner.title}
-                tabIndex={spare ? -1 : undefined}
-                className={[
-                  'absolute inset-0 z-1 rounded-2xl',
-                  'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-piccolo',
-                ].join(' ')}
-              />
+              {banner.href && (
+                <CardLink
+                  href={banner.href}
+                  aria-label={banner.title || 'Promotion'}
+                  tabIndex={spare ? -1 : undefined}
+                  className={[
+                    'absolute inset-0 z-1 rounded-2xl',
+                    'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-piccolo',
+                  ].join(' ')}
+                />
+              )}
             </div>
           );
         })}
@@ -332,12 +319,12 @@ export function HomeBanner() {
           The 8px mark is too small to hit, so `before` grows the target to
           24px without moving the 16px pitch. */}
       <div className="flex justify-center gap-2 sm:hidden">
-        {HOME_BANNERS.map((banner, i) => (
+        {banners.map((banner, i) => (
           <button
             key={banner.id}
             type="button"
             onClick={() => goTo(i)}
-            aria-label={`Show ${banner.title}`}
+            aria-label={`Show ${banner.title || `slide ${i + 1}`}`}
             aria-current={i === active}
             className={cn(
               'relative size-2 rounded-full bg-trunks transition-opacity',
@@ -350,4 +337,9 @@ export function HomeBanner() {
       </div>
     </section>
   );
+}
+
+/** An admin CTA may be an absolute http(s) url, which `Link` would read as a path. */
+function CardLink({ href, ...props }) {
+  return /^https?:/i.test(href) ? <a href={href} {...props} /> : <Link to={href} {...props} />;
 }

@@ -4,24 +4,18 @@ import { Skeleton } from '@/components/ui/Skeleton';
 import { QueryError } from '@/components/ui/QueryState';
 import { useBlogPost } from '@/queries';
 import { formatDate } from '@/pages/Blog';
+import { sanitizeHtml } from '@/lib/sanitizeHtml';
 
 /**
  * `/blog/:slug` — one post.
  *
- * ## The body is plain text, and it is rendered as plain text
+ * ## The body is staff-written HTML, sanitised before it is drawn
  *
- * `blogs.description` is a text column. Nothing on the platform declares it
- * as HTML or Markdown, nothing sanitises it on the way in, and the admin
- * panel that writes it is not in this repo. So it is split on blank lines
- * into paragraphs and rendered as **text** — never through
- * `dangerouslySetInnerHTML`.
- *
- * That is not caution for its own sake: the column is operator-supplied and
- * reaches this page over a public route. Rendering it as HTML would make any
- * staff account with `config:write` — or anything that ever compromises one —
- * able to run script on every visitor's session, on a page a signed-in player
- * loads with a live token in memory. A post that wants a heading can wait for
- * the platform to declare a format.
+ * `blogs.description` is written in the admin panel, as HTML or plain text
+ * (hash-game-exchange draws it the same way). It reaches this page over a
+ * public route, so it goes through `lib/sanitizeHtml` — an allowlist that
+ * drops scripts, frames, `on*` handlers and `javascript:` URLs — and only
+ * then into `dangerouslySetInnerHTML`. Plain text becomes paragraphs.
  *
  * ## Fetched by slug rather than filtered out of the index
  *
@@ -54,10 +48,7 @@ export function BlogPost() {
 
   if (!post) return <NotFound />;
 
-  const paragraphs = String(post.body ?? '')
-    .split(/\n\s*\n/)
-    .map((block) => block.trim())
-    .filter(Boolean);
+  const html = sanitizeHtml(post.body);
 
   return (
     <article className="py-4">
@@ -102,18 +93,19 @@ export function BlogPost() {
         />
       )}
 
-      <div className="mt-5 grid max-w-[720px] gap-4">
-        {paragraphs.length > 0 ? (
-          paragraphs.map((block, index) => (
-            // Plain text, deliberately — see the note at the top.
-            <p key={index} className="text-base leading-relaxed whitespace-pre-line text-bulma">
-              {block}
-            </p>
-          ))
-        ) : (
-          <p className="text-sm text-trunks">This post has no content yet.</p>
-        )}
-      </div>
+      {html ? (
+        <div
+          className={
+            'mt-5 grid max-w-[720px] gap-4 text-base leading-relaxed text-bulma ' +
+            '[&_a]:text-piccolo [&_a]:underline [&_h2]:text-xl [&_h3]:text-lg [&_img]:rounded-s-md ' +
+            '[&_ol]:list-decimal [&_ol]:ps-5 [&_ul]:list-disc [&_ul]:ps-5'
+          }
+          // Sanitised above — see the note at the top.
+          dangerouslySetInnerHTML={{ __html: html }}
+        />
+      ) : (
+        <p className="mt-5 text-sm text-trunks">This post has no content yet.</p>
+      )}
     </article>
   );
 }

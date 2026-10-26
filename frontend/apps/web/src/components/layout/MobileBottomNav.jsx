@@ -1,6 +1,7 @@
 import { NavLink } from 'react-router-dom';
 import { Icon } from '@/components/ui/Icon';
 import { cn } from '@/lib/cn';
+import { useGates } from '@/hooks/useGates';
 
 const NAV_ITEMS = [
   { label: 'Slots', to: '/categories/video-slots', icon: 'slots' },
@@ -34,6 +35,7 @@ function NavItem({ item, onNavigate }) {
 }
 
 export function MobileBottomNav({ onOpenSearch, onOpenMenu, onNavigate, menuOpen }) {
+  const gates = useGates();
   return (
     <nav
       aria-label="Mobile navigation"
@@ -41,7 +43,7 @@ export function MobileBottomNav({ onOpenSearch, onOpenMenu, onNavigate, menuOpen
       className="fixed inset-x-0 bottom-0 z-50 border-t border-hit bg-goku/95 px-3.5 pt-2.5 pb-[calc(0.5rem+env(safe-area-inset-bottom))] backdrop-blur-md md:hidden"
     >
       <div className="grid grid-flow-col auto-cols-fr items-center gap-2">
-        {NAV_ITEMS.map((item) => (
+        {NAV_ITEMS.filter((item) => gates.routeOn(item.to)).map((item) => (
           <NavItem key={item.to} item={item} onNavigate={onNavigate} />
         ))}
         <button

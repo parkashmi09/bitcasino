@@ -21,12 +21,31 @@ import { Refer } from './Refer';
  * and the route untouched.
  */
 
-vi.mock('@/hooks/useReferral', () => ({
+vi.mock('@/hooks/useReferral', async (importActual) => ({
+  ...(await importActual()),
   useReferral: () => ({
     link: 'https://bitcasino.test/ref/abc123',
     referrals: 0,
     earned: '0',
+    members: [],
     status: 'ready',
+  }),
+}));
+
+// The site admin's unlock table, as `GET /admin/site-config/public` carries it.
+vi.mock('@/queries', () => ({
+  useSiteConfig: () => ({
+    config: {
+      raw: {
+        referralUnlocks: {
+          currency: 'INR',
+          tiers: [
+            { level: 'Bronze I', totalWager: '1000.00000000', unlockAmount: '0.50000000' },
+            { level: 'Gold I', totalWager: '500000.00000000', unlockAmount: '80.00000000' },
+          ],
+        },
+      },
+    },
   }),
 }));
 
@@ -129,5 +148,20 @@ describe('the share menu', () => {
       `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(link)}`,
     );
     expect(href(3)).toBe(`https://line.me/R/msg/?text=${encodeURIComponent(link)}`);
+  });
+});
+describe('the unlock table', () => {
+  it('heads the banner with the sum of the admin tiers, in the reward currency', () => {
+    renderPage();
+    expect(screen.getByRole('heading', { name: 'Invite friends and get up to 80.50 INR each' })).toBeTruthy();
+  });
+
+  it('draws the admin tiers in the terms', () => {
+    renderPage();
+    fireEvent.click(screen.getByRole('button', { name: /referral terms/i }));
+    const dialog = screen.getByRole('dialog');
+    expect(within(dialog).getByText('Gold I')).toBeTruthy();
+    expect(within(dialog).getByText('500,000')).toBeTruthy();
+    expect(within(dialog).getByText('80.00')).toBeTruthy();
   });
 });

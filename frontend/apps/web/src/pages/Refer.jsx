@@ -4,15 +4,16 @@ import { Button } from '@/components/ui/Button';
 import { Dialog } from '@/components/ui/Dialog';
 import { Icon } from '@/components/ui/Icon';
 import { usePopover } from '@/hooks/usePopover';
-import { useReferral } from '@/hooks/useReferral';
+import { referralUnlocks, useReferral } from '@/hooks/useReferral';
 import {
   REFERRAL_FAQ,
   REFERRAL_FAQ_VISIBLE,
   REFERRAL_STEPS,
   REFERRAL_TERMS,
-  REFERRAL_TIERS,
 } from '@/data/referral';
 import { cn } from '@/lib/cn';
+import { formatBalance } from '@/lib/format';
+import { useSiteConfig } from '@/queries';
 
 /**
  * `/profile/refer-a-friend`.
@@ -55,8 +56,9 @@ import { cn } from '@/lib/cn';
  * resolves against `GET /profile/verify-referral/:code`. So the link a player
  * copies here is one their friend can actually open, end to end.
  *
- * The steps, the prize table and the FAQ are the reference's published terms
- * and live in `data/referral.js`; `docs/07-assets.md` records them alongside
+ * The prize table, the "up to" headline and the reward currency are the site
+ * admin's `referralUnlocks` (`GET /admin/site-config/public`), and the friend
+ * list is `team.members`. The steps and the FAQ live in `data/referral.js`; `docs/07-assets.md` records them alongside
  * the artwork.
  *
  * ## Responsiveness — the one place this page leaves the reference
@@ -74,17 +76,25 @@ import { cn } from '@/lib/cn';
  * into a row under a dotted rule. `docs/11` records the difference.
  */
 export function Refer() {
-  const { link, referrals, earned, status } = useReferral();
+  const { link, referrals, earned, members, status } = useReferral();
+  const unlocks = useUnlocks();
   const [termsOpen, setTermsOpen] = useState(false);
 
   return (
     <div className="grid gap-4">
-      <InviteBanner link={link} status={status} onOpenTerms={() => setTermsOpen(true)} />
+      <InviteBanner
+        link={link}
+        status={status}
+        unlocks={unlocks}
+        onOpenTerms={() => setTermsOpen(true)}
+      />
       <HowItWorks />
 
       <section className="flex flex-col gap-4 xl:flex-row">
         <div className="min-w-0 flex-1 xl:me-8">
-          <NoReferrals link={link} status={status} />
+          {members?.length ?
+            <ReferralList members={members} />
+          : <NoReferrals link={link} status={status} />}
         </div>
 
         {/* A rule, not a border: it is between the columns and belongs to
@@ -93,7 +103,12 @@ export function Refer() {
         <hr className="h-px w-full border-0 bg-beerus xl:h-auto xl:min-h-[1000px] xl:w-px" />
 
         <div className="flex flex-col gap-8 xl:ms-8 xl:w-2/5 xl:max-w-xl">
-          <Statistics referrals={referrals} earned={earned} status={status} />
+          <Statistics
+            referrals={referrals}
+            earned={earned}
+            currency={unlocks.currency}
+            status={status}
+          />
           <Faq />
         </div>
       </section>
@@ -122,12 +137,20 @@ export function Refer() {
  * column is dropped — the reference does the same, and a 290px card cannot
  * hold both a three-line heading and a picture on a phone.
  */
-function InviteBanner({ link, status, onOpenTerms }) {
+/** The site admin's unlock table; `{currency, tiers, total}`. */
+function useUnlocks() {
+  const { config } = useSiteConfig();
+  return referralUnlocks(config.raw.referralUnlocks);
+}
+
+function InviteBanner({ link, status, unlocks, onOpenTerms }) {
   return (
     <section className="relative flex w-full overflow-hidden rounded-3xl bg-[#fbf7f7] md:h-[290px]">
       <div className="relative z-1 flex w-full flex-col gap-6 px-6 py-6 md:w-3/4 md:gap-8">
         <h1 className="max-w-sm font-secondary text-[32px] leading-10 font-light text-popo">
-          Invite friends and get up to 5,000 USDT
+          {unlocks.total ?
+            `Invite friends and get up to ${unlocks.total} ${unlocks.currency} each`
+          : 'Invite friends and earn rewards'}
         </h1>
 
         <LinkRow link={link} status={status} className="max-w-md" />
@@ -482,11 +505,40 @@ function NoReferrals({ link, status }) {
   );
 }
 
+/** The friends who joined with this code, newest first (`team.members`). */
+function ReferralList({ members }) {
+  return (
+    <section className="grid gap-4">
+      <h2 className="font-secondary text-2xl font-light text-bulma">Your referrals</h2>
+      <ul className="grid gap-2">
+        {members.map((member) => (
+          <li
+            key={member.id ?? member.name}
+            className="flex items-baseline justify-between gap-4 rounded-i-sm border border-beerus px-4 py-3"
+          >
+            <div className="min-w-0">
+              <p className="truncate text-base font-medium text-bulma">{member.name}</p>
+              {member.joinedAt && (
+                <p className="text-xs text-trunks">
+                  Joined {new Date(member.joinedAt).toLocaleDateString()}
+                </p>
+              )}
+            </div>
+            <span className="shrink-0 text-sm tabular-nums text-trunks">
+              Wagered {formatBalance(member.wager)} {member.wagerCurrency ?? 'USD'}
+            </span>
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+}
+
 /* -------------------------------------------------------------------------- */
 /* Statistics                                                                  */
 /* -------------------------------------------------------------------------- */
 
-function Statistics({ referrals, earned, status }) {
+function Statistics({ referrals, earned, currency, status }) {
   return (
     <section className="grid gap-4">
       <h2 className="font-secondary text-2xl font-light text-bulma">Referral statistics</h2>
@@ -499,7 +551,7 @@ function Statistics({ referrals, earned, status }) {
       <StatCard
         label="Total earned"
         // A string all the way from Postgres — see `useReferral`.
-        value={status === 'loading' ? '—' : `${earned} USDT`}
+        value={status === 'loading' ? '—' : `${formatBalance(earned)} ${currency}`.trim()}
         art="/images/refer/earned.png"
       />
     </section>
@@ -634,6 +686,9 @@ function FaqItem({ item, open, onToggle }) {
  * what the split band does on the reference.
  */
 function PrizeTable() {
+  const { tiers, currency } = useUnlocks();
+  if (tiers.length === 0) return null;
+
   return (
     <div className="overflow-x-auto">
       <table className="w-full min-w-[320px] border-collapse text-sm">
@@ -643,18 +698,18 @@ function PrizeTable() {
               Level
             </th>
             <th scope="col" className="py-2 pe-3 text-start font-semibold">
-              Points
+              Friend’s total wager
             </th>
             <th scope="col" className="py-2 text-start font-semibold">
-              Reward
+              Reward ({currency})
             </th>
           </tr>
         </thead>
         <tbody>
-          {REFERRAL_TIERS.map((tier) => (
+          {tiers.map((tier) => (
             <tr key={tier.level} className="border-t border-beerus text-trunks">
               <td className="py-2 pe-3 whitespace-nowrap">{tier.level}</td>
-              <td className="py-2 pe-3 whitespace-nowrap">{tier.points}</td>
+              <td className="py-2 pe-3 whitespace-nowrap">{tier.wager}</td>
               <td className="py-2 whitespace-nowrap">{tier.reward}</td>
             </tr>
           ))}

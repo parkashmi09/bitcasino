@@ -3,6 +3,7 @@ import { Icon } from '@/components/ui/Icon';
 import { KycDialog } from '@/components/account/KycDialog';
 import { COUNTRIES, DIAL_CODES } from '@/data/countries';
 import { LOCAL_FIELDS, useProfile } from '@/hooks/useProfile';
+import { useGates } from '@/hooks/useGates';
 import { useKycStatus } from '@/queries';
 import { cn } from '@/lib/cn';
 
@@ -82,6 +83,10 @@ import { cn } from '@/lib/cn';
 export function Account() {
   const { profile, local, status, emailVerified, save, saving } = useProfile();
   const { data: kyc, isSuccess: kycRead } = useKycStatus();
+  // An agent's player: read-only, no email or contact fields — the site admin edits
+  // their profile (backend PROFILE_EDIT_NOT_FOR_AGENT_USERS).
+  const gates = useGates();
+  const { agentPlayer } = gates;
 
   const [form, setForm] = useState(null);
   const [result, setResult] = useState(null);
@@ -123,8 +128,8 @@ export function Account() {
         {/* KYC column. First in the DOM at every width, second on screen once
             the columns split — see the note above. */}
         <div className="grid h-max gap-2 [@media(min-width:1500px)]:order-2">
-          {!emailVerified && <EmailNotice />}
-          {kycRead && kyc?.status !== 'Verified' && (
+          {!agentPlayer && !emailVerified && <EmailNotice />}
+          {gates.on('kyc') && kycRead && kyc?.status !== 'Verified' && (
             <IdentityCard kyc={kyc} />
           )}
         </div>
@@ -140,7 +145,7 @@ export function Account() {
               </h2>
             </div>
 
-            <div className="flex items-center gap-2">
+            {!agentPlayer && <div className="flex items-center gap-2">
               <span className="truncate text-sm leading-6 text-trunks">
                 {profile?.email ?? <Placeholder w="18ch" />}
               </span>
@@ -153,7 +158,7 @@ export function Account() {
                   aria-label="Email address not confirmed"
                 />
               )}
-            </div>
+            </div>}
           </div>
 
           <hr className="h-px border-0 bg-beerus" />
@@ -171,7 +176,7 @@ export function Account() {
             </p>
           ) : (
             <form onSubmit={onSubmit}>
-              <fieldset disabled={!form || saving} className="grid gap-4 border-0 p-0">
+              <fieldset disabled={!form || saving || agentPlayer} className="grid gap-4 border-0 p-0">
                 {/* Read-only on the reference too — a date of birth is set at
                     signup and changed by support, not here. */}
                 <Fact label="Date of birth" value={formatBirthday(form?.dateOfBirth)} />
@@ -182,6 +187,7 @@ export function Account() {
                 {/* `max-content` for the code, the rest for the number, bottom
                     aligned so the two controls sit on one line while their
                     labels stay over each. */}
+                {!agentPlayer && <>
                 <div className="grid grid-cols-[max-content_1fr] items-end gap-4">
                   <SelectField
                     label="Country Code"
@@ -200,6 +206,7 @@ export function Account() {
 
                 <Field label="Line ID" placeholder="Line ID" value={form?.lineId} onChange={set('lineId')} />
                 <Field label="Telegram ID" placeholder="Telegram ID" value={form?.telegramId} onChange={set('telegramId')} />
+                </>}
                 <Field label="Address" placeholder="Address" value={form?.address} onChange={set('address')} autoComplete="street-address" />
 
                 {/* Two equal columns at every width on the reference — no
@@ -214,7 +221,7 @@ export function Account() {
                   <Field label="City" placeholder="City" value={form?.city} onChange={set('city')} autoComplete="address-level2" />
                 </div>
 
-                <div className="grid w-max gap-4">
+                {!agentPlayer && <div className="grid w-max gap-4">
                   <button
                     type="submit"
                     className={cn(
@@ -228,7 +235,7 @@ export function Account() {
                   >
                     {saving ? 'Saving…' : 'Save changes'}
                   </button>
-                </div>
+                </div>}
               </fieldset>
 
               {/* The reference gives no feedback here at all. This does, and

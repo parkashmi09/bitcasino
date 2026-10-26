@@ -40,10 +40,9 @@ const SOCIAL = [
  * content's own — the sheet is `h-auto` like the reference, with no inner
  * scrollbar.
  *
- * The one thing the reference snippet has no answer for is failure feedback:
- * its codes validate server-side. Ours does not, so the result line under the
- * field is `aria-live` and keeps focus in the field, where the next attempt
- * is typed.
+ * Codes validate server-side (`POST /user/bonus/redeem`, via `useRewards`);
+ * `onClaim` may return a promise. The result line under the field is
+ * `aria-live` and keeps focus in the field, where the next attempt is typed.
  *
  * Lived in `pages/Rewards.jsx` until the wallet drawer's `Claim reward` row
  * needed the same dialog. A page importing from the drawer is fine; the drawer
@@ -53,6 +52,7 @@ const SOCIAL = [
 export function ClaimRewardDialog({ open, onClose, onClaim }) {
   const [code, setCode] = useState('');
   const [result, setResult] = useState(null);
+  const [pending, setPending] = useState(false);
   // The sheet stays mounted for one animation after `open` goes false, so the
   // slide-down is not cut off by React unmounting the tree.
   const [closing, setClosing] = useState(false);
@@ -105,7 +105,12 @@ export function ClaimRewardDialog({ open, onClose, onClaim }) {
 
   function submit(event) {
     event.preventDefault();
-    setResult(onClaim(code));
+    // A redeem credits money once; a second press while the first is in flight would only be refused.
+    if (pending) return;
+    setPending(true);
+    Promise.resolve(onClaim(code))
+      .then(setResult)
+      .finally(() => setPending(false));
   }
 
   return (
@@ -196,7 +201,7 @@ export function ClaimRewardDialog({ open, onClose, onClaim }) {
                 type="submit"
                 size="lg"
                 className="h-12 text-base font-normal"
-                disabled={code.trim() === ''}
+                disabled={code.trim() === '' || pending}
                 fullWidth
                 data-testid="claim_btn"
               >
@@ -236,8 +241,7 @@ const ANIMATION_MS = 150;
 /** The one line under the field. Empty before anything has been submitted. */
 function message(result) {
   if (!result) return '';
-  if (result.ok) return `Claimed — ${result.reward.title} is now in your rewards.`;
-  if (result.reason === 'already') return 'That code has already been claimed.';
-  if (result.reason === 'unknown') return "That code isn't recognised.";
-  return 'Enter a code to claim.';
+  if (result.ok) return `Claimed — ${result.amount} ${result.currency} added to your balance.`;
+  if (result.reason === 'empty') return 'Enter a code to claim.';
+  return result.message || 'That code could not be claimed.';
 }

@@ -1,7 +1,8 @@
 import { Rail } from '@/components/sections/Rail';
 import { TournamentCard } from '@/components/sections/TournamentCard';
 import { Icon } from '@/components/ui/Icon';
-import { ACTIVE_TOURNAMENTS, FINISHED_TOURNAMENTS } from '@/data/tournaments';
+import { Skeleton } from '@/components/ui/Skeleton';
+import { useTournaments } from '@/queries';
 
 /**
  * `/tournaments` — where the sidebar's Tournaments link, the account menu's
@@ -31,18 +32,25 @@ import { ACTIVE_TOURNAMENTS, FINISHED_TOURNAMENTS } from '@/data/tournaments';
  * whether or not anything is scheduled — it is the section's whole content,
  * an announcement that more are coming rather than a fallback for an empty
  * list — so there is no list here to be empty.
+ *
+ * The cards are the platform's wager races (`useTournaments`): the open board
+ * of every race the admin has on, and the settled ones from `/race/history`.
  */
 export function Tournaments() {
+  const { active, finished, isPending } = useTournaments();
+
   return (
     <div className="flex flex-col gap-2 py-2">
       <h1 className="font-primary text-2xl leading-8 font-normal tracking-normal text-bulma">
         Tournaments
       </h1>
 
+      {isPending && <Skeleton className="h-[24.625rem] max-w-[36.125rem] rounded-s-md" />}
+
       <TournamentRail
-        title={`Active now (${ACTIVE_TOURNAMENTS.length})`}
+        title={`Active now (${active.length})`}
         href="/tournaments/all/current"
-        tournaments={ACTIVE_TOURNAMENTS}
+        tournaments={active}
       />
 
       <section className="grid gap-2">
@@ -51,9 +59,9 @@ export function Tournaments() {
       </section>
 
       <TournamentRail
-        title={`Finished (${FINISHED_TOURNAMENTS.length})`}
+        title={`Finished (${finished.length})`}
         href="/tournaments/all/past"
-        tournaments={FINISHED_TOURNAMENTS}
+        tournaments={finished}
       />
     </div>
   );

@@ -1,5 +1,6 @@
 import { NavLink, Outlet } from 'react-router-dom';
 import { cn } from '@/lib/cn';
+import { useGates } from '@/hooks/useGates';
 
 /**
  * The account area's shell: one tab bar over whatever route is showing.
@@ -68,6 +69,7 @@ const TABS = [
 ];
 
 export function ProfileLayout() {
+  const gates = useGates();
   return (
     // `main` carries the 40px top padding from `md` up and none below it, so
     // the bar supplies its own 16px on a phone rather than sitting flush
@@ -75,7 +77,7 @@ export function ProfileLayout() {
     <div className="flex min-w-0 flex-col pt-4 md:pt-0">
       <nav aria-label="Account">
         <ul className="no-scrollbar flex gap-4 overflow-x-auto pb-3.5">
-          {TABS.map((tab) => (
+          {TABS.filter((tab) => gates.routeOn(tab.to)).map((tab) => (
             <li key={tab.label} className="shrink-0">
               <ProfileTab {...tab} />
             </li>

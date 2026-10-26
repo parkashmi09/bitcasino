@@ -1,13 +1,14 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQueries, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api, apiWithMeta } from '@/lib/api';
 import { ENDPOINTS, path } from '@/lib/endpoints';
 import { queryKeys } from '@/queries/keys';
 import { refreshBalances } from '@/hooks/useWallet';
 import { useAuth } from '@/auth/AuthProvider';
+import { formatBalance } from '@/lib/format';
 
 /**
- * The promotions surfaces: the spin wheel, the VIP standing, and the
- * operator's scheduled bonus events.
+ * The promotions surfaces: the spin wheel, the VIP standing, the player's
+ * bonus log, the wager races, the operator's promotions and the home slides.
  *
  * @see docs/10-backend-integration.md, Phase 7.
  */
@@ -162,11 +163,7 @@ export function useClaimBonus() {
  * a date. **No title, no description, no window**, because it is a log of
  * what happened rather than a schedule of what will.
  *
- * There is no scheduled-promotions surface on this platform to read instead:
- * no `bonus_events` table, no tournaments table, nothing an operator fills
- * with a promotion that has a start and an end. That is a gap in the
- * backend, and `pages/Promotions.jsx` says so on the page rather than
- * implying the operator simply has not scheduled anything.
+ * The operator's campaigns are `usePromotions` below (`GET /admin/promotions`).
  *
  * This mattered less than it should have because `bonushistory` is empty on
  * this deployment, so the page's empty state was all anyone ever saw. The
@@ -175,7 +172,7 @@ export function useClaimBonus() {
  * moment one bonus was paid.
  * ═══════════════════════════════════════════════════════════════════════
  *
- * Page-based, `meta.pagination`. Player-scoped, so it needs a session.
+ * `limit`/`offset` on the wire (`page` is mapped), `meta.pagination` back. Player-scoped.
  */
 export function useBonusEvents({ page = 1, limit = 20 } = {}) {
   const { status } = useAuth();
@@ -183,7 +180,8 @@ export function useBonusEvents({ page = 1, limit = 20 } = {}) {
   return useQuery({
     queryKey: queryKeys.promotions.events({ page, limit }),
     queryFn: ({ signal }) =>
-      apiWithMeta(ENDPOINTS.bonusEvents, { query: { page, limit }, signal }),
+      // The validator is strict `limit`/`offset`; `page` would be a 422.
+      apiWithMeta(ENDPOINTS.bonusEvents, { query: { limit, offset: (page - 1) * limit }, signal }),
     enabled: status === 'authenticated',
     select: ({ data, meta }) => ({
       /**
@@ -202,5 +200,191 @@ export function useBonusEvents({ page = 1, limit = 20 } = {}) {
       pagination: meta?.pagination ?? null,
     }),
     staleTime: 60 * 1000,
+  });
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+ * Wager races — the League page, Tournaments and My participations
+ *
+ * Owner feature `races` (gate `contest`). Every read is public; a token adds
+ * the caller's own `me` row to a board. A switched-off race still answers a
+ * board (pool 0, nothing paid), so `enabled` on the config is what decides
+ * whether it is advertised — never "there is a board".
+ * ═══════════════════════════════════════════════════════════════════════ */
+
+const RACE_TITLES = { daily: 'Daily race', weekly: 'Weekly race' };
+export const raceTitle = (type) => RACE_TITLES[type] ?? 'Race';
+
+/** No row is off; a row without `enabled` is on (the backend's own rule). */
+export const raceOn = (config) =>
+  Boolean(config) && config.enabled !== false && config.configured !== false;
+
+/** The race configs that are switched on, daily first. */
+export function useRaces({ enabled = true } = {}) {
+  return useQuery({
+    queryKey: queryKeys.promotions.races(),
+    queryFn: ({ signal }) => api(ENDPOINTS.races, { auth: false, signal }),
+    select: (rows) => (Array.isArray(rows) ? rows : []).filter(raceOn),
+    enabled,
+    staleTime: 60 * 1000,
+  });
+}
+
+/** One open board per type, each with the viewer's own `me` (null signed out or not on it). */
+export function useRaceBoards(types) {
+  const { user } = useAuth();
+  const viewer = user?.id ?? null;
+
+  return useQueries({
+    queries: types.map((type) => ({
+      queryKey: queryKeys.promotions.raceBoard(type, viewer),
+      queryFn: ({ signal }) => api(path(ENDPOINTS.raceBoard, { type }), { signal }),
+      staleTime: 60 * 1000,
+    })),
+  });
+}
+
+/** Settled races, newest paid first, each with its podium. */
+export function useRaceHistory({ limit = 30, enabled = true } = {}) {
+  const { user } = useAuth();
+
+  return useQuery({
+    queryKey: queryKeys.promotions.raceHistory(limit, user?.id ?? null),
+    queryFn: ({ signal }) => api(ENDPOINTS.raceHistory, { query: { limit }, signal }),
+    select: (rows) => (Array.isArray(rows) ? rows : []),
+    enabled,
+    staleTime: 5 * 60 * 1000,
+  });
+}
+
+const RACE_ART = {
+  daily: '/images/tournaments/silver-big.avif',
+  weekly: '/images/tournaments/gold-big.avif',
+};
+
+/**
+ * A board (open) or a history row (settled) as `TournamentCard` draws one.
+ * The open pool is the payout-currency figure the board quotes; a settled
+ * race carries its own priced pool.
+ */
+export function toTournament(race, { finished = false } = {}) {
+  const pool = finished
+    ? `${formatBalance(race.prizePool)} ${race.currency ?? ''}`
+    : `${formatBalance(race.payoutPrizePool ?? race.prizePool)} ${race.payoutCurrency ?? race.currency ?? ''}`;
+  const leader = finished ? race.winners?.[0]?.name : race.leaderboard?.[0]?.name;
+
+  return {
+    slug: finished ? `race-${race.raceId}` : race.type,
+    title: finished ? `${raceTitle(race.type)} #${race.raceId}` : raceTitle(race.type),
+    art: RACE_ART[race.type] ?? RACE_ART.daily,
+    status: finished ? 'finished' : 'active',
+    prizePool: pool.trim(),
+    leader: leader ?? '—',
+    endsAt: race.endsAt,
+    href: finished ? null : `/promotions/league-of-bitcasino?race=${race.type}`,
+  };
+}
+
+/** `/tournaments`: the open boards of the races that are on, and the settled ones. */
+export function useTournaments() {
+  const races = useRaces();
+  const boards = useRaceBoards((races.data ?? []).map((race) => race.type));
+  const history = useRaceHistory();
+
+  return {
+    active: boards.filter((board) => board.data).map((board) => toTournament(board.data)),
+    finished: (history.data ?? []).map((race) => toTournament(race, { finished: true })),
+    isPending: races.isPending || history.isPending || boards.some((board) => board.isPending),
+  };
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+ * Operator promotions — owner feature `promotions` (`GET /admin/promotions`)
+ * ═══════════════════════════════════════════════════════════════════════ */
+
+/** Ended is the operator's `promoStatus` or an `endsAt` already past. */
+export function toPromotionCard(row, now = Date.now()) {
+  const ended =
+    row?.promoStatus === 'ended' || (row?.endsAt ? new Date(row.endsAt).getTime() < now : false);
+
+  return {
+    slug: `${row.segment}-${row.slug}`,
+    title: row.title ?? '',
+    blurb: row.summary ?? '',
+    href: `/promotions/${row.segment}/${row.slug}`,
+    // Every seeded row has art; a row without any gets a neutral card rather than a broken image.
+    art: row.imageUrl ?? '/images/banners/league.svg',
+    ended,
+  };
+}
+
+/**
+ * Every published promotion, as `{live, past}` cards. The validator is
+ * strict (`page`, `limit`, `segment`, `search`), so the split is done here
+ * over one page of the maximum 100.
+ */
+export function usePromotions({ enabled = true } = {}) {
+  return useQuery({
+    queryKey: queryKeys.promotions.list(),
+    queryFn: ({ signal }) =>
+      api(ENDPOINTS.promotionList, { query: { limit: 100 }, auth: false, signal }),
+    select: (rows) => {
+      const cards = (Array.isArray(rows) ? rows : [])
+        .filter((row) => row?.segment && row?.slug)
+        .map((row) => toPromotionCard(row));
+      return { live: cards.filter((c) => !c.ended), past: cards.filter((c) => c.ended) };
+    },
+    enabled,
+    staleTime: 5 * 60 * 1000,
+  });
+}
+
+/** One promotion with its body: `description` and `termsHtml` are operator HTML. */
+export function usePromotion(segment, slug) {
+  return useQuery({
+    queryKey: queryKeys.promotions.detail(segment, slug),
+    queryFn: ({ signal }) =>
+      api(path(ENDPOINTS.promotionBySlug, { segment, slug }), { auth: false, signal }),
+    enabled: Boolean(segment && slug),
+    staleTime: 5 * 60 * 1000,
+    retry: 1,
+  });
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+ * Home slides — `GET /admin/banners?mode=direct`
+ *
+ * The site admin names slides `slider-<n>`; `home_top_<n>` is the older
+ * name. A row is the image plus optional copy (`title`, `subtitle`, `cta`).
+ * An empty answer is normal and the caller keeps its own art.
+ * ═══════════════════════════════════════════════════════════════════════ */
+
+const SLIDE_PLACEMENT = /^(slider-|home_top_)\d+$/;
+
+export function toSlides(rows) {
+  return (Array.isArray(rows) ? rows : [])
+    .filter((row) => SLIDE_PLACEMENT.test(row?.type ?? '') && row.active !== false)
+    .sort(
+      (a, b) =>
+        (a.sortOrder ?? 0) - (b.sortOrder ?? 0) ||
+        a.type.localeCompare(b.type, undefined, { numeric: true }),
+    )
+    .map((row) => ({
+      id: row.type,
+      title: row.title ?? '',
+      blurb: row.subtitle ?? '',
+      href: row.cta?.href ?? null,
+      art: row.url ?? path(ENDPOINTS.bannerImage, { filename: row.type }),
+    }));
+}
+
+export function useHomeSlides({ enabled = true } = {}) {
+  return useQuery({
+    queryKey: queryKeys.content.slides(),
+    queryFn: ({ signal }) =>
+      api(ENDPOINTS.banners, { query: { mode: 'direct' }, auth: false, signal }),
+    select: toSlides,
+    enabled,
+    staleTime: 10 * 60 * 1000,
   });
 }

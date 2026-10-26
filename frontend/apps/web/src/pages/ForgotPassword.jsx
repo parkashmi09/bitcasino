@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
+import { useGates } from '@/hooks/useGates';
 import { AuthError, AuthField, AuthShell, Spinner } from '@/components/layout/AuthShell';
 import { Button } from '@/components/ui/Button';
 import { Icon } from '@/components/ui/Icon';
@@ -76,6 +77,7 @@ const STEPS = ['email', 'code', 'password'];
 
 export function ForgotPassword() {
   const navigate = useNavigate();
+  const gates = useGates();
 
   const [step, setStep] = useState('email');
   const [email, setEmail] = useState('');
@@ -332,12 +334,14 @@ export function ForgotPassword() {
               Log in
             </Link>
           </p>
-          <p className="flex flex-wrap items-center gap-2 text-sm leading-6 text-trunks">
-            Don&rsquo;t have an account?
-            <Link to="/register" className="text-piccolo hover:underline">
-              Create account
-            </Link>
-          </p>
+          {gates.canSignUp() && (
+            <p className="flex flex-wrap items-center gap-2 text-sm leading-6 text-trunks">
+              Don&rsquo;t have an account?
+              <Link to="/register" className="text-piccolo hover:underline">
+                Create account
+              </Link>
+            </p>
+          )}
         </div>
       }
     >

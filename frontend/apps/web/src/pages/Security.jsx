@@ -6,6 +6,7 @@ import { Skeleton } from '@/components/ui/Skeleton';
 import { Switch } from '@/components/ui/Switch';
 import { CodeField, PasswordField } from '@/components/ui/PasswordField';
 import { useAuth } from '@/auth/AuthProvider';
+import { useGates } from '@/hooks/useGates';
 import {
   useBeginTwoFactor,
   useCompleteTwoFactor,
@@ -78,6 +79,8 @@ import { cn } from '@/lib/cn';
  */
 export function Security() {
   const [dialogOpen, setDialogOpen] = useState(false);
+  // An agent's player gets Change Password only: their agent owns the account (no 2FA, no sessions).
+  const { agentPlayer } = useGates();
 
   return (
     <div className="grid gap-2">
@@ -107,14 +110,18 @@ export function Security() {
         </Row>
       </Card>
 
-      {/* The page divider, at the column's full width rather than the card's. */}
-      <hr className="h-px border-0 bg-beerus" />
+      {!agentPlayer && (
+        <>
+          {/* The page divider, at the column's full width rather than the card's. */}
+          <hr className="h-px border-0 bg-beerus" />
 
-      <TwoFactorCard />
+          <TwoFactorCard />
 
-      <hr className="h-px border-0 bg-beerus" />
+          <hr className="h-px border-0 bg-beerus" />
 
-      <SessionsCard />
+          <SessionsCard />
+        </>
+      )}
 
       <ChangePasswordDialog open={dialogOpen} onClose={() => setDialogOpen(false)} />
     </div>

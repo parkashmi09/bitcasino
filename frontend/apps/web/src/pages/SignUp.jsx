@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Link, useNavigate, useSearchParams } from 'react-router-dom';
+import { Link, Navigate, useNavigate, useSearchParams } from 'react-router-dom';
 import { Button } from '@/components/ui/Button';
 import { Icon } from '@/components/ui/Icon';
 import {
@@ -14,6 +14,7 @@ import {
   AUTH_SELECT,
 } from '@/components/layout/AuthShell';
 import { useAuth } from '@/auth/AuthProvider';
+import { useGates } from '@/hooks/useGates';
 import { ApiError, api } from '@/lib/api';
 import { ENDPOINTS, path } from '@/lib/endpoints';
 import { DIAL_CODES } from '@/data/countries';
@@ -140,7 +141,14 @@ function Select({ id, value, onChange, options, disabled }) {
   );
 }
 
+/** A B2B (agent-only) site has no self-registration: `/register` goes to the login. */
 export function SignUp() {
+  const gates = useGates();
+  if (!gates.ready) return null;
+  return gates.canSignUp() ? <SignUpForm /> : <Navigate to="/login" replace />;
+}
+
+function SignUpForm() {
   const navigate = useNavigate();
   const { register } = useAuth();
   const [searchParams] = useSearchParams();

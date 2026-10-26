@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { Button } from '@/components/ui/Button';
 import { Icon } from '@/components/ui/Icon';
 import { Logo } from './Logo';
+import { useGates } from '@/hooks/useGates';
 import { cn } from '@/lib/cn';
 
 /**
@@ -383,6 +384,10 @@ export function AuthShell({
   providers = true,
   children,
 }) {
+  // Social sign-in opens new accounts, which a B2B (sign-in only) site has none of.
+  const gates = useGates();
+  const showProviders = providers && gates.canSignUp();
+
   return (
     <div className="flex h-dvh overflow-hidden bg-goku">
       <div className="no-scrollbar h-full w-full overflow-y-auto bg-goku p-4 md:w-[380px] md:shrink-0 md:p-5">
@@ -399,7 +404,7 @@ export function AuthShell({
               </h1>
             </div>
 
-            {providers && (
+            {showProviders && (
               <>
                 {/* 1fr 1fr auto: two named providers, then the overflow button. */}
                 <div className="grid w-full grid-flow-col grid-cols-2 gap-1">

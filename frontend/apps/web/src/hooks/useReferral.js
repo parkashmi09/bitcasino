@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { api } from '@/lib/api';
 import { ENDPOINTS } from '@/lib/endpoints';
 import { useAuth } from '@/auth/AuthProvider';
+import { formatBalance } from '@/lib/format';
 
 /**
  * Everything `/profile/refer-a-friend` reads: the account's own referral code,
@@ -48,6 +49,7 @@ export function useReferral() {
     code: null,
     referrals: 0,
     earned: '0',
+    members: [],
     status: 'idle',
   });
 
@@ -76,6 +78,8 @@ export function useReferral() {
           referrals: Number(value(team)?.total ?? 0),
           // A string, deliberately — see above.
           earned: String(value(rewards)?.totalAmount ?? '0'),
+          // `{name, joinedAt, wager}` per friend; `wager` is USD.
+          members: Array.isArray(value(team)?.members) ? value(team).members : [],
           status: 'ready',
         });
       })
@@ -105,4 +109,27 @@ export function inviteLink(code) {
   const origin =
     typeof window === 'undefined' ? '' : window.location.origin.replace(/\/+$/, '');
   return `${origin}/ref/${code}`;
+}
+
+/**
+ * The site admin's referral unlock table (`referralUnlocks` on
+ * `GET /admin/site-config/public`): `{currency, tiers: [{level, totalWager,
+ * unlockAmount}]}`, both amounts decimal strings in the reward currency.
+ * Each tier pays at its own wager, so `total` — the most one friend can
+ * unlock — is the sum. Absent or malformed reads as no table.
+ */
+export function referralUnlocks(raw) {
+  const currency = String(raw?.currency || '').toUpperCase();
+  const valid = (Array.isArray(raw?.tiers) ? raw.tiers : []).filter(
+    (tier) => String(tier?.level ?? '').trim() && /^\d+(\.\d+)?$/.test(tier?.unlockAmount ?? ''),
+  );
+  const tiers = valid.map((tier) => ({
+    level: String(tier.level).trim(),
+    wager: formatBalance(tier.totalWager, 0),
+    reward: formatBalance(tier.unlockAmount),
+  }));
+  const total = valid.reduce((sum, tier) => sum + Number(tier.unlockAmount), 0);
+
+  // shortcut: the headline sum is a float over display amounts; exact maths only matters if it is ever paid from.
+  return { currency, tiers, total: tiers.length ? formatBalance(total.toFixed(2)) : null };
 }

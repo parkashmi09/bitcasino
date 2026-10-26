@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Link, useLocation, useNavigate } from 'react-router-dom';
+import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { Button } from '@/components/ui/Button';
 import {
   AuthShell,
@@ -10,6 +10,8 @@ import {
   RecaptchaNotice,
 } from '@/components/layout/AuthShell';
 import { useAuth } from '@/auth/AuthProvider';
+import { safeNext } from '@/auth/safeNext';
+import { useGates } from '@/hooks/useGates';
 import { ApiError } from '@/lib/api';
 
 /**
@@ -66,7 +68,9 @@ const BENEFITS = [
 export function Login() {
   const navigate = useNavigate();
   const location = useLocation();
+  const [params] = useSearchParams();
   const { login } = useAuth();
+  const gates = useGates();
 
   const [identifier, setIdentifier] = useState('');
   const [password, setPassword] = useState('');
@@ -91,8 +95,8 @@ export function Login() {
   const ready = identifier.trim() !== '' && password !== '';
 
   // A guard route sends the player here with where they were headed; the login
-  // returns them to it rather than to the home page.
-  const destination = location.state?.from?.pathname ?? '/';
+  // returns them to it rather than to the home page — same-origin paths only.
+  const destination = safeNext(location.state?.from ?? params.get('next'));
 
   async function onSubmit(event) {
     event.preventDefault();
@@ -161,12 +165,15 @@ export function Login() {
             Forgot password?
           </Link>
 
-          <p className="flex flex-wrap items-center gap-2 text-sm leading-6 text-trunks">
-            Don&rsquo;t have an account?
-            <Link to="/register" className="text-piccolo hover:underline">
-              Create account
-            </Link>
-          </p>
+          {/* A B2B site has no self-registration — sign-in only. */}
+          {gates.canSignUp() && (
+            <p className="flex flex-wrap items-center gap-2 text-sm leading-6 text-trunks">
+              Don&rsquo;t have an account?
+              <Link to="/register" className="text-piccolo hover:underline">
+                Create account
+              </Link>
+            </p>
+          )}
 
           <RecaptchaNotice />
         </div>

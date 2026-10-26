@@ -1,6 +1,7 @@
 /**
- * The copy on `/profile/refer-a-friend` — the three steps, the prize table,
- * the FAQ and the terms dialog, in the reference's own wording.
+ * The copy on `/profile/refer-a-friend` — the three steps, the FAQ and the
+ * terms dialog. The prize table is the site admin's `referralUnlocks`
+ * (`GET /admin/site-config/public`), drawn by the page.
  *
  * STATIC, and unlike `rewards.js` or `boosts.js` this one is not a seam
  * standing in for a missing service. The page's *numbers* are real (see
@@ -9,10 +10,7 @@
  * this project does not have. When a content service lands, this file is what
  * it replaces.
  *
- * The reward figures are the reference's published ones. They describe an
- * offer this project does not run, and are here for the same reason the auth
- * screens carry the reference's marketing copy: `docs/07-assets.md` records
- * both, and says what has to be replaced before this goes anywhere real.
+ * The copy carries no figures, so it cannot contradict the operator's table.
  */
 
 /** The `How does it work?` band: three numbered steps. */
@@ -23,37 +21,19 @@ export const REFERRAL_STEPS = [
   },
   {
     title: 'Level Up & Receive',
-    body: '30-day progression starts immediately after the referred user has created an account.',
+    body: 'Every level your friend wagers through unlocks the next reward for you.',
   },
   {
-    title: 'Get 5,000 USDT',
+    title: 'Get rewarded',
     body: "Your friend's activity level will determine your reward.",
   },
-];
-
-/**
- * The eight reward tiers, from the `What are the prizes?` answer.
- *
- * `points` and `reward` are strings, not numbers: the reference prints them
- * grouped (`1,500,000`) and with the currency attached, and formatting them
- * back from numbers would only be a way of arriving at these exact strings.
- */
-export const REFERRAL_TIERS = [
-  { level: 'Level 1', points: '2,500 points', reward: '25 USDT' },
-  { level: 'Level 2', points: '10,000 points', reward: '50 USDT cash' },
-  { level: 'Level 3', points: '25,000 points', reward: '75 USDT cash' },
-  { level: 'Level 4', points: '50,000 points', reward: '125 USDT cash' },
-  { level: 'Level 5', points: '100,000 points', reward: '200 USDT cash' },
-  { level: 'Level 6', points: '500,000 points', reward: '1,000 USDT cash' },
-  { level: 'Level 7', points: '1,500,000 points', reward: '2,500 USDT cash' },
-  { level: 'Level 8', points: '3,000,000 points', reward: '5,000 USDT cash' },
 ];
 
 /**
  * The FAQ, in the reference's order.
  *
  * `body` is an array of paragraphs. The second question's answer is the prize
- * table, so it carries `table: true` and the page renders `REFERRAL_TIERS`
+ * table, so it carries `table: true` and the page renders the site's `referralUnlocks` tiers
  * under its one paragraph — a table in a data file would be the table's
  * markup living somewhere it cannot be styled.
  *
@@ -66,23 +46,21 @@ export const REFERRAL_FAQ = [
     body: [
       'A registered player can generate a referral link on the Refer a Friend page and send the link to a friend who does not already have an account on Bitcasino.',
       'The referred friend needs to register through this referral link.',
-      'After registration, the referrer will see a 30-day progress bar on the Refer a Friend page.',
-      'The final referral reward is determined by how many points the referred friend earns in the first 30 days after registration.',
-      'The referred friend gets 1 point per every 1 USDT wagered.',
+      'Your reward is unlocked level by level as the referred friend’s total wager grows.',
       'The referral reward will only be given to the referrer. The referred friend will enjoy welcome offers and all other promotions dedicated to new customers.',
     ],
   },
   {
     question: 'What are the prizes?',
     body: [
-      'The reward is determined by the amount of points the referred friend earns in the first 30 days after registration:',
+      'Each level of your friend’s total wager unlocks a reward:',
     ],
     table: true,
   },
   {
     question: 'When will I get my reward?',
     body: [
-      'The reward will be released 30 days after the referred friend creates their account and after the necessary reviews/checks are completed.',
+      'Each reward unlocks as soon as your friend’s total wager reaches its level, and is then yours to claim.',
     ],
   },
   {
@@ -124,17 +102,15 @@ export const REFERRAL_TERMS = {
         "Registration must be completed using the referral link provided by the Referrer; otherwise, the progress won't be considered for the referral reward.",
         'The Referrer can refer an unlimited number of users and will be able to monitor the progress of each Referee.',
         'Each user is limited to one account per IP address. If the Referrer and the Referee share the same IP, the Referrer is not eligible to receive a reward.',
-        "The Referrer will have access to a dedicated dashboard within their Bitcasino account, specifically in the 'Refer a Friend' section. Upon a new player's registration, a 30-day progress bar will be prominently displayed on this dashboard, allowing the Referrer to monitor the Referee's progress.",
-        "The Program is valid for a 30-day period per Referee, commencing from the Referee's registration date.",
+        "The Referrer will have access to a dedicated dashboard within their Bitcasino account, specifically in the 'Refer a Friend' section, listing every Referee.",
         'Rewards are not cumulative.',
-        'Rewards are disbursed at the conclusion of the 30-day progress period.',
-        'Every 1 USDT wagered generates 1 point.',
+        "Rewards unlock as the Referee's total wager reaches each level.",
         {
           before: 'Wagering on restricted games mentioned in the ',
           link: { to: '/help-center/reward-terms', label: 'Reward Terms and Conditions' },
-          after: ' will not contribute to the points for this Program.',
+          after: ' will not contribute to this Program.',
         },
-        'Rewards are based on turnover and vary according to achieved levels within the 30-day period, with specific levels corresponding to the points accrued, as detailed below:',
+        "Rewards are based on the Referee's total wager, with each level unlocking the reward detailed below:",
         { table: true },
         'Bitcasino reserves the right to modify and adjust the reward levels as deemed appropriate.',
         'Only the Referrer is entitled to receive the Refer-a-friend reward. The Referee will enjoy welcome offers and all other promotions dedicated to new customers.',

@@ -7,10 +7,15 @@ import { CashierTransactions } from './CashierTransactions';
 import { CashierFAQ } from './CashierFAQ';
 import { WalletSettings } from './WalletSettings';
 import { ClaimRewardDialog } from '@/components/rewards/ClaimRewardDialog';
-import { useBalances, useDisplayCurrency, useFiatCurrency } from '@/hooks/useWallet';
+import { useBalances, useDisplayCurrency, useFiatCurrency, useWalletCoins } from '@/hooks/useWallet';
+import { useGates } from '@/hooks/useGates';
+import { useAuth } from '@/auth/AuthProvider';
+import { cashierTabs } from '@/components/wallet/cashier';
+import { SwapPanel } from '@/components/wallet/SwapPanel';
+import { VaultPanel } from '@/components/wallet/VaultPanel';
 import { useExchangeRates } from '@/hooks/usePreferences';
 import { useRewards } from '@/hooks/useRewards';
-import { CURRENCY_ORDER, currencyMeta, currencyNetworks } from '@/data/currencies';
+import { currencyMeta, currencyNetworks } from '@/data/currencies';
 import QRCode from 'qrcode';
 import { compareDecimal, formatBalance, formatFiat, percentOf } from '@/lib/format';
 import { useDepositAddress, useSubmitWithdrawal, usePaymentMethods, useCreateDeposit } from '@/queries/wallet';
@@ -71,6 +76,13 @@ import { cn } from '@/lib/cn';
  * into the same form, bound to that coin and network, over
  * `SUBMIT_NEW_WITHDRAWL`.
  *
+ * ## What the owner and the site allow
+ *
+ * The tabs, the coins and the Swap / Vault pages follow the gates
+ * (`components/wallet/cashier.js`): a tab switched off is not drawn, and the
+ * coin list is what `GET /user/wallet/balances` answers (INR alone for an
+ * agent's player).
+ *
  * The geometry is the reference's drawer, not a centred card, so the panel
  * slides in from the edge it is attached to (`animate-sheet-in`, see
  * `index.css`) rather than zooming out of the middle of the screen. Below
@@ -97,12 +109,20 @@ export function DepositDialog({ open, onClose }) {
   const [historyOpen, setHistoryOpen] = useState(false);
   const [faqOpen, setFaqOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  /* Swap and Vault are pages of the drawer, like Wallet settings. */
+  const [page, setPage] = useState(null);
 
   const [currency, setCurrency] = useDisplayCurrency();
   const [fiat] = useFiatCurrency();
   const { balances, status, reload } = useBalances();
   const { rates } = useExchangeRates();
   const { claim } = useRewards();
+  const gates = useGates();
+  const { user } = useAuth();
+  /* What the owner and the site allow this player (see `components/wallet/cashier.js`). */
+  const tabs = cashierTabs(gates, user?.withdraw_locked === true);
+  const actions = TABS.filter((entry) => tabs.includes(entry.value));
+  const coins = useWalletCoins(balances, status);
 
   const networks = useMemo(() => currencyNetworks(currency), [currency]);
   const [network, setNetwork] = useState(null);
@@ -126,6 +146,7 @@ export function DepositDialog({ open, onClose }) {
     setHistoryOpen(false);
     setFaqOpen(false);
     setSettingsOpen(false);
+    setPage(null);
     setWithdrawing(null);
 
     try {
@@ -190,13 +211,14 @@ export function DepositDialog({ open, onClose }) {
         if (faqOpen) setFaqOpen(false);
         else if (historyOpen) setHistoryOpen(false);
         else if (settingsOpen) setSettingsOpen(false);
+        else if (page) setPage(null);
         else if (withdrawing) setWithdrawing(null);
         else close();
       }
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [open, claimOpen, historyOpen, faqOpen, settingsOpen, withdrawing, close]);
+  }, [open, claimOpen, historyOpen, faqOpen, settingsOpen, page, withdrawing, close]);
 
   if (!open && !closing) return null;
 
@@ -205,6 +227,8 @@ export function DepositDialog({ open, onClose }) {
   const amount = formatBalance(balances[currency] ?? '0', meta.decimals);
   const quote = formatFiat(balances[currency] ?? '0', rates[currency], rates[fiat], fiat);
   const chain = networks.find((entry) => entry.id === network) ?? networks[0] ?? null;
+  // A tab the gates took away falls to the first one left.
+  const active = actions.some((entry) => entry.value === tab) ? tab : actions[0]?.value;
 
   return (
     <div className="fixed inset-0 z-50 flex justify-end">
@@ -251,6 +275,10 @@ export function DepositDialog({ open, onClose }) {
         >
           {settingsOpen ? (
             <WalletSettings onBack={() => setSettingsOpen(false)} onNavigate={close} />
+          ) : page === 'swap' ? (
+            <SwapPanel currency={currency} coins={coins} balances={balances} onBack={() => setPage(null)} />
+          ) : page === 'vault' ? (
+            <VaultPanel currency={currency} coins={coins} balances={balances} onBack={() => setPage(null)} />
           ) : (
             <>
           <h2 className="mb-3 font-primary text-xl font-semibold">Active balance</h2>
@@ -268,6 +296,7 @@ export function DepositDialog({ open, onClose }) {
                 dismissHint();
               }}
               balances={balances}
+              coins={coins}
               rates={rates}
               fiat={fiat}
               onPick={(code) => {
@@ -294,9 +323,11 @@ export function DepositDialog({ open, onClose }) {
             )}
           </div>
 
-          <Segmented value={tab} onChange={changeTab} hasHint={hint && !picking} />
+          {actions.length > 0 && (
+            <Segmented tabs={actions} value={active} onChange={changeTab} hasHint={hint && !picking} />
+          )}
 
-          {tab === 'deposit' && (
+          {active === 'deposit' && (
             <div className="grid gap-3">
               <ExchangeCard />
 
@@ -327,7 +358,7 @@ export function DepositDialog({ open, onClose }) {
             </div>
           )}
 
-          {tab === 'buy' && (
+          {active === 'buy' && (
             <Waiting
               icon="card"
               title={`Buy ${currency} with card`}
@@ -335,7 +366,16 @@ export function DepositDialog({ open, onClose }) {
             />
           )}
 
-          {tab === 'withdraw' && (withdrawing ? (
+          {/* Kept for a withdraw-locked player so the drawer can say why. */}
+          {active === 'withdraw' && !gates.on('withdraw') && (
+            <Waiting
+              icon="lock"
+              title="Withdrawals are blocked"
+              body="Withdrawals are blocked on this account. Please contact support."
+            />
+          )}
+
+          {active === 'withdraw' && gates.on('withdraw') && (withdrawing ? (
             <WithdrawPage
               target={withdrawing}
               balance={balances[withdrawing.coin] ?? '0'}
@@ -368,6 +408,17 @@ export function DepositDialog({ open, onClose }) {
               it says. `Claim reward` is the one that stays put: it opens the
               same dialog the Rewards page does. */}
           <div className="mt-8 grid gap-5">
+            {(tabs.includes('swap') || tabs.includes('vault')) && (
+              <HomeSection title="Wallet">
+                {tabs.includes('swap') && (
+                  <HomeRow icon="sort" label="Swap" onClick={() => setPage('swap')} />
+                )}
+                {tabs.includes('vault') && (
+                  <HomeRow icon="lock" label="Vault" onClick={() => setPage('vault')} />
+                )}
+              </HomeSection>
+            )}
+
             <HomeSection title="Rewards">
               <HomeRow
                 icon="gift"
@@ -519,6 +570,7 @@ function BalanceCard({
   open,
   onToggle,
   balances,
+  coins,
   rates,
   fiat,
   onPick,
@@ -528,9 +580,9 @@ function BalanceCard({
      scrolling past twenty they do not hold — then everything else, in the
      wallet's own order. */
   const list = useMemo(() => {
-    const held = CURRENCY_ORDER.filter((code) => /[1-9]/.test(String(balances[code] ?? '')));
-    return [...new Set([...held, currency, ...CURRENCY_ORDER])];
-  }, [balances, currency]);
+    const held = coins.filter((code) => /[1-9]/.test(String(balances[code] ?? '')));
+    return [...new Set([...held, currency, ...coins])];
+  }, [balances, coins, currency]);
 
   return (
     <div className="overflow-hidden rounded-i-md border-[0.8px] border-beerus bg-goku">
@@ -654,17 +706,18 @@ function BalanceCard({
  * `hasHint` pushes the control down while the coach mark is up — the tooltip
  * hangs below the balance card and would otherwise sit on top of it.
  */
-function Segmented({ value, onChange, hasHint }) {
+function Segmented({ tabs, value, onChange, hasHint }) {
   return (
     <div
       role="tablist"
       aria-label="Wallet actions"
       className={cn(
-        'my-4 grid grid-cols-3 gap-1 rounded-full border-[0.8px] border-beerus bg-goku p-1',
+        'my-4 grid gap-1 rounded-full border-[0.8px] border-beerus bg-goku p-1',
         hasHint && 'mt-8',
       )}
+      style={{ gridTemplateColumns: `repeat(${tabs.length}, minmax(0, 1fr))` }}
     >
-      {TABS.map((tab) => {
+      {tabs.map((tab) => {
         const active = tab.value === value;
 
         return (

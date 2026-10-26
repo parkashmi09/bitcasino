@@ -1,8 +1,10 @@
-import { Link, useSearchParams } from 'react-router-dom';
+import { useSearchParams } from 'react-router-dom';
 import { Breadcrumb } from '@/components/ui/Breadcrumb';
 import { PromotionRows, PromotionTabs } from '@/components/sections/PromotionList';
-import { PAST_PROMOTIONS, PROMOTIONS } from '@/data/catalog';
+import { PROMOTIONS } from '@/data/catalog';
 import { PROMO_PAGES } from '@/data/promotionPages';
+import { useGates } from '@/hooks/useGates';
+import { usePromotions } from '@/queries';
 
 /**
  * `/promotions` — every promotion this app is running, as a list.
@@ -29,8 +31,11 @@ import { PROMO_PAGES } from '@/data/promotionPages';
  * the code it is about.
  * ═══════════════════════════════════════════════════════════════════════
  *
- * The list is `PROMO_PAGES` — the campaigns with a page behind them — and
- * then `PROMOTIONS`, the cards that point at a screen this app already has.
+ * The list is `PROMO_PAGES` — the campaigns with a page behind them — then
+ * the operator's published promotions (`GET /admin/promotions`, each opening
+ * `/promotions/:segment/:slug`), then `PROMOTIONS`, the cards that point at a
+ * screen this app already has. Cards into a switched-off section are dropped.
+ * Past = the operator's ended promotions.
  * `components/sections/PromotionList.jsx` holds the measurements.
  */
 export function Promotions() {
@@ -41,8 +46,16 @@ export function Promotions() {
   // off keeps that.
   const showPast = params.get('showPast') === 'true';
 
-  const live = [...PROMO_PAGES, ...PROMOTIONS];
-  const promotions = showPast ? [...live, ...PAST_PROMOTIONS] : live;
+  const { routeOn } = useGates();
+  const { data, isPending } = usePromotions();
+  const past = data?.past ?? [];
+
+  const live = [
+    ...PROMO_PAGES.filter((promo) => routeOn(promo.href)),
+    ...(data?.live ?? []),
+    ...PROMOTIONS.filter((promo) => routeOn(promo.href)),
+  ];
+  const promotions = showPast ? [...live, ...past] : live;
 
   return (
     <div className="flex max-w-[83rem] flex-col gap-6">
@@ -66,17 +79,9 @@ export function Promotions() {
         </button>
       </div>
 
-      {/* Nothing on this app has finished yet — see `PAST_PROMOTIONS`. Saying
-          so beats a toggle that appears to do nothing. */}
-      {showPast && PAST_PROMOTIONS.length === 0 && (
-        <p className="text-center text-sm text-trunks">
-          None of these has finished yet. The League runs to 13 September 2026;
-          everything else is a standing offer.{' '}
-          <Link to="/tournaments/all/past" className="text-piccolo hover:underline">
-            Finished tournaments
-          </Link>{' '}
-          are listed separately.
-        </p>
+      {/* Saying so beats a toggle that appears to do nothing. */}
+      {showPast && !isPending && past.length === 0 && (
+        <p className="text-center text-sm text-trunks">No promotion has finished yet.</p>
       )}
 
       <Breadcrumb items={[{ label: 'Promotions' }]} className="mt-0" />

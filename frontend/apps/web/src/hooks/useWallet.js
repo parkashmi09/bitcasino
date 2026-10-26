@@ -1,7 +1,9 @@
-import { useCallback, useEffect, useState, useSyncExternalStore } from 'react';
+import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from 'react';
 import { ApiError, api } from '@/lib/api';
 import { ENDPOINTS } from '@/lib/endpoints';
 import { useAuth } from '@/auth/AuthProvider';
+import { useGates } from '@/hooks/useGates';
+import { walletCoins } from '@/components/wallet/cashier';
 import {
   DEFAULT_CURRENCY,
   DEFAULT_FIAT,
@@ -33,17 +35,18 @@ import {
 
 const STORAGE_KEY = 'bc.currency';
 
+/* `null` when the player has chosen nothing: the owner's `default_currency` then applies. */
 function read() {
   try {
     const stored = localStorage.getItem(STORAGE_KEY);
-    return stored && stored in CURRENCIES ? stored : DEFAULT_CURRENCY;
+    return stored && stored in CURRENCIES ? stored : null;
   } catch {
-    // Private mode, or storage disabled. The default is a fine answer.
-    return DEFAULT_CURRENCY;
+    // Private mode, or storage disabled. The owner's default is a fine answer.
+    return null;
   }
 }
 
-let current = null;
+let current;
 const listeners = new Set();
 
 const currencyStore = {
@@ -52,7 +55,7 @@ const currencyStore = {
     return () => listeners.delete(listener);
   },
   get() {
-    current ??= read();
+    if (current === undefined) current = read();
     return current;
   },
   set(code) {
@@ -67,10 +70,24 @@ const currencyStore = {
   },
 };
 
-/** `[code, setCode]`, shared across every component that calls it. */
+/**
+ * `[code, setCode]`, shared across every component that calls it. Until the
+ * player picks one it is the owner's `default_currency` policy (USDT when the
+ * owner set none, or set one this wallet does not know).
+ */
 export function useDisplayCurrency() {
-  const code = useSyncExternalStore(currencyStore.subscribe, currencyStore.get, () => DEFAULT_CURRENCY);
-  return [code, currencyStore.set];
+  const owner = useGates().policy('default_currency');
+  const code = useSyncExternalStore(currencyStore.subscribe, currencyStore.get, () => null);
+  return [code ?? (owner in CURRENCIES ? owner : DEFAULT_CURRENCY), currencyStore.set];
+}
+
+/** The coins the wallet picker may list for this player — see `walletCoins`. */
+export function useWalletCoins(balances, status) {
+  const { flag, agentPlayer } = useGates();
+  return useMemo(
+    () => walletCoins({ balances, status, flag, agentPlayer }),
+    [balances, status, flag, agentPlayer],
+  );
 }
 
 /* ---------------------------------------------------------------------------

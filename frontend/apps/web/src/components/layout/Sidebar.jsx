@@ -5,6 +5,7 @@ import { NavIcon } from '@/components/ui/NavIcon';
 import { Logo } from './Logo';
 import { useAuth } from '@/auth/AuthProvider';
 import { cn } from '@/lib/cn';
+import { useGates } from '@/hooks/useGates';
 
 /**
  * Navigation column.
@@ -282,6 +283,7 @@ function SidebarHeader({ collapsed, onToggle }) {
 }
 
 export function SidebarNav({ onNavigate, recentsCount, favouritesCount }) {
+  const gates = useGates();
   const [liveOpen, setLiveOpen] = useState(true);
   const [gamesOpen, setGamesOpen] = useState(true);
   const [liveTip, liveHandlers] = useRailTip();
@@ -292,6 +294,7 @@ export function SidebarNav({ onNavigate, recentsCount, favouritesCount }) {
       {/* The card is 3px taller than the artwork it holds, exactly as on the
           reference — `min-h` rather than a fixed height. The rail drops it
           outright; there is no 56px-wide form of a 232px banner. */}
+      {gates.routeOn('/promotions/league-of-bitcasino') && (
       <div className="px-3 pb-2 group-data-[collapsed=true]/rail:hidden">
         {/* The card is the League artwork and its label says so, so it goes to
             the League page rather than to the promotions index — the same fix
@@ -310,6 +313,7 @@ export function SidebarNav({ onNavigate, recentsCount, favouritesCount }) {
           />
         </Link>
       </div>
+      )}
 
       <div className={HAIRLINE} />
 
@@ -323,7 +327,7 @@ export function SidebarNav({ onNavigate, recentsCount, favouritesCount }) {
         <ul className="flex w-full flex-col gap-3 font-medium">
           <li>
             <ul className="flex flex-col gap-1">
-              {PRIMARY.map((item) => (
+              {PRIMARY.filter((item) => gates.routeOn(item.to)).map((item) => (
                 <li key={item.to}>
                   <NavItem item={item} onNavigate={onNavigate} />
                 </li>
@@ -358,7 +362,7 @@ export function SidebarNav({ onNavigate, recentsCount, favouritesCount }) {
 
             {liveOpen && (
               <ul className="flex flex-col gap-1 group-data-[collapsed=true]/rail:hidden">
-                {LIVE_GROUP.map((item) => (
+                {LIVE_GROUP.filter((item) => gates.routeOn(item.to)).map((item) => (
                   <li key={item.to}>
                     <NavItem item={item} onNavigate={onNavigate} />
                   </li>
@@ -388,7 +392,7 @@ export function SidebarNav({ onNavigate, recentsCount, favouritesCount }) {
 
             {gamesOpen && (
               <ul className="flex flex-col gap-1 group-data-[collapsed=true]/rail:hidden">
-                {GAMES.map((item) => (
+                {GAMES.filter((item) => gates.routeOn(item.to)).map((item) => (
                   <li key={item.to}>
                     <NavItem item={item} onNavigate={onNavigate} />
                   </li>

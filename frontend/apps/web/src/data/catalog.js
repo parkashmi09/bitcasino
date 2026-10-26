@@ -508,8 +508,8 @@ export const PROMOTIONS = [
   {
     id: 'promo-tournament',
     slug: 'weekly-tournament',
-    title: 'Weekly tournaments',
-    blurb: 'Prize pools on the leaderboards every week, reset every Monday.',
+    title: 'Tournaments',
+    blurb: 'Wager races with a prize pool for the top of the leaderboard.',
     href: '/tournaments',
     art: '/images/promos/weekly-tournament.svg',
   },
@@ -522,23 +522,6 @@ export const PROMOTIONS = [
     art: '/images/promos/refer-a-friend.svg',
   },
 ];
-
-/**
- * Promotions that have finished.
- *
- * The reference's `/promotions?showPast=true` appends ten of these to the same
- * list, drawn exactly like the live ones — no dimming, no "ended" badge, the
- * `Read more` button still there. So the toggle is reproduced, and this is
- * where a finished campaign would go.
- *
- * It is empty because nothing on this app has ended: the League runs to 13
- * September 2026, and the other five cards are standing offers with no window
- * at all. `pages/Promotions.jsx` renders a line saying so rather than showing
- * the toggle flipping to nothing.
- *
- * @type {import('./types').Promotion[]}
- */
-export const PAST_PROMOTIONS = [];
 
 /**
  * The three cards of the signed-in home banner.

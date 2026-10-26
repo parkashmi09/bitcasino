@@ -1,11 +1,14 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Icon } from '@/components/ui/Icon';
 import { Skeleton } from '@/components/ui/Skeleton';
 import { Switch } from '@/components/ui/Switch';
 import { MenuPanel } from './HeaderMenu';
 import { usePopover } from '@/hooks/usePopover';
-import { useBalances, useBtcUnit, useDisplayCurrency } from '@/hooks/useWallet';
-import { CURRENCY_ORDER, currencyMeta } from '@/data/currencies';
+import { useBalances, useBtcUnit, useDisplayCurrency, useWalletCoins } from '@/hooks/useWallet';
+import { useGates } from '@/hooks/useGates';
+import { useAuth } from '@/auth/AuthProvider';
+import { cashierTabs } from '@/components/wallet/cashier';
+import { currencyMeta } from '@/data/currencies';
 import { walletBalance } from '@/lib/format';
 import { cn } from '@/lib/cn';
 
@@ -128,8 +131,9 @@ export function CoinMark({ code, size = 24, className }) {
 }
 
 /**
- * Which coins the picker offers: ALL of them, which is what the reference's
- * panel lists — twelve rows visible on a phone and the rest under the scroll.
+ * Which coins the picker offers: every one this player may hold (`coins`,
+ * from `useWalletCoins`), which is what the reference's panel lists — twelve
+ * rows visible on a phone and the rest under the scroll.
  * There is no `Show all currencies` step on the reference and there is none
  * here; the only filter is its `Hide 0 balances` switch, and that is off by
  * default.
@@ -138,10 +142,10 @@ export function CoinMark({ code, size = 24, className }) {
  * zero, so a strict filter empties the panel the moment the switch goes on and
  * takes the row saying which currency you are actually on with it.
  */
-function pickList(balances, selected, hideZero) {
-  if (!hideZero) return CURRENCY_ORDER;
+function pickList(coins, balances, selected, hideZero) {
+  if (!hideZero) return coins;
 
-  return CURRENCY_ORDER.filter(
+  return coins.filter(
     (code) => code === selected || /[1-9]/.test(String(balances[code] ?? '')),
   );
 }
@@ -166,10 +170,24 @@ export function WalletMenu({ onOpenDeposit }) {
   const [hideZero, setHideZero] = useState(false);
 
   const [btcUnit] = useBtcUnit();
+  const coins = useWalletCoins(balances, status);
+  const gates = useGates();
+  const { user } = useAuth();
+  // Every cashier action switched off: nothing for Deposit to open.
+  const cashier = cashierTabs(gates, user?.withdraw_locked === true).length > 0;
+
+  /* A coin the wallet no longer offers (switched off, or an agent's player on
+     anything but INR) is not left showing: fall to the owner's default coin,
+     else the first one offered. */
+  const fallback = coins.includes(gates.policy('default_currency')) ? gates.policy('default_currency') : coins[0];
+  const stale = status === 'ready' && fallback && !coins.includes(currency);
+  useEffect(() => {
+    if (stale) setCurrency(fallback);
+  }, [stale, fallback, setCurrency]);
 
   const meta = unitMeta(currencyMeta(currency), btcUnit);
   const balance = walletBalance(balances[currency] ?? '0', meta);
-  const list = pickList(balances, currency, hideZero);
+  const list = pickList(coins, balances, currency, hideZero);
 
   return (
     <div ref={ref} className="relative">
@@ -216,19 +234,21 @@ export function WalletMenu({ onOpenDeposit }) {
           />
         </button>
 
-        <button
-          type="button"
-          onClick={onOpenDeposit}
-          aria-label="Deposit"
-          className={cn(
-            'flex h-8 cursor-pointer items-center gap-1.5 rounded-i-sm bg-piccolo px-3 text-goten',
-            'transition-colors hover:bg-piccolo-80 active:bg-piccolo-120',
-          )}
+        {cashier && (
+          <button
+            type="button"
+            onClick={onOpenDeposit}
+            aria-label="Deposit"
+            className={cn(
+              'flex h-8 cursor-pointer items-center gap-1.5 rounded-i-sm bg-piccolo px-3 text-goten',
+              'transition-colors hover:bg-piccolo-80 active:bg-piccolo-120',
+        )}
         >
           <Icon name="wallet" size={15} />
           {/* The label is the piece that goes on a phone, not the balance. */}
           <span className="hidden text-[13px] font-medium md:block">Deposit</span>
         </button>
+        )}
       </div>
 
       {/* The panel, measured off the reference's own phone screenshot — see

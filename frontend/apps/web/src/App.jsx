@@ -27,6 +27,7 @@ import { BlogPost } from '@/pages/BlogPost';
 import { Promotions } from '@/pages/Promotions';
 import { Participations } from '@/pages/Participations';
 import { League } from '@/pages/League';
+import { PromotionDetail } from '@/pages/PromotionDetail';
 import { WeeklyRakeback } from '@/pages/WeeklyRakeback';
 import { SpinWheel } from '@/pages/SpinWheel';
 import { Vip } from '@/pages/Vip';
@@ -50,6 +51,7 @@ import { RouteProgress } from '@/components/layout/RouteProgress';
 import { useDeferredLocation } from '@/hooks/useDeferredLocation';
 import { AuthProvider } from '@/auth/AuthProvider';
 import { RedirectIfAuthenticated, RequireAuth } from '@/auth/guards';
+import { GatesProvider } from '@/hooks/useGates';
 
 /**
  * `AuthProvider` sits inside the router rather than around it, for one reason:
@@ -270,6 +272,8 @@ function AppRoutes() {
               * one route to delete when the platform grows a detail read.
               */}
             <Route path="promotions/:slug" element={<Navigate to="/promotions" replace />} />
+            {/* The operator's promotions (`GET /admin/promotions`): slugs are unique per segment. */}
+            <Route path="promotions/:segment/:slug" element={<PromotionDetail />} />
 
             {/* The blog, over `GET /api/v1/admin/blogs` — public audience. */}
             <Route path="blog" element={<Blog />} />
@@ -310,6 +314,10 @@ function AppRoutes() {
               * to.
               */}
             <Route path="testimonials" element={<Navigate to="/" replace />} />
+            {/* hash-shaped paths the shared admin's banners and links use. */}
+            <Route path="vip-detail" element={<Navigate to="/vip" replace />} />
+            <Route path="deposit-offer" element={<Navigate to="/profile/rewards" replace />} />
+            <Route path="affiliates" element={<Navigate to="/profile/refer-a-friend" replace />} />
             <Route path="*" element={<NotFound />} />
           </Route>
         </Routes>
@@ -322,7 +330,9 @@ export default function App() {
     <BrowserRouter>
       <AuthProvider>
         <ScrollToTop />
-        <AppRoutes />
+        <GatesProvider>
+          <AppRoutes />
+        </GatesProvider>
       </AuthProvider>
     </BrowserRouter>
   );

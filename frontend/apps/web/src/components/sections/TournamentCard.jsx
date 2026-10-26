@@ -1,3 +1,4 @@
+import { Link } from 'react-router-dom';
 import { Icon } from '@/components/ui/Icon';
 import { Button } from '@/components/ui/Button';
 import { useCountdown } from '@/hooks/useCountdown';
@@ -32,12 +33,10 @@ import { cn } from '@/lib/cn';
  *    air after it, rather than pinned to the card edge the way `justify-between`
  *    would put it.
  *
- * ## Neither control works yet, and they are inert in different ways
+ * ## The controls
  *
- * `Opt in` does not opt anybody in. There is no tournaments service (`docs/10`
- * puts them in `bonus`, with Promotions and VIP), so entry has nowhere to
- * post; the button keeps the reference's shape and is `disabled`, which is a
- * state a button genuinely has.
+ * The cards are wager races, which need no opt-in: an open one (`href`) gets
+ * a `Leaderboard` link to its board; a finished one keeps the disabled button.
  *
  * The arrow opens `/tournaments/<slug>` on the reference — a detail page with
  * a leaderboard, a prize breakdown and the rules, which this project has not
@@ -50,7 +49,7 @@ import { cn } from '@/lib/cn';
  * what is missing — the tournament is real, the page behind it is not.
  */
 export function TournamentCard({ tournament }) {
-  const { title, slug, art, status, prizePool, leader, endsAt } = tournament;
+  const { title, slug, art, status, prizePool, leader, endsAt, href } = tournament;
   const finished = status === 'finished';
   const time = useCountdown(endsAt);
 
@@ -105,9 +104,16 @@ export function TournamentCard({ tournament }) {
           </p>
 
           <div className="grid grid-cols-[1fr_0.75fr] gap-2">
-            <Button variant={finished ? 'outline' : 'primary'} disabled={finished} fullWidth>
-              {finished ? 'Finished' : 'Opt in'}
-            </Button>
+            {/* A race needs no opt-in — every settled bet is entered — so an open
+                one links to its board instead. */}
+            {href ?
+              <Button as={Link} to={href} variant="primary" fullWidth>
+                Leaderboard
+              </Button>
+            : <Button variant={finished ? 'outline' : 'primary'} disabled fullWidth>
+                {finished ? 'Finished' : 'Opt in'}
+              </Button>
+            }
 
             <span
               data-slug={slug}

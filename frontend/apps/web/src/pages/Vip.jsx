@@ -4,6 +4,8 @@ import { Icon } from '@/components/ui/Icon';
 import { Skeleton } from '@/components/ui/Skeleton';
 import { useAuth } from '@/auth/AuthProvider';
 import { useBonus, useClaimBonus } from '@/queries';
+import { useVipStanding } from '@/queries/rewards';
+import { useGates } from '@/hooks/useGates';
 import { formatBalance } from '@/lib/format';
 import { currencyMeta } from '@/data/currencies';
 import { cn } from '@/lib/cn';
@@ -11,9 +13,10 @@ import { cn } from '@/lib/cn';
 /**
  * `/vip` — the account's VIP standing and the three periodic bonuses.
  *
- * One read: `GET /api/v1/user/bonus` answers
- * `{vip: {level, card, wager, nextLevel, wagerToNextLevel, progressPct},
- *   currency, types: {daily, weekly, monthly}}`.
+ * Two reads, each behind its own gate: the standing is `GET /user/vip` (the
+ * route's `vip` gate), and the bonuses are `GET /user/bonus`
+ * (`{vip, currency, types: {daily, weekly, monthly}}`), fetched only while the
+ * `bonus` gate is on — the platform refuses it otherwise.
  *
  * ═════════════════════════════════════════════════════════════════════════
  * `eligible` AND `claimable` ARE DIFFERENT THINGS, AND COLLAPSING THEM LIES.
@@ -31,10 +34,9 @@ import { cn } from '@/lib/cn';
  *
  * The reference has a seven-tier ladder with named benefits. This platform
  * reports a level number, a card name and a wager target, and nothing about
- * what a level is worth. `/loyalty` already carries the ladder as this
- * project's own model, so this page reports the account's real standing and
- * links there rather than restating a benefits table from a different source
- * as though the platform had confirmed it.
+ * what a level is worth. `/loyalty` draws the platform's ladder
+ * (`GET /user/vip/levels`), so this page reports the account's real standing
+ * and links there rather than inventing a benefits table.
  *
  * ## Every amount is a decimal string
  *
@@ -50,7 +52,8 @@ const TYPES = [
 
 export function Vip() {
   const { status } = useAuth();
-  const { data, isPending, isError } = useBonus();
+  const gates = useGates();
+  const { data, isPending, isError } = useVipStanding();
 
   if (status !== 'authenticated') return <SignedOut />;
 
@@ -76,19 +79,9 @@ export function Vip() {
         </p>
       ) : (
         <div className="mt-5 grid gap-3">
-          <StandingCard vip={data?.vip} currency={data?.currency} />
+          <StandingCard vip={data} />
 
-          <div className="grid gap-3 sm:grid-cols-3">
-            {TYPES.map((type) => (
-              <BonusCard
-                key={type.id}
-                type={type}
-                bonus={data?.types?.[type.id]}
-                level={Number(data?.vip?.level ?? 0)}
-                currency={data?.currency}
-              />
-            ))}
-          </div>
+          {gates.on('bonus') && <BonusCards />}
 
           <p className="text-xs leading-relaxed text-trunks">
             What each level is worth is set by the operator.{' '}
@@ -103,10 +96,36 @@ export function Vip() {
   );
 }
 
-/** Level, card name, and progress to the next one. */
-function StandingCard({ vip, currency }) {
+/** The three periodic bonuses. Mounted only while the `bonus` gate is on. */
+function BonusCards() {
+  const { data, isPending, isError } = useBonus();
+  if (isPending) return <Skeleton className="h-40 rounded-s-md" />;
+  if (isError) return null;
+
+  return (
+    <div className="grid gap-3 sm:grid-cols-3">
+      {TYPES.map((type) => (
+        <BonusCard
+          key={type.id}
+          type={type}
+          bonus={data?.types?.[type.id]}
+          level={Number(data?.vip?.level ?? 0)}
+          currency={data?.currency}
+        />
+      ))}
+    </div>
+  );
+}
+
+/**
+ * Level name, and progress to the next one. Amounts are the `…InCurrency`
+ * figures, in the owner's default coin; the level itself is decided in USD.
+ */
+function StandingCard({ vip }) {
   const level = Number(vip?.level ?? 0);
-  const decimals = currencyMeta(currency ?? 'USDT').decimals;
+  const currency = vip?.currency ?? 'USDT';
+  const decimals = currencyMeta(currency).decimals;
+  const toNext = vip?.wagerToNextLevelInCurrency ?? vip?.wagerToNextLevel;
 
   /**
    * The server's own percentage, clamped for the bar only.
@@ -127,15 +146,11 @@ function StandingCard({ vip, currency }) {
         <div>
           <p className="text-xs text-trunks">Your level</p>
           <p className="font-secondary text-2xl leading-8 font-medium text-bulma">
-            {/* `card` is the platform's own name for the tier — "brownz" at
-                level 0. Printed as it comes rather than mapped onto the
-                reference's tier names, which are a different ladder. */}
-            {level}
-            {vip?.card && (
-              <span className="ms-2 align-middle text-sm font-normal text-trunks capitalize">
-                {vip.card}
-              </span>
-            )}
+            {/* `name` is the platform's own ("Bronze I", "Beginner"). */}
+            {vip?.name ?? level}
+            <span className="ms-2 align-middle text-sm font-normal text-trunks">
+              Level {level}
+            </span>
           </p>
         </div>
       </div>
@@ -143,11 +158,13 @@ function StandingCard({ vip, currency }) {
       <div>
         <div className="flex items-baseline justify-between gap-3 text-xs">
           <span className="text-trunks">
-            Wagered {formatBalance(vip?.wager ?? '0', decimals)}
+            Wagered {formatBalance(vip?.wagerInCurrency ?? vip?.wager ?? '0', decimals)} {currency}
           </span>
-          <span className="text-trunks tabular-nums">
-            {vip?.progressPct ?? '0'}% to level {vip?.nextLevel ?? level + 1}
-          </span>
+          {vip?.nextLevel != null && (
+            <span className="text-trunks tabular-nums">
+              {vip.progressPct ?? '0'}% to {vip.nextName ?? `level ${vip.nextLevel}`}
+            </span>
+          )}
         </div>
         <div className="mt-1.5 h-2 overflow-hidden rounded-full bg-goku">
           <div
@@ -156,7 +173,9 @@ function StandingCard({ vip, currency }) {
           />
         </div>
         <p className="mt-1.5 text-xs text-trunks">
-          {formatBalance(vip?.wagerToNextLevel ?? '0', decimals)} more to go.
+          {toNext == null
+            ? 'Top level reached.'
+            : `${formatBalance(toNext, decimals)} ${currency} more to go.`}
         </p>
       </div>
     </section>
@@ -228,6 +247,7 @@ function BonusCard({ type, bonus, level, currency }) {
  * An invitation beats a 401 rendered as a broken page.
  */
 function SignedOut() {
+  const { canSignUp } = useGates();
   return (
     <div className="py-4">
       <h1 className="font-secondary text-2xl font-normal text-bulma">VIP club</h1>
@@ -243,7 +263,7 @@ function SignedOut() {
           <Button as={Link} to="/login">
             Log in
           </Button>
-          <Button as={Link} to="/register" variant="secondary">
+          <Button as={Link} to={canSignUp() ? '/register' : '/login'} variant="secondary">
             Create an account
           </Button>
         </div>

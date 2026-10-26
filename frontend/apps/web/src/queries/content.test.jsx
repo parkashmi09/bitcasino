@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { renderHook, waitFor } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 
-import { useBanners, useBlogPost, useBlogPosts } from './content';
+import { useBlogPost, useBlogPosts } from './content';
 import { useSpinSlices } from './promotions';
 import { tokenStore } from '@/auth/tokenStore';
 
@@ -170,37 +170,6 @@ describe('the blog index', () => {
     expect(url).toContain('page=2');
     expect(url).toContain('limit=12');
     expect(url).not.toContain('offset=');
-  });
-});
-
-describe('banners', () => {
-  it('answer an empty map when nothing is uploaded — the normal state', async () => {
-    vi.spyOn(globalThis, 'fetch').mockResolvedValue(envelope([]));
-
-    const { result } = renderHook(() => useBanners(), { wrapper: wrapper() });
-    await waitFor(() => expect(result.current.isSuccess).toBe(true));
-
-    expect(result.current.data.size).toBe(0);
-    // Not an error: no operator has uploaded a banner, and every caller draws
-    // its own art in that case.
-    expect(result.current.isError).toBe(false);
-  });
-
-  it('key by placement and skip inactive ones', async () => {
-    vi.spyOn(globalThis, 'fetch').mockResolvedValue(
-      envelope([
-        { id: 1, type: 'banner-league', active: true, url: '/served/league.png' },
-        { id: 2, type: 'banner-taken-down', active: false, url: '/served/old.png' },
-      ]),
-    );
-
-    const { result } = renderHook(() => useBanners(), { wrapper: wrapper() });
-    await waitFor(() => expect(result.current.isSuccess).toBe(true));
-
-    expect(result.current.data.get('banner-league').url).toBe('/served/league.png');
-    // `is_active: false` is an operator taking a placement down without
-    // destroying it. It must not render.
-    expect(result.current.data.has('banner-taken-down')).toBe(false);
   });
 });
 

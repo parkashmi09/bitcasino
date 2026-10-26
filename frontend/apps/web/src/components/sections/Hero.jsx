@@ -1,5 +1,6 @@
 import { Link } from 'react-router-dom';
 import { Button } from '@/components/ui/Button';
+import { useGates } from '@/hooks/useGates';
 
 const POINTS = [
   'Huge selection of high RTP games',
@@ -27,6 +28,7 @@ const POINTS = [
  * (~1500px). Matching that is what keeps the line wraps identical.
  */
 export function Hero() {
+  const { canSignUp } = useGates();
   return (
     <section
       className={[
@@ -62,7 +64,8 @@ export function Hero() {
         {/* Wrapped so the button sizes to its content rather than stretching
             across the grid column. */}
         <div>
-          <Button as={Link} to="/register" size="xl">
+          {/* Sign-in only on a B2B site: the join button goes there instead. */}
+          <Button as={Link} to={canSignUp() ? '/register' : '/login'} size="xl">
             Join Us
           </Button>
         </div>

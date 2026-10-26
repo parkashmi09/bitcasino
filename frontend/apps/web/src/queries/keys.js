@@ -77,7 +77,8 @@ export const queryKeys = {
     all: ['content'],
     posts: (filters) => ['content', 'posts', compact(filters)],
     post: (slug) => ['content', 'post', slug],
-    banners: () => ['content', 'banners'],
+    /** Direct-mode (`?mode=direct`) home slides, with their copy. */
+    slides: () => ['content', 'banners', 'direct'],
   },
 
   /**
@@ -91,6 +92,12 @@ export const queryKeys = {
     spinEligibility: () => ['promotions', 'spin', 'eligibility'],
     bonus: () => ['promotions', 'bonus'],
     events: (filters) => ['promotions', 'events', compact(filters)],
+    list: () => ['promotions', 'list'],
+    detail: (segment, slug) => ['promotions', 'detail', segment, slug],
+    races: () => ['promotions', 'races'],
+    /** `viewer` is in the key because a signed-in board carries the caller's own `me` row. */
+    raceBoard: (type, viewer) => ['promotions', 'race', type, viewer],
+    raceHistory: (limit, viewer) => ['promotions', 'race-history', limit, viewer],
   },
 
   account: {
@@ -121,5 +128,16 @@ export const queryKeys = {
   site: {
     all: ['site'],
     config: () => ['site', 'config'],
+    features: () => ['site', 'features'],
+  },
+
+  /** Rewards, rakeback and VIP. `vipLevels` is public; `firstDeposit` differs signed in and out. */
+  rewards: {
+    all: ['rewards'],
+    vip: () => ['rewards', 'vip'],
+    vipLevels: () => ['rewards', 'vip-levels'],
+    firstDeposit: (status) => ['rewards', 'first-deposit', status],
+    bonusBalance: () => ['rewards', 'bonus-balance'],
+    rakeback: () => ['rewards', 'rakeback'],
   },
 };

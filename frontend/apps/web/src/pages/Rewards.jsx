@@ -2,9 +2,13 @@ import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Button } from '@/components/ui/Button';
 import { Icon } from '@/components/ui/Icon';
+import { Skeleton } from '@/components/ui/Skeleton';
 import { DepositDialog } from '@/components/layout/DepositDialog';
 import { ClaimRewardDialog } from '@/components/rewards/ClaimRewardDialog';
 import { useRewards } from '@/hooks/useRewards';
+import { useGates } from '@/hooks/useGates';
+import { useBonusBalance, useClaimUnlocked, useFirstDepositOffer } from '@/queries/rewards';
+import { compareDecimal, formatBalance } from '@/lib/format';
 import { cn } from '@/lib/cn';
 
 /**
@@ -58,50 +62,72 @@ import { cn } from '@/lib/cn';
  * overflowing a container narrower than one card, which is the 320px-wide
  * phone the app still has to render on.
  *
- * The two action buttons stay side by side at every width — at the narrowest
- * layout the app has they are still ~140px each, which `Enable` and `Deposit`
- * both fit inside without wrapping.
+ * ## What is real
  *
- * ## What is real and what is fixed
+ * Three platform reads, no fixture:
  *
- * `Enable` and `Claim reward` both do what they say, against `localStorage`
- * (see `useRewards`). `Deposit` opens the same drawer the header's button
- * does — mounted here rather than reached through the layout, because the
- * drawer is self-contained and threading an opener down through `Layout`,
- * `ProfileLayout` and the outlet to reach one button would be the larger
- * change. The offers themselves are fixtures; `data/rewards.js` has the seam.
+ *   offer      `GET /user/bonus/first-deposit` — shown only while THIS player
+ *              is `eligible`. There is no opt-in on the platform (the bonus is
+ *              applied by the deposit itself), so the card has no `Enable`.
+ *   active     `GET /user/bonus-balance` — each locked bonus, its wagering
+ *              progress, and for a gradual one the part unlocked so far, which
+ *              `Claim` pays out (`POST /user/bonus-balance/claim`).
+ *   history    the same read's ended bonuses.
+ *
+ * `Claim reward` redeems a code (`POST /user/bonus/redeem`) and is hidden when
+ * the `bonus` gate is off. `Deposit` opens the header's drawer, mounted here
+ * rather than threaded down through the layout.
  */
+
+/** `player_bonuses.source` → name; the backend's own `LABEL` map. */
+const SOURCE_LABEL = {
+  first_deposit: 'First deposit bonus',
+  spin_wheel: 'Spin wheel bonus',
+  monthly_deposit: 'Deposit bonus',
+};
+
 export function Rewards() {
-  const { items, enable, claim } = useRewards();
+  const gates = useGates();
+  const { claim } = useRewards();
+  const offer = useFirstDepositOffer();
+  const balance = useBonusBalance();
   const [claimOpen, setClaimOpen] = useState(false);
   const [depositOpen, setDepositOpen] = useState(false);
+
+  const canRedeem = gates.on('bonus');
+  const active = balance.data?.active ?? [];
+  const history = balance.data?.history ?? [];
+  const loading = offer.isPending || balance.isPending;
+  const empty = !offer.data && active.length === 0;
 
   return (
     <div className="grid gap-4">
       {/* The claim control. Label and button are one control in two parts —
           the reference wires both to the same dialog, so the text is a button
           rather than a caption sitting beside one. */}
-      <div className="flex items-center justify-end gap-3">
-        <button
-          type="button"
-          onClick={() => setClaimOpen(true)}
-          className="cursor-pointer text-base text-bulma transition-colors hover:text-piccolo"
-        >
-          Claim reward
-        </button>
-        <button
-          type="button"
-          onClick={() => setClaimOpen(true)}
-          aria-label="Claim reward"
-          className={cn(
-            'grid size-10 shrink-0 cursor-pointer place-items-center rounded-i-sm',
-            'bg-piccolo text-goten shadow-sm transition-colors',
-            'hover:bg-piccolo-80 active:bg-piccolo-120',
-          )}
-        >
-          <Icon name="plus" size={20} />
-        </button>
-      </div>
+      {canRedeem && (
+        <div className="flex items-center justify-end gap-3">
+          <button
+            type="button"
+            onClick={() => setClaimOpen(true)}
+            className="cursor-pointer text-base text-bulma transition-colors hover:text-piccolo"
+          >
+            Claim reward
+          </button>
+          <button
+            type="button"
+            onClick={() => setClaimOpen(true)}
+            aria-label="Claim reward"
+            className={cn(
+              'grid size-10 shrink-0 cursor-pointer place-items-center rounded-i-sm',
+              'bg-piccolo text-goten shadow-sm transition-colors',
+              'hover:bg-piccolo-80 active:bg-piccolo-120',
+            )}
+          >
+            <Icon name="plus" size={20} />
+          </button>
+        </div>
+      )}
 
       {/* `font-primary` and `tracking-normal` both undo the base `h1` rule,
           which sets the display face and -0.01em. The reference's account
@@ -110,30 +136,43 @@ export function Rewards() {
         Rewards
       </h1>
 
-      {items.length === 0 ? (
+      {loading ? (
+        <div className="grid grid-cols-[repeat(auto-fill,minmax(min(320px,100%),1fr))] gap-4">
+          <Skeleton className="h-96 rounded-i-sm" />
+        </div>
+      ) : balance.isError ? (
         <p className="max-w-[750px] text-sm text-trunks">
-          You have no rewards right now. Claim one with a code, or see what is
-          running on the promotions page.
+          Could not load your rewards. Reload the page to try again.
+        </p>
+      ) : empty ? (
+        <p className="max-w-[750px] text-sm text-trunks">
+          You have no rewards right now.{canRedeem && ' Claim one with a code, or'}{' '}
+          see what is running on the promotions page.
         </p>
       ) : (
         <ul className="grid grid-cols-[repeat(auto-fill,minmax(min(320px,100%),1fr))] items-start gap-4">
-          {items.map((reward) => (
-            <li key={reward.id}>
-              <RewardCard
-                reward={reward}
-                onEnable={() => enable(reward.id)}
-                onDeposit={() => setDepositOpen(true)}
-              />
+          {offer.data && (
+            <li>
+              <OfferCard offer={offer.data} onDeposit={() => setDepositOpen(true)} />
+            </li>
+          )}
+          {active.map((bonus) => (
+            <li key={bonus.id}>
+              <BonusCard bonus={bonus} />
             </li>
           ))}
         </ul>
       )}
 
-      <ClaimRewardDialog
-        open={claimOpen}
-        onClose={() => setClaimOpen(false)}
-        onClaim={claim}
-      />
+      {history.length > 0 && <History rows={history} />}
+
+      {canRedeem && (
+        <ClaimRewardDialog
+          open={claimOpen}
+          onClose={() => setClaimOpen(false)}
+          onClaim={claim}
+        />
+      )}
 
       {/* Mounted only while open — unlike the claim dialog it reads the wallet,
           and an always-mounted copy would fetch balances on every visit to a
@@ -144,68 +183,149 @@ export function Rewards() {
 }
 
 /**
- * One offer.
- *
- * The card is a grid rather than a stack of margins so every block is spaced
- * by the same 16px, including the ones that are conditional — a `notice` is
- * absent on some offers, and margins would leave a double gap where one used
- * to be.
- *
- * `Enable` disappears once the reward is enabled rather than greying out: an
- * enabled bonus has nothing left to enable, and the reference's card at that
- * point is a single full-width `Deposit`. The callout goes with it, because
- * its whole text is "enable this first".
+ * The card shell every reward shares. A grid rather than a stack of margins
+ * so every block is spaced by the same 16px, including the conditional ones.
  */
-function RewardCard({ reward, onEnable, onDeposit }) {
-  const { title, description, notice, minDeposit, expiresAt, termsHref, enabled } =
-    reward;
-
+function Card({ title, description, facts, reward, children }) {
   return (
     <article className="grid gap-4 rounded-i-sm bg-gohan p-4">
       <h2 className="font-primary text-2xl leading-8 font-bold tracking-normal text-bulma">
         {title}
       </h2>
 
-      <p className="text-base leading-6 text-bulma">{description}</p>
+      {description && <p className="text-base leading-6 text-bulma">{description}</p>}
 
-      {notice && !enabled && (
-        <div className="flex items-start gap-3 rounded-i-sm bg-goku p-3">
-          <Icon name="alert" size={24} className="mt-0.5 text-krillin" />
-          <p className="text-base leading-6 text-bulma">{notice}</p>
+      <dl className="grid gap-2">
+        {facts.filter(([, value]) => value).map(([label, value]) => (
+          <Fact key={label} label={label} value={value} />
+        ))}
+      </dl>
+
+      {reward && (
+        <div className="grid gap-1">
+          <span className="text-sm text-trunks">Reward</span>
+          <div className="text-xl leading-7 font-bold text-bulma">{reward}</div>
         </div>
       )}
 
-      <dl className="grid gap-2">
-        <Fact label="Minimum deposit amount:" value={minDeposit} />
-        <Fact label="Expiry date:" value={formatDate(expiresAt)} />
-      </dl>
+      {children}
+    </article>
+  );
+}
 
-      <div className="grid gap-1">
-        <span className="text-sm text-trunks">Reward</span>
-        <p className="text-xl leading-7 font-bold text-bulma">{reward.reward}</p>
-      </div>
+/** The deposit offer the player can still get. */
+function OfferCard({ offer, onDeposit }) {
+  const { currency } = offer;
+  const description = offer.wagerMultiplier
+    ? `The bonus needs to be wagered ${offer.wagerMultiplier} times before you can withdraw it.`
+    : offer.wageringLock
+      ? 'The bonus stays locked until it has been wagered.'
+      : 'The bonus is paid to your balance.';
 
-      {/* A `Link`, not an `<a>`: `/terms` is a route in this app. Centred and
-          underlined at rest, which is the reference's own treatment here — it
-          is the card's fine print, not one of its actions. */}
+  return (
+    <Card
+      title={offer.title}
+      description={description}
+      facts={[
+        ['Minimum deposit amount:', `${formatBalance(offer.minDeposit)} ${currency}`],
+        ['Expires:', offer.expiryDays && `${offer.expiryDays} days after it is credited`],
+      ]}
+      reward={offer.tiers.map((tier) => (
+        <p key={tier.minDeposit}>
+          {tier.percent}% from {formatBalance(tier.minDeposit)} {currency}
+          {tier.maxBonus && (
+            <span className="text-base font-normal text-trunks">
+              {' '}(max {formatBalance(tier.maxBonus)})
+            </span>
+          )}
+        </p>
+      ))}
+    >
+      {/* A `Link`, not an `<a>`: `/terms` is a route in this app. */}
       <Link
-        to={termsHref}
+        to="/terms"
         className="text-center text-base font-medium text-bulma underline underline-offset-2 transition-colors hover:text-piccolo"
       >
         Terms &amp; Conditions
       </Link>
+      <Button size="lg" onClick={onDeposit}>
+        Deposit
+      </Button>
+    </Card>
+  );
+}
 
-      <div className={cn('grid gap-4', !enabled && 'grid-cols-2')}>
-        {!enabled && (
-          <Button variant="outline" size="lg" onClick={onEnable}>
-            Enable
-          </Button>
-        )}
-        <Button size="lg" onClick={onDeposit}>
-          Deposit
-        </Button>
+/**
+ * One locked bonus. A gradual one (`unlockMode: gradual`) pays out what each
+ * bet unlocks; `Claim` takes every gradual bonus's unlocked part at once,
+ * which is the only claim the platform has.
+ */
+function BonusCard({ bonus }) {
+  const claim = useClaimUnlocked();
+  const { currency } = bonus;
+  const width = Math.min(100, Math.max(0, Number(bonus.progress) || 0));
+  const claimable = bonus.claimable && compareDecimal(bonus.claimable, '0') > 0;
+
+  return (
+    <Card
+      title={SOURCE_LABEL[bonus.source] ?? 'Bonus'}
+      facts={[
+        ['Wagered:', `${formatBalance(bonus.wagered)} / ${formatBalance(bonus.requiredWager)} ${currency}`],
+        ['Unlocked:', bonus.unlocked && `${formatBalance(bonus.unlocked)} ${currency}`],
+        ['Expiry date:', formatDate(bonus.expiresAt)],
+      ]}
+      reward={`${formatBalance(bonus.amount)} ${currency}`}
+    >
+      <div
+        role="progressbar"
+        aria-label="Wagering progress"
+        aria-valuenow={width}
+        aria-valuemin={0}
+        aria-valuemax={100}
+        className="h-2 overflow-hidden rounded-full bg-goku"
+      >
+        <div className="h-full rounded-full bg-piccolo" style={{ width: `${width}%` }} />
       </div>
-    </article>
+
+      {claimable && (
+        <Button size="lg" onClick={() => claim.mutate()} disabled={claim.isPending}>
+          {claim.isPending ? 'Claiming…' : `Claim ${formatBalance(bonus.claimable)} ${currency}`}
+        </Button>
+      )}
+      {claim.isError && (
+        <p role="alert" className="text-sm text-chichi">
+          {claim.error?.message || 'The claim was refused.'}
+        </p>
+      )}
+    </Card>
+  );
+}
+
+/** Ended bonuses — completed, expired or forfeited. */
+function History({ rows }) {
+  return (
+    <section className="grid max-w-[750px] gap-2 pt-4">
+      <h2 className="text-base font-medium text-bulma">History</h2>
+      <ul className="grid gap-2">
+        {rows.map((row) => (
+          <li
+            key={row.id}
+            className="flex items-baseline justify-between gap-3 rounded-i-sm bg-gohan px-4 py-3 text-sm"
+          >
+            <span className="text-bulma">
+              {SOURCE_LABEL[row.source] ?? 'Bonus'}{' '}
+              <span className="text-trunks capitalize">· {row.status}</span>
+            </span>
+            <span className="text-end text-bulma tabular-nums">
+              {formatBalance(row.amount)} {row.currency}
+              <span className="block text-xs text-trunks">
+                {formatDate(row.endedAt ?? row.grantedAt)}
+              </span>
+            </span>
+          </li>
+        ))}
+      </ul>
+    </section>
   );
 }
 
@@ -224,15 +344,12 @@ function Fact({ label, value }) {
 }
 
 /**
- * `01/06/2027` — the day-first form the reference prints.
- *
- * `en-GB` is pinned rather than left to the visitor's locale for the reason
- * `Notifications.formatDate` pins `en-US`: the reference serves one format to
- * everyone, and a browser set to `en-US` would otherwise render `6/1/2027`
- * here — the same date, read as a different one.
+ * `01/06/2027` — the day-first form the reference prints. `en-GB` is pinned
+ * so a browser set to `en-US` does not print the same date as `6/1/2027`.
  */
 function formatDate(iso) {
-  const date = new Date(`${iso}T00:00:00`);
+  if (!iso) return '';
+  const date = new Date(iso);
   if (Number.isNaN(date.getTime())) return '';
   return date.toLocaleDateString('en-GB', {
     day: '2-digit',
@@ -240,5 +357,3 @@ function formatDate(iso) {
     year: 'numeric',
   });
 }
-
-

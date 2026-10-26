@@ -236,6 +236,21 @@ export const ENDPOINTS = {
   paymentMethods: `${USER}/payments/methods/:provider`,
   paymentDeposits: `${USER}/payments/deposits`,
 
+  // ── Swap and Vault ──────────────────────────────────────────────────
+  // Both answer 403 NOT_ENTITLED outside the owner's plan and
+  // *_NOT_FOR_AGENT_USERS to an agent's player. `swapEstimate` is
+  // `GET ?fromCurrency&toCurrency&amount` (`.strict()`), `swap` is the same
+  // three as a POST body. The vault is fixed-term: `vaultTransferIn` takes
+  // `{coin, amount, lockPeriod}` (a `value` off `vaultLockOptions`),
+  // `vaultTransferOut` names a `{depositId, coin}`, and `vault` answers
+  // `{totals, deposits}`.
+  swapEstimate: `${USER}/swap/estimate`,
+  swap: `${USER}/swap`,
+  vault: `${USER}/vault`,
+  vaultLockOptions: `${USER}/vault/lock-options`,
+  vaultTransferIn: `${USER}/vault/transfer-in`,
+  vaultTransferOut: `${USER}/vault/transfer-out`,
+
   // ── Player history ──────────────────────────────────────────────────
   // What the header's `Recents` panel lists. Rows are
   // `{game_uuid, played_at, game}` and `game` is null for a title that has
@@ -333,6 +348,9 @@ export const ENDPOINTS = {
   // `adapters/siteConfig.js` defaults the same way so first paint does not
   // flicker.
   siteConfig: `${ADMIN}/site-config/public`,
+  // The OWNER's plan: `[{feature, kind?, variant, options?}]`, listed = on. Policies
+  // (business_model, deposit_mode, …) ride in the same list. Read by `hooks/useGates.jsx`.
+  ownerFeatures: `${ADMIN}/features/public`,
 
   // ── Content ─────────────────────────────────────────────────────────
   // All public, and all on ADMIN-service — the `public` audience mounts at
@@ -340,16 +358,9 @@ export const ENDPOINTS = {
   // an `/admin/` path here is not a mistake.
   //
   // ═══════════════════════════════════════════════════════════════════
-  // A BANNER IS AN IMAGE AND A PLACEMENT. IT CARRIES NO COPY.
-  //
-  // The row is `(id, type, image, content_type, byte_size, uploaded_by,
-  // is_active, …)`. There is **no title, no blurb and no link** — so this
-  // cannot replace `HOME_BANNERS` in `data/catalog.js`, which is three cards
-  // each with all three. `docs/10`'s Phase 7 bullet says it does; it is
-  // wrong, and `HomeBanner.jsx` explains what is actually possible.
-  //
-  // `type` is the placement, and it is the only key: one image per
-  // placement, replaced by uploading over it.
+  // A BANNER IS AN IMAGE ON A PLACEMENT (`type`), with an optional title,
+  // subtitle and link. `?mode=direct` lists this site's placements (anything
+  // not prefixed `agent-`); `queries/promotions.js` reads the `slider-<n>` slides.
   // ═══════════════════════════════════════════════════════════════════
   banners: `${ADMIN}/banners`,
 
@@ -429,6 +440,39 @@ export const ENDPOINTS = {
   // Page-based. Player-scoped — it is the caller's own history.
   // ═══════════════════════════════════════════════════════════════════
   bonusEvents: `${USER}/bonus/events`,
+
+  // ── Wager races (owner feature `races`) ─────────────────────────────
+  // All public; a token, when sent, adds the caller's own `me` row. `races`
+  // lists both configs (`enabled` is the admin's switch), `raceBoard` is the
+  // open window, `raceHistory` the settled ones with their podium.
+  races: `${USER}/race`,
+  raceBoard: `${USER}/race/:type/leaderboard`,
+  raceHistory: `${USER}/race/history`,
+
+  // ── Operator promotions (owner feature `promotions`) ────────────────
+  // Public, on ADMIN-service. The list carries no body; the slug read does
+  // (`description`/`termsHtml` are HTML). Slugs are unique per segment.
+  promotionList: `${ADMIN}/promotions`,
+  promotionBySlug: `${ADMIN}/promotions/slug/:segment/:slug`,
+
+  // ── Rewards, rakeback, VIP (queries/rewards.js) ─────────────────────
+  // `vip` feature + promotions capability. `{level, name, card, wager,
+  // nextLevel, nextName, wagerToNextLevel, progressPct, currency,
+  // wagerInCurrency, wagerToNextLevelInCurrency}` — the level is USD-based.
+  vip: `${USER}/vip`,
+  // Public. The ladder: `{unranked, bonusGates, levels: [{level, name, minXp, maxXp, card}]}`.
+  vipLevels: `${USER}/vip/levels`,
+  // Public with an optional session: the first-deposit terms and `eligible`.
+  firstDeposit: `${USER}/bonus/first-deposit`,
+  // No feature gate. `{wageringLock, currency, balances, active, history}`.
+  bonusBalance: `${USER}/bonus-balance`,
+  // Claims every gradual bonus's unlocked part at once.
+  bonusBalanceClaim: `${USER}/bonus-balance/claim`,
+  // `bonus` feature. `{code}` → `{code, amount, currency, newBalance}`.
+  bonusRedeem: `${USER}/bonus/redeem`,
+  // Promotions capability. `{amount, currency, claimable, minimum, rate}`.
+  rakeback: `${USER}/rakeback`,
+  rakebackClaim: `${USER}/rakeback/claim`,
 };
 
 /** Fill `:name` segments — `path(ENDPOINTS.verifyReferral, { referralCode })`. */

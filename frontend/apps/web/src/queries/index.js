@@ -60,7 +60,7 @@ export {
   KYC_MAX_BYTES,
 } from './account';
 
-export { useBlogPosts, useBlogPost, useBanners } from './content';
+export { useBlogPosts, useBlogPost } from './content';
 
 export {
   useLastBets,
@@ -86,4 +86,12 @@ export {
   useBonus,
   useClaimBonus,
   useBonusEvents,
+  useRaces,
+  useRaceBoards,
+  useRaceHistory,
+  raceTitle,
+  useTournaments,
+  usePromotions,
+  usePromotion,
+  useHomeSlides,
 } from './promotions';

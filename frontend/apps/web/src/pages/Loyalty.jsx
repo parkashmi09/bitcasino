@@ -2,13 +2,12 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { Button } from '@/components/ui/Button';
 import { Icon } from '@/components/ui/Icon';
 import {
-  LOYALTY,
   LOYALTY_BENEFITS,
   LOYALTY_PROFITS,
   LOYALTY_PROGRESS,
   LOYALTY_PROMISES,
-  LOYALTY_TIERS,
 } from '@/data/loyalty';
+import { useVipStanding, useVipTiers } from '@/queries/rewards';
 import { cn } from '@/lib/cn';
 
 /**
@@ -64,7 +63,10 @@ import { cn } from '@/lib/cn';
  * The reference's "Find out your Loyalty level" buttons carry no href and no
  * visible handler. Rather than invent a destination, all three scroll to the
  * tier table, which is the question they ask — and the tier the account is
- * actually on is marked there, read from `LOYALTY`. That marker is ours; the
+ * actually on is marked there, read from `GET /user/vip`. The tiers themselves
+ * are the platform's ladder (`GET /user/vip/levels`), one card per `card`
+ * group; the reference's multiplier and milestone rows have no platform
+ * figure, so the card says how many levels the tier spans instead. That marker is ours; the
  * reference has nothing like it, and `docs/11` records it.
  */
 export function Loyalty() {
@@ -239,18 +241,23 @@ function Benefits() {
  * header is fixed at 64px over the top of the page.
  */
 function Levels() {
+  const { data: tiers = [] } = useVipTiers();
+  const { data: standing } = useVipStanding();
+
   return (
     <section id="levels" className="grid scroll-mt-20 gap-6">
       <div className="grid gap-2 text-center">
-        <SectionHeading>You can achieve 7 levels</SectionHeading>
+        <SectionHeading>
+          {tiers.length ? `You can achieve ${tiers.length} levels` : 'Loyalty levels'}
+        </SectionHeading>
         <p className="font-secondary text-base text-bulma">
           The higher the level, the better the benefits.
         </p>
       </div>
 
       <Deck label="Loyalty levels">
-        {LOYALTY_TIERS.map((tier) => (
-          <TierCard key={tier.name} tier={tier} current={tier.name === LOYALTY.tier} />
+        {tiers.map((tier) => (
+          <TierCard key={tier.card} tier={tier} current={tier.card === standing?.card} />
         ))}
       </Deck>
     </section>
@@ -283,7 +290,7 @@ function TierCard({ tier, current }) {
         <h3 className="font-secondary text-2xl font-normal text-piccolo">{tier.name}</h3>
 
         {/* Ours, not the reference's: which tier the account is actually on,
-            from `LOYALTY`. It is what makes "Find out your Loyalty level"
+            from the standing. It is what makes "Find out your Loyalty level"
             answer anything.
 
             The slot is on every card, `invisible` on six of them, so the facts
@@ -301,13 +308,7 @@ function TierCard({ tier, current }) {
 
         <TierFact label="Points:">{tier.points}</TierFact>
         <TierRule />
-        <TierFact label="Points multiplier:">{tier.multiplier}</TierFact>
-        {tier.milestones && (
-          <>
-            <TierRule />
-            <TierFact label="Milestone rewards:">{tier.milestones}</TierFact>
-          </>
-        )}
+        <TierFact label="Levels:">{tier.levels}</TierFact>
       </div>
     </li>
   );

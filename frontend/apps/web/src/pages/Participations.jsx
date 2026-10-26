@@ -4,7 +4,9 @@ import { Icon } from '@/components/ui/Icon';
 import { Skeleton } from '@/components/ui/Skeleton';
 import { PromotionTabs } from '@/components/sections/PromotionList';
 import { useAuth } from '@/auth/AuthProvider';
-import { useBonusEvents } from '@/queries';
+import { useGates } from '@/hooks/useGates';
+import { formatBalance } from '@/lib/format';
+import { raceTitle, useBonusEvents, useRaceBoards, useRaces } from '@/queries';
 
 /**
  * `/promotions/participations` — the promotions index's second tab.
@@ -12,21 +14,18 @@ import { useBonusEvents } from '@/queries';
  * The reference's is a single `gohan` panel: a 76px `goku` disc with a
  * calendar glyph in it, `No active participation` at 20px semibold with one
  * line under it, and a `Check promotions` button, all on one row with a 56px
- * gap and 44px of padding. That panel is reproduced below, and it is not
- * conditional on anything, because —
+ * gap and 44px of padding. That panel is reproduced below for an account
+ * with no participation.
  *
  * ═══════════════════════════════════════════════════════════════════════
- * THIS PLATFORM HAS NO PARTICIPATION RECORD, SO THE COUNT IS ALWAYS ZERO.
+ * A PARTICIPATION IS A PLACE ON A RUNNING WAGER RACE'S BOARD.
  *
- * A "participation" is a player opted in to a running campaign. There is no
- * campaign table on this backend and nothing that records an opt-in — the
- * whole promotions surface is `admin/banners` (a picture and a placement),
- * the spin wheel, and `bonushistory`. So the panel above is the true state
- * of this account rather than a placeholder for a feature that is merely
- * empty today, and the tab's `0` is a fact and not a stub.
+ * Operator promotions (`GET /admin/promotions`) record no opt-in, so the one
+ * thing the platform does record per player is the race board: each open
+ * race whose board carries this caller's `me` row is a participation, and
+ * the tab counts those. With none, the reference's empty panel shows.
  *
- * `GET /user/bonus/events` is the nearest real thing, and it is a different
- * thing: the caller's own `bonushistory`, a log of bonuses ALREADY PAID —
+ * `GET /user/bonus/events` is a different thing: the caller's own `bonushistory`, a log of bonuses ALREADY PAID —
  * `{id, event, amount, createdAt}`. It carries no title, no description and
  * no window, so it cannot describe a campaign. It used to be rendered on
  * `/promotions` under the heading "Running now", which is how a log of past
@@ -35,13 +34,20 @@ import { useBonusEvents } from '@/queries';
  * ═══════════════════════════════════════════════════════════════════════
  */
 export function Participations() {
+  const { status } = useAuth();
+  const { on } = useGates();
+  // Only signed in (no `me` otherwise), and never while races are switched off.
+  const races = useRaces({ enabled: status === 'authenticated' && on('contest') });
+  const boards = useRaceBoards((races.data ?? []).map((race) => race.type));
+  const entries = boards.map((board) => board.data).filter((board) => board?.me);
+
   return (
     <div className="flex max-w-[83rem] flex-col gap-6">
       <h1 className="sr-only">My participations</h1>
 
-      <PromotionTabs participations={0} />
+      <PromotionTabs participations={entries.length} />
 
-      <EmptyPanel />
+      {entries.length > 0 ? <RaceEntries entries={entries} /> : <EmptyPanel />}
       <BonusHistory />
 
       <Breadcrumb
@@ -49,6 +55,26 @@ export function Participations() {
         className="mt-0"
       />
     </div>
+  );
+}
+
+function RaceEntries({ entries }) {
+  return (
+    <ul className="grid gap-2">
+      {entries.map((board) => (
+        <li key={board.type}>
+          <Link
+            to={`/promotions/league-of-bitcasino?race=${board.type}`}
+            className="flex items-center justify-between gap-4 rounded-xl bg-gohan p-5 hover:bg-heles"
+          >
+            <span className="text-base font-medium text-bulma">{raceTitle(board.type)}</span>
+            <span className="text-sm tabular-nums text-trunks">
+              #{board.me.rank} · {formatBalance(board.me.points)} points
+            </span>
+          </Link>
+        </li>
+      ))}
+    </ul>
   );
 }
 

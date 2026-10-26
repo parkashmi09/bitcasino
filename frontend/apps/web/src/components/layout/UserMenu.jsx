@@ -6,8 +6,9 @@ import { HeaderIconButton, MenuDivider, MenuPanel } from './HeaderMenu';
 import { usePopover } from '@/hooks/usePopover';
 import { useAuth } from '@/auth/AuthProvider';
 import { ASSETS } from '@/data/assets.generated';
-import { LOYALTY } from '@/data/loyalty';
+import { useVipStanding } from '@/queries/rewards';
 import { cn } from '@/lib/cn';
+import { useGates } from '@/hooks/useGates';
 
 /**
  * The account end of the signed-in cluster: the profile trigger and the panel
@@ -99,6 +100,7 @@ const ITEMS = [
 
 export function UserMenu() {
   const { user, logout } = useAuth();
+  const gates = useGates();
   const navigate = useNavigate();
   const { open, toggle, setOpen, ref } = usePopover();
   const [busy, setBusy] = useState(false);
@@ -138,7 +140,7 @@ export function UserMenu() {
 
           <MenuDivider className="-mx-1 my-1 bg-hit" />
 
-          {ITEMS.map((item) => (
+          {ITEMS.filter((item) => gates.routeOn(item.to)).map((item) => (
             <MenuRow key={item.label} {...item} onNavigate={() => setOpen(false)} />
           ))}
 
@@ -229,13 +231,28 @@ function MenuRow({ icon, label, to, badge, onClick, onNavigate, disabled }) {
  * here is an avatar component, but the picture in it is the tier's, and a
  * profile picture in a loyalty card says the wrong thing.
  *
- * `LOYALTY` is fixed; see `data/loyalty.js` for why, and for the seam.
+ * Live: `GET /user/vip`, read only while the `vip` gate is on (an agent's
+ * player is refused it). `points / target` is the wager so far over the next
+ * level's floor, in the owner's default coin, rounded for the 16px track; the
+ * fill is the server's own `progressPct`. The reference's multiplier has no
+ * platform figure, so the second fact is the VIP level.
  */
 function LoyaltyCard() {
-  const { tier, multiplier, points, target } = LOYALTY;
-  // Clamped, because a `points` past `target` would otherwise push the fill
-  // out through the track's rounded end.
-  const pct = target > 0 ? Math.min(100, Math.max(0, (points / target) * 100)) : 0;
+  const gates = useGates();
+  const enabled = gates.ready && gates.on('vip');
+  const { data: vip, isPending } = useVipStanding({ enabled });
+  if (!enabled) return null;
+  if (isPending) return <Skeleton className="h-[86px] rounded-i-sm" />;
+  if (!vip) return null;
+
+  const wager = Number(vip.wagerInCurrency ?? vip.wager) || 0;
+  const toNext = vip.wagerToNextLevelInCurrency ?? vip.wagerToNextLevel;
+  const points = Math.floor(wager);
+  // Null at the top level, which has no next floor.
+  const target = toNext == null ? null : Math.ceil(wager + Number(toNext));
+  // Clamped, because a figure past 100 would push the fill out through the
+  // track's rounded end.
+  const pct = Math.min(100, Math.max(0, Number(vip.progressPct) || 0));
 
   return (
     <div className="grid gap-2 rounded-i-sm bg-beerus p-2">
@@ -252,18 +269,18 @@ function LoyaltyCard() {
         </div>
 
         <div className="flex flex-1 items-center justify-between gap-2 rounded-i-sm bg-goku px-3 py-2">
-          <Fact label="Loyalty tier">{tier}</Fact>
+          <Fact label="Loyalty tier">{vip.name}</Fact>
           <div aria-hidden="true" className="h-7 w-px shrink-0 bg-beerus" />
-          <Fact label="Current multiplier">x {multiplier}</Fact>
+          <Fact label="VIP level">{vip.level}</Fact>
         </div>
       </div>
 
       <div
         role="progressbar"
         aria-label="Loyalty progress"
-        aria-valuenow={points}
+        aria-valuenow={pct}
         aria-valuemin={0}
-        aria-valuemax={target}
+        aria-valuemax={100}
         className="relative flex h-4 items-center justify-center overflow-hidden rounded-full bg-goku"
       >
         <div
@@ -275,7 +292,7 @@ function LoyaltyCard() {
             `0 / 2800`, and a grouped `2,800` is wider than the 16px track has
             room for once the fill is under it. */}
         <span className="relative text-xs font-medium text-bulma">
-          {points} / {target}
+          {target == null ? points : `${points} / ${target}`}
         </span>
       </div>
     </div>

@@ -10,6 +10,7 @@ import { RouteErrorBoundary } from './ErrorBoundary';
 import { MobileBottomNav } from './MobileBottomNav';
 import { useRecentlyPlayed } from '@/hooks/useRecentlyPlayed';
 import { useFavourites } from '@/hooks/useFavourites';
+import { RouteGate } from '@/hooks/useGates';
 
 export function Layout() {
   const [menuOpen, setMenuOpen] = useState(false);
@@ -143,7 +144,9 @@ export function Layout() {
                 by `QueryState` beside a page that still works. See the
                 note in `ErrorBoundary.jsx`. */}
             <RouteErrorBoundary>
-              <Outlet />
+              <RouteGate>
+                <Outlet />
+              </RouteGate>
             </RouteErrorBoundary>
             <Footer />
           </main>

@@ -39,6 +39,9 @@ export const walletKeys = {
   withdrawals: (limit, offset) => ['wallet', 'withdrawals', limit, offset],
   deposits: (limit, offset) => ['wallet', 'deposits', limit, offset],
   coins: () => ['wallet', 'coins'],
+  swapQuote: (from, to, amount) => ['wallet', 'swap-quote', from, to, amount],
+  vault: () => ['wallet', 'vault'],
+  vaultTerms: () => ['wallet', 'vault-terms'],
 };
 
 /**
@@ -264,6 +267,86 @@ export function useSubmitWithdrawal() {
        * match — and an invalidation matching zero queries is silent. The
        * header chip kept the pre-withdrawal figure until the next remount.
        */
+      refreshBalances();
+    },
+  });
+}
+
+/**
+ * What a swap of `amount` would produce — `{converted, feeAmount,
+ * feePercentage, …}`, all decimal strings (`feePercentage` a FRACTION:
+ * `0.015` is 1.5%). The quote the confirm step shows; nothing moves here.
+ */
+export function useSwapQuote(from, to, amount, { enabled = true } = {}) {
+  const { status } = useAuth();
+
+  return useQuery({
+    queryKey: walletKeys.swapQuote(from, to, amount),
+    queryFn: ({ signal }) =>
+      api(ENDPOINTS.swapEstimate, { query: { fromCurrency: from, toCurrency: to, amount }, signal }),
+    enabled: enabled && status === 'authenticated' && Boolean(from && to && from !== to) && /[1-9]/.test(amount || ''),
+    staleTime: 15 * 1000,
+    retry: false,
+  });
+}
+
+/** Place a swap. Not idempotent, so no retry (the client default). */
+export function useSwap() {
+  const client = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({ from, to, amount }) =>
+      api(ENDPOINTS.swap, {
+        method: 'POST',
+        body: { fromCurrency: from, toCurrency: to, amount: String(amount) },
+      }),
+    onSuccess: () => {
+      client.invalidateQueries({ queryKey: walletKeys.all });
+      refreshBalances();
+    },
+  });
+}
+
+/** The player's vault: `{totals: {COIN: "…"}, deposits: [{depositId, coin, balance, locked, endTime, …}]}`. */
+export function useVault({ enabled = true } = {}) {
+  const { status } = useAuth();
+
+  return useQuery({
+    queryKey: walletKeys.vault(),
+    queryFn: ({ signal }) => api(ENDPOINTS.vault, { signal }),
+    enabled: enabled && status === 'authenticated',
+    staleTime: 30 * 1000,
+  });
+}
+
+/**
+ * The terms on offer, `[{value, label, days, rate}]` — `rate` an annual
+ * PERCENTAGE (7.5 is 7.5%). Empty until an operator seeds `vault_lock_rates`,
+ * and then the panel has nothing to deposit into and says so.
+ */
+export function useVaultTerms({ enabled = true } = {}) {
+  const { status } = useAuth();
+
+  return useQuery({
+    queryKey: walletKeys.vaultTerms(),
+    queryFn: ({ signal }) =>
+      api(ENDPOINTS.vaultLockOptions, { signal }).then((rows) => (Array.isArray(rows) ? rows : [])),
+    enabled: enabled && status === 'authenticated',
+    staleTime: 5 * 60 * 1000,
+  });
+}
+
+/** Wallet → vault (`{coin, amount, lockPeriod}`) or vault → wallet (`{coin, depositId}`). */
+export function useVaultTransfer() {
+  const client = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({ direction, coin, amount, lockPeriod, depositId }) =>
+      direction === 'in'
+        ? api(ENDPOINTS.vaultTransferIn, { method: 'POST', body: { coin, amount: String(amount), lockPeriod } })
+        : api(ENDPOINTS.vaultTransferOut, { method: 'POST', body: { coin, depositId } }),
+    onSuccess: () => {
+      client.invalidateQueries({ queryKey: walletKeys.all });
       refreshBalances();
     },
   });

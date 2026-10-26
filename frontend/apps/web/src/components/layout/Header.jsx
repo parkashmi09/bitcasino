@@ -9,6 +9,7 @@ import { NotificationsMenu } from './NotificationsMenu';
 import { useAuth } from '@/auth/AuthProvider';
 import { useMediaQuery } from '@/hooks/useMediaQuery';
 import { cn } from '@/lib/cn';
+import { useGates } from '@/hooks/useGates';
 
 /**
  * Top bar, 64px tall on the reference site.
@@ -73,6 +74,7 @@ import { cn } from '@/lib/cn';
  */
 export function Header({ onOpenSearch, onOpenDeposit }) {
   const { status } = useAuth();
+  const gates = useGates();
   const signedIn = status === 'authenticated';
   // Below 640 the brand gives way to its glyph cluster. The reference's phone
   // header carries four controls; this one carries six, because its search and
@@ -146,9 +148,12 @@ export function Header({ onOpenSearch, onOpenDeposit }) {
             >
               Login
             </Button>
-            <Button as={NavLink} to="/register" variant="primary" size="lg">
-              Sign Up
-            </Button>
+            {/* A B2B (agent-only) site has no self sign-up; shown once the owner's plan answered. */}
+            {gates.ready && gates.canSignUp() && (
+              <Button as={NavLink} to="/register" variant="primary" size="lg">
+                Sign Up
+              </Button>
+            )}
           </>
         )}
       </div>

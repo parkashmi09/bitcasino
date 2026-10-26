@@ -1,12 +1,12 @@
 import { useId, useState } from 'react';
 import { Icon } from '@/components/ui/Icon';
 import {
-  CURRENCY_ORDER,
   FIAT_DISPLAY_CURRENCIES,
   currencyMeta,
 } from '@/data/currencies';
-import { useDisplayCurrency, useFiatCurrency } from '@/hooks/useWallet';
+import { useBalances, useDisplayCurrency, useFiatCurrency, useWalletCoins } from '@/hooks/useWallet';
 import { usePreferences } from '@/hooks/usePreferences';
+import { useGates } from '@/hooks/useGates';
 import { cn } from '@/lib/cn';
 
 /**
@@ -66,8 +66,13 @@ import { cn } from '@/lib/cn';
  */
 export function Settings() {
   const [currency, setCurrency] = useDisplayCurrency();
+  // Only the coins the owner and admin offer (and INR alone for an agent's player).
+  const { balances, status: balanceStatus } = useBalances();
+  const coins = useWalletCoins(balances, balanceStatus);
   const [fiat, setFiat] = useFiatCurrency();
   const { switches, status, toggle, saveError } = usePreferences();
+  // An agent's player has no marketing subscriptions: their agent owns the contact details.
+  const { agentPlayer } = useGates();
 
   const [changing, setChanging] = useState(false);
   const fiatId = useId();
@@ -101,7 +106,7 @@ export function Settings() {
                 'ps-4 pe-2 text-base leading-6 text-bulma outline-none',
               )}
             >
-              {CURRENCY_ORDER.map((code) => (
+              {coins.map((code) => (
                 <option key={code} value={code}>
                   {code} — {currencyMeta(code).name}
                 </option>
@@ -167,6 +172,7 @@ export function Settings() {
 
       {/* Subscriptions. `list-none` on the reference; a plain grid here, since
           three switches are a form and not a list. */}
+      {!agentPlayer && (
       <div className="grid gap-2">
         <p className="text-base leading-6 text-bulma">
           Enjoy exclusive offers: Make sure to receive deposit offers and bonuses
@@ -194,6 +200,7 @@ export function Settings() {
           {saveError ? (saveError.message ?? 'Could not save that. Please try again.') : ''}
         </p>
       </div>
+      )}
     </div>
   );
 }

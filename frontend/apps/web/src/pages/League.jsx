@@ -1,3 +1,4 @@
+import { Link, useSearchParams } from 'react-router-dom';
 import {
   PromoCell,
   PromoFinePrint,
@@ -7,58 +8,84 @@ import {
   PromoSteps,
   PromoTable,
 } from '@/components/sections/PromoLayout';
+import { Skeleton } from '@/components/ui/Skeleton';
+import { useAuth } from '@/auth/AuthProvider';
 import {
   LEAGUE,
-  LEAGUE_BOARD,
   LEAGUE_FINE_PRINT,
   LEAGUE_INTRO,
-  LEAGUE_MULTIPLIERS,
-  LEAGUE_PLAYERS,
-  LEAGUE_PRIZES,
-  LEAGUE_STEPS,
-  leagueUpdatedAt,
+  RACE_CATEGORIES,
+  leagueSteps,
 } from '@/data/league';
+import { formatBalance } from '@/lib/format';
+import { cn } from '@/lib/cn';
+import { raceTitle, useRaceBoards, useRaces } from '@/queries';
 
 /**
- * `/promotions/league-of-bitcasino` — the campaign the home banner's first card
- * has always advertised and never reached.
+ * `/promotions/league-of-bitcasino` — the platform's wager races.
  *
- * ═════════════════════════════════════════════════════════════════════════
- * THE BANNER POINTED AT A REDIRECT, NOT AT A PAGE.
+ * `GET /user/race` says which races are on (daily, weekly); `?race=` picks one
+ * and defaults to the first. Its open board (`/user/race/:type/leaderboard`)
+ * carries the window, the pool, the multipliers and the standings, plus the
+ * caller's own `me` row when signed in. The prize ladder is the config's
+ * `payout.ranks`, already priced in the payout currency.
  *
- * `HOME_BANNERS[0].href` was `/promotions/league`, and `App.jsx` sends every
- * `promotions/:slug` to `/promotions` because no campaign has a page. So the
- * League card — the one with the League artwork, the League title and a blurb
- * about a four-week race — landed on the spin wheel and a bonus log. This page
- * is that destination, and the banner (plus the sidebar's League card, which
- * had the same problem) now points at it by the reference's own slug.
- * ═════════════════════════════════════════════════════════════════════════
- *
- * The page's chrome — hero, title, centred section headings, tables, the
- * collapsed fine-print card, the breadcrumb and the `Other promotions` rail —
- * is `PromoLayout`, which carries the measurements off the reference. What is
- * here is this campaign's body and nothing else.
+ * The page's chrome is `PromoLayout`; the copy without figures is
+ * `data/league.js`.
  */
 export function League() {
+  const [params, setParams] = useSearchParams();
+  const races = useRaces();
+  const configs = races.data ?? [];
+  const wanted = params.get('race');
+  const config = configs.find((race) => race.type === wanted) ?? configs[0];
+  const [board] = useRaceBoards(config ? [config.type] : []);
+
   return (
     <PromoPage promo={LEAGUE}>
       <Intro />
-      <Steps />
-      <Multipliers />
-      <Prizes />
-      <Board />
+
+      {configs.length > 1 && (
+        <div role="tablist" className="flex justify-center gap-2">
+          {configs.map((race) => (
+            <button
+              key={race.type}
+              type="button"
+              role="tab"
+              aria-selected={race.type === config.type}
+              onClick={() => setParams({ race: race.type }, { replace: true })}
+              className={cn(
+                'h-10 cursor-pointer rounded-i-sm px-4 text-base',
+                race.type === config.type ? 'bg-piccolo text-goten' : 'bg-hit text-bulma',
+              )}
+            >
+              {raceTitle(race.type)}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {races.isPending || board?.isPending ?
+        <Skeleton className="h-64 rounded" />
+      : !config || !board?.data ?
+        <p className="text-center text-base text-trunks">
+          No race is running right now. Check back soon.
+        </p>
+      : <>
+          <PromoSection heading="Here's the play:">
+            <PromoSteps steps={leagueSteps(board.data.winnerCount ?? config.winnerCount)} />
+          </PromoSection>
+          <Multipliers multipliers={board.data.multipliers ?? config.multipliers} />
+          <Prizes type={config.type} board={board.data} payout={config.payout} />
+          <Board board={board.data} />
+        </>
+      }
+
       <PromoFinePrint blocks={LEAGUE_FINE_PRINT} />
     </PromoPage>
   );
 }
 
-/**
- * Title, lede and body.
- *
- * The reference sets the title at the same 16px as the prose under it — it is
- * a strapline, not a heading step — so this is `text-base`, and the size is
- * not a transcription slip.
- */
 function Intro() {
   return (
     <section className="text-base leading-6 text-bulma">
@@ -70,85 +97,101 @@ function Intro() {
           {paragraph.text}
         </PromoParagraph>
       ))}
-
-      <PromoParagraph italic>{LEAGUE_INTRO.postscript}</PromoParagraph>
     </section>
   );
 }
 
-function Steps() {
+function Multipliers({ multipliers }) {
+  const rows = Object.entries(multipliers ?? {});
+  if (rows.length === 0) return null;
+
   return (
-    <PromoSection heading="Here's the play:">
-      <PromoSteps steps={LEAGUE_STEPS} />
+    <PromoSection heading="What your play is worth">
+      <PromoTable columns={['Category', 'Multiplier']} widths={['50%', '50%']}>
+        {rows.map(([key, value]) => (
+          <tr key={key}>
+            <PromoCell>{RACE_CATEGORIES[key] ?? key}</PromoCell>
+            <PromoCell className="tabular-nums">{formatBalance(value)}x</PromoCell>
+          </tr>
+        ))}
+      </PromoTable>
     </PromoSection>
   );
 }
 
-function Multipliers() {
+/** The pool headline and, when the operator has funded one, the ladder. */
+function Prizes({ type, board, payout }) {
+  const currency = board.payoutCurrency ?? board.currency;
+  const ranks = payout?.ranks ?? [];
+
   return (
     <PromoSection
-      heading="What this final week's play is worth"
-      blurb={`Based on how many of the three categories you are active in during Week ${LEAGUE.week}. A category counts once you have wagered 1,000 USDT or more in it during the week.`}
+      heading={`${raceTitle(type)} prize pool: ${formatBalance(board.payoutPrizePool ?? board.prizePool)} ${currency}`}
+      blurb={`${formatWindow(board.startsAt)} – ${formatWindow(board.endsAt)}`}
     >
-      <PromoTable columns={['Categories covered', 'Multiplier']} widths={['50%', '50%']}>
-        {LEAGUE_MULTIPLIERS.map((row) => (
-          <tr key={row.covered}>
-            <PromoCell>{row.covered}</PromoCell>
-            <PromoCell>{row.multiplier}</PromoCell>
-          </tr>
-        ))}
-      </PromoTable>
+      {ranks.length > 0 && (
+        <PromoTable columns={['Position', `Prize (${payout.currency ?? currency})`]} widths={['50%', '50%']}>
+          {ranks.map((row) => (
+            <tr key={row.rank}>
+              <PromoCell className="tabular-nums">{row.rank}</PromoCell>
+              <PromoCell className="tabular-nums">{formatBalance(row.amount)}</PromoCell>
+            </tr>
+          ))}
+        </PromoTable>
+      )}
     </PromoSection>
   );
 }
 
-function Prizes() {
-  return (
-    <PromoSection heading={`Week ${LEAGUE.week} Prize Pool: ${LEAGUE.weeklyPool}`}>
-      <PromoTable columns={['Position', 'Prize (USDT)']} widths={['50%', '50%']}>
-        {LEAGUE_PRIZES.map((row) => (
-          <tr key={row.position}>
-            <PromoCell>{row.position}</PromoCell>
-            <PromoCell>{row.prize}</PromoCell>
-          </tr>
-        ))}
-      </PromoTable>
-    </PromoSection>
-  );
-}
+function Board({ board }) {
+  const { status } = useAuth();
+  const rows = board.leaderboard ?? [];
+  const currency = board.payoutCurrency ?? board.currency;
 
-/**
- * The top 100.
- *
- * `tabular-nums` on the three numeric columns — a hundred rows of proportional
- * figures make a ragged column of digits, and this is the one place on the
- * page with enough of them for it to show.
- */
-function Board() {
   return (
-    <PromoSection
-      heading={`Week ${LEAGUE.week} Leaderboard`}
-      blurb={`This is the final weekly round. Not in the top 100 yet? You're still in the race. Every qualifying wager is counted, and we're building a way for you to see your exact position soon.`}
-    >
-      <PromoTable
-        columns={['Position', 'Username', 'Boost', 'Points']}
-        widths={['16%', '38%', '20%', '26%']}
-      >
-        {LEAGUE_BOARD.map((row) => (
-          <tr key={row.position}>
-            <PromoCell className="tabular-nums">{row.position}</PromoCell>
-            <PromoCell>{row.alias}</PromoCell>
-            <PromoCell className="tabular-nums">{row.boost}</PromoCell>
-            <PromoCell className="tabular-nums">{row.points.toLocaleString('en-US')}</PromoCell>
-          </tr>
-        ))}
-      </PromoTable>
+    <PromoSection heading="Leaderboard">
+      {rows.length === 0 ?
+        <p className="my-4 text-center text-base text-trunks">
+          Nobody is on the board yet. The first settled bet takes the lead.
+        </p>
+      : <PromoTable
+          columns={['Position', 'Player', 'Points', `Prize (${currency})`]}
+          widths={['16%', '38%', '23%', '23%']}
+        >
+          {rows.map((row) => (
+            <tr key={row.rank}>
+              <PromoCell className="tabular-nums">{row.rank}</PromoCell>
+              <PromoCell>{row.name ?? '—'}</PromoCell>
+              <PromoCell className="tabular-nums">{formatBalance(row.points)}</PromoCell>
+              <PromoCell className="tabular-nums">{formatBalance(row.payout)}</PromoCell>
+            </tr>
+          ))}
+        </PromoTable>
+      }
 
       <p className="text-center text-base text-bulma italic">
-        Last updated on: {leagueUpdatedAt()}
-        <br />
-        Total Players: {LEAGUE_PLAYERS.toLocaleString('en-US')}
+        {board.me ?
+          `Your position: #${board.me.rank} · ${formatBalance(board.me.points)} points`
+        : status === 'authenticated' ?
+          'You are not on the board yet — every settled bet counts.'
+        : <>
+            <Link to="/login" className="text-piccolo underline">
+              Log in
+            </Link>{' '}
+            to see your position.
+          </>
+        }
       </p>
     </PromoSection>
   );
+}
+
+function formatWindow(value) {
+  if (!value) return '';
+  return new Date(value).toLocaleString(undefined, {
+    day: 'numeric',
+    month: 'short',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
 }

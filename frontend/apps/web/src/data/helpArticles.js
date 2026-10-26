@@ -1850,7 +1850,6 @@ export const HELP_ARTICLE_CATEGORIES = [
         {type:'heading',value:'6. Complaint Template'},
         {type:'paragraph-link',suffix:'The Complaint Template form can be accessed ',linkLabel:'here',href:'.'},
       ] },
-      { slug: 'bitcasino-terms-and-conditions-of-use-of-services-of-the-company', title: 'General Terms & Conditions', content: [] },
       { slug: 'aml', title: 'Bitcasino AML policy', content: [] },
       { slug: 'bitcasino-reward-terms-conditions', title: 'Bitcasino Reward Terms & Conditions', content: [] },
       { slug: '', title: '', content: [] },

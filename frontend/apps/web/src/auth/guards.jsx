@@ -1,5 +1,6 @@
 import { Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from './AuthProvider';
+import { safeNext } from './safeNext';
 
 /**
  * Route guards.
@@ -31,8 +32,11 @@ export function RequireAuth({ children }) {
 /** `/login` and `/register`: there is nothing to sign into when already in. */
 export function RedirectIfAuthenticated({ children }) {
   const { status } = useAuth();
+  const location = useLocation();
 
   if (status === 'loading') return null;
-  if (status === 'authenticated') return <Navigate to="/" replace />;
+  if (status === 'authenticated') {
+    return <Navigate to={safeNext(location.state?.from ?? new URLSearchParams(location.search).get('next'))} replace />;
+  }
   return children;
 }

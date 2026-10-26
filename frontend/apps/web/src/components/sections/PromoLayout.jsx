@@ -3,7 +3,9 @@ import { Link } from 'react-router-dom';
 import { Breadcrumb } from '@/components/ui/Breadcrumb';
 import { PROMOTIONS } from '@/data/catalog';
 import { PROMO_PAGES } from '@/data/promotionPages';
+import { useGates } from '@/hooks/useGates';
 import { cn } from '@/lib/cn';
+import { usePromotions } from '@/queries';
 
 /**
  * The chrome every promotion detail page shares, measured off the reference's
@@ -266,13 +268,15 @@ export function PromoFinePrint({ blocks }) {
  * The rail beside the article.
  *
  * The reference lists two other campaigns it is running. This lists the app's
- * other promotion PAGES first and tops up from `PROMOTIONS` — so the rail
- * always leads with somewhere that has a page behind it, and never advertises
- * the page it is sitting on.
+ * other promotion PAGES first, then the operator's live promotions, and tops
+ * up from `PROMOTIONS` — never the page it is sitting on, never a card into a
+ * switched-off section. The promotions read only runs while that section is on.
  */
 function OtherPromotions({ slug }) {
-  const others = [...PROMO_PAGES, ...PROMOTIONS]
-    .filter((promo) => promo.slug !== slug)
+  const { on, routeOn } = useGates();
+  const { data } = usePromotions({ enabled: on('promotions') });
+  const others = [...PROMO_PAGES, ...(data?.live ?? []), ...PROMOTIONS]
+    .filter((promo) => promo.slug !== slug && routeOn(promo.href))
     .slice(0, 2);
 
   return (
