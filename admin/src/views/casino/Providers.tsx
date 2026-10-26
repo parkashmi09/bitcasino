@@ -150,7 +150,7 @@ const Providers = () => {
 
   const setEnabled = useApiMutation({
     fn: (v: { name: string; enabled: boolean }) => api.patch(`${LIST}/${encodeURIComponent(v.name)}`, { enabled: v.enabled }),
-    invalidate: [['api', LIST], ['api', 'admin/casino/games/providers']], // Game catalogue → Providers & sync shows this same switch.
+    invalidate: [['api', LIST], ['api', 'admin/casino/games/providers']], // The provider switch is shown here only.
     success: (_r, v) => `${v.name} is now ${v.enabled ? 'on' : 'off'} in the lobby`
   })
 
@@ -225,7 +225,7 @@ const Providers = () => {
         loading={list.isLoading}
         fetching={list.isFetching}
         error={list.error}
-        emptyMessage={needle ? `No provider matches “${filter}”.` : 'No providers in the catalogue yet. Run the game sync under Game catalogue → Providers.'}
+        emptyMessage={needle ? `No provider matches “${filter}”.` : 'No providers in the catalogue yet. Run the game sync on the backend first.'}
       />
     </div>
   )

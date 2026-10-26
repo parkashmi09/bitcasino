@@ -138,7 +138,7 @@ const MONEY_SOURCES = Object.freeze([
 const sportName = (id) => (id === 'other' ? 'Other' : SPORT_NAMES[id] ?? `Sport ${id}`);
 
 class DashboardStatsService {
-  constructor({ models, db, logger, config, directOnly = false, agentOnly = false }) {
+  constructor({ models, db, logger, config, directOnly = false, agentOnly = false, branchId = null }) {
     this.models = models;
     this.db = db;
     this.logger = logger;
@@ -147,6 +147,8 @@ class DashboardStatsService {
     this.directOnly = directOnly;
     /** P&L "Agent Users" tab: only players with a parent in the caller's tree. */
     this.agentOnly = agentOnly;
+    /** Branch reports (modules/branches): only that branch's direct players. The caller checked who may ask. */
+    this.branchId = branchId;
   }
 
   /**
@@ -335,7 +337,7 @@ class DashboardStatsService {
     const scope = ctx.scope.all
       ? ''
       : ctx.scope.direct
-        ? 'AND parent_staff_id IS NULL'
+        ? `AND parent_staff_id IS NULL${ctx.scope.branchId != null ? ' AND branch_id = :branchId' : ''}`
         : 'AND parent_staff_id IN (:staffIds)';
     return this.#query(
       `SELECT ${this.#bucket('created')} AS bucket, COUNT(*) AS n
@@ -535,6 +537,7 @@ class DashboardStatsService {
         toTz: t.toISOString(),
         ...(currency ? { currency } : {}),
         ...(scope.all || scope.direct ? {} : { staffIds: scope.staffIds }),
+        ...(scope.branchId != null ? { branchId: scope.branchId } : {}),
       },
     };
   }
@@ -552,7 +555,9 @@ class DashboardStatsService {
   /** The owner column inside the scope: direct users, the caller's tree, or nothing for the root. */
   #owned(ctx, column, isText = false) {
     if (ctx.scope.all) return '';
-    const players = ctx.scope.direct ? 'u.parent_staff_id IS NULL' : 'u.parent_staff_id IN (:staffIds)';
+    const players = ctx.scope.direct
+      ? `u.parent_staff_id IS NULL${ctx.scope.branchId != null ? ' AND u.branch_id = :branchId' : ''}`
+      : 'u.parent_staff_id IN (:staffIds)';
     return isText
       ? `AND ${column} IN (SELECT u.id::text FROM users u WHERE ${players})`
       : `AND ${column} IN (SELECT u.id FROM users u WHERE ${players})`;
@@ -621,6 +626,7 @@ class DashboardStatsService {
    * the whole site. No actor is an empty scope, never everything.
    */
   async #scope(actor) {
+    if (this.branchId != null) return { all: false, direct: true, empty: false, staffIds: [], branchId: this.branchId };
     if (!actor?.id) return { all: false, direct: false, empty: true, staffIds: [] };
     const staffIds = (await visibleStaffIds(this.models, actor.id, { logger: this.logger })).map(Number);
     const root = Number(this.config?.ROOT_STAFF_ID ?? 1);

@@ -13,7 +13,7 @@ export type GisGame = {
 export type GisVendor = { vendor: string; total?: number | string; [k: string]: unknown }
 export type GisType = { type: string; total?: number | string; [k: string]: unknown }
 export type GisProvider = { name: string; enabled: boolean }
-export type GisPriority = { games: GisGame[]; updated_at: string | null; vendor?: string; type?: string }
+export type GisPriority = { games: GisGame[]; updated_at: string | null; pinned?: number; vendor?: string; type?: string }
 
 export type JsGame = {
   id: number

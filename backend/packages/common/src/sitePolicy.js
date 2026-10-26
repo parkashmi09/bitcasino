@@ -50,6 +50,8 @@ const POLICY_DEFAULTS = Object.freeze({
   api_encryption: 'off',
   // Not a channel switch: whether the rate limiters count (common middleware/rateLimit.js).
   rate_limit: 'on',
+  // Not a channel switch: whether branches exist (admin modules/branches).
+  branch_management: 'off',
 });
 
 /** For each policy, which stored variants allow each channel. */

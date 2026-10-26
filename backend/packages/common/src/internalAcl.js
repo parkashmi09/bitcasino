@@ -55,6 +55,7 @@ const INTERNAL_SURFACE = Object.freeze({
     '/internal/user/vip',
     '/internal/user/affiliate',
     '/internal/user/wager',
+    '/internal/user/history',
   ],
   'admin-service': [
     '/internal/admin/accounts',
@@ -157,6 +158,8 @@ const INTERNAL_ACL = Object.freeze({
     '/internal/sports/settlement',
     '/internal/sports/wager',
     '/internal/user/exchange-rate',
+    /** A branch's deposits and withdrawals, every rail (modules/branches; user-service owns the rail list). */
+    '/internal/user/history',
     /**
      * Site flags and features are written here and heard on the player
      * sockets, which are user-service's. This is the push, nothing else:

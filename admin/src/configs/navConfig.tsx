@@ -204,6 +204,9 @@ export type MenuLeafSubItem = {
 
   /** A direct-user screen: only the Super Admin and its executives (`actor.direct`). */
   direct?: boolean
+
+  /** Hidden unless this owner on/off policy (`branch_management`, …) is on. */
+  policy?: string
 }
 
 export type MenuGroupSubItem = {
@@ -238,6 +241,9 @@ export type MenuItem = {
 
   /** Staff's own logins only — an executive session never sees it. */
   notExecutive?: boolean
+
+  /** Hidden unless this owner on/off policy (`branch_management`, …) is on. */
+  policy?: string
 } & (
   | {
       href: string
@@ -317,6 +323,16 @@ export const navItems: NavItem[] = [
       { icon: 'TrendingUp', label: 'Total Profit Loss', href: '/exchange/reports/total-profit-loss', ownerFlag: 'sportsexchange', permission: 'reports:read' },
       { icon: 'UserRoundCheck', label: 'User Win Loss', href: '/exchange/reports/user-win-loss', ownerFlag: 'sportsexchange', permission: 'reports:read' },
       { icon: 'Lock', label: 'General Lock', href: '/exchange/reports/general-lock', ownerFlag: 'sportsexchange', permission: 'reports:read' }
+    ]
+  },
+  {
+    // Owner policy `branch_management`: branches with their own login (/branch), Super Admin only.
+    groupLabel: 'Branch Management',
+    groupIcon: 'Building2',
+    collapsible: true,
+    items: [
+      { icon: 'Building2', label: 'Branches', href: '/branches', activePath: '/branches', permission: 'reports:read', direct: true, policy: 'branch_management' } as MenuItem,
+      { icon: 'ChartColumn', label: 'Branch Report', href: '/branch-report', permission: 'reports:read', direct: true, policy: 'branch_management' }
     ]
   },
   {
@@ -422,28 +438,13 @@ export const navItems: NavItem[] = [
     groupIcon: 'Spade',
     collapsible: true,
     items: [
-      { icon: 'Gamepad2', label: 'Game catalogue', href: '/casino/games', permission: 'casino:read', flag: 'casino' },
       { icon: 'ListOrdered', label: 'Lobby curation', href: '/casino/curation', permission: 'casino:read', flag: 'casino' },
       { icon: 'Server', label: 'Providers', href: '/casino/providers', permission: 'casino:read', flag: 'casino' },
 
       // The house-games and bet-history admin reads are guarded by reports:read, not casino:read.
       { icon: 'History', label: 'Bet history', href: '/casino/bets', permission: 'reports:read', flag: 'casino' },
-      { icon: 'Trophy', label: 'Providers Priority', href: '/providers-priority', permission: 'casino:read', flag: 'casino' },
       { icon: 'ArrowBigUp', label: 'Vendor Priority', href: '/vendor-priority', permission: 'casino:read', flag: 'casino' },
       { icon: 'Gamepad2', label: 'Type Priority', href: '/type-priority', permission: 'casino:read', flag: 'casino' },
-    ]
-  },
-  {
-    // Original Games apna section, Casino se bahar (user, 2026-10-19).
-    groupLabel: 'Original Games',
-    groupIcon: 'Dices',
-    collapsible: true,
-    items: [
-      // The aggregator's originals: dashboard, bets, games. Super Admin + its executives with originals:read (backend checks both).
-      { icon: 'LayoutDashboard', label: 'Dashboard', href: '/casino/original-games', permission: 'originals:read', direct: true },
-      { icon: 'TrendingUp', label: 'Turnover', href: '/casino/original-games/turnover', permission: 'originals:read', direct: true },
-      { icon: 'History', label: 'Bet history', href: '/casino/original-games/bets', permission: 'originals:read', direct: true },
-      { icon: 'Dices', label: 'Games', href: '/casino/original-games/games', permission: 'originals:read', direct: true }
     ]
   },
   {
@@ -630,6 +631,9 @@ export type NavMarks = {
 
   /** Staff's own logins only — an executive session never sees it (e.g. managing executives). */
   notExecutive?: boolean
+
+  /** Hidden unless this owner on/off policy (`branch_management`, …) is on. */
+  policy?: string
 }
 
 type NavEntry = NavMarks & { href?: string; childItems?: MenuSubItem[] }

@@ -39,4 +39,14 @@ const userParam = { params: z.object({ userId: z.coerce.number().int().positive(
 
 const statsQuery = { query: z.object({ currency: currency.optional() }).strict() };
 
-module.exports = { listMine, listAll, userParam, statsQuery };
+/** Internal, for admin-service's branch reports: every rail of one branch's players. */
+const branch = {
+  query: paging.extend({
+    kind: z.enum(['deposits', 'withdrawals']),
+    branchId: z.coerce.number().int().positive(),
+    userId: z.coerce.number().int().positive().optional(),
+    status: z.string().trim().max(50).optional(),
+  }),
+};
+
+module.exports = { listMine, listAll, userParam, statsQuery, branch };

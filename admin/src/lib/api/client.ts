@@ -103,7 +103,12 @@ export async function request<T>(path: string, opts: RequestOptions = {}): Promi
         ? (failed.error as typeof error)
         : { message: typeof failed.error === 'string' ? failed.error : typeof failed.message === 'string' ? failed.message : undefined }
 
-    if (res.status === 401 && typeof window !== 'undefined' && !location.pathname.startsWith('/login') && error.code === 'UNAUTHENTICATED') {
+    // The branch panel (/branch) has its own sign-in; a staff 401 there (e.g. the root session read) is not one.
+    const onBranch = typeof window !== 'undefined' && (location.pathname === '/branch' || location.pathname.startsWith('/branch/'))
+
+    if (onBranch) {
+      if (res.status === 401 && error.code === 'BRANCH_UNAUTHENTICATED' && location.pathname !== '/branch/login') location.assign('/branch/login')
+    } else if (res.status === 401 && typeof window !== 'undefined' && !location.pathname.startsWith('/login') && error.code === 'UNAUTHENTICATED') {
       location.assign(`/login?next=${encodeURIComponent(location.pathname)}`)
     }
 
@@ -111,6 +116,7 @@ export async function request<T>(path: string, opts: RequestOptions = {}): Promi
     // every admin API but "who am I", change-password and logout until it is replaced.
     if (
       res.status === 403 &&
+      !onBranch &&
       typeof window !== 'undefined' &&
       (error.code === 'PASSWORD_CHANGE_REQUIRED' || error.code?.endsWith('_PASSWORD_CHANGE_REQUIRED')) &&
       !location.pathname.startsWith('/change-password') &&

@@ -74,6 +74,9 @@ type SessionValue = {
 
   /** True unless the owner has taken this siteconfig flag (`casino`, `giftcards`, …) out of the plan. */
   flagEntitled: (key?: string | null) => boolean
+
+  /** An owner on/off policy (`branch_management`, …) is `on`. Off until the site's feature list says so. */
+  policyOn: (key?: string | null) => boolean
   signOut: () => Promise<void>
 }
 
@@ -159,15 +162,16 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   // Without `config:read` (the agent tree, executives) the plan above is never read, and every
   // feature used to read as entitled: their sidebar listed Tips, Gift cards, Spin wheel and Swap
   // history on a site where those are off. The site's public feature list (what players get: only
-  // the features that are ON) answers the same question for them.
-  const liveFeatures = useQuery<Set<string> | null>({
+  // the features that are ON) answers the same question for them. Read by every session: it is
+  // also the only place an owner policy's variant (`policyOn`) is published.
+  const liveFeatures = useQuery<Map<string, string | undefined> | null>({
     queryKey: ['api', 'admin/features/public', null],
     queryFn: () =>
       api
-        .get<Array<{ feature: string }>>('admin/features/public')
-        .then(list => (Array.isArray(list) ? new Set(list.map(f => f.feature)) : null))
+        .get<Array<{ feature: string; variant?: string }>>('admin/features/public')
+        .then(list => (Array.isArray(list) ? new Map(list.map(f => [f.feature, f.variant])) : null))
         .catch(() => null),
-    enabled: !!me.data && !hasPermission(me.data.permissions, 'config:read'),
+    enabled: !!me.data,
     staleTime: ENTITLEMENTS_POLL_MS - 1_000,
     refetchInterval: poll(ENTITLEMENTS_POLL_MS * 4),
     refetchOnWindowFocus: true,
@@ -224,6 +228,8 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     [entitlements.data]
   )
 
+  const policyOn = useCallback((key?: string | null) => !key || liveFeatures.data?.get(key) === 'on', [liveFeatures.data])
+
   const can = useCallback(
     (permission?: string | string[]) => {
       if (!permission || (Array.isArray(permission) && permission.length === 0)) return true
@@ -254,9 +260,10 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       entitlements: entitlements.data ?? null,
       featureEntitled,
       flagEntitled,
+      policyOn,
       signOut
     }),
-    [me.data, me.isLoading, can, flags.data, flags.isLoading, entitlements.data, featureEntitled, flagEntitled, qc, signOut]
+    [me.data, me.isLoading, can, flags.data, flags.isLoading, entitlements.data, featureEntitled, flagEntitled, policyOn, qc, signOut]
   )
 
   return <SessionContext.Provider value={value}>{children}</SessionContext.Provider>

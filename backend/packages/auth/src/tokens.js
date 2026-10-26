@@ -11,6 +11,7 @@ const { UnauthorizedError } = require('@ibitplay/common');
  *   access   — short-lived (15m), carries identity + role, sent on every call
  *   refresh  — long-lived (30d), single purpose: mint a new access token
  *   admin    — staff tokens, signed with JWT_ADMIN_SECRET
+ *   branch   — branch logins (admin modules/branches), a key derived from the admin one
  *
  * Separate secrets are the point. If the access secret leaks, an attacker can
  * forge a player session until it expires — bad. If one shared secret leaked,
@@ -20,13 +21,15 @@ const { UnauthorizedError } = require('@ibitplay/common');
  * invalidating every token the player holds.
  */
 
-const TOKEN_TYPES = { ACCESS: 'access', REFRESH: 'refresh', ADMIN: 'admin' };
+const TOKEN_TYPES = { ACCESS: 'access', REFRESH: 'refresh', ADMIN: 'admin', BRANCH: 'branch' };
 
 class TokenService {
   constructor(config) {
     this.accessSecret = config.JWT_ACCESS_SECRET;
     this.refreshSecret = config.JWT_REFRESH_SECRET;
     this.adminSecret = config.JWT_ADMIN_SECRET || config.JWT_ACCESS_SECRET;
+    // Its own key, so a branch token never verifies as a staff (or player) token; derived, so no new env key.
+    this.branchSecret = this.adminSecret && crypto.createHmac('sha256', this.adminSecret).update('branch-token').digest('hex');
     this.accessTtl = config.JWT_ACCESS_TTL || '15m';
     this.refreshTtl = config.JWT_REFRESH_TTL || '30d';
     this.adminTtl = config.JWT_ADMIN_TTL || '8h';
@@ -87,13 +90,28 @@ class TokenService {
     );
   }
 
+  /** Branch token (admin modules/branches). `tv` = `branches.token_version` at issue. */
+  signBranchToken({ branchId, tokenVersion = 0 }) {
+    return jwt.sign(
+      { sub: String(branchId), type: TOKEN_TYPES.BRANCH, tv: Number(tokenVersion) || 0 },
+      this.branchSecret,
+      { expiresIn: this.adminTtl, issuer: this.issuer, audience: this.audience, jwtid: crypto.randomUUID() }
+    );
+  }
+
   /**
    * Verify and decode. Throws a 401 AppError with a specific code so the client
    * can tell "refresh me" (TOKEN_EXPIRED) from "log in again" (INVALID_TOKEN).
    */
   verify(token, type = TOKEN_TYPES.ACCESS) {
     const secret =
-      type === TOKEN_TYPES.REFRESH ? this.refreshSecret : type === TOKEN_TYPES.ADMIN ? this.adminSecret : this.accessSecret;
+      type === TOKEN_TYPES.REFRESH
+        ? this.refreshSecret
+        : type === TOKEN_TYPES.ADMIN
+          ? this.adminSecret
+          : type === TOKEN_TYPES.BRANCH
+            ? this.branchSecret
+            : this.accessSecret;
 
     let payload;
     try {

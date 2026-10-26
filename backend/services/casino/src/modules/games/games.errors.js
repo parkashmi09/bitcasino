@@ -10,6 +10,10 @@ module.exports = defineErrors('GAMES', {
     message: 'No such lobby collection',
   },
 
+  UNKNOWN_CATEGORY: { status: 404, message: 'No such lobby category' },
+  CATEGORY_EXISTS: { status: 409, message: 'A lobby category with this name already exists' },
+  CATEGORY_SLUG_INVALID: { status: 422, message: 'A category name needs at least one letter or digit' },
+
   PROVIDER_NOT_FOUND: { status: 404, message: 'No games found for this provider' },
 
   COLLECTION_TOO_LARGE: {
@@ -66,7 +70,7 @@ module.exports = defineErrors('GAMES', {
   NO_FILE: { status: 400, message: 'No image was uploaded' },
   NOT_AN_IMAGE: { status: 415, message: 'That file is not a PNG, JPEG or WebP image' },
   FORMAT_REFUSED: { status: 415, message: 'That image format is not accepted here' },
-  TOO_LARGE: { status: 413, message: 'A provider logo may not exceed 1 MB' },
+  TOO_LARGE: { status: 413, message: 'An image upload may not exceed 1 MB' },
   TOO_SMALL: { status: 400, message: 'That upload is too small to be an image — it may have been truncated' },
 
   TYPE_REQUIRED: { status: 422, message: 'A game type is required' },

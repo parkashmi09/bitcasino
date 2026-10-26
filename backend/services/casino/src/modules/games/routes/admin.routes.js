@@ -62,6 +62,14 @@ module.exports = function adminRoutes(deps) {
   router.put('/collections/:collection', canManage, validate(v.writeCollection), ctrl.setCollection);
   router.get('/collections/:collection', canRead, validate(v.readCollection), ctrl.collection);
 
+  // ── Lobby categories (migration 158) ────────────────────────────────
+  router.get('/categories', canRead, ctrl.categories);
+  router.post('/categories', canManage, validate(v.createCategory), ctrl.createCategory);
+  router.put('/categories/order', canManage, validate(v.reorderCategories), ctrl.reorderCategories);
+  router.get('/categories/:slug', canRead, validate(v.readCategory), ctrl.categoryGames);
+  router.patch('/categories/:slug', canManage, validate(v.updateCategory), ctrl.updateCategory);
+  router.delete('/categories/:slug', canManage, validate(v.categoryParam), ctrl.deleteCategory);
+
   // ── Per-vendor priority ─────────────────────────────────────────────
   /** @legacy GET /api/gis/admin/gis/vendors */
   router.get('/vendors', canRead, ctrl.vendors);
@@ -88,6 +96,16 @@ module.exports = function adminRoutes(deps) {
   // `/games/games/search`.
   /** @legacy GET /api/gis/admin/gis/games/search */
   router.get('/catalogue/search', canRead, validate(v.searchGames), ctrl.adminSearch);
+  router.get('/catalogue/pick', canRead, validate(v.pickList), ctrl.pickList);
+  // The tile art as a file (PNG, JPEG or WebP, 1 MB); the URL form is PUT /catalogue/:uuid/image.
+  router.put(
+    '/catalogue/:uuid/image-file',
+    canManage,
+    ...imageUpload.singleImage({ field: 'image', errors: E, maxBytes: LOGO_MAX_BYTES }),
+    noBody(),
+    validate(v.uuidParam),
+    ctrl.putGameImage
+  );
   /** @legacy PUT /api/gis/admin/gis/games/:uuid/image */
   router.put('/catalogue/:uuid/image', canManage, validate(v.updateImage), ctrl.updateImage);
 

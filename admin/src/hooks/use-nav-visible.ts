@@ -11,7 +11,7 @@ import { useSession } from '@/contexts/SessionContext'
  * (or is not readable) hides nothing. The sidebar and the landing route share it.
  */
 export function useNavVisible() {
-  const { actor, can, flags, featureEntitled, flagEntitled } = useSession()
+  const { actor, can, flags, featureEntitled, flagEntitled, policyOn } = useSession()
   const isMarketing = actor?.marketing === true
 
   // Agent-tree logins (levels 4–6 and their executives) see no promotions anywhere.
@@ -30,8 +30,9 @@ export function useNavVisible() {
       // switch — otherwise turning sports off would hide the one screen that turns it back on.
       (!entry.flag || (flags[entry.flag] !== false && flagEntitled(entry.flag))) &&
       (!entry.ownerFlag || flagEntitled(entry.ownerFlag)) &&
-      featureEntitled(entry.feature),
-    [can, flags, featureEntitled, flagEntitled, isMarketing, promotionsAllowed, directAllowed, actor?.executiveId]
+      featureEntitled(entry.feature) &&
+      policyOn(entry.policy),
+    [can, flags, featureEntitled, flagEntitled, policyOn, isMarketing, promotionsAllowed, directAllowed, actor?.executiveId]
   )
 }
 

@@ -29,7 +29,9 @@ const HOP_BY_HOP = new Set([
 async function forward(req: NextRequest, ctx: { params: Promise<{ path: string[] }> }) {
   const { path } = await ctx.params
   const target = `${serverConfig.apiUrl}/${path.join('/')}${req.nextUrl.search}`
-  const token = await readSessionToken()
+
+  // The branch panel's calls carry the branch cookie, every other call the staff one.
+  const token = await readSessionToken(path.slice(0, 5).join('/') === 'api/v1/admin/branches/portal' ? serverConfig.branchCookieName : undefined)
 
   const headers = new Headers()
 

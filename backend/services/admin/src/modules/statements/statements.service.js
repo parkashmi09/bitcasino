@@ -471,6 +471,17 @@ class StatementsService {
     return this.#sportsBets(ids, { from, to, page, limit, offset });
   }
 
+  /**
+   * The same lists for players the caller has already scoped (modules/branches: a branch's
+   * direct users). `sources` narrows the casino union — the originals are 'inhouse' and 'og'.
+   */
+  async betsFor(ids, { kind = 'sports', sources, from, to, page = 1, limit = 50 }) {
+    const offset = (page - 1) * limit;
+    if (!ids.length) return { kind, total: 0, rows: [], pagination: { page, limit, total: 0, totalPages: 1 } };
+    if (kind === 'casino') return this.#casinoBets(ids, { from, to, page, limit, offset, sources });
+    return this.#sportsBets(ids, { from, to, page, limit, offset });
+  }
+
   async #sportsBets(ids, { from, to, page, limit, offset }) {
     const where = { user_id: ids, ...this.#dateWhere('created_at', from, to) };
 
@@ -520,7 +531,7 @@ class StatementsService {
    * positive; an in-house round is ONE row, net of its payout); `stake`,
    * `profit` and `status` say what the round was.
    */
-  async #casinoBets(ids, { from, to, page, limit, offset, wallet }) {
+  async #casinoBets(ids, { from, to, page, limit, offset, wallet, sources }) {
     const { sequelize } = this.models.CreditsLedger;
     const { QueryTypes } = sequelize.constructor;
     const range = dayRange(from, to);
@@ -541,8 +552,9 @@ class StatementsService {
              r.net, r.stake, CASE WHEN r.source IN ('inhouse', 'og') AND r.status <> 'open' THEN r.net END, r.status
         FROM (${casinoRoundsSql({ range: true })}) r`;
     // One wallet when asked (the statement's picker); GIS rows are INR only, as the totals read them.
-    const filtered = wallet ? `SELECT * FROM (${union}) w WHERE w.currency = :wallet` : union;
-    const replacements = { ids: ids.map(Number), inr: CASINO_INR_CURRENCIES, wallet, ...range };
+    const narrow = [wallet && 'w.currency = :wallet', sources?.length && 'w.source IN (:sources)'].filter(Boolean);
+    const filtered = narrow.length ? `SELECT * FROM (${union}) w WHERE ${narrow.join(' AND ')}` : union;
+    const replacements = { ids: ids.map(Number), inr: CASINO_INR_CURRENCIES, wallet, sources, ...range };
 
     const [[{ total }], rows] = await Promise.all([
       sequelize.query(`SELECT COUNT(*)::int AS total FROM (${filtered}) x`, { replacements, type: QueryTypes.SELECT }),

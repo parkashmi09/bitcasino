@@ -26,6 +26,44 @@ const notDirect = () => new AppError('This report is for direct users only', 400
 const round2 = (n) => Math.round(n * 100) / 100;
 const isVoidRow = (r) => r.event_type === 'REVERSAL' || r.event_type === 'VOID' || String(r.entry_ref || '').startsWith('reverse:');
 
+/** One `point_ledger_direct` row (+ its SportsBet columns) as the statement prints it. Branch statements share it. */
+function ledgerRow(r) {
+  const delta = round2(Number(r.delta || 0));
+  const sports = r.category === 'SPORTS';
+  const sportId = r.bet_sport_id ?? r.sport_id ?? null;
+  return {
+    id: String(r.id),
+    date: r.created_at,
+    category: r.category,
+    eventType: r.event_type,
+    void: isVoidRow(r),
+    currency: r.currency,
+    amount: delta.toFixed(2),
+    credit: delta > 0 ? delta.toFixed(2) : '-',
+    debit: delta < 0 ? Math.abs(delta).toFixed(2) : '-',
+    closing: r.balance_after != null ? round2(Number(r.balance_after)).toFixed(2) : '-',
+    description: String(r.remark || r.event_type || '').split('#')[0],
+    gameType: r.game_type ?? null,
+    betId: r.bet_id != null ? String(r.bet_id) : null,
+    bet: sports && r.bet_row_id != null
+      ? {
+          sport: sportName(sportId) || (sportId ? `Sport ${sportId}` : null),
+          event: r.match_title || r.event_name || null,
+          market: r.market_type || null,
+          selection: r.fancy_name || r.selection_name || null,
+          side: r.bet_type || null,
+          odds: r.odds != null ? String(r.odds) : null,
+          stake: r.stake_amount != null ? String(r.stake_amount) : null,
+          liability: r.liability != null ? String(r.liability) : null,
+          status: r.bet_status || null,
+          result: r.result_status || null,
+          eventId: r.eventid || null,
+          matchId: r.match_id || null,
+        }
+      : null,
+  };
+}
+
 async function directBetHistory(sequelize, tree, f) {
   // Sirf direct users ka tree (treeOf 'direct'): koi staff ka player yahan nahi khulta.
   const client = await findClient(sequelize, tree, { clientType: 'user', clientId: f.clientId });
@@ -66,42 +104,7 @@ async function directBetHistory(sequelize, tree, f) {
     { replacements: { ...replacements, limit: f.limit, offset: (f.page - 1) * f.limit }, type: QueryTypes.SELECT }
   );
 
-  const data = rows.map((r) => {
-    const delta = round2(Number(r.delta || 0));
-    const sports = r.category === 'SPORTS';
-    const sportId = r.bet_sport_id ?? r.sport_id ?? null;
-    return {
-      id: String(r.id),
-      date: r.created_at,
-      category: r.category,
-      eventType: r.event_type,
-      void: isVoidRow(r),
-      currency: r.currency,
-      amount: delta.toFixed(2),
-      credit: delta > 0 ? delta.toFixed(2) : '-',
-      debit: delta < 0 ? Math.abs(delta).toFixed(2) : '-',
-      closing: r.balance_after != null ? round2(Number(r.balance_after)).toFixed(2) : '-',
-      description: String(r.remark || r.event_type || '').split('#')[0],
-      gameType: r.game_type ?? null,
-      betId: r.bet_id != null ? String(r.bet_id) : null,
-      bet: sports && r.bet_row_id != null
-        ? {
-            sport: sportName(sportId) || (sportId ? `Sport ${sportId}` : null),
-            event: r.match_title || r.event_name || null,
-            market: r.market_type || null,
-            selection: r.fancy_name || r.selection_name || null,
-            side: r.bet_type || null,
-            odds: r.odds != null ? String(r.odds) : null,
-            stake: r.stake_amount != null ? String(r.stake_amount) : null,
-            liability: r.liability != null ? String(r.liability) : null,
-            status: r.bet_status || null,
-            result: r.result_status || null,
-            eventId: r.eventid || null,
-            matchId: r.match_id || null,
-          }
-        : null,
-    };
-  });
+  const data = rows.map(ledgerRow);
 
   return {
     user: { id: client.id, name: client.name },
@@ -112,4 +115,4 @@ async function directBetHistory(sequelize, tree, f) {
   };
 }
 
-module.exports = { directBetHistory };
+module.exports = { directBetHistory, ledgerRow };

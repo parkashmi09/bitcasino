@@ -885,7 +885,26 @@ const RATE_LIMIT_POLICY = {
   ],
 };
 
-const FEATURES = Object.freeze([...POLICIES, REWARD_CURRENCY_POLICY, DEFAULT_CURRENCY_POLICY, REGION_RESTRICTION_POLICY, WITHDRAWAL_REQUIREMENTS_POLICY, CASINO_AGGREGATOR_POLICY, THEME_MODE_POLICY, SLOTEGRATOR_INR_AS_PKR_POLICY, API_ENCRYPTION_POLICY, RATE_LIMIT_POLICY, ...GENERATED, TIPS, P2P, PUSH_NOTIFICATIONS, ANALYTICS]);
+/**
+ * Branch management — a policy (owner-only). `on`: the Super Admin creates branches (own login at
+ * the admin's /branch), each branch creates and watches its own direct players; `off` (the
+ * default): the admin screens hide, the branch APIs answer 403 and no branch can sign in
+ * (admin-service modules/branches).
+ */
+const BRANCH_MANAGEMENT_POLICY = {
+  key: 'branch_management',
+  label: 'Branch management',
+  category: 'business',
+  kind: 'policy',
+  flag: null,
+  defaultVariant: 'off',
+  variants: [
+    { key: 'off', label: 'Off', description: 'No branches: the admin screens hide and no branch can sign in. The default.' },
+    { key: 'on', label: 'On', description: 'The Super Admin creates branches; each branch signs in at /branch, creates its own players and sees their deposits, withdrawals and play.' },
+  ],
+};
+
+const FEATURES = Object.freeze([...POLICIES, REWARD_CURRENCY_POLICY, DEFAULT_CURRENCY_POLICY, REGION_RESTRICTION_POLICY, WITHDRAWAL_REQUIREMENTS_POLICY, CASINO_AGGREGATOR_POLICY, THEME_MODE_POLICY, SLOTEGRATOR_INR_AS_PKR_POLICY, API_ENCRYPTION_POLICY, RATE_LIMIT_POLICY, BRANCH_MANAGEMENT_POLICY, ...GENERATED, TIPS, P2P, PUSH_NOTIFICATIONS, ANALYTICS]);
 
 /**
  * Site templates — the bundles the OWNER picks for a site (docs/OWNER-PANEL.md

@@ -261,6 +261,20 @@ const CATALOGUE: FeatureEntry[] = [
     ]
   },
   {
+    // Branch management: a policy (always on, owner-only). Mirrors backend featureCatalogue.js.
+    key: 'branch_management',
+    label: 'Branch management',
+    category: 'business',
+    flag: null,
+    policy: true,
+    defaultVariant: 'off',
+    note: 'On: the Super Admin gets Branch Management (create branches with a login, activate / deactivate, change password, branch reports); each branch signs in at the admin\'s /branch, creates its own players and sees their deposits, withdrawals and play. Off: the screens hide and no branch can sign in. Takes effect within about 15 seconds.',
+    variants: [
+      { key: 'off', label: 'Off', description: 'No branches: the admin screens hide and no branch can sign in. The default.' },
+      { key: 'on', label: 'On', description: 'The Super Admin creates branches; each branch signs in at /branch, creates its own players and sees their deposits, withdrawals and play.' }
+    ]
+  },
+  {
     key: 'vip',
     label: 'VIP club',
     category: 'engagement',

@@ -23,5 +23,8 @@ export const siteConfig = {
 export const serverConfig = {
   apiUrl: (process.env.API_URL || process.env.NEXT_PUBLIC_API_BASE || 'https://api.parker567.com').replace(/\/+$/, ''),
   cookieName: process.env.SESSION_COOKIE_NAME ?? 'site_admin_token',
+
+  /** The branch panel's (/branch) own cookie — never the staff one. Same name rule in src/proxy.ts. */
+  branchCookieName: `${process.env.SESSION_COOKIE_NAME ?? 'site_admin_token'}_branch`,
   cookieMaxAgeSeconds: Number(process.env.SESSION_MAX_AGE_SECONDS ?? 8 * 60 * 60)
 }

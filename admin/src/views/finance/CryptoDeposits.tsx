@@ -1,82 +1,24 @@
 'use client'
 
-import { useState } from 'react'
-
 import Link from 'next/link'
 
-import { PlusIcon } from 'lucide-react'
-
-import Can from '@/components/shared/Can'
 import DataTable, { type Column } from '@/components/shared/DataTable'
 import DateTime from '@/components/shared/DateTime'
-import FormDialog from '@/components/shared/FormDialog'
-import { DateField, SelectField, TextField } from '@/components/shared/FormField'
 import Money from '@/components/shared/Money'
 import { FilterBar, useStatsFilters } from '@/components/shared/charts'
 import PageHeader from '@/components/shared/PageHeader'
 import StatusBadge from '@/components/shared/StatusBadge'
-import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { useSession } from '@/contexts/SessionContext'
-import { useApiMutation, useListState } from '@/hooks/use-api'
-import { api } from '@/lib/api/client'
+import { useListState } from '@/hooks/use-api'
 import { truncateId } from '@/lib/format'
-import { check } from '@/lib/validate'
 import FinanceStatsPanel from './FinanceStatsPanel'
 import ListStatsTabs from './ListStatsTabs'
 import { usePageNumbered } from './shared'
 import type { CryptoDepositRow } from './types'
 
 const LIST = 'admin/user/history/crypto/deposits'
-
-/** `POST admin/user/crypto/inr-deposits` — a staff-entered INR credit for an on-chain deposit. */
-const RecordInrDeposit = () => {
-  const [form, setForm] = useState({ userId: '', amount: '', transactionId: '', status: 'pending', date: '' })
-
-  const record = useApiMutation({
-    fn: () => {
-      const body: Record<string, string | number> = { userId: Number(form.userId), amount: form.amount, transactionId: form.transactionId, status: form.status }
-
-      if (form.date) body.date = form.date
-
-      return api.post('admin/user/crypto/inr-deposits', body)
-    },
-    invalidate: [['paged', LIST], ['api', 'admin/reports/finance-stats']],
-    success: 'INR deposit recorded',
-    onSuccess: () => setForm({ userId: '', amount: '', transactionId: '', status: 'pending', date: '' })
-  })
-
-  return (
-    <FormDialog
-      trigger={
-        <Button>
-          <PlusIcon /> Record INR deposit
-        </Button>
-      }
-      title='Record an INR deposit'
-      description='Enters a deposit the user made out of band. Audited under your name; only "success" counts as money that arrived.'
-      submitLabel='Record'
-      validate={() => ({
-        userId: check.id(form.userId, 'User id'),
-        amount: check.amount(form.amount, 'Amount', { decimals: 8 }),
-        transactionId: check.required(form.transactionId, 'Transaction id') ?? check.length(form.transactionId, 'Transaction id', { max: 120 }),
-        'ir-date': form.date && new Date(form.date).getTime() > Date.now() ? 'Date cannot be in the future' : undefined
-      })}
-      onSubmit={() => record.mutateAsync()}
-    >
-      <div className='grid grid-cols-2 gap-4'>
-        <TextField id='ir-user' name='userId' label='User id' required inputMode='numeric' value={form.userId} onChange={e => setForm({ ...form, userId: e.target.value.replace(/\D/g, '') })} />
-        <TextField id='ir-amt' name='amount' inputMode='decimal' label='Amount (INR)' required placeholder='1000.00' value={form.amount} onChange={e => setForm({ ...form, amount: e.target.value })} />
-      </div>
-      <TextField id='ir-tx' name='transactionId' label='Transaction id' required value={form.transactionId} onChange={e => setForm({ ...form, transactionId: e.target.value })} />
-      <div className='grid grid-cols-2 gap-4'>
-        <SelectField id='ir-status' label='Status' value={form.status} onChange={status => setForm({ ...form, status })} options={['pending', 'success', 'failed'].map(v => ({ value: v, label: v }))} />
-        <DateField id='ir-date' label='Date' value={form.date} onChange={date => setForm({ ...form, date })} />
-      </div>
-    </FormDialog>
-  )
-}
 
 /** `"0.00100000"` → `"0.001"`: a coin amount keeps its precision but not the padding. */
 const trimCoin = (value: string | null | undefined) => {
@@ -126,11 +68,6 @@ const CryptoDeposits = () => {
       <PageHeader
         title='Crypto deposits'
         description='On-chain deposits seen by the payment provider, scoped to your agent tree. Amounts are in the coin the chain moved; USD is at the current rate, where one is set.'
-        actions={
-          <Can permission='deposits:approve'>
-            <RecordInrDeposit />
-          </Can>
-        }
       />
       <FilterBar filters={filters} className='mb-4' />
       <ListStatsTabs stats={can('reports:read') ? <FinanceStatsPanel kind='deposits' rail='crypto' filters={filters} statusLabels={{ success: 'Successful', pending: 'Processing', failed: 'Failed' }} /> : null}>

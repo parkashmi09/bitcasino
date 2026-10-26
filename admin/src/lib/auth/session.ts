@@ -30,9 +30,9 @@ export function decodeToken(token: string): StaffTokenPayload | null {
   }
 }
 
-export async function readSessionToken(): Promise<string | null> {
+export async function readSessionToken(name = serverConfig.cookieName): Promise<string | null> {
   const jar = await cookies()
-  const token = jar.get(serverConfig.cookieName)?.value
+  const token = jar.get(name)?.value
 
   if (!token) return null
   const payload = decodeToken(token)
@@ -42,10 +42,10 @@ export async function readSessionToken(): Promise<string | null> {
   return token
 }
 
-export async function writeSessionToken(token: string) {
+export async function writeSessionToken(token: string, name = serverConfig.cookieName) {
   const jar = await cookies()
 
-  jar.set(serverConfig.cookieName, token, {
+  jar.set(name, token, {
     httpOnly: true,
     sameSite: 'lax',
     secure: process.env.NODE_ENV === 'production',
@@ -54,8 +54,8 @@ export async function writeSessionToken(token: string) {
   })
 }
 
-export async function clearSessionToken() {
+export async function clearSessionToken(name = serverConfig.cookieName) {
   const jar = await cookies()
 
-  jar.set(serverConfig.cookieName, '', { httpOnly: true, sameSite: 'lax', path: '/', maxAge: 0 })
+  jar.set(name, '', { httpOnly: true, sameSite: 'lax', path: '/', maxAge: 0 })
 }

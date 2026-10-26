@@ -24,6 +24,34 @@ const COLLECTIONS = Object.freeze({
 
 const COLLECTION_SLUGS = Object.freeze(Object.keys(COLLECTIONS));
 
+/** `/casino/:tab` segments the site keeps for itself; a lobby category may not take one. */
+const RESERVED_TABS = Object.freeze(['', 'lobby', 'brand', 'originals', 'provider', 'themes']);
+
+/**
+ * What a seeded lobby category shows while it has no hand-picked games — the same list the
+ * site reads then (frontend services/catalog.js SET_QUERY; keep the two in step). The admin
+ * opens an uncurated category on this list so it can be edited rather than started blank.
+ */
+const CATEGORY_AUTO_LISTS = Object.freeze({
+  hot: { collection: 'hot' },
+  slots: { category: 'slots' },
+  live: { category: 'live' },
+  'game-shows': { category: 'game-shows' },
+  'table-game': { category: 'table' },
+  blackjack: { category: 'blackjack' },
+  roulette: { category: 'roulette' },
+  baccarat: { category: 'baccarat' },
+  poker: { category: 'poker' },
+  'crash-games': { category: 'crash' },
+});
+
+/** How much of an automatic list the admin is shown to edit. */
+const AUTO_LIST_ADMIN_LIMIT = 500;
+
+/** A category's URL key from its name: "Hot Games" -> `hot-games`. */
+const categorySlug = (name) =>
+  String(name ?? '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 60);
+
 /**
  * Columns a lobby response may expose.
  *
@@ -138,6 +166,10 @@ module.exports = {
   NAME_CATEGORIES,
   COLLECTIONS,
   COLLECTION_SLUGS,
+  RESERVED_TABS,
+  categorySlug,
+  CATEGORY_AUTO_LISTS,
+  AUTO_LIST_ADMIN_LIMIT,
   GAME_FIELDS,
   GAME_SUMMARY_FIELDS,
   MAX_COLLECTION_SIZE,

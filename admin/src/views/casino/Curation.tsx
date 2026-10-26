@@ -10,7 +10,8 @@ import { useApi, useApiMutation } from '@/hooks/use-api'
 import { api } from '@/lib/api/client'
 import { formatNumber } from '@/lib/format'
 import DateTime from '@/components/shared/DateTime'
-import { EditImage } from './GameCatalogue'
+import { EditImage } from './EditImage'
+import { CategoriesTab } from './Categories'
 import OrderedList, { type OrderedItem } from './OrderedList'
 import type { GisGame, GisPriority, GisType, GisVendor } from './types'
 
@@ -29,7 +30,7 @@ const GIS_COLLECTIONS = [
 
 const gisSearch = async (q: string) => (await api.get<GisGame[]>('admin/casino/games/catalogue/search', { q, limit: 100 })).map(gisItem)
 
-/** Settings → Providers Priority (zip jaisa): home ke GIS collections ka order. */
+/** Lobby curation › Home collection: the order of the four GIS home rows. */
 export const CollectionsTab = ({ picker = true }: { picker?: boolean }) => {
   const { can } = useSession()
   const [collection, setCollection] = useState('hot')
@@ -90,29 +91,31 @@ export const PriorityTab = ({ kind }: { kind: 'vendor' | 'type' }) => {
         </Select>
         {priority.data && (
           <span className='text-muted-foreground text-sm'>
+            {priority.data.games.length} games, in the order the site shows them.{' '}
             {priority.data.updated_at ? (
               <>
-                Pinned order saved <DateTime value={priority.data.updated_at} relative />
+                {priority.data.pinned ?? 0} pinned, saved <DateTime value={priority.data.updated_at} relative />.
               </>
             ) : (
-              'No pinned order — catalogue order applies.'
+              'Nothing pinned yet — drag or move games, then Save to pin this order.'
             )}
           </span>
         )}
       </div>
       {options.error && <ErrorState error={options.error} />}
-      {options.data && options.data.length === 0 && <p className='text-muted-foreground text-sm'>The aggregator catalogue is empty. Sync games first (Game catalogue → Providers & sync).</p>}
+      {options.data && options.data.length === 0 && <p className='text-muted-foreground text-sm'>The aggregator catalogue is empty. Sync games first (the catalogue sync on the backend).</p>}
       {priority.error && <ErrorState error={priority.error} />}
       {key ? (
-        <OrderedList items={items} loading={priority.isLoading} search={search} onSave={ids => save.mutateAsync(ids)} canWrite={can('casino:manage')} max={5000} rowAction={imageAction(priority.refetch)} header={<span className='font-medium capitalize'>{kind}: {key}</span>} />
+        <OrderedList fixed items={items} loading={priority.isLoading} search={search} onSave={ids => save.mutateAsync(ids)} canWrite={can('casino:manage')} max={5000} rowAction={imageAction(priority.refetch)} header={<span className='font-medium capitalize'>{kind}: {key}</span>} emptyMessage={`No games for this ${kind} in the lobby.`} />
       ) : (
-        <p className='text-muted-foreground text-sm'>Pick a {kind} to pin games to the top of its list.</p>
+        <p className='text-muted-foreground text-sm'>Pick a {kind} to see and order its games.</p>
       )}
     </div>
   )
 }
 
 const SCOPES = [
+  { value: 'category', label: 'Lobby categories' },
   { value: 'collection', label: 'Home collection' },
   { value: 'vendor', label: 'Provider' },
   { value: 'type', label: 'Type' }
@@ -120,11 +123,11 @@ const SCOPES = [
 
 /** Casino → Lobby curation: the Slotegrator lobby the site renders — a home collection, or a provider's / type's pinned games. Per game: change its tile image, move it, remove it; Add games appends from the catalogue. */
 const Curation = () => {
-  const [scope, setScope] = useState<(typeof SCOPES)[number]['value']>('collection')
+  const [scope, setScope] = useState<(typeof SCOPES)[number]['value']>('category')
 
   return (
     <div className='grid gap-4'>
-      <PageHeader title='Lobby curation' description='Pick a home collection, a provider or a type; then change any game’s image, set its priority (Top / ↑ / ↓ / Bottom), add or remove games, and Save.' />
+      <PageHeader title='Lobby curation' description='Lobby categories are the casino page’s sections after Lobby and Originals (Add category). Or pick a home collection, a provider or a type; then change any game’s image, set its order (drag, or Top / ↑ / ↓ / Bottom), add or remove games, and Save.' />
       <Select value={scope} onValueChange={v => v && setScope(v as typeof scope)}>
         <SelectTrigger className='w-48'>
           <SelectValue>{(v: string) => SCOPES.find(s => s.value === v)?.label ?? v}</SelectValue>
@@ -137,7 +140,7 @@ const Curation = () => {
           ))}
         </SelectContent>
       </Select>
-      {scope === 'collection' ? <CollectionsTab /> : <PriorityTab key={scope} kind={scope} />}
+      {scope === 'category' ? <CategoriesTab /> : scope === 'collection' ? <CollectionsTab /> : <PriorityTab key={scope} kind={scope} />}
     </div>
   )
 }

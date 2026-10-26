@@ -40,6 +40,10 @@ module.exports = function publicRoutes(deps) {
    */
   router.get('/collections/:collection', validate(v.readCollection), ctrl.collection);
 
+  /** The lobby's sections after Lobby and Originals, and each one's hand-picked games. */
+  router.get('/categories', ctrl.categories);
+  router.get('/categories/:slug', validate(v.readCategory), ctrl.categoryGames);
+
   /**
    * One game, by uuid — the game screen's read.
    *

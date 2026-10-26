@@ -72,6 +72,23 @@ function createControllers({ service }) {
       paged(req, await service.collection({ ...req.query, collection: req.params.collection }))
     ),
 
+    /** Lobby categories: the site reads active ones, the admin reads all (`req.staff`). */
+    categories: asyncHandler(async (req, res) => response.ok(res, await service.categories({ includeInactive: Boolean(req.staff) }))),
+    categoryGames: asyncHandler(async (req, res) =>
+      paged(req, await service.categoryGames({ ...req.query, slug: req.params.slug, includeInactive: Boolean(req.staff), automatic: Boolean(req.staff) }))
+    ),
+    createCategory: asyncHandler(async (req, res) => response.created(res, await service.createCategory({ ...req.body, actor: req.staff }))),
+    updateCategory: asyncHandler(async (req, res) =>
+      response.ok(res, await service.updateCategory({ ...req.body, slug: req.params.slug, actor: req.staff }))
+    ),
+    reorderCategories: asyncHandler(async (req, res) => response.ok(res, await service.reorderCategories(req.body))),
+    deleteCategory: asyncHandler(async (req, res) => response.ok(res, await service.deleteCategory({ slug: req.params.slug, actor: req.staff }))),
+
+    putGameImage: asyncHandler(async (req, res) =>
+      response.ok(res, await service.putGameImage({ uuid: req.params.uuid, file: req.file, actor: req.staff }))
+    ),
+    pickList: asyncHandler(async (req, res) => response.ok(res, await service.pickList(req.query))),
+
     /** @legacy GET /api/gis/admin/gis/games/search */
     search: asyncHandler(async (req, res) => response.ok(res, await service.search(req.query))),
 

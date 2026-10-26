@@ -15,5 +15,7 @@ module.exports = {
   routers: {
     user: require('./routes/user.routes'),
     admin: require('./routes/admin.routes'),
+    // admin-service's branch reports (modules/branches): one branch's deposits / withdrawals.
+    internal: require('./routes/internal.routes'),
   },
 };

@@ -71,6 +71,41 @@ const readCollection = {
     .strict(),
 };
 
+/** Lobby categories (migration 158). The slug is a `/casino/:tab` segment. */
+const categoryKey = z.string().trim().min(1).max(60).regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/);
+const categoryParam = { params: z.object({ slug: categoryKey }) };
+
+const readCategory = {
+  ...categoryParam,
+  query: z
+    .object({
+      page: paging.page,
+      limit: z.coerce.number().int().min(1).max(MAX_COLLECTION_SIZE).default(20),
+      provider: z.string().trim().max(1000).optional(),
+      sort: z.enum(['az', 'za']).optional(),
+    })
+    .strict(),
+};
+
+const createCategory = {
+  body: z.object({ name: z.string().trim().min(1).max(60), slug: categoryKey.optional() }).strict(),
+};
+
+const updateCategory = {
+  ...categoryParam,
+  body: z
+    .object({
+      name: z.string().trim().min(1).max(60).optional(),
+      active: z.boolean().optional(),
+      uuids: z.array(gameUuid).max(MAX_COLLECTION_SIZE).optional(),
+    })
+    .strict(),
+};
+
+const reorderCategories = {
+  body: z.object({ slugs: z.array(categoryKey).min(1).max(200) }).strict(),
+};
+
 /**
  * Setting a collection.
  *
@@ -149,6 +184,10 @@ const searchGames = {
 
 const searchWithinVendor = {
   query: searchGames.query.extend({ vendor: z.string().trim().min(1).max(120) }),
+};
+
+const pickList = {
+  query: z.object({ vendor: z.string().trim().min(1).max(120), type: z.string().trim().min(1).max(120).optional() }).strict(),
 };
 
 const searchWithinType = {
@@ -276,6 +315,11 @@ module.exports = {
   slugParam,
   readCollection,
   writeCollection,
+  categoryParam,
+  readCategory,
+  createCategory,
+  updateCategory,
+  reorderCategories,
   vendorParam,
   typeParam,
   setVendorPriority,
@@ -283,6 +327,7 @@ module.exports = {
   searchGames,
   searchWithinVendor,
   searchWithinType,
+  pickList,
   updateImage,
   listProviders,
   setProviders,

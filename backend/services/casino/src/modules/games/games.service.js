@@ -8,6 +8,10 @@ const E = require('./games.errors');
 const { fetchPublicImage } = require('./publicImage');
 const {
   COLLECTIONS,
+  RESERVED_TABS,
+  categorySlug,
+  CATEGORY_AUTO_LISTS,
+  AUTO_LIST_ADMIN_LIMIT,
   NAME_CATEGORIES,
   LIVE_PROVIDERS,
   LIVE_TYPES,
@@ -29,6 +33,8 @@ const {
   isProviderDisabled,
 } = require('./providerSwitch');
 const { imageUpload, money, wagerCategory } = require('@ibitplay/common');
+// shortcut: the artwork script's own size reader, required across from backend/scripts; move it to a package if a third caller needs it.
+const { imageSize } = require('../../../../../scripts/lib/image-size');
 
 /** A provider logo is a small mark, not a hero image. */
 const LOGO_MAX_BYTES = 1024 * 1024;
@@ -499,12 +505,19 @@ class GamesService {
     const { model, key } = this.#collection(collection);
 
     const row = await this.models[model].findOne({ where: { key }, raw: true });
-    const ids = this.#splitIds(row?.game_uuids);
+    return this.#curatedPage(this.#splitIds(row?.game_uuids), { page, limit });
+  }
+
+  /** One page of a hand-picked list, in its curated order; `provider` (csv) and `sort` (az/za) narrow and reorder it. */
+  async #curatedPage(ids, { page, limit, provider, sort }) {
     if (!ids.length) return { rows: [], total: 0 };
 
+    const where = { uuid: { [Op.in]: ids } };
+    const wanted = String(provider ?? '').split(',').map((p) => p.trim()).filter(Boolean);
+    if (wanted.length) where.provider = { [Op.iLike]: { [Op.any]: wanted } };
     const games = await this.models.Gisgamesnew.findAll({
       // A curated "… Mobile" twin is shown as its desktop tile's game, not a second tile.
-      where: withoutTwins(withoutDisabled({ uuid: { [Op.in]: ids } }, await disabledProviders(this.models))),
+      where: withoutTwins(withoutDisabled(where, await disabledProviders(this.models))),
       attributes: [...GAME_FIELDS],
       raw: true,
     });
@@ -513,7 +526,12 @@ class GamesService {
     // than left to whatever the database returns.
     // Artwork first, curated order within each half (see `#order`).
     const rank = new Map(ids.map((uuid, index) => [uuid, index]));
-    games.sort((a, b) => noArt(a) - noArt(b) || rank.get(a.uuid) - rank.get(b.uuid));
+    if (sort === 'az' || sort === 'za') {
+      const dir = sort === 'az' ? 1 : -1;
+      games.sort((a, b) => dir * String(a.name).localeCompare(String(b.name)));
+    } else {
+      games.sort((a, b) => noArt(a) - noArt(b) || rank.get(a.uuid) - rank.get(b.uuid));
+    }
 
     const offset = (page - 1) * limit;
     return { rows: await this.#withSlugs(games.slice(offset, offset + limit)), total: games.length };
@@ -541,6 +559,104 @@ class GamesService {
     const found = COLLECTIONS[slug];
     if (!found) throw E.UNKNOWN_COLLECTION({ collection: slug });
     return found;
+  }
+
+  // ══════════════════════════════════════════════════════════════════════
+  //  Lobby categories (migration 158): the sections after Lobby and Originals
+  // ══════════════════════════════════════════════════════════════════════
+
+  #sql(query, replacements = {}, type = QueryTypes.SELECT) {
+    return this.models.Gisgamesnew.sequelize.query(query, { replacements, type });
+  }
+
+  /** The sections in strip order. The site gets active ones; `count` is how many games are hand-picked. */
+  async categories({ includeInactive = false } = {}) {
+    const rows = await this.#sql(
+      `SELECT slug, name, sort_order AS "sortOrder", active, cardinality(game_uuids) AS count, updated_at AS "updatedAt"
+         FROM casino_categories ${includeInactive ? '' : 'WHERE active'} ORDER BY sort_order, id`
+    );
+    return rows.map((row) => ({ ...row, count: Number(row.count) }));
+  }
+
+  async #category(slug, { includeInactive = false } = {}) {
+    const [row] = await this.#sql(
+      `SELECT slug, name, sort_order AS "sortOrder", active, game_uuids AS uuids FROM casino_categories WHERE slug = :slug ${includeInactive ? '' : 'AND active'}`,
+      { slug }
+    );
+    if (!row) throw E.UNKNOWN_CATEGORY({ category: slug });
+    return row;
+  }
+
+  /**
+   * A section's hand-picked games, one page at a time. With none picked, `automatic` (the
+   * admin) gets the list the site shows instead, so the operator edits what players see.
+   */
+  async categoryGames({ slug, page, limit, provider, sort, includeInactive = false, automatic = false }) {
+    const row = await this.#category(slug, { includeInactive });
+    const rule = CATEGORY_AUTO_LISTS[row.slug];
+    if (row.uuids?.length || !automatic || !rule) return this.#curatedPage(row.uuids ?? [], { page, limit, provider, sort });
+
+    const capped = Math.min(limit, AUTO_LIST_ADMIN_LIMIT);
+    const result = rule.collection
+      ? await this.collection({ collection: rule.collection, page, limit: capped })
+      : await this.browse({ page, limit: capped, category: rule.category });
+    return { rows: result.rows, total: result.total };
+  }
+
+  async createCategory({ name, slug, actor }) {
+    const key = slug || categorySlug(name);
+    if (!key) throw E.CATEGORY_SLUG_INVALID({ name });
+    if (RESERVED_TABS.includes(key)) throw E.CATEGORY_EXISTS({ category: key });
+    const [row] = await this.#sql(
+      `INSERT INTO casino_categories (slug, name, sort_order, updated_by)
+         VALUES (:key, :name, (SELECT COALESCE(MAX(sort_order), 0) + 1 FROM casino_categories), :actor)
+       ON CONFLICT (slug) DO NOTHING RETURNING slug`,
+      { key, name, actor: actor?.id ?? null },
+      QueryTypes.SELECT
+    );
+    if (!row) throw E.CATEGORY_EXISTS({ category: key });
+    this.logger?.info({ category: key, staffId: actor?.id }, 'Lobby category created');
+    return this.#category(key, { includeInactive: true });
+  }
+
+  /** Rename, switch on/off, or replace the games of one section. Fields left out stay as they are. */
+  async updateCategory({ slug, name, active, uuids, actor }) {
+    await this.#category(slug, { includeInactive: true });
+    const clean = uuids === undefined ? undefined : await this.#verifiedIds(uuids);
+    await this.#sql(
+      `UPDATE casino_categories SET
+         name = COALESCE(:name, name),
+         active = COALESCE(:active, active),
+         game_uuids = COALESCE(CAST(:uuids AS TEXT[]), game_uuids),
+         updated_by = :actor, updated_at = NOW()
+       WHERE slug = :slug`,
+      {
+        slug,
+        name: name ?? null,
+        active: active ?? null,
+        // A Postgres array literal; the uuids were checked against the catalogue above.
+        uuids: clean === undefined ? null : `{${clean.map((u) => `"${u}"`).join(',')}}`,
+        actor: actor?.id ?? null,
+      },
+      QueryTypes.UPDATE
+    );
+    this.logger?.info({ category: slug, count: clean?.length, staffId: actor?.id }, 'Lobby category updated');
+    return this.#category(slug, { includeInactive: true });
+  }
+
+  /** The strip order: the slugs given go first, in that order. */
+  async reorderCategories({ slugs }) {
+    for (const [index, slug] of slugs.entries()) {
+      await this.#sql(`UPDATE casino_categories SET sort_order = :order WHERE slug = :slug`, { slug, order: index + 1 }, QueryTypes.UPDATE);
+    }
+    return this.categories({ includeInactive: true });
+  }
+
+  async deleteCategory({ slug, actor }) {
+    await this.#category(slug, { includeInactive: true });
+    await this.#sql(`DELETE FROM casino_categories WHERE slug = :slug`, { slug }, QueryTypes.DELETE);
+    this.logger?.info({ category: slug, staffId: actor?.id }, 'Lobby category deleted');
+    return { slug, deleted: true };
   }
 
   // ══════════════════════════════════════════════════════════════════════
@@ -601,12 +717,29 @@ class GamesService {
 
   /** @legacy GET /api/gis/admin/gis/priority/:vendor */
   async vendorPriority({ vendor }) {
-    return this.#readPriority(this.models.GisPrioritizedGames, 'vendor', vendor);
+    return this.#inSiteOrder(await this.#readPriority(this.models.GisPrioritizedGames, 'vendor', vendor), { provider: vendor });
   }
 
   /** @legacy GET /api/gis/admin/gis/type-priority/:type */
   async typePriority({ type }) {
-    return this.#readPriority(this.models.GisPrioritizedTypes, 'type', type);
+    return this.#inSiteOrder(await this.#readPriority(this.models.GisPrioritizedTypes, 'type', type.trim()), { type: type.trim() });
+  }
+
+  /**
+   * The admin edits the WHOLE list in the order the lobby shows it (pinned first, then the
+   * catalogue order), not only the pinned games — so a vendor with nothing pinned opens on its
+   * games rather than an empty table. `pinned` is how many of them are pinned. A switched-off
+   * provider is not in the lobby, so it gets its catalogue rows instead: pinned first, then by name.
+   */
+  async #inSiteOrder(read, filter) {
+    const pinned = read.games.length;
+    const site = await this.browse({ page: 1, limit: MAX_COLLECTION_SIZE, ...filter });
+    if (site.rows.length) return { ...read, pinned, games: site.rows };
+
+    const where = filter.provider ? { provider: { [Op.iLike]: filter.provider } } : { type: { [Op.iLike]: filter.type } };
+    const all = await this.models.Gisgamesnew.findAll({ where, attributes: [...GAME_SUMMARY_FIELDS], order: [['name', 'ASC']], limit: MAX_COLLECTION_SIZE, raw: true });
+    const seen = new Set(read.games.map((g) => g.uuid));
+    return { ...read, pinned, games: [...read.games, ...all.filter((g) => !seen.has(g.uuid))] };
   }
 
   /** @legacy POST /api/gis/admin/gis/priority/:vendor — unauthenticated. */
@@ -697,6 +830,13 @@ class GamesService {
     // A provider's second copy of one game is not a second result (see NOT_A_LATER_TWIN).
     const where = includeDisabled ? {} : withoutTwins(withoutDisabled({}, await disabledProviders(this.models)));
     return this.#rankedSearch({ q, limit, where });
+  }
+
+  /** Every game of one provider (optionally one type): the admin's Provider → Type → Game picker. */
+  async pickList({ vendor, type }) {
+    const where = { provider: { [Op.iLike]: vendor } };
+    if (type) where.type = { [Op.iLike]: type };
+    return this.models.Gisgamesnew.findAll({ where, attributes: [...GAME_SUMMARY_FIELDS], order: [['name', 'ASC']], limit: 2000, raw: true });
   }
 
   /** @legacy GET /api/gis/admin/gis/vendor-search */
@@ -1047,6 +1187,37 @@ class GamesService {
   // ══════════════════════════════════════════════════════════════════════
   //  Editing
   // ══════════════════════════════════════════════════════════════════════
+
+  /**
+   * A game's tile art from an uploaded file (the URL form is `updateImage`). The bytes are
+   * sniffed (PNG, JPEG or WebP, 1 MB), kept in `game_artwork` like fix-game-artwork.js's
+   * self-hosted art, and served at /api/v1/casino/games/image/<name>; `?v=` changes with each
+   * upload so a day-cached tile shows the new art at once.
+   */
+  async putGameImage({ uuid, file, actor }) {
+    const game = await this.models.Gisgamesnew.findOne({ where: { uuid }, attributes: ['uuid', 'name'], raw: true });
+    if (!game) throw E.NOT_FOUND({ uuid });
+    const upload = imageUpload.inspect(file, E, { maxBytes: LOGO_MAX_BYTES });
+    const name = `${String(uuid).toLowerCase().replace(/[^a-z0-9]/g, '').slice(0, 70)}${upload.extension}`;
+    const size = imageSize(upload.data) ?? { width: 0, height: 0 };
+    const image = `/api/v1/casino/games/image/${name}?v=${Date.now()}`;
+
+    await this.models.Gisgamesnew.sequelize.transaction(async (transaction) => {
+      await this.models.Gisgamesnew.sequelize.query(
+        `INSERT INTO game_artwork (game_uuid, image, name, data, content_type, byte_size, width, height, source, source_url, previous_image)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'admin-upload', $9, (SELECT image FROM gisgamesnew WHERE uuid = $1))
+         ON CONFLICT (game_uuid) DO UPDATE SET
+           image = EXCLUDED.image, name = EXCLUDED.name, data = EXCLUDED.data, content_type = EXCLUDED.content_type,
+           byte_size = EXCLUDED.byte_size, width = EXCLUDED.width, height = EXCLUDED.height,
+           source = EXCLUDED.source, source_url = EXCLUDED.source_url, updated_at = NOW()`,
+        { bind: [uuid, image, name, upload.data, upload.contentType, upload.byteSize, size.width, size.height, `staff:${actor?.id ?? ''}`], transaction }
+      );
+      await this.models.Gisgamesnew.update({ image }, { where: { uuid }, transaction });
+    });
+
+    this.logger?.info({ uuid, bytes: upload.byteSize, staffId: actor?.id }, 'Game image uploaded');
+    return { uuid, name: game.name, image };
+  }
 
   /**
    * @legacy PUT /api/gis/admin/gis/games/:uuid/image — unauthenticated.

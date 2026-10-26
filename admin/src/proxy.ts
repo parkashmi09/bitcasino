@@ -7,6 +7,10 @@
 import { NextResponse, type NextRequest } from 'next/server'
 
 const COOKIE = process.env.SESSION_COOKIE_NAME ?? 'site_admin_token'
+
+// The branch panel (/branch, owner policy `branch_management`) runs on its own cookie (configs/site.ts).
+const BRANCH_COOKIE = `${COOKIE}_branch`
+const BRANCH_API = '/api/gw/api/v1/admin/branches/portal/'
 const PUBLIC = ['/login', '/api/auth/session', '/api/auth/logout']
 
 // Gateway reads a signed-out page needs (the login screen's site config and brand mark).
@@ -27,6 +31,23 @@ function tokenLooksValid(token: string | undefined) {
 export function proxy(req: NextRequest) {
   const { pathname } = req.nextUrl
   const signedIn = tokenLooksValid(req.cookies.get(COOKIE)?.value)
+
+  if (pathname.startsWith(BRANCH_API) || pathname === '/branch' || pathname.startsWith('/branch/') || pathname.startsWith('/api/branch/')) {
+    const branchIn = tokenLooksValid(req.cookies.get(BRANCH_COOKIE)?.value)
+
+    if (pathname.startsWith(BRANCH_API)) {
+      if (!branchIn && pathname !== `${BRANCH_API}login`) {
+        return NextResponse.json({ success: false, error: { code: 'BRANCH_UNAUTHENTICATED', message: 'Not signed in' } }, { status: 401 })
+      }
+
+      return NextResponse.next()
+    }
+
+    if (pathname.startsWith('/api/branch/')) return NextResponse.next()
+    if (pathname === '/branch/login') return branchIn ? NextResponse.redirect(new URL('/branch', req.url)) : NextResponse.next()
+
+    return branchIn ? NextResponse.next() : NextResponse.redirect(new URL('/branch/login', req.url))
+  }
 
   if (pathname.startsWith('/api/gw/')) {
     if (!signedIn && !PUBLIC_API.some(p => pathname.includes(p))) {
