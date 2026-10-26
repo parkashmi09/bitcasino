@@ -1235,7 +1235,7 @@ const Entitlements = () => {
                     <h2 className='text-lg font-semibold'>Template</h2>
                     <p className='text-muted-foreground text-sm'>
                       The site&apos;s colour theme. This site runs the {UI_LABEL}: a template recolours it (layout,
-                      fonts and art stay) and never changes a feature below. Hash Game (original) keeps bc.game&apos;s
+                      fonts and art stay) and never changes a feature below. Original keeps the site&apos;s
                       own colours.
                     </p>
                   </div>

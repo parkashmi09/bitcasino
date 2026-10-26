@@ -18,7 +18,7 @@ import OutlinedField from '@/components/shared/OutlinedField'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { Field, FieldGroup } from '@/components/ui/field'
+import { Field, FieldError, FieldGroup } from '@/components/ui/field'
 import { Input } from '@/components/ui/input'
 import { InputGroup, InputGroupAddon, InputGroupInput } from '@/components/ui/input-group'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
@@ -30,6 +30,7 @@ import { siteConfig } from '@/configs/site'
 // Lib Imports
 import { ApiError, errorMessage, request } from '@/lib/api/client'
 import { safeNext } from '@/lib/safeNext'
+import { check, cleanErrors } from '@/lib/validate'
 
 type Mode = 'staff' | 'executive'
 
@@ -49,19 +50,30 @@ const Login = () => {
   const [mustChange, setMustChange] = useState(false)
   const [newPassword, setNewPassword] = useState('')
 
+  // Live field checks: a field's message shows once it has been left (blur) or a submit was tried.
+  const [touched, setTouched] = useState<Record<string, boolean>>({})
+  const [tried, setTried] = useState(false)
+
+  const fieldErrors = cleanErrors({
+    identifier: mode === 'staff' ? check.email(identifier, 'Email address') : check.required(identifier, 'Username'),
+    password: check.required(password, 'Password'),
+    newPassword: mustChange
+      ? newPassword.length < 12
+        ? 'The new password must be at least 12 characters.'
+        : newPassword === password && 'Choose a new password different from the current one.'
+      : undefined,
+    code: needsCode && code && !/^\d{6}$/.test(code) ? 'The two-factor code is the 6 digits from your authenticator app.' : undefined
+  })
+
+  const shown = (key: string) => (tried || touched[key] ? fieldErrors[key] : undefined)
+  const leave = (key: string) => () => setTouched(t => ({ ...t, [key]: true }))
+
   const submit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError(null)
+    setTried(true)
 
-    if (!identifier.trim() || !password)
-      return setError(`Enter your ${mode === 'staff' ? 'email' : 'username'} and password.`)
-    if (needsCode && code && !/^\d{6}$/.test(code.trim()))
-      return setError('The two-factor code is the 6 digits from your authenticator app.')
-
-    if (mustChange) {
-      if (newPassword.length < 12) return setError('The new password must be at least 12 characters.')
-      if (newPassword === password) return setError('Choose a new password different from the current one.')
-    }
+    if (Object.keys(fieldErrors).length) return
 
     setBusy(true)
 
@@ -139,6 +151,7 @@ const Login = () => {
       }
 
       setError(errorMessage(err))
+      toast.error(errorMessage(err))
     } finally {
       setBusy(false)
     }
@@ -177,81 +190,101 @@ const Login = () => {
               </TabsList>
             </Tabs>
 
-            <form onSubmit={submit}>
+            <form onSubmit={submit} noValidate>
               <FieldGroup className='gap-8'>
-                <OutlinedField htmlFor='identifier' label={mode === 'staff' ? 'Email' : 'Executive username'}>
-                  <Input
-                    id='identifier'
-                    type={mode === 'staff' ? 'email' : 'text'}
-                    autoComplete='username'
-                    value={identifier}
-                    onChange={e => setIdentifier(e.target.value)}
-                    required
-                    placeholder=' '
-                    className='h-14 border-0 px-3.5 text-base'
-                  />
-                </OutlinedField>
-
-                <OutlinedField htmlFor='password' label={mustChange ? 'Current password' : 'Password'}>
-                  <InputGroup className='h-14 border-0'>
-                    <InputGroupInput
-                      id='password'
-                      type={visible ? 'text' : 'password'}
-                      autoComplete='current-password'
-                      value={password}
-                      onChange={e => setPassword(e.target.value)}
-                      required
-                      placeholder=' '
-                      className='h-14 px-3.5 text-base'
-                    />
-                    <InputGroupAddon align='inline-end' className='pr-1.5'>
-                      <Button
-                        type='button'
-                        variant='ghost'
-                        size='icon'
-                        onClick={() => setVisible(v => !v)}
-                        className='text-muted-foreground rounded-l-none hover:bg-transparent'
-                      >
-                        {visible ? <EyeOffIcon /> : <EyeIcon />}
-                        <span className='sr-only'>{visible ? 'Hide password' : 'Show password'}</span>
-                      </Button>
-                    </InputGroupAddon>
-                  </InputGroup>
-                </OutlinedField>
-
-                {mustChange && (
-                  <OutlinedField htmlFor='newPassword' label='New password'>
+                <div className='flex flex-col gap-2'>
+                  <OutlinedField htmlFor='identifier' label={mode === 'staff' ? 'Email' : 'Executive username'}>
                     <Input
-                      id='newPassword'
-                      type='password'
-                      autoComplete='new-password'
-                      value={newPassword}
-                      onChange={e => setNewPassword(e.target.value)}
+                      id='identifier'
+                      type={mode === 'staff' ? 'email' : 'text'}
+                      autoComplete='username'
+                      value={identifier}
+                      onChange={e => setIdentifier(e.target.value)}
+                        onBlur={leave('identifier')}
+                        aria-invalid={!!shown('identifier')}
                       required
-                      minLength={8}
                       placeholder=' '
                       className='h-14 border-0 px-3.5 text-base'
                     />
                   </OutlinedField>
+                  {shown('identifier') && <FieldError>{shown('identifier')}</FieldError>}
+                </div>
+
+                <div className='flex flex-col gap-2'>
+                  <OutlinedField htmlFor='password' label={mustChange ? 'Current password' : 'Password'}>
+                    <InputGroup className='h-14 border-0'>
+                      <InputGroupInput
+                        id='password'
+                        type={visible ? 'text' : 'password'}
+                        autoComplete='current-password'
+                        value={password}
+                        onChange={e => setPassword(e.target.value)}
+                        onBlur={leave('password')}
+                        aria-invalid={!!shown('password')}
+                        required
+                        placeholder=' '
+                        className='h-14 px-3.5 text-base'
+                      />
+                      <InputGroupAddon align='inline-end' className='pr-1.5'>
+                        <Button
+                          type='button'
+                          variant='ghost'
+                          size='icon'
+                          onClick={() => setVisible(v => !v)}
+                          className='text-muted-foreground rounded-l-none hover:bg-transparent'
+                        >
+                          {visible ? <EyeOffIcon /> : <EyeIcon />}
+                          <span className='sr-only'>{visible ? 'Hide password' : 'Show password'}</span>
+                        </Button>
+                      </InputGroupAddon>
+                    </InputGroup>
+                  </OutlinedField>
+                  {shown('password') && <FieldError>{shown('password')}</FieldError>}
+                </div>
+
+                {mustChange && (
+                  <div className='flex flex-col gap-2'>
+                    <OutlinedField htmlFor='newPassword' label='New password'>
+                      <Input
+                        id='newPassword'
+                        type='password'
+                        autoComplete='new-password'
+                        value={newPassword}
+                        onChange={e => setNewPassword(e.target.value)}
+                        onBlur={leave('newPassword')}
+                        aria-invalid={!!shown('newPassword')}
+                        required
+                        minLength={12}
+                        placeholder=' '
+                        className='h-14 border-0 px-3.5 text-base'
+                      />
+                    </OutlinedField>
+                    {shown('newPassword') && <FieldError>{shown('newPassword')}</FieldError>}
+                  </div>
                 )}
 
                 {needsCode && (
-                  <OutlinedField htmlFor='code' label='Authenticator code'>
-                    <Input
-                      id='code'
-                      inputMode='numeric'
-                      pattern='[0-9]{6}'
-                      maxLength={6}
-                      value={code}
-                      onChange={e => setCode(e.target.value.replace(/\D/g, ''))}
-                      autoFocus
-                      placeholder=' '
-                      className='h-14 border-0 px-3.5 text-base'
-                    />
-                  </OutlinedField>
+                  <div className='flex flex-col gap-2'>
+                    <OutlinedField htmlFor='code' label='Authenticator code'>
+                      <Input
+                        id='code'
+                        inputMode='numeric'
+                        pattern='[0-9]{6}'
+                        maxLength={6}
+                        value={code}
+                        onChange={e => setCode(e.target.value.replace(/\D/g, ''))}
+                        onBlur={leave('code')}
+                        aria-invalid={!!shown('code')}
+                        autoFocus
+                        placeholder=' '
+                        className='h-14 border-0 px-3.5 text-base'
+                      />
+                    </OutlinedField>
+                    {shown('code') && <FieldError>{shown('code')}</FieldError>}
+                  </div>
                 )}
 
-                {error && (
+                {error && mustChange && (
                   <Alert variant='destructive'>
                     <AlertTitle>Sign-in failed</AlertTitle>
                     <AlertDescription>{error}</AlertDescription>

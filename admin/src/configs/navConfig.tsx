@@ -448,6 +448,19 @@ export const navItems: NavItem[] = [
     ]
   },
   {
+    // Original Games apna section, Casino se bahar (user, 2026-10-19).
+    groupLabel: 'Original Games',
+    groupIcon: 'Dices',
+    collapsible: true,
+    items: [
+      // The aggregator's originals: dashboard, bets, games. Super Admin + its executives with originals:read (backend checks both).
+      { icon: 'LayoutDashboard', label: 'Dashboard', href: '/casino/original-games', permission: 'originals:read', direct: true },
+      { icon: 'TrendingUp', label: 'Turnover', href: '/casino/original-games/turnover', permission: 'originals:read', direct: true },
+      { icon: 'History', label: 'Bet history', href: '/casino/original-games/bets', permission: 'originals:read', direct: true },
+      { icon: 'Dices', label: 'Games', href: '/casino/original-games/games', permission: 'originals:read', direct: true }
+    ]
+  },
+  {
     groupLabel: 'Team',
     groupIcon: 'Contact',
     collapsible: true,
