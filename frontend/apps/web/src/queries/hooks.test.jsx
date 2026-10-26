@@ -117,12 +117,12 @@ describe('useGames', () => {
     // `meta.pagination`, never `meta.total`.
     expect(result.current.data.pagination.total).toBe(44);
 
-    // The category became `type` on the wire, and no `offset` was sent.
+    // The category became the backend `category` on the wire, and no `offset` was sent.
     const url = calledUrl(fetchMock);
-    expect(url.searchParams.get('type')).toBe('crash');
+    expect(url.searchParams.get('category')).toBe('crash');
     expect(url.searchParams.get('page')).toBe('1');
     expect(url.searchParams.has('offset')).toBe(false);
-    expect(url.searchParams.has('category')).toBe(false);
+    expect(url.searchParams.has('type')).toBe(false);
   });
 
   it('surfaces a refusal as an ApiError carrying its request id', async () => {

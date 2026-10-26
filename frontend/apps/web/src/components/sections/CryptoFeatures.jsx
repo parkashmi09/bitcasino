@@ -28,7 +28,7 @@ export function CryptoFeatures() {
       <ul className="mt-6 grid gap-6 md:grid-cols-3">
         {ITEMS.map((item) => (
           <li key={item.title}>
-            <span className="grid size-11 place-items-center rounded-i-md bg-piccolo text-goten">
+            <span className="grid size-11 place-items-center rounded-i-md bg-piccolo text-on-piccolo">
               <Icon name={item.icon} size={22} />
             </span>
             <h3 className="mt-3 font-secondary text-base font-medium text-bulma">

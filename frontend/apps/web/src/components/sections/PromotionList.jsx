@@ -104,7 +104,7 @@ function PromotionRow({ promo }) {
 
             {/* The reference tints only the button, and only under the
                 pointer — the row's title and picture do not react. */}
-            <span className="mt-4 flex h-10 w-28 items-center justify-center rounded-i-sm bg-piccolo px-4 text-base font-normal text-goten transition-colors duration-200 hover:bg-piccolo-80">
+            <span className="mt-4 flex h-10 w-28 items-center justify-center rounded-i-sm bg-piccolo px-4 text-base font-normal text-on-piccolo transition-colors duration-200 hover:bg-piccolo-80">
               Read more
             </span>
           </div>

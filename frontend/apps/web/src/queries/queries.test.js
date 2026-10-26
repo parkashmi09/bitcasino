@@ -121,34 +121,11 @@ describe('query params', () => {
     expect(query).not.toHaveProperty('offset');
   });
 
-  it('translates our category slug into the platform type', () => {
-    // The page passes `category`; the wire carries `type`. No page should know
-    // the mapping exists.
-    expect(gamesQuery({ category: 'video-slots' }).type).toBe('video-slots');
-    expect(gamesQuery({ category: 'video-slots' })).not.toHaveProperty('category');
-  });
-
-  it('sends every type a category page covers, not just its own', () => {
-    /*
-     * `live-casino` is the sidebar's **All Live Casino Games**, and on the
-     * reference that is literal: its own `/categories/live-casino` answers
-     * tiles typed `live-baccarat`, `live-blackjack`, `live-roulette` and the
-     * rest, because the sub-category pages are slices of it rather than
-     * siblings beside it.
-     *
-     * So the page sends the set and the API returns one page of the union —
-     * see `SLUG_EXTRA_TYPES` in `data/adapters/categories.js` and `#typeWhere`
-     * in the casino service. Carving `baccarat` out of `live-casino` without
-     * this would quietly empty the parent page of twenty-five tables.
-     */
-    expect(gamesQuery({ category: 'live-casino' }).type).toBe(
-      'live-casino,baccarat,blackjack,roulette',
-    );
-
-    // A sub-category is only itself — it is a slice, not another aggregate.
-    expect(gamesQuery({ category: 'baccarat' }).type).toBe('baccarat');
-    expect(gamesQuery({ category: 'blackjack' }).type).toBe('blackjack');
-    expect(gamesQuery({ category: 'roulette' }).type).toBe('roulette');
+  it('translates our category slug into the backend category', () => {
+    // The page passes our slug; the wire carries the backend's own key.
+    expect(gamesQuery({ category: 'video-slots' }).category).toBe('slots');
+    expect(gamesQuery({ category: 'live-casino' }).category).toBe('live');
+    expect(gamesQuery({ category: 'video-slots' })).not.toHaveProperty('type');
   });
 
   it('omits absent filters rather than sending them undefined', () => {
@@ -192,7 +169,7 @@ describe('query params', () => {
     const query = providerGamesQuery({ category: 'crash', page: 1 });
 
     expect(query).not.toHaveProperty('provider');
-    expect(query.type).toBe('crash');
+    expect(query.category).toBe('crash');
   });
 
   it('lists exactly the five collections the backend enum serves', () => {

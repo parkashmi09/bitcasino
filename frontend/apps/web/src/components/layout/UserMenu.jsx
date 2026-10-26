@@ -181,7 +181,7 @@ function MenuRow({ icon, label, to, badge, onClick, onNavigate, disabled }) {
       <NavIcon name={icon} size={20} />
       <span className="flex-1 truncate">{label}</span>
       {badge != null && (
-        <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-piccolo px-1 text-sm font-medium text-goten">
+        <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-piccolo px-1 text-sm font-medium text-on-piccolo">
           {badge}
         </span>
       )}

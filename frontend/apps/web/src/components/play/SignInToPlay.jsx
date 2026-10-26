@@ -11,14 +11,14 @@ export function SignInToPlay({ title }) {
   return (
     <div className="grid aspect-[9/16] w-full place-items-center overflow-hidden rounded-lg bg-goku px-6 text-center sm:aspect-video">
       <div>
-        <span className="mx-auto grid size-16 place-items-center rounded-full bg-piccolo text-goten">
+        <span className="mx-auto grid size-16 place-items-center rounded-full bg-piccolo text-on-piccolo">
           <Icon name="play" size={28} className="ms-1" />
         </span>
         <p className="mt-4 font-secondary text-lg font-medium text-bulma">{title}</p>
         <p className="mt-1 text-xs text-trunks">Log in to play a round.</p>
         <Link
           to="/login"
-          className="mt-4 inline-flex h-10 items-center rounded-i-sm bg-piccolo px-4 text-sm font-medium text-goten transition-opacity hover:opacity-90"
+          className="mt-4 inline-flex h-10 items-center rounded-i-sm bg-piccolo px-4 text-sm font-medium text-on-piccolo transition-opacity hover:opacity-90"
         >
           Log in
         </Link>

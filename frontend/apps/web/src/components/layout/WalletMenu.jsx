@@ -240,7 +240,7 @@ export function WalletMenu({ onOpenDeposit }) {
             onClick={onOpenDeposit}
             aria-label="Deposit"
             className={cn(
-              'flex h-8 cursor-pointer items-center gap-1.5 rounded-i-sm bg-piccolo px-3 text-goten',
+              'flex h-8 cursor-pointer items-center gap-1.5 rounded-i-sm bg-piccolo px-3 text-on-piccolo',
               'transition-colors hover:bg-piccolo-80 active:bg-piccolo-120',
         )}
         >

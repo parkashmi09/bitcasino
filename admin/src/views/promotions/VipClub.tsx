@@ -180,7 +180,7 @@ const VipLadder = () => {
     <div className='grid gap-4'>
       <RewardCurrencyNotice />
       <p className='text-muted-foreground text-sm'>
-        The ladder the site shows users, read from the public <code>user/vip/levels</code> route. Thresholds are wagering totals kept in USD (every bet — casino and sports, in any currency — is converted to USD when it is recorded) and shown here in the site’s default coin at today’s rate; level-up and rank-up rewards are designed in USD and paid in the reward currency at the day’s rate. Names and thresholds are edited with the pencil on each row (hash.game&apos;s ladder is the default); the daily / weekly / monthly bonus thresholds (VIP {gates?.daily ?? 20} / {gates?.weekly ?? 25} / {gates?.monthly ?? 30}) live on the <Link href='/bonus' className='underline'>Bonus</Link> screen.
+        The ladder the site shows users, read from the public <code>user/vip/levels</code> route. Thresholds are wagering totals kept in USD (every bet — casino and sports, in any currency — is converted to USD when it is recorded) and shown here in the site’s default coin at today’s rate; level-up and rank-up rewards are designed in USD and paid in the reward currency at the day’s rate. Names and thresholds are edited with the pencil on each row (the default ladder is preset); the daily / weekly / monthly bonus thresholds (VIP {gates?.daily ?? 20} / {gates?.weekly ?? 25} / {gates?.monthly ?? 30}) live on the <Link href='/bonus' className='underline'>Bonus</Link> screen.
       </p>
       <div className='grid grid-cols-2 gap-4 lg:grid-cols-4'>
         <StatCard label='Levels' value={formatNumber(levels.length)} hint={q.data?.label} loading={q.isLoading} />

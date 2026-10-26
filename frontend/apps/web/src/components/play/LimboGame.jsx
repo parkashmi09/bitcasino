@@ -156,7 +156,7 @@ export function LimboGame({ game }) {
           type="button"
           onClick={submit}
           disabled={!ready}
-          className="h-11 rounded-i-sm bg-piccolo text-sm font-medium text-goten transition-opacity hover:opacity-90 disabled:opacity-50"
+          className="h-11 rounded-i-sm bg-piccolo text-sm font-medium text-on-piccolo transition-opacity hover:opacity-90 disabled:opacity-50"
         >
           {round.isPending ? 'Playing…' : 'Bet'}
         </button>

@@ -56,7 +56,7 @@ export function League() {
               onClick={() => setParams({ race: race.type }, { replace: true })}
               className={cn(
                 'h-10 cursor-pointer rounded-i-sm px-4 text-base',
-                race.type === config.type ? 'bg-piccolo text-goten' : 'bg-hit text-bulma',
+                race.type === config.type ? 'bg-piccolo text-on-piccolo' : 'bg-hit text-bulma',
               )}
             >
               {raceTitle(race.type)}

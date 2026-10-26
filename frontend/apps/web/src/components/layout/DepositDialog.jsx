@@ -928,7 +928,7 @@ function F2PayPanel({ currency }) {
         <button
           type="submit"
           disabled={!positive || create.isPending}
-          className="flex h-11 cursor-pointer items-center justify-center gap-1.5 rounded-i-sm bg-piccolo text-sm font-medium text-goten transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
+          className="flex h-11 cursor-pointer items-center justify-center gap-1.5 rounded-i-sm bg-piccolo text-sm font-medium text-on-piccolo transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
         >
           {create.isPending ? 'Loading…' : 'Deposit'}
           {!create.isPending && <Icon name="arrow-right" size={16} />}
@@ -1150,7 +1150,7 @@ function AddressPanel({ currency, chain: _chain, networks }) {
             <button
               type="button"
               onClick={copy}
-              className="flex h-10 cursor-pointer items-center justify-center gap-2 rounded-i-sm bg-piccolo px-4 text-sm font-medium text-goten transition-colors hover:bg-piccolo-80"
+              className="flex h-10 cursor-pointer items-center justify-center gap-2 rounded-i-sm bg-piccolo px-4 text-sm font-medium text-on-piccolo transition-colors hover:bg-piccolo-80"
             >
               <Icon name={copied ? 'check' : 'copy'} size={16} />
               {copied ? 'Copied' : 'Copy'}
@@ -1516,7 +1516,7 @@ function WithdrawForm({ currency, chain, balance, decimals, onDone }) {
             onClick={send}
             // Disabled while in flight: a second click is a second payout.
             disabled={submit.isPending || password.length === 0}
-            className="h-11 flex-1 rounded-i-sm bg-piccolo text-sm font-medium text-goten transition-opacity hover:opacity-90 disabled:opacity-50"
+            className="h-11 flex-1 rounded-i-sm bg-piccolo text-sm font-medium text-on-piccolo transition-opacity hover:opacity-90 disabled:opacity-50"
           >
             {submit.isPending ? 'Sending…' : 'Confirm withdrawal'}
           </button>
@@ -1525,7 +1525,7 @@ function WithdrawForm({ currency, chain, balance, decimals, onDone }) {
         <button
           type="submit"
           disabled={!ready}
-          className="h-11 rounded-i-sm bg-piccolo text-sm font-medium text-goten transition-opacity hover:opacity-90 disabled:opacity-50"
+          className="h-11 rounded-i-sm bg-piccolo text-sm font-medium text-on-piccolo transition-opacity hover:opacity-90 disabled:opacity-50"
         >
           Review withdrawal
         </button>

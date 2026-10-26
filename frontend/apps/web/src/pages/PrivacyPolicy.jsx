@@ -1,5 +1,6 @@
 import { Link } from 'react-router-dom';
 import { HelpCategoriesSidebar } from '../components/sections/HelpCategoriesSidebar';
+import { SUPPORT_EMAIL } from '@/lib/site';
 
 const RELATED_ARTICLES = [
   ['Dispute Resolution', '/help-center/dispute-resolution'],
@@ -33,7 +34,7 @@ function Article() {
       <p className="mt-4">Bitcasino (the Company) takes protecting your privacy very seriously.</p>
       <p className="mt-4">We implement suitable technical and administrative controls in our endeavours to keep your personal information protected at all times. This Privacy Policy explains how your personal information is handled. By using our services, you agree to accept these terms.</p>
       <p className="mt-4">Personal Information is any information that allows you to be identified and may include your name and address, date of birth, payment details and any other information you may wish to provide or that is collected about you. We take measures to ensure that use of your Personal Information is compliant with data protection and privacy regulations in the countries where we operate. This Privacy Policy applies to Personal Information we collect when you use our websites or otherwise interact with us.</p>
-      <p className="mt-4">The controller of the personal data is Moon Technologies B.V.</p>
+      <p className="mt-4">The controller of the personal data is the operator of this site.</p>
 
       <h2 className="mb-4 mt-10 text-xl font-bold leading-7 text-bulma">Purpose for the collection of personal data</h2>
       <p>Your personal information is collected and used for the following reasons:</p>
@@ -63,7 +64,7 @@ function Article() {
       <p>You have the right to access information we hold about you. You can review and update your information from your Account page, or contact the Company service department to ask for details of the information we hold. You may request incorrect information to be corrected or, where applicable, removed. We reserve the right to ask for a written request.</p>
 
       <h2 className="mb-4 mt-10 text-xl font-bold leading-7 text-bulma">Your right to be forgotten</h2>
-      <p>You have the right to have your personal data deleted in certain situations. To request deletion, contact <a href="mailto:cs@bitcasino.io" className="underline hover:text-piccolo">cs@bitcasino.io</a> and we will respond within a month. If we erase your data, we will also notify relevant third parties where possible. If your request is denied, we will explain why and you have the right to complain to the supervisory authority.</p>
+      <p>You have the right to have your personal data deleted in certain situations. To request deletion, contact our customer support team and we will respond within a month. If we erase your data, we will also notify relevant third parties where possible. If your request is denied, we will explain why and you have the right to complain to the supervisory authority.</p>
 
       <h2 className="mb-4 mt-10 text-xl font-bold leading-7 text-bulma">Cookies</h2>
       <p>A cookie is a data packet used for web analytics and to recognize visitors and facilitate the login process. Cookies used by the Company are only set if the user agrees and expire within a maximum of four weeks. You may turn off cookies, but doing so may restrict or prevent use of the service.</p>
@@ -89,10 +90,12 @@ export function PrivacyPolicy() {
           {RELATED_ARTICLES.map(([label, to]) => <Link key={label} to={to} className="text-xl text-bulma hover:text-piccolo"><span className="mb-1 block text-[10px] uppercase leading-4 tracking-[0.5px] text-trunks">Bitcasino Information</span>{label}</Link>)}
         </div>
       </section>
-      <section className="mt-10 max-w-[596px] border-t border-beerus pt-8">
-        <h2 className="text-2xl font-bold text-bulma">Other ways to get help</h2>
-        <a href="mailto:hello@bitcasino.io" className="mt-4 flex items-center gap-4 bg-gohan px-6 py-4 text-bulma hover:bg-beerus"><span aria-hidden="true" className="text-4xl leading-none">@</span><span><strong className="block text-xl">Email us</strong><span className="text-sm text-trunks">hello@bitcasino.io</span></span></a>
-      </section>
+      {SUPPORT_EMAIL && (
+        <section className="mt-10 max-w-[596px] border-t border-beerus pt-8">
+          <h2 className="text-2xl font-bold text-bulma">Other ways to get help</h2>
+          <a href={`mailto:${SUPPORT_EMAIL}`} className="mt-4 flex items-center gap-4 bg-gohan px-6 py-4 text-bulma hover:bg-beerus"><span aria-hidden="true" className="text-4xl leading-none">@</span><span><strong className="block text-xl">Email us</strong><span className="text-sm text-trunks">{SUPPORT_EMAIL}</span></span></a>
+        </section>
+      )}
     </div>
   );
 }

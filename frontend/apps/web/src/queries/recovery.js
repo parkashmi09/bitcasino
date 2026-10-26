@@ -139,6 +139,7 @@ export function useVerifyResetCode() {
  */
 export function useResetPassword() {
   return useMutation({
+    meta: { success: 'Password changed. You can log in now.' },
     mutationFn: ({ email, code, newPassword }) =>
       api(ENDPOINTS.resetPassword, {
         method: 'POST',

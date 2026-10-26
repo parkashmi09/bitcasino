@@ -141,7 +141,7 @@ export function Theme() {
       /* `Games` goes to the lobby, not to `/games` — the reference's crumb
          points at its own all-games index and this site has no route for one
          yet, so it follows `Category`'s crumb rather than adding a 404. */
-      breadcrumb={[{ label: 'Games', to: '/' }, { label: theme.label }]}
+      breadcrumb={[{ label: 'Games', to: '/games' }, { label: theme.label }]}
     />
   );
 }

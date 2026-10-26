@@ -45,7 +45,7 @@ const Editor = ({ initial }: { initial: Formula }) => {
     <div className='grid max-w-2xl gap-4'>
       <SwitchField
         id='rfMode'
-        label='Use hash.game’s formula'
+        label='Use the default formula'
         hint='Off: the fixed per-VIP-card amounts and rakeback rates.'
         checked={form.mode === 'hash'}
         onChange={on => setForm({ ...form, mode: on ? 'hash' : 'fixed' })}
@@ -72,7 +72,7 @@ const RewardFormula = () => {
       <CardHeader>
         <CardTitle className='text-base'>Rakeback &amp; daily / weekly / monthly bonus</CardTitle>
         <CardDescription>
-          hash.game: “Only real money, non-PvP wagers count. Reward varies by game type and house edge.” House edge is the game’s
+          Players see: “Only real money, non-PvP wagers count. Reward varies by game type and house edge.” House edge is the game’s
           1 − RTP (max 4%); originals 1%, slots 4%, live and sports 2% when the RTP is unknown. Bronze I and up.
         </CardDescription>
       </CardHeader>

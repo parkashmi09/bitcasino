@@ -81,7 +81,7 @@ export function Recent() {
  * no such route — the reference's crumb does the same, and its own middle
  * segment is a link back to the home grid.
  */
-const CRUMB = [{ label: 'Games', to: '/' }, { label: 'Recently played' }];
+const CRUMB = [{ label: 'Games', to: '/games' }, { label: 'Recently played' }];
 
 /**
  * What stands in while the list is in flight.

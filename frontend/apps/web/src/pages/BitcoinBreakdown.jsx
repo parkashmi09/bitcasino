@@ -69,7 +69,7 @@ function WalletAccordion({ item, open, onToggle }) {
           <div className="grid content-start gap-5">
             <h3 className="font-secondary text-2xl font-normal text-bulma">{item.heading}</h3>
             <p className="m-0 leading-6">{item.body}</p>
-            {item.action && <a href={item.href} target="_blank" rel="noreferrer" className="w-fit rounded-i-sm bg-piccolo px-4 py-2 font-medium text-goten hover:bg-piccolo-120">{item.action}</a>}
+            {item.action && <a href={item.href} target="_blank" rel="noreferrer" className="w-fit rounded-i-sm bg-piccolo px-4 py-2 font-medium text-on-piccolo hover:bg-piccolo-120">{item.action}</a>}
           </div>
           {item.title.startsWith('1.') && <img alt="Bitcoin wallet" className="w-full rounded-s-sm" src={`${IMAGE_ROOT}/landings/bitcoin-breakdown/step-1-1-1.png?auto=compress,format&w=576&h=492&fit=max`} />}
           {item.title.startsWith('2.') && <img alt="Crypto exchange" className="w-full rounded-s-sm" src={`${IMAGE_ROOT}/landings/bitcoin-breakdown/step-2-1-1.png?auto=compress,format&w=576&h=492&fit=max`} />}
@@ -90,7 +90,7 @@ export function BitcoinBreakdown() {
           <div className="grid max-w-xl gap-6">
             <h1 className="font-secondary text-[32px] font-light leading-[1.15] md:text-[56px]">The Big Bitcoin Breakdown</h1>
             <p className="font-secondary text-xl">Find out about all the benefits of Bitcoin</p>
-            <button type="button" onClick={() => setDepositOpen(true)} className="w-fit rounded-i-sm bg-piccolo px-4 py-2 font-medium text-goten hover:bg-piccolo-120">Deposit</button>
+            <button type="button" onClick={() => setDepositOpen(true)} className="w-fit rounded-i-sm bg-piccolo px-4 py-2 font-medium text-on-piccolo hover:bg-piccolo-120">Deposit</button>
           </div>
           <BenefitCards />
         </div>

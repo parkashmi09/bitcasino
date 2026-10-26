@@ -76,6 +76,7 @@ export function useCompleteTwoFactor() {
   const client = useQueryClient();
 
   return useMutation({
+    meta: { success: 'Two-factor authentication is on.' },
     mutationFn: ({ code }) =>
       api(ENDPOINTS.twoFactorSetupVerify, { method: 'POST', body: { code } }),
     retry: false,
@@ -97,6 +98,7 @@ export function useDisableTwoFactor() {
   const client = useQueryClient();
 
   return useMutation({
+    meta: { success: 'Two-factor authentication is off.' },
     mutationFn: ({ code, password }) =>
       api(ENDPOINTS.twoFactorDisable, { method: 'POST', body: { code, password } }),
     retry: false,
@@ -209,6 +211,7 @@ export function useSubmitKyc() {
   const client = useQueryClient();
 
   return useMutation({
+    meta: { success: 'Documents submitted for review.' },
     mutationFn: ({ files, ...fields }) => {
       const form = new FormData();
 

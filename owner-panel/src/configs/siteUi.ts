@@ -18,31 +18,31 @@
  * (`pinToUi` in lib/entitlements/store.ts), so the document can never say otherwise.
  */
 
-export const UI_LABEL = 'bc.game UI'
+export const UI_LABEL = 'Site UI'
 
 export type UiSupport = { status: 'toggle'; variant: string; surfaces: string } | { status: 'fixed'; variant: string; surfaces: string } | { status: 'absent'; why: string }
 
 export const SITE_UI: Record<string, UiSupport> = {
-  vip: { status: 'toggle', variant: 'ring_panel', surfaces: '/vip, /vip-detail, sidebar and account menu rows' },
-  promotions: { status: 'toggle', variant: 'event_list', surfaces: '/promotions, /deposit-offer' },
-  bonus: { status: 'toggle', variant: 'reward_hub', surfaces: '/bonus, sidebar and account menu rows' },
-  affiliate: { status: 'toggle', variant: 'referral_hub', surfaces: '/referral, /referral-exhibition' },
-  races: { status: 'toggle', variant: 'daily_contest', surfaces: '/promotions/daily-contest' },
-  challenges: { status: 'toggle', variant: 'quest_hub', surfaces: '/quests' },
+  vip: { status: 'toggle', variant: 'ring_panel', surfaces: '/vip, /loyalty, sidebar and account menu rows' },
+  promotions: { status: 'toggle', variant: 'event_list', surfaces: '/promotions and the promotion pages' },
+  bonus: { status: 'toggle', variant: 'reward_hub', surfaces: '/profile/boosts, /profile/rewards, account menu rows' },
+  affiliate: { status: 'toggle', variant: 'referral_hub', surfaces: '/profile/refer-a-friend, /ref/:code sign-up links' },
+  races: { status: 'toggle', variant: 'daily_contest', surfaces: '/promotions/league-of-bitcasino, /tournaments' },
+  challenges: { status: 'toggle', variant: 'quest_hub', surfaces: 'no quest page in this UI yet; switches the backend' },
   raffles: { status: 'absent', why: 'No raffle in this backend; the weekly raffle page is hidden.' },
-  vault: { status: 'toggle', variant: 'flat_balance', surfaces: 'wallet Vault Pro tab, /wallet/vault' },
-  swap: { status: 'toggle', variant: 'swap_page', surfaces: 'wallet Swap tab, /wallet/swap' },
-  notifications: { status: 'toggle', variant: 'notice_centre', surfaces: '/notification' },
-  kyc: { status: 'toggle', variant: 'document_cockpit', surfaces: '/settings/verify' },
-  gift_cards: { status: 'toggle', variant: 'redeem_dialog', surfaces: 'sidebar Gift Card card and redeem dialog' },
-  blog: { status: 'toggle', variant: 'category_feed', surfaces: '/blog, /blog/:slug, sidebar Blog row and footer News link' },
+  vault: { status: 'toggle', variant: 'flat_balance', surfaces: 'wallet Vault tab' },
+  swap: { status: 'toggle', variant: 'swap_page', surfaces: 'wallet Swap tab' },
+  notifications: { status: 'toggle', variant: 'notice_centre', surfaces: '/profile/notifications' },
+  kyc: { status: 'toggle', variant: 'document_cockpit', surfaces: 'account verification in Settings' },
+  gift_cards: { status: 'toggle', variant: 'redeem_dialog', surfaces: 'redeem a code in Rewards' },
+  blog: { status: 'toggle', variant: 'category_feed', surfaces: '/blog, /blog/:slug and the links in the home copy' },
 
   casino_lobby: { status: 'fixed', variant: 'tabbed_themes', surfaces: 'the casino lobby is the site itself; use the Casino flag and the game-category flags' },
-  banners: { status: 'fixed', variant: 'artwork_slides', surfaces: 'the home hero carousel (artwork from the site admin banners)' },
+  banners: { status: 'fixed', variant: 'artwork_slides', surfaces: 'the home hero banners (artwork from the site admin banners)' },
 
-  spin_wheel: { status: 'absent', why: 'The backend has it; this UI has no wheel screen.' },
+  spin_wheel: { status: 'absent', why: 'Kept off here; the wheel page follows the site admin Spin wheel flag.' },
   tips: { status: 'absent', why: 'No tip-sending screen in this UI.' },
-  chat: { status: 'absent', why: 'Chat is socket-only and this UI has no socket client.' },
+  chat: { status: 'absent', why: 'No chat screen in this UI.' },
   club_membership: { status: 'absent', why: 'No club screens in this UI.' },
   push_notifications: { status: 'absent', why: 'This UI does not load a push SDK.' },
   analytics: { status: 'absent', why: 'This UI does not load a Google tag.' }

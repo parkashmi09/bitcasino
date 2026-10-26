@@ -1,6 +1,7 @@
 import { Link, Navigate, useParams } from 'react-router-dom';
 import { HelpCategoriesSidebar } from '@/components/sections/HelpCategoriesSidebar';
 import { findHelpCategory } from '@/data/helpArticles';
+import { SUPPORT_EMAIL } from '@/lib/site';
 
 function RichText({ parts }) {
   return parts.map((part, index) => {
@@ -119,7 +120,8 @@ function ArticleContent({ article }) {
 }
 
 function HelpFooter() {
-  return <section className="mt-10 max-w-[596px] border-t border-beerus pt-8"><h2 className="text-2xl font-bold text-bulma">Other ways to get help</h2><a href="mailto:hello@bitcasino.io" className="mt-4 flex items-center gap-4 bg-gohan px-6 py-4 text-bulma hover:bg-beerus"><span aria-hidden="true" className="text-4xl leading-none">@</span><span><strong className="block text-xl">Email us</strong><span className="text-sm text-trunks">hello@bitcasino.io</span></span></a></section>;
+  if (!SUPPORT_EMAIL) return null;
+  return <section className="mt-10 max-w-[596px] border-t border-beerus pt-8"><h2 className="text-2xl font-bold text-bulma">Other ways to get help</h2><a href={`mailto:${SUPPORT_EMAIL}`} className="mt-4 flex items-center gap-4 bg-gohan px-6 py-4 text-bulma hover:bg-beerus"><span aria-hidden="true" className="text-4xl leading-none">@</span><span><strong className="block text-xl">Email us</strong><span className="text-sm text-trunks">{SUPPORT_EMAIL}</span></span></a></section>;
 }
 
 export function HelpArticle() {

@@ -112,7 +112,7 @@ export function Pager({ page, totalPages, onChange, label = 'Pagination' }) {
             className={cn(
               CELL,
               'w-8',
-              n === current ? 'bg-piccolo text-goten' : 'text-bulma hover:bg-gohan',
+              n === current ? 'bg-piccolo text-on-piccolo' : 'text-bulma hover:bg-gohan',
             )}
           >
             {n}

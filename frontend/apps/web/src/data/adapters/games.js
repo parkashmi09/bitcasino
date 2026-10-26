@@ -101,7 +101,8 @@ export function toGame(row) {
   const uuid = row.uuid ?? row.game_uuid;
   if (!uuid) return null;
 
-  const category = categoryFromType(row.type);
+  // The backend's normalised tag first; Slotegrator rows carry `{code}` objects there.
+  const category = categoryFromType(row.tags?.[0]) ?? categoryFromType(row.type);
   const parameters = row.parameters ?? {};
   const images = row.images ?? {};
 

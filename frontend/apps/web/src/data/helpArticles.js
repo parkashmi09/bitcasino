@@ -82,7 +82,7 @@ export const HELP_ARTICLE_CATEGORIES = [
           { type: 'list', values: ['Select the “Line” button.', 'On PC, enter your Line email address and password to log in.', 'Read the information-sharing notice and, if you agree, select “Allow”.', 'After authentication, return to Bitcasino, enter your username and date of birth, accept the Terms of Use, choose promotional emails, and select “Create Account”.'] },
           { type: 'heading', value: '3. How to register using Twitter/X' },
           { type: 'paragraph', value: 'Twitter is a popular social networking service that allows users to share thoughts in short messages. You can use an existing Twitter account to register with Bitcasino.' },
-          { type: 'list', values: ['Select the “Twitter” button.', 'On the “Allow Bitcasino.io to access your account” page, select “Authorise linked apps”.', 'After authentication, enter your username, contact email address and date of birth, accept the Terms of Use, select promotional email preferences, and click “Create Account”.'] },
+          { type: 'list', values: ['Select the “Twitter” button.', 'On the “Allow Bitcasino to access your account” page, select “Authorise linked apps”.', 'After authentication, enter your username, contact email address and date of birth, accept the Terms of Use, select promotional email preferences, and click “Create Account”.'] },
           { type: 'heading', value: '4. How to register using Telegram' },
           { type: 'paragraph', value: 'Telegram is a popular messaging app with a focus on end-to-end encryption and privacy.' },
           { type: 'list', values: ['Select “+” on the registration screen, then select “Telegram”.', 'Enter your phone number so Bitcasino can send a login message to that number.', 'Enter the authentication number sent to your phone to complete registration.'] },
@@ -99,12 +99,12 @@ export const HELP_ARTICLE_CATEGORIES = [
           { type: 'paragraph', value: 'We hope you enjoy the wonderful world of Bitcasino by using the registration method that suits you best!' },
         ],
       },
-      { slug: 'can-i-access-all-the-games-in-bitcasino--', title: 'Can I access all the games in Bitcasino.io?', body: ['It depends on your country, because some game providers only make their games available in certain countries.'] },
-      { slug: 'the-game-is-stuck-what-do-i-do-', title: 'The game is stuck, what do I do?', body: ['If you experience any technical issues whilst playing one of our games, please try to reload the game - it should resume where you left off. If the issue persists, please contact our Live Chat Support or send an email to hello@bitcasino.io with all the relevant details.'] },
+      { slug: 'can-i-access-all-the-games-in-bitcasino--', title: 'Can I access all the games in Bitcasino?', body: ['It depends on your country, because some game providers only make their games available in certain countries.'] },
+      { slug: 'the-game-is-stuck-what-do-i-do-', title: 'The game is stuck, what do I do?', body: ['If you experience any technical issues whilst playing one of our games, please try to reload the game - it should resume where you left off. If the issue persists, please contact our Live Chat Support with all the relevant details.'] },
       {
         slug: 'how-do-i-make-a-deposit', title: 'How do I make a deposit?',
         content: [
-          { type: 'ordered-list', values: ['Log in to Bitcasino.io.', 'Click on Deposit.', 'Select the currency you wish to deposit with by selecting “Active Balance” and choosing the currency you wish to use.', 'Once you have selected a currency, ensure Deposit is the highlighted tab below “Active Balance”.', 'Optional: some currencies let you connect a wallet through an available wallet provider for a more convenient deposit method.', 'Check the selected Deposit Network. Some currencies can be transferred through different networks, such as ERC20 and TRC20.', 'Copy the one-time deposit address below the currency drop-down list and use it in your wallet.'] },
+          { type: 'ordered-list', values: ['Log in to Bitcasino.', 'Click on Deposit.', 'Select the currency you wish to deposit with by selecting “Active Balance” and choosing the currency you wish to use.', 'Once you have selected a currency, ensure Deposit is the highlighted tab below “Active Balance”.', 'Optional: some currencies let you connect a wallet through an available wallet provider for a more convenient deposit method.', 'Check the selected Deposit Network. Some currencies can be transferred through different networks, such as ERC20 and TRC20.', 'Copy the one-time deposit address below the currency drop-down list and use it in your wallet.'] },
           { type: 'notice', prefix: 'N.B. Please make sure your deposit amount meets the ', href: '/help-center/help-your-transactions/what-is-the-minimum-deposit-', linkLabel: 'minimum deposit requirement', suffix: '; otherwise it will not be credited.' },
           { type: 'link-paragraph', prefix: 'More information about depositing using various currencies and payment methods is available in the ', href: '/help-center/help-payment-options', linkLabel: 'Payment Options', suffix: ' section.' },
         ],
@@ -112,12 +112,12 @@ export const HELP_ARTICLE_CATEGORIES = [
       {
         slug: 'how-do-i-make-a-withdrawal', title: 'How do I make a withdrawal?',
         content: [
-          { type: 'ordered-list', values: ['Log in to Bitcasino.io.', 'Click on Deposit or on your balance.', 'Select the currency you wish to withdraw by selecting “Active Balance” and choosing the currency you wish to use.', 'Once you have selected a currency, ensure Withdraw is the highlighted tab below “Active Balance”.', 'Select the currency icon, choose the amount you wish to withdraw, then click Next.', 'Select the network you wish to use to transmit the funds.', 'Enter your wallet address.', 'Click the Preview Withdraw button and check that the destination address, network, currency, and amount are correct.', 'Click Confirm to make the withdrawal request. If two-factor authentication is enabled, enter your authenticator code to confirm.'] },
+          { type: 'ordered-list', values: ['Log in to Bitcasino.', 'Click on Deposit or on your balance.', 'Select the currency you wish to withdraw by selecting “Active Balance” and choosing the currency you wish to use.', 'Once you have selected a currency, ensure Withdraw is the highlighted tab below “Active Balance”.', 'Select the currency icon, choose the amount you wish to withdraw, then click Next.', 'Select the network you wish to use to transmit the funds.', 'Enter your wallet address.', 'Click the Preview Withdraw button and check that the destination address, network, currency, and amount are correct.', 'Click Confirm to make the withdrawal request. If two-factor authentication is enabled, enter your authenticator code to confirm.'] },
         ],
       },
       {
         slug: 'is-bitcasino-licensed', title: 'Is Bitcasino licensed?', content: [
-          { type: 'paragraph', value: 'Yes. Bitcasino.io is operated and owned by Moon Technologies B.V. (Schout Bij Nacht Doormanweg 40, P.O. Box 4745, Curaçao). Casino games offered on Bitcasino.io are provided and regulated by Moon Technologies B.V, who is operating under the license number OGL/2023/111/0069 issued by GCB on 01.07.2024 for the duration of one year.' }, {
+          { type: 'paragraph', value: 'Bitcasino is run by its own independent operator. The operator\'s company and licence details are available from customer support on request.' }, {
             type: 'paragraph', value: 'Gambling can be addictive. Play responsibly.'
           },]
       },
@@ -172,17 +172,17 @@ export const HELP_ARTICLE_CATEGORIES = [
       {
         slug: 'responsible-gaming', title: 'Responsible Gaming',
         content: [
-          { type: 'paragraph', value: 'At Bitcasino.io, alongside our sister platforms Sportsbet.io and Livecasino.io, we offer services that enable clients to enjoy gaming and betting. We aim to provide a safe, secure, regulated environment and encourage clients to use our services responsibly and reasonably.' },
+          { type: 'paragraph', value: 'At Bitcasino, we offer services that enable clients to enjoy gaming and betting. We aim to provide a safe, secure, regulated environment and encourage clients to use our services responsibly and reasonably.' },
           { type: 'paragraph', value: 'Gambling has been a popular form of entertainment for many years. We encourage it to remain fun and not affect your daily routine, time with family and friends, or money set aside for necessities. Possible gambling gains are never guaranteed.' },
           { type: 'paragraph', value: 'While most customers gamble in this way, we understand that a small minority can develop problems with gambling. Our customers’ wellbeing is of utmost importance, and we recommend that you:' },
           { type: 'list', values: ['Treat betting and gaming as entertainment and only use money set aside for entertainment.', 'Do not bet or wager amounts larger than you are comfortable with.', 'Do not bet or wager money you cannot afford to lose.', 'Do not chase your losses.', 'Do not let betting or gaming take time that you would usually spend on other activities.'] },
           { type: 'paragraph', value: 'If you have concerns about your gambling habits and cannot follow these recommendations, seek advice from accredited organisations that offer support:' },
           { type: 'external-links', links: [['GamCare', 'http://www.gamcare.org.uk/'], ['Keep It Fun', 'https://keepitfun.rank.com/'], ['Gambling Therapy', 'https://www.gamblingtherapy.org/']] },
-          { type: 'paragraph', value: 'You can also contact Bitcasino.io support at safergaming@bitcasino.io to discuss the self-exclusion process. A short break can help you gather your thoughts and avoid rash wagering decisions.' },
+          { type: 'paragraph', value: 'You can also contact Bitcasino support to discuss the self-exclusion process. A short break can help you gather your thoughts and avoid rash wagering decisions.' },
           { type: 'paragraph', value: 'On request, we will place your account on a minimum 24-hour cooling-off period. A support agent will then explain the voluntary 1-week, 1-month, 3-month, 6-month, and permanent self-exclusion options.' },
           { type: 'paragraph', value: 'Accounts closed under the self-exclusion policy cannot be reversed or reopened for any reason. When a temporary self-exclusion expires, we will email you to confirm that your account is active again. Permanent self-exclusion remains in place indefinitely.' },
           { type: 'heading', value: 'Underage' },
-          { type: 'paragraph', value: 'To gamble with Bitcasino.io, Sportsbet.io, or Livecasino.io, you must be over 18 years of age or meet the legal minimum gambling age in your jurisdiction.' },
+          { type: 'paragraph', value: 'To gamble with Bitcasino, you must be over 18 years of age or meet the legal minimum gambling age in your jurisdiction.' },
           { type: 'paragraph', value: 'If minors live in your household, consider parental-control software to help control and restrict accessible content:' },
           { type: 'external-links', links: [['Net Nanny', 'https://www.netnanny.com/']] },
           { type: 'paragraph', value: 'We encourage you to take a short self-assessment questionnaire to understand your gaming habits and ensure play remains enjoyable and under control. Self-assessments are available from:' },
@@ -210,23 +210,23 @@ export const HELP_ARTICLE_CATEGORIES = [
       {
         slug: 'i-cannot-access-my-account', title: 'I cannot access my Account', content: [
           { type: 'paragraphh', value: 'If you have issues accessing your account, please try the following:' },
-          { type: 'ordered-list', values: ['Verify that your account information is correct - Please ensure the username, email address and password you enter are correct. If you use Social Media Login (Google, Telegram etc.) then note you can only log in using those methods.', 'Check if your account has 2FA enabled - if Two-factor authentication (2FA) is enabled on your account, you need to enter the 2FA code when attempting to log in. If your 2FA code is not working, please ensure that your authenticator app is time-synced.', 'Ensure your account is not restricted - some accounts may be restricted from accessing our website, commonly this is associated with accounts where account closure has been requested, or additionally we restrict accounts to comply with our responsible gaming processes and guidelines. You can inquire further by contacting hello@bitcasino.io and informing your account information for further assistance.'] },
+          { type: 'ordered-list', values: ['Verify that your account information is correct - Please ensure the username, email address and password you enter are correct. If you use Social Media Login (Google, Telegram etc.) then note you can only log in using those methods.', 'Check if your account has 2FA enabled - if Two-factor authentication (2FA) is enabled on your account, you need to enter the 2FA code when attempting to log in. If your 2FA code is not working, please ensure that your authenticator app is time-synced.', 'Ensure your account is not restricted - some accounts may be restricted from accessing our website, commonly this is associated with accounts where account closure has been requested, or additionally we restrict accounts to comply with our responsible gaming processes and guidelines. You can inquire further by contacting our support team and informing your account information for further assistance.'] },
         ]
       },
       {
         slug: 'how-do-i-reset-my-password', title: 'How do I reset my password?', content: [
-          { type: 'ordered-list', values: ['At the top right of the page, click Log in.', 'On the next page, click “Forgot password?” under the Log in button.', 'Type your email address and click “Request password reset”.', 'Check your email box for an email from Bitcasino.io. If you cannot see the email, please check other folders, such as Spam.', 'Open the email from Bitcasino.io and click on the password reset link.', 'The link will return you to Bitcasino.io, where you can enter a new password.'] },
+          { type: 'ordered-list', values: ['At the top right of the page, click Log in.', 'On the next page, click “Forgot password?” under the Log in button.', 'Type your email address and click “Request password reset”.', 'Check your email box for an email from Bitcasino. If you cannot see the email, please check other folders, such as Spam.', 'Open the email from Bitcasino and click on the password reset link.', 'The link will return you to Bitcasino, where you can enter a new password.'] },
           { type: 'paragraphh', value: 'N.B Your account will be unable to request a withdrawal for 48 hours after password change, as a precautionary safeguard.' },
         ]
       },
-      { slug: 'can-i-change-my-username-email', title: 'Can I change my username / email?', content: [{ type: 'paragraph', value: 'Unfortunately, an accounts username cannot be changed once it has been created' }, { type: 'paragraph', value: 'Email address: If you wish to change the email address associated with your account, you will need to contact hello@bitcasino.io. Please note that there may be additional steps needed in order to process this request, you will receive additional instructions via email after contacting us.' }] },
+      { slug: 'can-i-change-my-username-email', title: 'Can I change my username / email?', content: [{ type: 'paragraph', value: 'Unfortunately, an accounts username cannot be changed once it has been created' }, { type: 'paragraph', value: 'Email address: If you wish to change the email address associated with your account, you will need to contact our support team. Please note that there may be additional steps needed in order to process this request, you will receive additional instructions via email after contacting us.' }] },
       {
         slug: 'what-is-the-difference-between-ubtc-and-mbtc', title: 'What is the difference between μBTC and mBTC?', content: [
           { type: 'paragraph', value: 'As Bitcoin value has changed with time, in order to allow more granularity, Bitcasino offers users the option to choose between 2 smaller denominations.' },
           { type: 'paragraph', value: 'BTC 0.001 = mBTC 1 = μBTC 1,000' },
           { type: 'paragraph', value: 'You can choose to use mBTC or μBTC when playing with Bitcoin (BTC) currency.' },
           { type: 'paragraph', value: 'To choose your preferred denomination for your BTC balance:' },
-          { type: 'ordered-list', values: ['Log in to Bitcasino.io.', 'Click on "Deposit" then scroll down to find "Wallet settings" under Support & Settings section.', 'Once you have opened Wallet settings, you can change "Bitcoin metric prefix" to either mBTC or μBTC (the highlighted selection will be enabled)'] },
+          { type: 'ordered-list', values: ['Log in to Bitcasino.', 'Click on "Deposit" then scroll down to find "Wallet settings" under Support & Settings section.', 'Once you have opened Wallet settings, you can change "Bitcoin metric prefix" to either mBTC or μBTC (the highlighted selection will be enabled)'] },
         ]
       },
       {
@@ -254,7 +254,7 @@ export const HELP_ARTICLE_CATEGORIES = [
       },
       {
         slug: 'how-can-i-reset-remove-two-factor-authentication', title: 'How can I reset/remove Two-factor authentication?', content: [
-          { type: 'paragraph', value: 'In order for your Two-factor authentication (2FA) to be removed, please send an email to the following address: hello@bitcasino.io.' },
+          { type: 'paragraph', value: 'In order for your Two-factor authentication (2FA) to be removed, please contact our support team.' },
           { type: 'paragraph', value: 'Once we have received your request, you will need to answer some security questions, and if all is well, our Support will confirm that 2FA has been removed.' },
           { type: 'paragraph', value: 'We strongly advise re-enabling it to protect your account.' },
         ]
@@ -297,13 +297,13 @@ export const HELP_ARTICLE_CATEGORIES = [
       },
       {
         slug: 'what-is-the-maximum-withdrawal', title: 'What is the maximum withdrawal?', content: [
-          { type: 'paragraph', value: 'For withdrawals in cryptocurrencies, Bitcasino.io has no restrictions for the maximum withdrawal amount.' },
+          { type: 'paragraph', value: 'For withdrawals in cryptocurrencies, Bitcasino has no restrictions for the maximum withdrawal amount.' },
 
         ]
       },
       {
         slug: 'what-is-the-maximum-deposit', title: 'What is the maximum deposit?', content: [
-          { type: 'paragraph', value: 'Bitcasino.io has no restrictions for the maximum deposit amount in cryptocurrency. However, we do encourage everyone to gamble responsibly and within their allocated means.' },
+          { type: 'paragraph', value: 'Bitcasino has no restrictions for the maximum deposit amount in cryptocurrency. However, we do encourage everyone to gamble responsibly and within their allocated means.' },
 
         ]
       }, {
@@ -315,7 +315,7 @@ export const HELP_ARTICLE_CATEGORIES = [
 
       {
         slug: 'how-do-i-make-a-withdrawal', title: 'How do I make a withdrawal?', content: [
-          { type: 'ordered-list', values: ['Log in to Bitcasino.io.', 'Click on "Deposit"', 'Select the currency you wish to make a withdrawal with by clicking on “Active Balance” and choosing the currency you wish to use.', 'Once you’ve selected your preferred currency, make sure the tab below “Active Balance” has “Withdraw” as the highlighted tab.', 'Select the currency icon, choose the amount you wish to withdraw click on "Next"', 'Select the Network you wish to transmit these funds to', 'Enter your wallet address.', 'Click the Preview Withdraw button, check to ensure the details (destination address, network, currency and amount) are correct.', 'Click the "Confirm" button and your withdrawal request will be made. Note: If you have two-factor authentication enabled, you must enter the authenticator code to confirm.'] }
+          { type: 'ordered-list', values: ['Log in to Bitcasino.', 'Click on "Deposit"', 'Select the currency you wish to make a withdrawal with by clicking on “Active Balance” and choosing the currency you wish to use.', 'Once you’ve selected your preferred currency, make sure the tab below “Active Balance” has “Withdraw” as the highlighted tab.', 'Select the currency icon, choose the amount you wish to withdraw click on "Next"', 'Select the Network you wish to transmit these funds to', 'Enter your wallet address.', 'Click the Preview Withdraw button, check to ensure the details (destination address, network, currency and amount) are correct.', 'Click the "Confirm" button and your withdrawal request will be made. Note: If you have two-factor authentication enabled, you must enter the authenticator code to confirm.'] }
         ]
       },
       {
@@ -330,13 +330,13 @@ export const HELP_ARTICLE_CATEGORIES = [
       },
       {
         slug: 'how-do-i-buy-crypto', title: 'How do I buy crypto?', content: [
-          { type: 'ordered-list', values: ['Log in to Bitcasino.io.', 'At the top right of the page, click Deposit. ', 'Under "Active Balance", choose the cryptocurrency you are interested in purchasing.', 'Select the "Buy Crypto" option on the slider (once highlighted, it will be selected)', 'You will see a selection of methods you can use to purchase cryptocurrency.', 'Choose the corresponding method, for additional help or instructions please check the following help centre articles: Credit/Debit/Apple Pay/Google Pay, Bitget', 'Proceed to complete the steps according to the payment method that you selected.'] },
+          { type: 'ordered-list', values: ['Log in to Bitcasino.', 'At the top right of the page, click Deposit. ', 'Under "Active Balance", choose the cryptocurrency you are interested in purchasing.', 'Select the "Buy Crypto" option on the slider (once highlighted, it will be selected)', 'You will see a selection of methods you can use to purchase cryptocurrency.', 'Choose the corresponding method, for additional help or instructions please check the following help centre articles: Credit/Debit/Apple Pay/Google Pay, Bitget', 'Proceed to complete the steps according to the payment method that you selected.'] },
           { type: 'link-paragraph', prefix: 'More information about depositing using various currencies and payment methods is available at the ', href: '/help-center/help-payment-options', linkLabel: 'Payment Options', suffix: ' section.', }
         ]
       },
       {
         slug: 'how-do-i-make-a-deposit', title: 'How do I make a deposit?', content: [
-          { type: 'ordered-list', values: ['Log in to Bitcasino.io.', 'Click on "Deposit"', 'Select the currency you wish to make a withdrawal with by clicking on “Active Balance” and choosing the currency you wish to use.', 'Once you’ve selected your preferred currency, make sure the tab below “Active Balance” has “Withdraw” as the highlighted tab.', '(Optional) Some currencies allow you to connect your wallet via available wallet providers, this allows more convenient methods for depositing.', 'Check the "Deposit Network" you have selected. Some currencies offer the ability to transfer funds using different networks (such as ERC20, TRC20 etc.)', 'Copy the one-time deposit address you will see below the currency drop-down list and use it in your wallet'] },
+          { type: 'ordered-list', values: ['Log in to Bitcasino.', 'Click on "Deposit"', 'Select the currency you wish to make a withdrawal with by clicking on “Active Balance” and choosing the currency you wish to use.', 'Once you’ve selected your preferred currency, make sure the tab below “Active Balance” has “Withdraw” as the highlighted tab.', '(Optional) Some currencies allow you to connect your wallet via available wallet providers, this allows more convenient methods for depositing.', 'Check the "Deposit Network" you have selected. Some currencies offer the ability to transfer funds using different networks (such as ERC20, TRC20 etc.)', 'Copy the one-time deposit address you will see below the currency drop-down list and use it in your wallet'] },
           { type: 'link-paragraph', prefix: 'N.B Please make sure to check that your deposit amount meets the', href: 'help-center/help-your-transactions/what-is-the-minimum-deposit', linkLabel: 'minimum deposit requirement,', suffix: 'as otherwise it will not be credited.' },
 
           { type: 'paragraph', value: '' },
@@ -457,7 +457,7 @@ export const HELP_ARTICLE_CATEGORIES = [
         slug: 'bitcasino-bonus-system',
         title: 'Bitcasino Reward System',
         content: [
-          { type: 'paragraph', value: 'Bitcasino.io offers bonuses/rewards through regular promotions and tournaments for our players. Some rewards may require completion of wagering requirements to remove restrictions from balance.' },
+          { type: 'paragraph', value: 'Bitcasino offers bonuses/rewards through regular promotions and tournaments for our players. Some rewards may require completion of wagering requirements to remove restrictions from balance.' },
           { type: 'paragraph', value: 'Information regarding upcoming promotions and tournaments is usually sent via email to all our registered customers, so please make sure you enable newsletters and mark Bitcasino as a trusted sender to always stay' },
           { type: 'heading', value: 'What is a bonus?' },
           { type: 'paragraph', value: 'At Bitcasino, a bonus is the same as a reward. It can come in various forms and amounts, depending on the promotion/tournament.' },
@@ -799,7 +799,7 @@ export const HELP_ARTICLE_CATEGORIES = [
         title: 'What cryptocurrencies do you support?',
         content: [
           { type: 'paragraph', value: 'We support Bitcoin (BTC), Ethereum (ETH), Litecoin (LTC), Tether (USDT), Tron (TRX), Ripple (XRP), Cardano (ADA), Dogecoin (DOGE), Binance Coin (BNB), USD Coin (USDC), Polygon (MATIC) and The Open Network (TON).' },
-          { type: 'paragraph', value: 'The popular cryptocurrency and blockchain system known as Ethereum is based on the use of tokens, which can be bought, sold, or traded. One of the most significant token is called ERC20, which is the only token that is supported by Bitcasino.io on the Ethereum network.' },
+          { type: 'paragraph', value: 'The popular cryptocurrency and blockchain system known as Ethereum is based on the use of tokens, which can be bought, sold, or traded. One of the most significant token is called ERC20, which is the only token that is supported by Bitcasino on the Ethereum network.' },
           { type: 'paragraph', value: 'You can only deposit ERC20 tokens that we have listed below: USDT, USDC and ETH.' },
           {
             type: 'rich-paragraph',
@@ -1070,7 +1070,7 @@ export const HELP_ARTICLE_CATEGORIES = [
           {
             type: 'procedure',
             values: [
-              { text: 'Log in to Bitcasino.io' },
+              { text: 'Log in to Bitcasino' },
               {
                 parts: [
                   { text: 'In the top right of the page, click ' },
@@ -1095,7 +1095,7 @@ export const HELP_ARTICLE_CATEGORIES = [
           {
             type: 'procedure',
             values: [
-              { text: 'Log in to Bitcasino.io.' },
+              { text: 'Log in to Bitcasino.' },
               {
                 parts: [
                   { text: 'In the top right corner of the page, click ' },
@@ -1461,7 +1461,7 @@ export const HELP_ARTICLE_CATEGORIES = [
             },
             {
               text: 'Insert the destination address (public key) of the destination wallet',
-              note: 'If you want to make a deposit to Bitcasino.io, just insert the address of the wallet of your Bitcasino.io account.',
+              note: 'If you want to make a deposit to Bitcasino, just insert the address of the wallet of your Bitcasino account.',
               image: 'https://heathmont.imgix.net/bitcasino/images/help-center/Binance/Binance.00_03_51_26.Still063.jpg?auto=compress%2Cformat&w=850&h=850&fit=max&q=50',
             },
             {
@@ -1555,7 +1555,7 @@ export const HELP_ARTICLE_CATEGORIES = [
             'Select the desired cryptocurrency that you want to withdraw',
             {
               text: 'Insert the destination address (public key) of the destination wallet',
-              note: 'If you want to make a deposit to Bitcasino.io, just insert the address of the wallet of your Bitcasino.io account',
+              note: 'If you want to make a deposit to Bitcasino, just insert the address of the wallet of your Bitcasino account',
             },
             'Insert the amount that you want to withdraw',
             'Click “Authenticate and withdraw”, and you are done!',
@@ -1625,7 +1625,7 @@ export const HELP_ARTICLE_CATEGORIES = [
             'Insert the amount that you want to send/withdraw',
             {
               text: 'Insert the destination address (public key) of the destination wallet',
-              note: 'Example: If you want to make a deposit to Bitcasino.io, just insert the address of the wallet of your Bitcasino.io account.',
+              note: 'Example: If you want to make a deposit to Bitcasino, just insert the address of the wallet of your Bitcasino account.',
             },
             'Click continue, and you are done!',
           ],
@@ -1676,7 +1676,7 @@ export const HELP_ARTICLE_CATEGORIES = [
             type: 'ordered-list',
             values: [
               {
-                text: 'Loyalty Club levels at Bitcasino.io are as follows:',
+                text: 'Loyalty Club levels at Bitcasino are as follows:',
                 childList: 'ul',
                 children: [
                   'Beginner (Level 1) - 0 points',
@@ -1754,9 +1754,9 @@ export const HELP_ARTICLE_CATEGORIES = [
               'To keep your loyalty level you need to collect the points needed for your current level each month. If during the active month you do not collect the points needed to retain your loyalty level from previous month, you will drop 1 level next month. For example: If you managed to reach the Master level in June, then after your level (loyalty) points have reset at the start of July you need to collect at least the required amount of points for Master during July to keep the Master level for August. Should you not achieve that you will drop one level at the start of August as the level (loyalty) points reset - you will then be on Expert level.',
               'At the start of every month all of your milestone rewards will reset so you could once more claim them during the new month when starting to collect points again.',
               'Using methods, techniques or software which allow a player to gain an edge over other players and/or the reward system are prohibited and considered abuse. All bonuses are meant for non-professional and entertainment purposes only.',
-              'Bitcasino.io may change or cancel any milestone rewards or any other associated aspects of the Loyalty Club, at its sole discretion at any given time.',
+              'Bitcasino may change or cancel any milestone rewards or any other associated aspects of the Loyalty Club, at its sole discretion at any given time.',
               'By registering with Bitcasino and participating in real money gameplay you hereby accept these terms and conditions.',
-              'All other Bitcasino.io terms and conditions apply.',
+              'All other Bitcasino terms and conditions apply.',
             ],
           },
         ],
@@ -1816,9 +1816,9 @@ export const HELP_ARTICLE_CATEGORIES = [
       { slug: 'bitcasino-terms-and-conditions-of-use-of-services-of-the-company', title: 'General Terms & Conditions', content: [
         {type:'heading',value:'Player Complaint Procedure'},
         {type:'heading',value:'1. Purpose'},
-        {type:'paragraph',value:'The purpose of this Complaints Handling Procedure (the “Procedure”) is to establish a clear and structured process for managing player complaints fairly, transparently, and efficiently. As a Curaçao eGaming licensed online casino, Moon Technologies B.V. is committed to providing players with a reliable avenue for resolving disputes related to our gaming services, including account issues, transactions, and gameplay concerns.'},
+        {type:'paragraph',value:'The purpose of this Complaints Handling Procedure (the “Procedure”) is to establish a clear and structured process for managing player complaints fairly, transparently, and efficiently. Bitcasino is committed to providing players with a reliable avenue for resolving disputes related to our gaming services, including account issues, transactions, and gameplay concerns.'},
         {type:'paragraph',value:'This Procedure aims to:'},
-        {type:'list',values:['Provide a standardized approach to managing and resolving customer complaints.','Ensure compliance with regulatory requirements and industry best practices.','Enhance customer satisfaction and maintain the companys reputation.','Identify areas for improvement in Moon Technologies B.V.’s products, services, and processes.']},
+        {type:'list',values:['Provide a standardized approach to managing and resolving customer complaints.','Ensure compliance with regulatory requirements and industry best practices.','Enhance customer satisfaction and maintain the companys reputation.','Identify areas for improvement in our products, services, and processes.']},
         {type:'heading',value:'2. Statement'},
         {type:'paragraph',value:'We recognize the importance of customer satisfaction and responsible gaming. This procedure ensures that all complaints are handled professionally, impartially, and in compliance with the regulatory requirements set forth by Curaçao eGaming. Our goal is to provide efficient resolution to disputes while upholding fairness and integrity in our operations.'},
         {type:'heading',value:'3. Scope'},
@@ -1826,7 +1826,7 @@ export const HELP_ARTICLE_CATEGORIES = [
         {type:'list',values:['Account access or security concerns.','Deposits, withdrawals, and payment processing issues.','Technical issues affecting gameplay.','Alleged breaches of our terms and conditions.','Responsible gaming or self-exclusion concerns.','Any other disputes arising from the use of our services.']},
         {type:'heading',value:'4. Complaint Resolution Process'},
         {type:'heading',value:'4.1 Submission of Complaint'},
-        {type:'paragraph',value:'Complaints must be submitted using the designated email address complaints@bitcasino.io and the designated Complaint Form provided by mMoon Technologies B.V., in compliance with Curaçao Gaming Authority (CGA) guidelines. Submission of a complaint comes at no cost.'},
+        {type:'paragraph',value:'Complaints must be submitted through our customer support team. Submission of a complaint comes at no cost.'},
         {type:'paragraph',value:'Complaints must be filed within six (6) months from the date of the incident related to the player’s participation in a Game of Chance. The complaint must include the following details:'},
         {type:'list',values:['Complainants name, address, and place of residence.','Complainants account number and/or username.','Date of the complaint.','Registered email address.','Description of the conduct being disputed (using pre-determined category topics if applicable).','Language option: English or the language of the target market.','Any supporting documentation the player wishes to include as part of the complaint.']},
         {type:'heading',value:'4.2 Acknowledgment'},
@@ -1852,6 +1852,16 @@ export const HELP_ARTICLE_CATEGORIES = [
       ] },
       { slug: 'aml', title: 'Bitcasino AML policy', content: [] },
       { slug: 'bitcasino-reward-terms-conditions', title: 'Bitcasino Reward Terms & Conditions', content: [] },
+      { slug: 'affiliate-terms', title: 'Affiliate terms and conditions', content: [
+        { type: 'paragraph', value: 'These terms apply to every player who shares a referral link from Refer a Friend.' },
+        { type: 'list', values: [
+          'Referral rewards and commission rates are the ones shown on your Refer a Friend page at the time your referred player plays. They may change at any time.',
+          'A referred player must be a new customer who signs up through your link and meets the eligibility rules in the General Terms and Conditions.',
+          'Referring yourself, using more than one account, or bringing in players through spam or misleading advertising is not allowed. Rewards earned that way are forfeited.',
+          'Rewards linked to fraud, chargebacks or abuse of a promotion may be withheld or reversed.',
+          'These terms may be updated. Sharing your link after an update means you accept the current version.',
+        ] },
+      ] },
       { slug: '', title: '', content: [] },
       { slug: '', title: '', content: [] },
     ]

@@ -141,6 +141,7 @@ export function useClaimBonus() {
   const client = useQueryClient();
 
   return useMutation({
+    meta: { success: 'Bonus claimed.' },
     mutationFn: ({ type }) =>
       api(path(ENDPOINTS.bonusClaim, { type }), { method: 'POST' }),
     retry: false,
@@ -309,6 +310,7 @@ export function toPromotionCard(row, now = Date.now()) {
 
   return {
     slug: `${row.segment}-${row.slug}`,
+    segment: row.segment,
     title: row.title ?? '',
     blurb: row.summary ?? '',
     href: `/promotions/${row.segment}/${row.slug}`,
@@ -317,6 +319,14 @@ export function toPromotionCard(row, now = Date.now()) {
     ended,
   };
 }
+
+/**
+ * A `sports` promotion needs a sportsbook to play it on. Shown only once the
+ * site config has answered with `sportsbook` on (`gates.flag`, which reads an
+ * unanswered config as on — hence `ready`), so it never flashes in and out.
+ */
+export const promotionOn = (promo, gates) =>
+  promo.segment !== 'sports' || (gates.ready && gates.flag('sportsbook'));
 
 /**
  * Every published promotion, as `{live, past}` cards. The validator is

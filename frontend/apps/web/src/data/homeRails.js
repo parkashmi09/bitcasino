@@ -10,11 +10,11 @@
  * `docs/10-backend-integration.md` says "collections per rail; `?type=` for
  * the rest", and that is what this is:
  *
- * - Three rails match a row the platform curates, so they read it. An operator
- *   editing "Live casino" in the admin screen changes this rail, which is the
- *   entire point of a curated collection and does not happen if the rail runs
- *   its own `?type=` query.
- * - Two rails have no curated equivalent and fall back to their category.
+ * - The live, slots and crash rails read their category, not the curated
+ *   collection of the same name: those collections are empty until an
+ *   operator fills them, and the backend's own lobby falls back to the same
+ *   `?category=` list (`CATEGORY_AUTO_LISTS`) while they are.
+ * - Two rails have no curated equivalent and read their category too.
  * - Two are badge cuts the browse route cannot express at all — see
  *   `data/adapters/collections.js` for why, and for the two backend changes
  *   that would fix it.
@@ -46,13 +46,13 @@ export const HOME_RAILS = Object.freeze([
   },
   {
     title: 'Best Live Casino games',
-    href: '/games/live-casino',
-    source: { kind: 'collection', slug: 'live-casino' },
+    href: '/categories/live-casino',
+    source: { kind: 'category', slug: 'live-casino' },
   },
   {
     title: 'Best Slot games',
-    href: '/games/popular-slots',
-    source: { kind: 'collection', slug: 'popular-slots' },
+    href: '/categories/video-slots',
+    source: { kind: 'category', slug: 'video-slots' },
   },
   {
     title: 'New Releases',
@@ -66,8 +66,8 @@ export const HOME_RAILS = Object.freeze([
   },
   {
     title: 'Crash and Instant Win',
-    href: '/games/crash',
-    source: { kind: 'collection', slug: 'crash' },
+    href: '/categories/crash',
+    source: { kind: 'category', slug: 'crash' },
   },
   {
     title: 'Best table games',

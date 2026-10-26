@@ -15,7 +15,7 @@ import { cn } from '@/lib/cn';
  */
 const VARIANTS = {
   solid: {
-    on: 'bg-piccolo text-goten',
+    on: 'bg-piccolo text-on-piccolo',
     off: 'bg-gohan text-trunks hover:bg-beerus hover:text-bulma',
   },
   tint: {

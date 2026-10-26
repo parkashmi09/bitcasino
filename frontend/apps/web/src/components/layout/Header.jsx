@@ -139,13 +139,8 @@ export function Header({ onOpenSearch, onOpenDeposit }) {
 
         {status === 'anonymous' && (
           <>
-            <Button
-              as={NavLink}
-              to="/login"
-              variant="secondary"
-              size="lg"
-              className="max-sm:hidden"
-            >
+            {/* On phones too: it is the only way in there, the Menu drawer has none. */}
+            <Button as={NavLink} to="/login" variant="secondary" size="lg">
               Login
             </Button>
             {/* A B2B (agent-only) site has no self sign-up; shown once the owner's plan answered. */}

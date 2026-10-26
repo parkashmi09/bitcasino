@@ -9,23 +9,11 @@ import { formatBalance } from '@/lib/format';
  * `/promotions/weekly-rakeback-2026` — the home banner's middle card, at the
  * reference's own slug.
  *
- * ═════════════════════════════════════════════════════════════════════════
- * THE BODY IS EMPTY BECAUSE THE REFERENCE'S IS EMPTY. THAT IS THE PAGE.
- *
- * Their `/promotions/weekly-rakeback-2026` renders a hero, the title, the
- * `Other promotions` rail and the breadcrumb — and nothing between the title
- * and the foot of the column. Checked three ways: the rendered DOM, the served
- * HTML document, and the RSC flight payload inside it. The CMS body container
- * is present and has no children in all three, so there is no copy to
- * transcribe and none is being withheld from a signed-out visitor.
- *
- * This file therefore has no marketing sections. Anything here — a blurb, a rates table,
- * a "how it works" — would be content this project wrote and the reference does
- * not publish, which is the one thing a clone must not do quietly.
+ * The body is the campaign's one line (`data/weeklyRakeback.js`) for everyone,
+ * so the page is never a bare title, then the player's own rakeback.
  *
  * The layout, the hero crop and the rail all come from `PromoLayout`, which is
  * shared with `League` and carries the measurements taken off the reference.
- * ═════════════════════════════════════════════════════════════════════════
  *
  * ## The one live part: the player's own rakeback
  *
@@ -33,13 +21,13 @@ import { formatBalance } from '@/lib/format';
  * `GET /user/rakeback` → `{amount, currency, claimable, minimum, rate}` — and
  * `Claim`, `POST /user/rakeback/claim`, which pays it to the balance under a
  * row lock. The route gate (`rewards`) is the promotions capability, which is
- * the only gate the platform puts on rakeback. Signed out, the page is the
- * reference's, unchanged.
+ * the only gate the platform puts on rakeback.
  */
 export function WeeklyRakeback() {
   const { status } = useAuth();
   return (
     <PromoPage promo={WEEKLY_RAKEBACK}>
+      <p className="text-base leading-6 text-bulma">{WEEKLY_RAKEBACK.blurb}</p>
       {status === 'authenticated' && <RakebackCard />}
     </PromoPage>
   );

@@ -1,5 +1,6 @@
 import { Link } from 'react-router-dom';
 import { HelpCategoriesSidebar } from '../components/sections/HelpCategoriesSidebar';
+import { SUPPORT_EMAIL } from '@/lib/site';
 
 const RELATED_ARTICLES = [
   ['General Terms & Conditions', '/help-center/terms-and-conditions'],
@@ -50,13 +51,13 @@ function Article() {
 
       <h2 className="mb-4 mt-10 font-primary text-xl font-bold leading-7 text-bulma">Player Complaint Procedure</h2>
       <h2 className="mb-4 mt-10 font-primary text-xl font-bold leading-7 text-bulma">1. Purpose</h2>
-      <p>The purpose of this Complaints Handling Procedure (the "Procedure") is to establish a clear and structured process for managing player complaints fairly, transparently, and efficiently. As a Curaçao eGaming licensed online casino, Moon Technologies B.V. is committed to providing players with a reliable avenue for resolving disputes related to our gaming services, including account issues, transactions, and gameplay concerns.</p>
+      <p>The purpose of this Complaints Handling Procedure (the "Procedure") is to establish a clear and structured process for managing player complaints fairly, transparently, and efficiently. Bitcasino is committed to providing players with a reliable avenue for resolving disputes related to our gaming services, including account issues, transactions, and gameplay concerns.</p>
       <p className="mt-4">This Procedure aims to:</p>
       <ul className="mt-4 list-disc space-y-2 ps-7 marker:text-piccolo md:ps-8">
         <li>Provide a standardized approach to managing and resolving customer complaints.</li>
         <li>Ensure compliance with regulatory requirements and industry best practices.</li>
         <li>Enhance customer satisfaction and maintain the company's reputation.</li>
-        <li>Identify areas for improvement in Moon Technologies B.V.'s products, services, and processes.</li>
+        <li>Identify areas for improvement in our products, services, and processes.</li>
       </ul>
 
       <h2 className="mb-4 mt-10 font-primary text-xl font-bold leading-7 text-bulma">2. Statement</h2>
@@ -70,7 +71,7 @@ function Article() {
 
       <h2 className="mb-4 mt-10 font-primary text-xl font-bold leading-7 text-bulma">4. Complaint Resolution Process</h2>
       <h3 className="mb-3 mt-8 text-lg font-bold leading-7 text-bulma">4.1 Submission of Complaint</h3>
-      <p>Complaints must be submitted using the designated email address <a href="mailto:complaints@bitcasino.io" className="underline hover:text-piccolo">complaints@bitcasino.io</a> and the designated Complaint Form provided by Moon Technologies B.V., in compliance with Curaçao Gaming Authority (CGA) guidelines. Submission of a complaint comes at no cost.</p>
+      <p>Complaints must be submitted through our customer support team. Submission of a complaint comes at no cost.</p>
       <p className="mt-4">Complaints must be filed within six months from the date of the incident related to the player's participation in a Game of Chance. The complaint must include:</p>
       <ul className="mt-4 list-disc space-y-2 ps-7 marker:text-piccolo md:ps-8">
         {complaintDetails.map((item) => <li key={item}>{item}</li>)}
@@ -129,13 +130,15 @@ export function DisputeResolution() {
           ))}
         </div>
       </section>
-      <section className="mt-10 max-w-[596px] border-t border-beerus pt-8">
-        <h2 className="text-2xl font-bold text-bulma">Other ways to get help</h2>
-        <a href="mailto:hello@bitcasino.io" className="mt-4 flex items-center gap-4 bg-gohan px-6 py-4 text-bulma hover:bg-beerus">
-          <span aria-hidden="true" className="text-4xl leading-none">@</span>
-          <span><strong className="block text-xl">Email us</strong><span className="text-sm text-trunks">hello@bitcasino.io</span></span>
-        </a>
-      </section>
+      {SUPPORT_EMAIL && (
+        <section className="mt-10 max-w-[596px] border-t border-beerus pt-8">
+          <h2 className="text-2xl font-bold text-bulma">Other ways to get help</h2>
+          <a href={`mailto:${SUPPORT_EMAIL}`} className="mt-4 flex items-center gap-4 bg-gohan px-6 py-4 text-bulma hover:bg-beerus">
+            <span aria-hidden="true" className="text-4xl leading-none">@</span>
+            <span><strong className="block text-xl">Email us</strong><span className="text-sm text-trunks">{SUPPORT_EMAIL}</span></span>
+          </a>
+        </section>
+      )}
     </div>
   );
 }

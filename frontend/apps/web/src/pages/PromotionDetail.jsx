@@ -2,7 +2,9 @@ import { Navigate, useParams } from 'react-router-dom';
 import { PromoPage, PromoSection } from '@/components/sections/PromoLayout';
 import { Skeleton } from '@/components/ui/Skeleton';
 import { sanitizeHtml } from '@/lib/sanitizeHtml';
+import { useGates } from '@/hooks/useGates';
 import { usePromotion } from '@/queries';
+import { promotionOn } from '@/queries/promotions';
 
 /**
  * `/promotions/:segment/:slug` — one operator promotion
@@ -10,7 +12,8 @@ import { usePromotion } from '@/queries';
  *
  * `description` and `termsHtml` are staff-written HTML on a public route, so
  * both go through `lib/sanitizeHtml` before `dangerouslySetInnerHTML`, as the
- * blog does.
+ * blog does. A `sports` one redirects to the list while the site has no
+ * sportsbook (`promotionOn`).
  */
 const PROSE =
   'grid gap-4 text-base leading-6 text-bulma [&_a]:text-piccolo [&_a]:underline ' +
@@ -18,8 +21,14 @@ const PROSE =
 
 export function PromotionDetail() {
   const { segment, slug } = useParams();
-  const { data, isPending, isError } = usePromotion(segment, slug);
+  const gates = useGates();
+  // A sports promotion is not even read while the site has no sportsbook.
+  const sports = segment === 'sports';
+  const shown = !sports || promotionOn({ segment }, gates);
+  const { data, isPending, isError } = usePromotion(shown ? segment : null, slug);
 
+  if (sports && !gates.ready) return <Skeleton className="h-[290px] max-w-[700px] rounded" />;
+  if (!shown) return <Navigate to="/promotions" replace />;
   if (isPending) return <Skeleton className="h-[290px] max-w-[700px] rounded" />;
   // A stale or unpublished link: the list is the useful answer, as `promotions/:slug` does.
   if (isError || !data) return <Navigate to="/promotions" replace />;

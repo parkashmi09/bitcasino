@@ -45,6 +45,12 @@ export function GatesProvider({ children }) {
     [flags, features.data, capabilities, ready],
   );
 
+  // The owner's colour theme (styles/tokens.css [data-palette]); unset until the plan answers.
+  const palette = Array.isArray(features.data) ? value.policy('theme') : undefined;
+  useEffect(() => {
+    if (palette) document.documentElement.dataset.palette = palette;
+  }, [palette]);
+
   const { pathname } = useLocation();
   const navigate = useNavigate();
   const off = ready && !value.routeOn(pathname);

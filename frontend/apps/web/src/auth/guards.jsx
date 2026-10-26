@@ -1,4 +1,5 @@
-import { Navigate, useLocation } from 'react-router-dom';
+import { useEffect, useRef, useState } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from './AuthProvider';
 import { safeNext } from './safeNext';
 
@@ -15,28 +16,52 @@ import { safeNext } from './safeNext';
  * loading indicators for one wait.
  */
 
+/**
+ * Navigate once, off the location the guard MOUNTED on.
+ *
+ * `App.jsx` renders `Routes` off a deferred location, so a guard stays on
+ * screen for `ROUTE_TRANSITION_MS` after its own redirect and keeps
+ * re-rendering against the NEW location. A render-time `<Navigate>` re-fires
+ * on each of those renders (its `state` is a fresh object every time) — that
+ * was the "Maximum update depth exceeded" loop on every guarded route — and
+ * its `from` had already become `/login`, so the deep link was lost too.
+ */
+function useRedirectOnce(when, target) {
+  const navigate = useNavigate();
+  const sent = useRef(false);
+  useEffect(() => {
+    if (!when || sent.current) return;
+    sent.current = true;
+    navigate(target.to, { replace: true, state: target.state });
+  }, [when, target, navigate]);
+}
+
 /** Account routes. Sends a signed-out visitor to log in, and back afterwards. */
 export function RequireAuth({ children }) {
   const { status } = useAuth();
-  const location = useLocation();
+  const [from] = useState(useLocation());
+  const next = safeNext(from);
 
-  if (status === 'loading') return null;
-  if (status === 'anonymous') {
-    // `state.from` is what `Login` returns to, so a deep link survives the
-    // detour instead of dumping the player on the home page.
-    return <Navigate to="/login" replace state={{ from: location }} />;
-  }
+  // `?next=` and `state.from` both: `Login` returns to either, and the query
+  // survives a reload of the login page where history state may not.
+  useRedirectOnce(status === 'anonymous', {
+    to: `/login?next=${encodeURIComponent(next)}`,
+    state: { from },
+  });
+
+  if (status !== 'authenticated') return null;
   return children;
 }
 
 /** `/login` and `/register`: there is nothing to sign into when already in. */
 export function RedirectIfAuthenticated({ children }) {
   const { status } = useAuth();
-  const location = useLocation();
+  const [location] = useState(useLocation());
 
-  if (status === 'loading') return null;
-  if (status === 'authenticated') {
-    return <Navigate to={safeNext(location.state?.from ?? new URLSearchParams(location.search).get('next'))} replace />;
-  }
+  useRedirectOnce(status === 'authenticated', {
+    to: safeNext(location.state?.from ?? new URLSearchParams(location.search).get('next')),
+  });
+
+  if (status !== 'anonymous') return null;
   return children;
 }

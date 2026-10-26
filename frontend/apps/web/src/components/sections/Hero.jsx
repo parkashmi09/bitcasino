@@ -5,7 +5,7 @@ import { useGates } from '@/hooks/useGates';
 const POINTS = [
   'Huge selection of high RTP games',
   'Unparalleled VIP benefits',
-  'Crypto Operator of the Year 2026',
+  'Fast crypto deposits and withdrawals',
 ];
 
 /**
@@ -46,11 +46,11 @@ export function Hero() {
             'min-[1500px]:text-[40px] min-[1500px]:leading-10',
           ].join(' ')}
         >
-          Join the world&rsquo;s first licensed Bitcoin casino
+          Play your favourite casino games with crypto
         </h1>
 
         <p className="text-base leading-6 text-bulma md:text-xl md:leading-7">
-          Get up to 5,000 USDT across your first three deposits*
+          Welcome bonus on your first deposit*
         </p>
 
         {/* #858585 is lighter than --trunks; the reference uses it for this

@@ -1,5 +1,6 @@
 import { Link, useParams } from 'react-router-dom';
 import { HelpCategoriesSidebar } from '../components/sections/HelpCategoriesSidebar';
+import { OPERATOR_NOTICE, SUPPORT_EMAIL } from '@/lib/site';
 
 const ARTICLES = [
   {
@@ -36,7 +37,7 @@ const ARTICLES = [
   },
   {
     slug: 'can-i-access-all-the-games-in-bitcasino--',
-    title: 'Can I access all the games in Bitcasino.io?',
+    title: 'Can I access all the games in Bitcasino?',
     paragraphs: [
       'Game availability depends on your location, local regulations, and the payment or currency options available to you.',
       'You will see the games that are available for your account and jurisdiction in the lobby.',
@@ -70,7 +71,7 @@ const ARTICLES = [
     slug: 'is-bitcasino-licensed',
     title: 'Is Bitcasino licensed?',
     paragraphs: [
-      'Bitcasino.io is operated by Moon Technologies B.V. and the casino games are provided under the gaming licence described on our license page.',
+      OPERATOR_NOTICE,
     ],
     href: '/help-center/our-license',
   },
@@ -106,12 +107,13 @@ function Breadcrumbs({ article }) {
 }
 
 function SupportFooter() {
+  if (!SUPPORT_EMAIL) return null;
   return (
     <section className="mt-10 max-w-[596px] border-t border-beerus pt-8">
       <h2 className="text-2xl font-bold text-bulma">Other ways to get help</h2>
-      <a href="mailto:hello@bitcasino.io" className="mt-4 flex items-center gap-4 bg-gohan px-6 py-4 text-bulma hover:bg-beerus">
+      <a href={`mailto:${SUPPORT_EMAIL}`} className="mt-4 flex items-center gap-4 bg-gohan px-6 py-4 text-bulma hover:bg-beerus">
         <span aria-hidden="true" className="text-4xl leading-none">@</span>
-        <span><strong className="block text-xl">Email us</strong><span className="text-sm text-trunks">hello@bitcasino.io</span></span>
+        <span><strong className="block text-xl">Email us</strong><span className="text-sm text-trunks">{SUPPORT_EMAIL}</span></span>
       </a>
     </section>
   );

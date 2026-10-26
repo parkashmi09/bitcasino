@@ -81,3 +81,22 @@
   --frieza: 111 59 255;
   --nappa: 0 142 173;
 }
+
+/* ---------------------------------------------------------------------------
+ * Owner colour themes (owner panel → Features & plan → Template; the `theme`
+ * variant from GET /admin/features/public, set on <html data-palette> by
+ * GatesProvider). Brand colour in both modes; dark mode also takes the
+ * template's background. `hash_game` ("Original") keeps the values above.
+ * --on-piccolo is text on a brand fill: dark on the bright accents.
+ * ------------------------------------------------------------------------- */
+:root { --on-piccolo: var(--goten); }
+
+[data-palette="carbon_gold"] { --piccolo: 252 238 10; --piccolo-80: 255 243 77; --piccolo-120: 214 201 0; --jiren: 252 238 10 / 0.12; --on-piccolo: 11 11 11; }
+[data-palette="violet_night"] { --piccolo: 139 92 246; --piccolo-80: 157 118 248; --piccolo-120: 114 62 232; --jiren: 139 92 246 / 0.12; }
+[data-palette="emerald_dark"] { --piccolo: 34 197 94; --piccolo-80: 74 222 128; --piccolo-120: 22 163 74; --jiren: 34 197 94 / 0.12; --on-piccolo: 11 15 12; }
+[data-palette="neon_navy"] { --piccolo: 26 255 0; --piccolo-80: 92 255 72; --piccolo-120: 20 204 0; --jiren: 26 255 0 / 0.12; --on-piccolo: 11 15 26; }
+
+.theme-dark[data-palette="carbon_gold"] { --goku: 11 11 11; --goku-40: 28 28 28; --goku-80: 28 28 28; --gohan: 28 28 28; --beerus: 44 44 44; --hit: 58 58 58; }
+.theme-dark[data-palette="violet_night"] { --goku: 15 10 30; --goku-40: 30 22 52; --goku-80: 30 22 52; --gohan: 30 22 52; --beerus: 48 38 76; --hit: 64 52 96; }
+.theme-dark[data-palette="emerald_dark"] { --goku: 11 15 12; --goku-40: 24 32 26; --goku-80: 24 32 26; --gohan: 24 32 26; --beerus: 38 50 41; --hit: 52 66 56; }
+.theme-dark[data-palette="neon_navy"] { --goku: 11 15 26; --goku-40: 24 30 46; --goku-80: 24 30 46; --gohan: 24 30 46; --beerus: 38 46 66; --hit: 52 61 84; }

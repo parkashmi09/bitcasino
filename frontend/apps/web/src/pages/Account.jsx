@@ -282,7 +282,7 @@ function EmailNotice() {
           type="button"
           aria-disabled="true"
           title="Resending the confirmation email is not built yet"
-          className="rounded-i-sm bg-piccolo px-4 py-2 align-middle text-base leading-6 font-medium text-goten"
+          className="rounded-i-sm bg-piccolo px-4 py-2 align-middle text-base leading-6 font-medium text-on-piccolo"
         >
           click here to resend.
         </button>
@@ -340,7 +340,7 @@ function IdentityCard({ kyc }) {
           <button
             type="button"
             onClick={() => setOpen(true)}
-            className="cursor-pointer rounded-i-sm bg-piccolo px-4 py-2 text-base leading-6 font-medium text-goten transition-opacity hover:opacity-90"
+            className="cursor-pointer rounded-i-sm bg-piccolo px-4 py-2 text-base leading-6 font-medium text-on-piccolo transition-opacity hover:opacity-90"
           >
             {state === 'Rejected' ? 'Resubmit documents' : 'Start verification'}
           </button>

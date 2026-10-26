@@ -96,7 +96,7 @@ function EmptyPanel() {
 
       <Link
         to="/promotions"
-        className="flex h-10 items-center justify-center rounded-i-sm bg-piccolo px-4 text-base font-normal whitespace-nowrap text-goten transition-colors duration-200 hover:bg-piccolo-80"
+        className="flex h-10 items-center justify-center rounded-i-sm bg-piccolo px-4 text-base font-normal whitespace-nowrap text-on-piccolo transition-colors duration-200 hover:bg-piccolo-80"
       >
         Check promotions
       </Link>
@@ -124,7 +124,7 @@ function BonusHistory() {
         </p>
         <Link
           to="/login"
-          className="mt-3 flex h-10 w-max items-center justify-center rounded-i-sm bg-piccolo px-4 text-sm font-medium text-goten hover:bg-piccolo-80"
+          className="mt-3 flex h-10 w-max items-center justify-center rounded-i-sm bg-piccolo px-4 text-sm font-medium text-on-piccolo hover:bg-piccolo-80"
         >
           Log in
         </Link>

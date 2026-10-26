@@ -6,6 +6,7 @@ import { PROMO_PAGES } from '@/data/promotionPages';
 import { useGates } from '@/hooks/useGates';
 import { cn } from '@/lib/cn';
 import { usePromotions } from '@/queries';
+import { promotionOn } from '@/queries/promotions';
 
 /**
  * The chrome every promotion detail page shares, measured off the reference's
@@ -126,7 +127,7 @@ export function PromoSteps({ steps }) {
         <li key={step.title} className="text-center">
           <span
             aria-hidden="true"
-            className="mx-auto grid size-[50px] place-items-center rounded-full bg-piccolo font-secondary text-xl font-bold text-goten"
+            className="mx-auto grid size-[50px] place-items-center rounded-full bg-piccolo font-secondary text-xl font-bold text-on-piccolo"
           >
             {index + 1}
           </span>
@@ -273,10 +274,10 @@ export function PromoFinePrint({ blocks }) {
  * switched-off section. The promotions read only runs while that section is on.
  */
 function OtherPromotions({ slug }) {
-  const { on, routeOn } = useGates();
-  const { data } = usePromotions({ enabled: on('promotions') });
+  const gates = useGates();
+  const { data } = usePromotions({ enabled: gates.on('promotions') });
   const others = [...PROMO_PAGES, ...(data?.live ?? []), ...PROMOTIONS]
-    .filter((promo) => promo.slug !== slug && routeOn(promo.href))
+    .filter((promo) => promo.slug !== slug && gates.routeOn(promo.href) && promotionOn(promo, gates))
     .slice(0, 2);
 
   return (

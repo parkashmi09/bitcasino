@@ -5,6 +5,7 @@ import { PROMOTIONS } from '@/data/catalog';
 import { PROMO_PAGES } from '@/data/promotionPages';
 import { useGates } from '@/hooks/useGates';
 import { usePromotions } from '@/queries';
+import { promotionOn } from '@/queries/promotions';
 
 /**
  * `/promotions` — every promotion this app is running, as a list.
@@ -34,7 +35,8 @@ import { usePromotions } from '@/queries';
  * The list is `PROMO_PAGES` — the campaigns with a page behind them — then
  * the operator's published promotions (`GET /admin/promotions`, each opening
  * `/promotions/:segment/:slug`), then `PROMOTIONS`, the cards that point at a
- * screen this app already has. Cards into a switched-off section are dropped.
+ * screen this app already has. Cards into a switched-off section are dropped,
+ * and so are sports promotions while the site has no sportsbook.
  * Past = the operator's ended promotions.
  * `components/sections/PromotionList.jsx` holds the measurements.
  */
@@ -46,13 +48,14 @@ export function Promotions() {
   // off keeps that.
   const showPast = params.get('showPast') === 'true';
 
-  const { routeOn } = useGates();
+  const gates = useGates();
+  const { routeOn } = gates;
   const { data, isPending } = usePromotions();
-  const past = data?.past ?? [];
+  const past = (data?.past ?? []).filter((promo) => promotionOn(promo, gates));
 
   const live = [
     ...PROMO_PAGES.filter((promo) => routeOn(promo.href)),
-    ...(data?.live ?? []),
+    ...(data?.live ?? []).filter((promo) => promotionOn(promo, gates)),
     ...PROMOTIONS.filter((promo) => routeOn(promo.href)),
   ];
   const promotions = showPast ? [...live, ...past] : live;

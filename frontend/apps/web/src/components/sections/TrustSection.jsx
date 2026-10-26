@@ -1,9 +1,16 @@
 import { useId, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link as RouterLink } from 'react-router-dom';
 import { cn } from '@/lib/cn';
+import { useGates } from '@/hooks/useGates';
+
+/** A link in the copy below; plain text while its section is switched off. */
+function Link({ to, children }) {
+  const gates = useGates();
+  return gates.routeOn(to) ? <RouterLink to={to}>{children}</RouterLink> : children;
+}
 
 /**
- * The long-form editorial block, and the last thing before the testimonials.
+ * The long-form editorial block near the foot of the home page.
  *
  * The reference keeps all of it — trust, game breakdown, providers, promos,
  * the crypto explainer and the getting-started guide — inside **one** collapsed
@@ -109,9 +116,8 @@ export function TrustSection() {
         <div className={PROSE}>
           <h2 className="text-center">
             <Link to="/promotions">
-              Bitcasino is the world’s first licensed crypto casino with highest
-              bet limits in the industry and a 100% first deposit match bonus of
-              up to 1,500 USDT
+              Bitcasino is a crypto casino with a welcome bonus on your first
+              deposit
             </Link>
           </h2>
 
@@ -122,28 +128,24 @@ export function TrustSection() {
           </p>
           <p>
             With unmatched <Link to="/promotions">welcome offers</Link>, exciting
-            bonuses, and a world-class game selection, Bitcasino continues to lead
-            the way as one of the most preferred crypto casinos online. Recognised
-            by the prestigious <Link to="/blog">EGR awards</Link> year after year,
-            we remain a trusted name among players around the globe.
+            bonuses, and a world-class game selection, Bitcasino is built for
+            players who want to play with crypto.
           </p>
           <p>
-            As an award-winning BTC casino, Bitcasino.io is known not just for
-            innovation, but also for security, convenience, and a commitment to
+            Bitcasino is built around security, convenience, and a commitment to
             elevating your gameplay.
           </p>
           <p>Discover what’s in store when you choose to play at Bitcasino.</p>
 
           <h2>A Bitcoin casino you can trust</h2>
           <p>
-            Bitcasino is the world’s first licensed Bitcoin casino, officially
-            recognised by Curaçao eGaming and supported by Hub88, two of the most
-            reputable names in online gaming regulation. Our{' '}
-            <Link to="/help-center/our-license">operating license</Link> is held
-            by Moon Technologies B.V., ensuring full transparency and compliance.
+            Bitcasino is run by its own independent operator. The operator’s
+            company and licence details are on our{' '}
+            <Link to="/help-center/our-license">license page</Link> and available
+            from customer support on request.
           </p>
           <p>
-            As a licensed and secure crypto casino, Bitcasino guarantees that all
+            As a secure crypto casino, Bitcasino guarantees that all
             your funds, transactions, and data are protected with industry-grade
             encryption and blockchain-integrated safeguards. You can place your
             wagers with confidence, knowing your gameplay is backed by proven

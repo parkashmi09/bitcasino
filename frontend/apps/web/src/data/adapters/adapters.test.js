@@ -2,9 +2,9 @@ import { describe, expect, it } from 'vitest';
 
 import {
   categoryFromType,
-  typeForCategory,
+  categoryFilter,
   isCategorySlug,
-  queryTypesFor,
+  subcategoriesOf,
   CATEGORY_SLUGS,
 } from './categories';
 import { toGame, toGames, toRecentGames, sortValue } from './games';
@@ -84,10 +84,22 @@ const IN_HOUSE_ROW = {
 };
 
 describe('categories', () => {
-  it('maps every one of our slugs round-trip', () => {
+  it('maps every one of our slugs back to itself', () => {
     for (const slug of CATEGORY_SLUGS) {
-      expect(categoryFromType(typeForCategory(slug))).toBe(slug);
+      expect(categoryFromType(slug)).toBe(slug);
     }
+  });
+
+  it('maps the backend tags and the providers\' own types', () => {
+    expect(categoryFromType('slots')).toBe('video-slots');
+    expect(categoryFromType('live')).toBe('live-casino');
+    expect(categoryFromType('Slot Game')).toBe('video-slots');
+    expect(categoryFromType('CasinoLive')).toBe('live-casino');
+    expect(categoryFromType('TableGame')).toBe('table-games');
+    expect(categoryFromType('Crash Game')).toBe('crash');
+    // `toGame` reads the tag first, then the type.
+    expect(toGame({ ...FULL_ROW, type: 'Slot Game', tags: ['live'] }).category).toBe('live-casino');
+    expect(toGame({ ...FULL_ROW, type: 'Slot Game', tags: [{ code: 'x' }] }).category).toBe('video-slots');
   });
 
   it('folds case and separators, so a sync writing Live_Casino still lands', () => {
@@ -109,13 +121,18 @@ describe('categories', () => {
     expect(isCategorySlug('sportsbook')).toBe(false);
   });
 
-  it('falls back to the slug for a category with no alias yet', () => {
-    expect(typeForCategory('megaways')).toBe('megaways');
-    expect(queryTypesFor('megaways')).toEqual(['megaways']);
+  it('filters each slug by the backend\'s own category, not the provider type', () => {
+    expect(categoryFilter('video-slots')).toEqual({ category: 'slots' });
+    expect(categoryFilter('live-casino')).toEqual({ category: 'live' });
+    expect(categoryFilter('table-games')).toEqual({ category: 'table' });
+    expect(categoryFilter('roulette')).toEqual({ category: 'roulette' });
+    expect(categoryFilter('jackpots')).toEqual({ search: 'jackpot' });
+    expect(categoryFilter('megaways')).toEqual({ category: 'megaways' });
   });
 
-  it('lists every upstream type behind one of our slugs', () => {
-    expect(queryTypesFor('crash')).toEqual(['crash']);
+  it('offers sub-categories on the live casino page only', () => {
+    expect(subcategoriesOf('live-casino')).toEqual(['baccarat', 'blackjack', 'roulette', 'game-shows']);
+    expect(subcategoriesOf('crash')).toEqual([]);
   });
 });
 

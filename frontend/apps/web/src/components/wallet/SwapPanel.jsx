@@ -137,7 +137,7 @@ export function SwapPanel({ currency, coins, balances, onBack }) {
             type="button"
             onClick={confirm}
             disabled={!ready}
-            className="flex h-11 cursor-pointer items-center justify-center gap-1.5 rounded-i-sm bg-piccolo text-sm font-medium text-goten transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
+            className="flex h-11 cursor-pointer items-center justify-center gap-1.5 rounded-i-sm bg-piccolo text-sm font-medium text-on-piccolo transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
           >
             {swap.isPending ? 'Swapping…' : quote.isFetching ? 'Getting quote…' : 'Confirm swap'}
           </button>

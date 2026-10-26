@@ -4,7 +4,7 @@
  * that script is that it sends these exact objects, so this module has to stay
  * loadable outside the bundler.
  */
-import { queryTypesFor, typeForCategory } from '../data/adapters/categories.js';
+import { categoryFilter } from '../data/adapters/categories.js';
 
 /**
  * The query objects sent to the catalogue routes, as pure functions.
@@ -16,7 +16,7 @@ import { queryTypesFor, typeForCategory } from '../data/adapters/categories.js';
  *
  * | Route | Accepts | Rejects |
  * | --- | --- | --- |
- * | `GET /games` | `page`, `limit`, `provider`, `type`, `search`, `technology`, `has_lobby`, `has_freespins`, `is_mobile` | anything else |
+ * | `GET /games` | `page`, `limit`, `provider`, `sort`, `type`, `category`, `search`, `technology`, `has_lobby`, `has_freespins`, `is_mobile` | anything else |
  * | `GET /games/collections/:c` | `page`, `limit` | **`type`, `provider`, `search`** |
  * | `GET /games/search` | `q`, `limit` | **`page`** |
  * | `GET /games/recently-played` | `limit` | `page`, `q` |
@@ -62,27 +62,17 @@ const page = (value) => Math.max(Number(value) || 1, 1);
 /**
  * `GET /casino/games`.
  *
- * `category` is one of OUR slugs and is translated to the platform's `type`
- * here, so no page has to know the mapping exists. Absent filters are omitted
- * entirely rather than sent as `undefined` — `.strict()` rejects a declared
- * key with an undefined value the same way it rejects an unknown one.
+ * `category` is one of OUR slugs and is translated to the backend's own
+ * filter here (`categoryFilter`), so no page has to know the mapping exists.
+ * Absent filters are omitted entirely rather than sent as `undefined` —
+ * `.strict()` rejects a declared key with an undefined value the same way it
+ * rejects an unknown one.
  */
 export function gamesQuery({ category, provider, search, page: p = 1, limit = 24 } = {}) {
   return {
     page: page(p),
     limit: clamp(limit, 24, MAX_LIMIT),
-    /**
-     * `queryTypesFor`, not `typeForCategory`: a category page may cover more
-     * than one upstream type. `live-casino` covers `baccarat` and `blackjack`
-     * as well as its own, because the sidebar calls it **All Live Casino
-     * Games** and the reference means that literally.
-     *
-     * Joined with a comma, which `GET /casino/games` reads as a set — see
-     * `#typeWhere` in `backend/services/casino/.../games.service.js`. A single
-     * type still sends as a bare string, so every existing request is byte for
-     * byte what it was.
-     */
-    ...(category ? { type: queryTypesFor(category).join(',') } : {}),
+    ...(category ? categoryFilter(category) : {}),
     ...(provider ? { provider } : {}),
     ...(search ? { search } : {}),
   };
@@ -122,6 +112,6 @@ export function providerGamesQuery({ category, page: p = 1, limit = 48 } = {}) {
   return {
     page: page(p),
     limit: clamp(limit, 48, MAX_LIMIT),
-    ...(category ? { type: typeForCategory(category) } : {}),
+    ...(category ? categoryFilter(category) : {}),
   };
 }

@@ -1,5 +1,6 @@
 import { Link } from 'react-router-dom';
 import { HelpCategoriesSidebar } from '../components/sections/HelpCategoriesSidebar';
+import { SUPPORT_EMAIL } from '@/lib/site';
 
 const RELATED_ARTICLES = [
   ['What is the Vault?', '/help-center/your-account/what-is-the-vault'],
@@ -33,10 +34,10 @@ function Article() {
         <h1 className="font-primary text-2xl font-bold leading-8 text-bulma">Responsible Gaming</h1>
       </div>
 
-      <p>At Bitcasino.io, alongside our sister platforms Sportsbet.io and Livecasino.io, we offer a platform and services that enable our clients to enjoy gaming and betting. We aim to provide you with a safe, secure, regulated environment which will give you a pleasant and rewarding experience. We encourage our clients to use our services responsibly and in a reasonable manner.</p>
-      <p className="mt-4">Gambling of all varieties has been a popular form of entertainment for many years. Here at Bitcasino.io, Sportsbet.io and Livecasino.io, we encourage it to be exactly that: fun. We also encourage our customers not to allow gambling to affect their usual daily routine or time spent with family and friends. Make sure that money spent is set aside for leisure and not for other purposes. It is very important not to rely on paying for life's necessities with possible gambling gains, as this is not guaranteed.</p>
+      <p>At Bitcasino, we offer a platform and services that enable our clients to enjoy gaming and betting. We aim to provide you with a safe, secure, regulated environment which will give you a pleasant and rewarding experience. We encourage our clients to use our services responsibly and in a reasonable manner.</p>
+      <p className="mt-4">Gambling of all varieties has been a popular form of entertainment for many years. Here at Bitcasino, we encourage it to be exactly that: fun. We also encourage our customers not to allow gambling to affect their usual daily routine or time spent with family and friends. Make sure that money spent is set aside for leisure and not for other purposes. It is very important not to rely on paying for life's necessities with possible gambling gains, as this is not guaranteed.</p>
       <p className="mt-4">While most customers gamble in this manner, we understand that a small minority can develop problems with their gambling.</p>
-      <p className="mt-4">At Bitcasino.io, Sportsbet.io and Livecasino.io, our customers' wellbeing is of utmost importance. We take our role within responsible gambling very seriously and recommend that you:</p>
+      <p className="mt-4">At Bitcasino, our customers' wellbeing is of utmost importance. We take our role within responsible gambling very seriously and recommend that you:</p>
 
       <ul className="mt-4 list-disc space-y-2 ps-7 marker:text-piccolo md:ps-8">
         <li>Treat betting and gaming as entertainment and only use money set aside for entertainment.</li>
@@ -53,12 +54,12 @@ function Article() {
         <li><SupportLink href="https://www.gamblingtherapy.org/">Gambling Therapy</SupportLink></li>
       </ul>
 
-      <p className="mt-4">You can also contact our friendly Bitcasino.io support agents at <a href="mailto:safergaming@bitcasino.io" className="underline hover:text-piccolo">safergaming@bitcasino.io</a> if you would like to discuss our self-exclusion process. Sometimes a short break can be useful in gathering your thoughts and stopping you from making a rash wagering decision.</p>
+      <p className="mt-4">You can also contact our friendly Bitcasino support agents if you would like to discuss our self-exclusion process. Sometimes a short break can be useful in gathering your thoughts and stopping you from making a rash wagering decision.</p>
       <p className="mt-4">On request, we will place your account on a minimum 24-hour cooling-off period. This will be followed by one of our support agents informing you of the voluntary 1-week, 1-month, 3-month, 6-month or permanent self-exclusions available.</p>
       <p className="mt-4">Please note that accounts closed under our self-exclusion Policy cannot be reversed or reopened for any reason. Once your self-exclusion has expired, we will email you to let you know your account is active again. Permanent self-exclusion will remain in place indefinitely.</p>
 
       <h2 className="mb-4 mt-10 font-primary text-xl font-bold leading-7 text-bulma">Underage</h2>
-      <p>You must be over 18 years of age, or the legal minimum age for gambling in the jurisdiction where you reside under the laws applicable to you, to gamble with Bitcasino.io, Sportsbet.io or Livecasino.io.</p>
+      <p>You must be over 18 years of age, or the legal minimum age for gambling in the jurisdiction where you reside under the laws applicable to you, to gamble with Bitcasino.</p>
       <p className="mt-4">If you have minors living in your household, we recommend reviewing parental-control software that may help control and restrict content accessible on your devices.</p>
       <ul className="mt-4 list-disc space-y-2 ps-7 marker:text-piccolo md:ps-8">
         <li><SupportLink href="https://www.netnanny.com/">https://www.netnanny.com/</SupportLink></li>
@@ -87,13 +88,15 @@ export function ResponsibleGaming() {
           ))}
         </div>
       </section>
-      <section className="mt-10 max-w-[596px] border-t border-beerus pt-8">
-        <h2 className="text-2xl font-bold text-bulma">Other ways to get help</h2>
-        <a href="mailto:hello@bitcasino.io" className="mt-4 flex items-center gap-4 bg-gohan px-6 py-4 text-bulma hover:bg-beerus">
-          <span aria-hidden="true" className="text-4xl leading-none">@</span>
-          <span><strong className="block text-xl">Email us</strong><span className="text-sm text-trunks">hello@bitcasino.io</span></span>
-        </a>
-      </section>
+      {SUPPORT_EMAIL && (
+        <section className="mt-10 max-w-[596px] border-t border-beerus pt-8">
+          <h2 className="text-2xl font-bold text-bulma">Other ways to get help</h2>
+          <a href={`mailto:${SUPPORT_EMAIL}`} className="mt-4 flex items-center gap-4 bg-gohan px-6 py-4 text-bulma hover:bg-beerus">
+            <span aria-hidden="true" className="text-4xl leading-none">@</span>
+            <span><strong className="block text-xl">Email us</strong><span className="text-sm text-trunks">{SUPPORT_EMAIL}</span></span>
+          </a>
+        </section>
+      )}
     </div>
   );
 }

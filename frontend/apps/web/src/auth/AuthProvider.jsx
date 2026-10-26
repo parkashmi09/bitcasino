@@ -3,6 +3,7 @@ import { ApiError, api, refreshSession } from '@/lib/api';
 import { ENDPOINTS } from '@/lib/endpoints';
 import { tokenStore } from './tokenStore';
 import { bindSession } from '@/lib/socket';
+import { toast } from '@/lib/toast';
 
 /**
  * Session state for the whole app.
@@ -167,7 +168,9 @@ export function AuthProvider({ children }) {
         auth: false,
         body: fields,
       });
-      return login({ identifier: fields.username, password: fields.password });
+      const session = await login({ identifier: fields.username, password: fields.password });
+      toast.success(`Welcome to Bitcasino, ${fields.username}!`, { title: 'Account created' });
+      return session;
     },
     [login],
   );
@@ -188,6 +191,7 @@ export function AuthProvider({ children }) {
       tokenStore.clear();
       setUser(null);
       setStatus('anonymous');
+      toast.info('You have been signed out.');
     }
   }, []);
 

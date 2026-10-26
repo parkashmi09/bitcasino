@@ -249,6 +249,7 @@ export function useSubmitWithdrawal() {
   const client = useQueryClient();
 
   return useMutation({
+    meta: { success: 'Withdrawal requested. You will be notified once it is processed.' },
     mutationFn: ({ coin, chain, amount, wallet, password }) =>
       request(EVENTS.SUBMIT_NEW_WITHDRAWL, {
         coin,
@@ -295,6 +296,7 @@ export function useSwap() {
   const client = useQueryClient();
 
   return useMutation({
+    meta: { success: 'Swap complete.' },
     mutationFn: ({ from, to, amount }) =>
       api(ENDPOINTS.swap, {
         method: 'POST',
@@ -341,6 +343,7 @@ export function useVaultTransfer() {
   const client = useQueryClient();
 
   return useMutation({
+    meta: { success: (_data, { direction }) => (direction === 'in' ? 'Moved to your vault.' : 'Moved back to your wallet.') },
     mutationFn: ({ direction, coin, amount, lockPeriod, depositId }) =>
       direction === 'in'
         ? api(ENDPOINTS.vaultTransferIn, { method: 'POST', body: { coin, amount: String(amount), lockPeriod } })

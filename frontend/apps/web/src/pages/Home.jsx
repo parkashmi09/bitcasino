@@ -2,11 +2,9 @@ import { useAuth } from '@/auth/AuthProvider';
 import { Hero } from '@/components/sections/Hero';
 import { HomeBanner } from '@/components/sections/HomeBanner';
 import { CatalogueRail } from '@/components/sections/CatalogueRail';
-import { LatestWins } from '@/components/sections/LatestWins';
 import { ThemeRail } from '@/components/sections/ThemeRail';
 import { TrustSection } from '@/components/sections/TrustSection';
 import { ProviderRail } from '@/components/sections/ProviderRail';
-import { Testimonials } from '@/components/sections/Testimonials';
 import { useSiteConfig } from '@/queries';
 import { HOME_RAILS, THEME_RAIL_INDEX } from '@/data/homeRails';
 
@@ -129,7 +127,6 @@ export function Home() {
       ))}
 
       <TrustSection />
-      <Testimonials />
       {!signedOut && <ProviderRail />}
     </>
   );

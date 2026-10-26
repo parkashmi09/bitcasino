@@ -138,6 +138,7 @@ export function useBonusBalance({ enabled = true } = {}) {
 export function useClaimUnlocked() {
   const client = useQueryClient();
   return useMutation({
+    meta: { success: 'Rewards claimed to your balance.' },
     mutationFn: () => api(ENDPOINTS.bonusBalanceClaim, { method: 'POST' }),
     retry: false,
     onSuccess: () => {
@@ -150,6 +151,7 @@ export function useClaimUnlocked() {
 /** Redeem a code for a fixed amount. `bonus` gate. */
 export function useRedeemCode() {
   return useMutation({
+    meta: { success: 'Code redeemed.' },
     mutationFn: ({ code }) => api(ENDPOINTS.bonusRedeem, { method: 'POST', body: { code } }),
     retry: false,
     onSuccess: () => refreshBalances(),
@@ -172,6 +174,7 @@ export function useRakeback({ enabled = true } = {}) {
 export function useClaimRakeback() {
   const client = useQueryClient();
   return useMutation({
+    meta: { success: 'Rakeback claimed.' },
     mutationFn: () => api(ENDPOINTS.rakebackClaim, { method: 'POST' }),
     retry: false,
     onSuccess: () => {

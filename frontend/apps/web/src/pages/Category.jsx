@@ -5,9 +5,8 @@ import { GameGridSkeleton, QueryError } from '@/components/ui/QueryState';
 import { categoryLabel } from '@/data/categories';
 import {
   CATEGORY_SLUGS,
-  categoryFromType,
   isCategorySlug,
-  queryTypesFor,
+  subcategoriesOf,
 } from '@/data/adapters/categories';
 import { useGames } from '@/queries';
 import { useGameCollection } from '@/queries/collections';
@@ -37,8 +36,8 @@ const PAGE_SIZE = 35;
  *
  * ## Except the one page that is not fixed to one axis
  *
- * `/categories/live-casino` covers three sub-categories as well as its own
- * type (`SLUG_EXTRA_TYPES` in `data/adapters/categories.js`), so it has a
+ * `/categories/live-casino` covers four sub-categories
+ * (`SUBCATEGORIES` in `data/adapters/categories.js`), so it has a
  * second axis to offer and the reference gives it a third dropdown:
  * `Categories`, `Providers`, `Sort by`, where every other category page shows
  * two. `covers` below is what decides that, and it is derived from the same
@@ -78,33 +77,14 @@ export function Category({ mode = 'category' }) {
    * live casino one carries `Categories` as well, because it is the only one
    * with anything to narrow to.
    *
-   * Derived from `queryTypesFor` rather than listed again here, so the filter
-   * and the request can never disagree about what the page contains.
+   * From `subcategoriesOf`, the same table the adapter layer keeps, so the
+   * filter cannot offer a slice the page does not contain.
    */
   const covers = useMemo(() => {
     /* `/games` — the reference's All Games page — is fixed to no axis at all,
-       so the Categories dropdown offers every one of the ten, all the way from
-       `All Game Categories`. That is why it is the only mode with a dropdown
-       whose options are static rather than derived from `queryTypesFor`. */
+       so the Categories dropdown offers every one of the ten. */
     if (mode === 'all') return CATEGORY_SLUGS;
-    const types = queryTypesFor(slug ?? '');
-    if (types.length <= 1) return [];
-    return types
-      .map(categoryFromType)
-      .filter(Boolean)
-      /**
-       * The page's own slug is dropped, because as an option it would not
-       * narrow anything: choosing `Live Casino` on the Live Casino page sends
-       * `live-casino`, which expands right back to the union — the same
-       * twenty-nine `All Game Categories` already shows. An option that reads
-       * as a filter and changes nothing is worse than no option.
-       *
-       * What that leaves unreachable is the handful of tables typed
-       * `live-casino` and nothing more specific — the lobby, and the three
-       * placeholder rooms. They have no name of their own to offer, which is
-       * exactly why they are the page's own type rather than a slice of it.
-       */
-      .filter((value) => value !== slug);
+    return subcategoriesOf(slug ?? '');
   }, [mode, slug]);
 
   /**
@@ -365,7 +345,7 @@ export function Category({ mode = 'category' }) {
       breadcrumb={
         mode === 'all'
           ? [{ label: 'Games' }]
-          : [{ label: 'Games', to: '/' }, { label: title }]
+          : [{ label: 'Games', to: '/games' }, { label: title }]
       }
     />
   );

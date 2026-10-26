@@ -120,7 +120,7 @@ export function Rewards() {
             aria-label="Claim reward"
             className={cn(
               'grid size-10 shrink-0 cursor-pointer place-items-center rounded-i-sm',
-              'bg-piccolo text-goten shadow-sm transition-colors',
+              'bg-piccolo text-on-piccolo shadow-sm transition-colors',
               'hover:bg-piccolo-80 active:bg-piccolo-120',
             )}
           >

@@ -96,7 +96,7 @@ export function VaultPanel({ currency, coins, balances, onBack }) {
             type="button"
             disabled={!ready}
             onClick={() => send({ direction: 'in', coin, amount, lockPeriod })}
-            className="h-11 cursor-pointer rounded-i-sm bg-piccolo text-sm font-medium text-goten transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
+            className="h-11 cursor-pointer rounded-i-sm bg-piccolo text-sm font-medium text-on-piccolo transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
           >
             Move to vault
           </button>

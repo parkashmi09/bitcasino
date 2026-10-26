@@ -2,7 +2,8 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { renderHook, waitFor } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 
-import { raceOn, toPromotionCard, toSlides, toTournament, useBonusEvents } from './promotions';
+import { makeGates } from '@/lib/gates';
+import { promotionOn, raceOn, toPromotionCard, toSlides, toTournament, useBonusEvents } from './promotions';
 
 /**
  * `GET /user/bonus/events`, and the shape it does not have.
@@ -157,6 +158,16 @@ describe('the race, promotion and slide adapters', () => {
     expect(toPromotionCard(row).ended).toBe(false);
     expect(toPromotionCard({ ...row, promoStatus: 'ended' }).ended).toBe(true);
     expect(toPromotionCard({ ...row, endsAt: '2000-01-01T00:00:00Z' }).ended).toBe(true);
+  });
+
+  it('hides sports promotions until the site config says there is a sportsbook', () => {
+    const sports = toPromotionCard({ segment: 'sports', slug: 'x' });
+    const casino = toPromotionCard({ segment: 'casino', slug: 'x' });
+    const off = makeGates({ flags: { sportsbook: false } });
+    expect(promotionOn(casino, off)).toBe(true);
+    expect(promotionOn(sports, off)).toBe(false);
+    expect(promotionOn(sports, makeGates({ flags: null, ready: false }))).toBe(false);
+    expect(promotionOn(sports, makeGates({ flags: { sportsbook: true } }))).toBe(true);
   });
 
   it('keeps active slider placements only, in sortOrder', () => {

@@ -2,7 +2,7 @@ import { cn } from '@/lib/cn';
 
 /** Tone keys: brand, positive, caution, negative, neutral, jackpot. */
 const TONES = {
-  brand: 'bg-piccolo text-goten',
+  brand: 'bg-piccolo text-on-piccolo',
   positive: 'bg-roshi text-goten',
   caution: 'bg-krillin text-popo',
   negative: 'bg-chichi text-goten',

@@ -229,7 +229,7 @@ function ToolbarButton({ label, onClick, children, ...props }) {
 function ChooseMode({ game }) {
   return (
     <div className="text-center">
-      <span className="mx-auto grid size-16 place-items-center rounded-full bg-piccolo text-goten">
+      <span className="mx-auto grid size-16 place-items-center rounded-full bg-piccolo text-on-piccolo">
         <Icon name="play" size={28} className="ms-1" />
       </span>
       <p className="mt-4 font-secondary text-lg font-medium text-bulma">{game.title}</p>

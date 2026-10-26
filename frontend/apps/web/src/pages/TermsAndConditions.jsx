@@ -1,5 +1,6 @@
 import { Link } from 'react-router-dom';
 import { HelpCategoriesSidebar } from '../components/sections/HelpCategoriesSidebar';
+import { OPERATOR_NOTICE, SUPPORT_EMAIL } from '@/lib/site';
 
 const RELATED_ARTICLES = [
   ['Dispute Resolution', '/help-center/dispute-resolution'],
@@ -8,10 +9,10 @@ const RELATED_ARTICLES = [
 ];
 
 const definitions = [
-  ['Bitcasino.io', "is referred to as 'we' or 'us' or 'Company'."],
+  ['Bitcasino', "is referred to as 'we' or 'us' or 'Company'."],
   ['Player', "is referred to as 'you' or 'Player' or 'Member' or 'Customer(s)' or 'Account Holder'."],
   ['Game(s)', 'means Casino and other RNG (Random Number Generator) games, which may become available from time to time on the website.'],
-  ['Website', 'means Bitcasino.io through desktop, mobile or other platforms utilised by the Player.'],
+  ['Website', 'means Bitcasino through desktop, mobile or other platforms utilised by the Player.'],
   ['Member Account', 'User account required to access and use the Website.'],
   ['Customer Support', 'Assistance and support services provided by the Company to its Customers.'],
   ['Event(s)', 'Refers to a betting event or competition or game in a sport where Customers can place wagers for bets on the outcome.'],
@@ -24,7 +25,7 @@ const definitions = [
 const sections = [
   ['1. General', [
     'These terms and conditions ("Terms and Conditions") apply to the usage of Games accessible through Website.',
-    'Bitcasino.io is owned and operated by Moon Technologies B.V. (Schout Bij Nacht Doormanweg 40, P.O. Box 4745, Curaçao).',
+    OPERATOR_NOTICE,
     'These Terms and Conditions come into force as soon as you complete the registration process, including checking the box accepting these Terms and Conditions and successfully creating an account.',
     'You must read these Terms and Conditions carefully in their entirety before creating an account. If you do not agree with any provision, you must not create an account or continue to use the Website.',
     'We are entitled to amend these Terms and Conditions at any time. Material changes will be brought to your attention by email or by placing a notice on the Website. Continued use after an amendment is acceptance of the amended Terms and Conditions.',
@@ -201,13 +202,15 @@ export function TermsAndConditions() {
           ))}
         </div>
       </section>
-      <section className="mt-10 max-w-[596px] border-t border-beerus pt-8">
-        <h2 className="text-2xl font-bold text-bulma">Other ways to get help</h2>
-        <a href="mailto:hello@bitcasino.io" className="mt-4 flex items-center gap-4 bg-gohan px-6 py-4 text-bulma hover:bg-beerus">
-          <span aria-hidden="true" className="text-4xl leading-none">@</span>
-          <span><strong className="block text-xl">Email us</strong><span className="text-sm text-trunks">hello@bitcasino.io</span></span>
-        </a>
-      </section>
+      {SUPPORT_EMAIL && (
+        <section className="mt-10 max-w-[596px] border-t border-beerus pt-8">
+          <h2 className="text-2xl font-bold text-bulma">Other ways to get help</h2>
+          <a href={`mailto:${SUPPORT_EMAIL}`} className="mt-4 flex items-center gap-4 bg-gohan px-6 py-4 text-bulma hover:bg-beerus">
+            <span aria-hidden="true" className="text-4xl leading-none">@</span>
+            <span><strong className="block text-xl">Email us</strong><span className="text-sm text-trunks">{SUPPORT_EMAIL}</span></span>
+          </a>
+        </section>
+      )}
     </div>
   );
 }

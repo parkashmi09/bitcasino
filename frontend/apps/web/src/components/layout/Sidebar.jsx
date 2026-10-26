@@ -406,18 +406,19 @@ export function SidebarNav({ onNavigate, recentsCount, favouritesCount }) {
   );
 }
 
-/** Locale and support, pinned below the scrolling link list. */
-function SidebarFooter() {
+/**
+ * Locale and support, pinned below the scrolling link list.
+ *
+ * The site ships in English only, so the locale row is a label, not a menu.
+ * Support opens the help centre: there is no live chat behind it.
+ */
+function SidebarFooter({ onNavigate }) {
   const [localeTip, localeHandlers] = useRailTip();
   const [supportTip, supportHandlers] = useRailTip();
 
   return (
     <div className="flex flex-col gap-2 p-2 px-3">
-      <button
-        type="button"
-        {...localeHandlers}
-        className={cn(ROW, 'rounded-xl bg-hit p-2 text-bulma hover:bg-beerus')}
-      >
+      <div {...localeHandlers} className={cn(ROW, 'rounded-xl bg-hit p-2 text-bulma')}>
         <img
           src="/images/ui/flag-en.svg"
           alt=""
@@ -426,27 +427,19 @@ function SidebarFooter() {
           className="size-5 shrink-0 rounded-sm object-cover"
         />
         <span className={cn(ROW_LABEL, 'flex-1 text-start')}>English</span>
-        <Icon
-          name="chevron-down"
-          size={16}
-          className="ms-auto text-trunks group-data-[collapsed=true]/rail:hidden"
-        />
         <RailTip tip={localeTip}>English</RailTip>
-      </button>
+      </div>
 
-      <button
-        type="button"
+      <Link
+        to="/help-center"
+        onClick={onNavigate}
         {...supportHandlers}
         className={cn(ROW, 'rounded-xl bg-hit p-2 text-bulma hover:bg-beerus')}
       >
         <Icon name="headset" size={16} className="mx-0.5 shrink-0 text-trunks" />
         <span className={cn(ROW_LABEL, 'flex-1 text-start')}>Support</span>
-        <span className="ms-auto inline-flex items-center gap-1.5 text-xs text-trunks group-data-[collapsed=true]/rail:hidden">
-          Chat
-          <span className="size-2 rounded-full bg-roshi" />
-        </span>
         <RailTip tip={supportTip}>Support</RailTip>
-      </button>
+      </Link>
     </div>
   );
 }
@@ -545,7 +538,7 @@ export function MobileSidebar({ open, onClose, recentsCount, favouritesCount }) 
             favouritesCount={favouritesCount}
           />
         </div>
-        <SidebarFooter />
+        <SidebarFooter onNavigate={onClose} />
       </div>
     </div>
   );

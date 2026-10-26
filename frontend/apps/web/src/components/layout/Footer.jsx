@@ -3,12 +3,10 @@ import { Link } from 'react-router-dom';
 import { Icon } from '@/components/ui/Icon';
 import { cn } from '@/lib/cn';
 import { useMediaQuery } from '@/hooks/useMediaQuery';
-import { useFiatCurrency } from '@/hooks/useWallet';
-import { useExchangeRates } from '@/hooks/usePreferences';
-import { fiatPair } from '@/lib/format';
 import { useSiteConfig } from '@/queries';
 import { CURRENCY_ORDER } from '@/data/currencies';
 import { useGates } from '@/hooks/useGates';
+import { OPERATOR_NOTICE, SITE_NAME } from '@/lib/site';
 
 /**
  * Fat footer, laid out to the reference site's measurements.
@@ -23,7 +21,7 @@ import { useGates } from '@/hooks/useGates';
  */
 
 const ABOUT_PARAGRAPHS = [
-  'Bitcasino is owned and operated by Moon Technologies B.V registration number 152185, registered address Schout Bij Nacht Doormanweg 40, P.O. Box 4745, Curaçao. CGA (Curacao Gaming Authority) is the licensing authority and the supervisor for Moon Technologies B.V. who is operating under the license number OGL/2023/111/0069 issued on 01.07.2024 and extended under LOK. Contact us at hello@bitcasino.io. Payment agent company is mProcessing Solutions Ltd with address Menandrou 4, 1066, Nicosia, Cyprus and registration number HE 373261.',
+  OPERATOR_NOTICE,
   'In order to register for this website, the user is required to accept the General Terms and Conditions . In the event the General Terms and Conditions are updated, existing users may choose to discontinue using the products and services before the said update shall become effective, which is a minimum of two weeks after it has been announced.',
   'Play responsibly - GamCare, Keep It Fun, Gambling Therapy.',
 ];
@@ -33,14 +31,16 @@ const LINK_COLUMNS = [
     heading: 'Games',
     links: [
       { label: 'Slots', to: '/categories/video-slots' },
-      { label: 'Roulette', to: '/categories/table-games' },
-      { label: 'Live Baccarat', to: '/categories/live-casino' },
-      { label: 'Blackjack', to: '/categories/table-games' },
+      { label: 'Roulette', to: '/categories/roulette' },
+      { label: 'Live Baccarat', to: '/categories/baccarat' },
+      { label: 'Blackjack', to: '/categories/blackjack' },
       { label: 'Live Casino', to: '/categories/live-casino' },
+      // No video-poker category exists; those titles are filed under table games.
       { label: 'Video Poker', to: '/categories/table-games' },
       { label: 'Live Poker', to: '/categories/live-casino' },
       { label: 'Live Game Shows', to: '/categories/game-shows' },
-      { label: 'Sportsbook', to: '/categories/crash' },
+      // `/sports` is gated (lib/gates.js): this site has no sportsbook, so the link hides itself.
+      { label: 'Sportsbook', to: '/sports' },
       { label: 'All providers', to: '/providers' },
     ],
   },
@@ -63,11 +63,11 @@ const LINK_COLUMNS = [
       { label: 'Self-exclusion', to: '/help-center/self-exclusion' },
       { label: 'Dispute resolution', to: '/help-center/dispute-resolution' },
       { label: 'AML policy', to: '/help-center/aml' },
-      { label: 'Fairness and RNG testing methods', to: '/help-center/terms-and-conditions' },
-      { label: 'Are the Games Provably Fair', to: '/help-center/provably-fair' },
-      { label: 'KYC policies', to: '/help-center/terms-and-conditions' },
+      { label: 'Fairness and RNG testing methods', to: '/help-center/provably-fair' },
+      { label: 'Are the Games Provably Fair', to: '/help-center/help-getting-started/are-the-games-provably-fair--' },
+      { label: 'KYC policies', to: '/help-center/help-getting-started/bitcasino-verification-kyc-faq' },
       { label: 'Account, pay-outs and rewards', to: '/help-center/reward-terms' },
-      { label: 'Affiliate terms and conditions', to: '/help-center/affiliate-terms' },
+      { label: 'Affiliate terms and conditions', to: '/help-center/help-terms-and-conditions/affiliate-terms' },
       { label: 'Privacy policy', to: '/help-center/privacy-policy' },
       { label: 'Benefits of Bitcoin', to: '/bitcoin-breakdown' },
     ],
@@ -206,22 +206,21 @@ function BandHeading({ children }) {
   );
 }
 
-/** 40px square mark used for both payment methods and social links. */
+/** 40px square mark used for both payment methods and social links. Plain images: none has a page to open. */
 function MarkRow({ items }) {
   return (
     <div className="flex flex-wrap gap-1">
       {items.map((item) => (
-        <a key={item.name} href="#" aria-label={item.name} className="block">
-          <img
-            src={item.src}
-            alt={item.name}
-            width={40}
-            height={40}
-            loading="lazy"
-            decoding="async"
-            className="inline-block h-10 w-auto"
-          />
-        </a>
+        <img
+          key={item.name}
+          src={item.src}
+          alt={item.name}
+          width={40}
+          height={40}
+          loading="lazy"
+          decoding="async"
+          className="block h-10 w-auto"
+        />
       ))}
     </div>
   );
@@ -229,11 +228,6 @@ function MarkRow({ items }) {
 
 export function Footer() {
   const wide = useMediaQuery(UNFOLD_AT);
-  // The quoted pair. Both are shared preferences/reads rather than props: the
-  // footer is rendered once per page by `Layout` and nothing above it knows
-  // or should know which currency the player reads balances in.
-  const [fiat] = useFiatCurrency();
-  const { rates } = useExchangeRates();
 
   /**
    * The marks to show, from the operator's own currency flags.
@@ -265,7 +259,7 @@ export function Footer() {
           <div className="grid gap-6 xl:grid-cols-[13.75rem_1fr_auto] xl:items-start xl:justify-between 2xl:gap-16">
             <div className="text-bulma">
               <h2 className="font-primary text-sm font-normal leading-5 text-bulma">
-                About Bitcasino.io
+                About {SITE_NAME}
               </h2>
               {ABOUT_PARAGRAPHS.map((paragraph, index) => (
                 <p key={paragraph.slice(0, 24)} className={cn('m-0 text-sm leading-5', index > 0 && 'mt-5')}>
@@ -308,14 +302,6 @@ export function Footer() {
                   className="pointer-events-none absolute top-1/2 end-3 z-3 -translate-y-1/2 text-bulma"
                 />
               </span>
-
-              {/* The pair the settings page's `Preferred FIAT currency` sets,
-                  quoted against real rates from the public exchange-rate
-                  route. This was a hardcoded `1 USDT = 1 USD`, which is what
-                  the new setting now has something to change. */}
-              <div className="flex h-10 items-center justify-center rounded-lg bg-gohan px-4 text-base text-trunks">
-                {fiatPair(fiat, rates[fiat])}
-              </div>
             </div>
           </div>
 
@@ -337,17 +323,15 @@ export function Footer() {
               <BandHeading>Licenses</BandHeading>
               <div className="flex flex-wrap items-center gap-4 text-bulma">
                 <div className="flex flex-wrap items-center gap-4">
-                  <a href="#" aria-label="CGA verified certificate">
-                    <img
-                      src="/images/footer/licenses/cga.svg"
-                      alt="CGA Verified Certificate Seal"
-                      width={62}
-                      height={39}
-                      loading="lazy"
-                      decoding="async"
-                      className="block h-[39px] w-auto"
-                    />
-                  </a>
+                  <img
+                    src="/images/footer/licenses/cga.svg"
+                    alt="CGA Verified Certificate Seal"
+                    width={62}
+                    height={39}
+                    loading="lazy"
+                    decoding="async"
+                    className="block h-[39px] w-auto"
+                  />
                 </div>
                 <div className="flex flex-wrap items-center gap-4">
                   <svg
@@ -369,40 +353,38 @@ export function Footer() {
                       18+
                     </text>
                   </svg>
-                  <a href="#" aria-label="Hub88">
-                    <svg width="72" height="18" viewBox="0 0 72 18" role="img" aria-label="Hub88">
-                      <text
-                        x="0"
-                        y="15"
-                        fontFamily="var(--font-primary)"
-                        fontSize="18"
-                        fontWeight="700"
-                        fill="#00A9CE"
-                      >
-                        H
-                      </text>
-                      <text
-                        x="12"
-                        y="15"
-                        fontFamily="var(--font-primary)"
-                        fontSize="18"
-                        fontWeight="700"
-                        fill="#0F1724"
-                      >
-                        ub
-                      </text>
-                      <text
-                        x="35"
-                        y="15"
-                        fontFamily="var(--font-primary)"
-                        fontSize="18"
-                        fontWeight="700"
-                        fill="#2E9BD6"
-                      >
-                        88
-                      </text>
-                    </svg>
-                  </a>
+                  <svg width="72" height="18" viewBox="0 0 72 18" role="img" aria-label="Hub88">
+                    <text
+                      x="0"
+                      y="15"
+                      fontFamily="var(--font-primary)"
+                      fontSize="18"
+                      fontWeight="700"
+                      fill="#00A9CE"
+                    >
+                      H
+                    </text>
+                    <text
+                      x="12"
+                      y="15"
+                      fontFamily="var(--font-primary)"
+                      fontSize="18"
+                      fontWeight="700"
+                      fill="#0F1724"
+                    >
+                      ub
+                    </text>
+                    <text
+                      x="35"
+                      y="15"
+                      fontFamily="var(--font-primary)"
+                      fontSize="18"
+                      fontWeight="700"
+                      fill="#2E9BD6"
+                    >
+                      88
+                    </text>
+                  </svg>
                 </div>
               </div>
             </div>
@@ -415,17 +397,16 @@ export function Footer() {
               <BandHeading>Awards</BandHeading>
               <div className="flex flex-wrap gap-1">
                 {AWARDS.map((award) => (
-                  <a key={award.src} href="#" className="block">
-                    <img
-                      src={award.src}
-                      alt={award.alt}
-                      width={120}
-                      height={40}
-                      loading="lazy"
-                      decoding="async"
-                      className="inline-block h-10 w-auto"
-                    />
-                  </a>
+                  <img
+                    key={award.src}
+                    src={award.src}
+                    alt={award.alt}
+                    width={120}
+                    height={40}
+                    loading="lazy"
+                    decoding="async"
+                    className="inline-block h-10 w-auto"
+                  />
                 ))}
               </div>
             </div>

@@ -218,7 +218,8 @@ function SignUpForm() {
       ...(form.email.trim() ? { email: form.email.trim() } : {}),
       ...(phone ? { phone: `${form.dialCode}${phone}` } : {}),
       ...(country ? { country } : {}),
-      ...(referredBy ? { referredBy } : {}),
+      // A code the check already said does not exist is dropped, as the banner promises.
+      ...(referredBy && referralValid !== false ? { referredBy } : {}),
     };
   }
 

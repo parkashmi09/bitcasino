@@ -486,6 +486,10 @@ const GeneralLock = () => {
             </div>
           </form>
 
+          {!verified && (
+            <p className='text-muted-foreground text-sm'>Pick a client and enter your transaction code, then Load to see the events you can lock for them.</p>
+          )}
+
           {verified && (
             <div className='grid gap-6 lg:grid-cols-2'>
               <div>

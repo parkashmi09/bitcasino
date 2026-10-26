@@ -299,7 +299,7 @@ function TierCard({ tier, current }) {
         <p
           aria-hidden={!current}
           className={cn(
-            'justify-self-center rounded-full bg-piccolo px-3 py-0.5 text-xs font-medium text-goten',
+            'justify-self-center rounded-full bg-piccolo px-3 py-0.5 text-xs font-medium text-on-piccolo',
             !current && 'invisible',
           )}
         >

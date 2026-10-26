@@ -38,7 +38,12 @@ export default defineConfig({
   server: {
     port: 5173,
     proxy: {
-      '/api': { target: API_TARGET || 'http://127.0.0.1:4000', changeOrigin: true },
+      // Same-origin for the browser; drop its Origin so a shared backend's CORS list need not name every dev port.
+      '/api': {
+        target: API_TARGET || 'http://127.0.0.1:4000',
+        changeOrigin: true,
+        configure: (proxy) => proxy.on('proxyReq', (req) => req.removeHeader('origin')),
+      },
       '/socket.io': { target: API_TARGET || 'http://127.0.0.1:4001', changeOrigin: true, ws: true },
       '/casino-socket': {
         target: 'http://127.0.0.1:4003',

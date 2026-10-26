@@ -1,5 +1,6 @@
 import { Link } from 'react-router-dom';
 import { HelpCategoriesSidebar } from '../components/sections/HelpCategoriesSidebar';
+import { SUPPORT_EMAIL } from '@/lib/site';
 
 const RELATED_ARTICLES = [
   ['Dispute Resolution', '/help-center/dispute-resolution'],
@@ -32,8 +33,7 @@ function Article() {
       <p className="italic">Updated: 24.11.2022</p>
 
       <h2 className="mb-4 mt-10 text-xl font-bold leading-7 text-bulma">Policy approval</h2>
-      <p>Moon Technologies B.V. (Curaçao) (the "Company" or "We") is a company registered and incorporated in Curaçao with company registration number 152185.</p>
-      <p className="mt-4">Gaming License Number: 1668/JAZ</p>
+      <p>This policy is adopted by the operator of this site (the "Company" or "We").</p>
       <p className="mt-4">The Company is approved to accept and transact with customers in fiat currencies, crypto currencies, or a combination of both.</p>
       <p className="mt-4">We are committed to preventing our systems from being used for money laundering, terrorist financing or other crime. This includes applying the measures described below.</p>
 
@@ -86,13 +86,15 @@ export function AmlPolicy() {
           ))}
         </div>
       </section>
-      <section className="mt-10 max-w-[596px] border-t border-beerus pt-8">
-        <h2 className="text-2xl font-bold text-bulma">Other ways to get help</h2>
-        <a href="mailto:hello@bitcasino.io" className="mt-4 flex items-center gap-4 bg-gohan px-6 py-4 text-bulma hover:bg-beerus">
-          <span aria-hidden="true" className="text-4xl leading-none">@</span>
-          <span><strong className="block text-xl">Email us</strong><span className="text-sm text-trunks">hello@bitcasino.io</span></span>
-        </a>
-      </section>
+      {SUPPORT_EMAIL && (
+        <section className="mt-10 max-w-[596px] border-t border-beerus pt-8">
+          <h2 className="text-2xl font-bold text-bulma">Other ways to get help</h2>
+          <a href={`mailto:${SUPPORT_EMAIL}`} className="mt-4 flex items-center gap-4 bg-gohan px-6 py-4 text-bulma hover:bg-beerus">
+            <span aria-hidden="true" className="text-4xl leading-none">@</span>
+            <span><strong className="block text-xl">Email us</strong><span className="text-sm text-trunks">{SUPPORT_EMAIL}</span></span>
+          </a>
+        </section>
+      )}
     </div>
   );
 }

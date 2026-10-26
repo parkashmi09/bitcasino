@@ -12,7 +12,7 @@ export function NotFound() {
       </p>
       <Link
         to="/"
-        className="mt-6 inline-flex h-12 items-center justify-center rounded-i-md bg-piccolo px-6 text-base font-medium text-goten transition-colors hover:bg-piccolo-80 active:bg-piccolo-120"
+        className="mt-6 inline-flex h-12 items-center justify-center rounded-i-md bg-piccolo px-6 text-base font-medium text-on-piccolo transition-colors hover:bg-piccolo-80 active:bg-piccolo-120"
       >
         Back to the lobby
       </Link>

@@ -596,9 +596,13 @@ export type RouteRequirement = {
 
   /** Owner flags the chain needs (e.g. `sportsexchange`): a pasted URL is closed like the sidebar entry. */
   ownerFlags: string[]
+
+  /** Owner-plan marks the sidebar also hides on (`feature`, the owner side of `flag`): a pasted URL says "not in your plan". */
+  planFeatures: string[]
+  planFlags: string[]
 }
 
-type Marks = { permission?: string | string[]; promotions?: boolean; direct?: boolean; account?: 'marketing'; ownerFlag?: string }
+type Marks = { permission?: string | string[]; promotions?: boolean; direct?: boolean; account?: 'marketing'; ownerFlag?: string; feature?: string; flag?: string }
 
 const collectRoutes = (): RouteRequirement[] => {
   const out: RouteRequirement[] = []
@@ -613,7 +617,9 @@ const collectRoutes = (): RouteRequirement[] => {
         promotions: marks.some(m => m.promotions),
         direct: marks.some(m => m.direct),
         account: marks.find(m => m.account)?.account,
-        ownerFlags: marks.map(m => m.ownerFlag).filter((f): f is string => !!f)
+        ownerFlags: marks.map(m => m.ownerFlag).filter((f): f is string => !!f),
+        planFeatures: marks.map(m => m.feature).filter((f): f is string => !!f),
+        planFlags: marks.map(m => m.flag).filter((f): f is string => !!f)
       })
     }
 

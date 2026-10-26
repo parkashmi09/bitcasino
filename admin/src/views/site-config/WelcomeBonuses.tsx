@@ -345,9 +345,9 @@ const WelcomeForm = ({ saved }: { saved?: Welcome }) => {
 
       <Card className='shadow-none'>
         <CardHeader>
-          <CardTitle className='text-base'>hash.game deposit bonus{monthly ? ' — 4 deposits a month' : ''}</CardTitle>
+          <CardTitle className='text-base'>Deposit bonus program{monthly ? ' — 4 deposits a month' : ''}</CardTitle>
           <CardDescription>
-            hash.game: “Get 4 deposit bonuses every month. Each bonus is locked and unlocks as you wager. All 4 chances reset on the 1st
+            Players see: “Get 4 deposit bonuses every month. Each bonus is locked and unlocks as you wager. All 4 chances reset on the 1st
             of each month at 00:00 UTC.” With the monthly program on, the Nth credited deposit of the month gets row N below (instead of
             the first-deposit tiers). Gradual unlock: every bet unlocks wager × game contribution × house edge × unlock rate, and the
             player claims it any time (no expiry; it never blocks a withdrawal). The on/off switch is “Give a first deposit bonus” above.
@@ -356,8 +356,8 @@ const WelcomeForm = ({ saved }: { saved?: Welcome }) => {
         <CardContent className='grid gap-4'>
           <div className='grid max-w-xl gap-4'>
             <SwitchField id='dpMonthly' label='Monthly deposit bonus (4 a month)' hint='Off: only the first deposit, by the tiers above.' checked={monthly} onChange={setMonthly} disabled={!writable} />
-            <SwitchField id='dpGradual' label='Gradual unlock (hash.game)' hint='Off: the wagering multiplier above, paid all at once.' checked={gradual} onChange={setGradual} disabled={!writable} />
-            <TextField id='unlockRate' label='Unlock rate %' hint='hash.game Deposit Rakeback: wagered × house edge × 1%' inputMode='decimal' value={unlockRate} onChange={e => setUnlockRate(e.target.value)} />
+            <SwitchField id='dpGradual' label='Gradual unlock' hint='Off: the wagering multiplier above, paid all at once.' checked={gradual} onChange={setGradual} disabled={!writable} />
+            <TextField id='unlockRate' label='Unlock rate %' hint='Deposit rakeback: wagered × house edge × 1%' inputMode='decimal' value={unlockRate} onChange={e => setUnlockRate(e.target.value)} />
           </div>
           <Table>
             <TableHeader>
@@ -390,7 +390,7 @@ const WelcomeForm = ({ saved }: { saved?: Welcome }) => {
               Remove last
             </Button>
             <Button type='button' variant='ghost' disabled={!writable} onClick={() => setSchedule(HASH_SCHEDULE)}>
-              hash.game defaults
+              Default schedule
             </Button>
           </div>
         </CardContent>

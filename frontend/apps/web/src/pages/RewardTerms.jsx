@@ -1,5 +1,6 @@
 import { Link } from 'react-router-dom';
 import { HelpCategoriesSidebar } from '../components/sections/HelpCategoriesSidebar';
+import { SUPPORT_EMAIL } from '@/lib/site';
 
 const RELATED_ARTICLES = [
   ['Dispute Resolution', '/help-center/dispute-resolution'],
@@ -123,7 +124,7 @@ function Article() {
         <li><strong>Free chips</strong> - given specifically for table games</li>
         <li><strong>Cash rewards</strong> - cash added to a player's balance automatically</li>
       </ul>
-      <p>Players can find available rewards and enable promo codes in the Rewards tab of their account. Bitcasino.io may change or cancel any promotion at its sole discretion.</p>
+      <p>Players can find available rewards and enable promo codes in the Rewards tab of their account. Bitcasino may change or cancel any promotion at its sole discretion.</p>
 
       <h2 className="mb-4 mt-10 text-xl font-bold leading-7 text-bulma">Reward money wagering</h2>
       <p>For reward money with wagering requirements, players must turn over the reward and its winnings a specified number of times before making a withdrawal.</p>
@@ -143,7 +144,7 @@ function Article() {
 
       <h2 className="mb-4 mt-10 text-xl font-bold leading-7 text-bulma">Reward abuse</h2>
       <p>Reward abuse includes breaching reward terms, opening multiple accounts to claim multiple rewards, or allowing another person to place bets on a player's account while a reward is active.</p>
-      <p className="mt-4">Where there is reasonable suspicion or proof of reward abuse, Bitcasino.io may forfeit the reward and associated winnings, remove related funds, restrict products, exclude the player from future promotions, or terminate the account.</p>
+      <p className="mt-4">Where there is reasonable suspicion or proof of reward abuse, Bitcasino may forfeit the reward and associated winnings, remove related funds, restrict products, exclude the player from future promotions, or terminate the account.</p>
       <p className="mt-4">Methods, techniques or software that give a player an edge over other players or the reward system are prohibited. Rewards are intended for non-professional entertainment purposes only.</p>
       <p className="mt-4">By enabling a reward or using reward funds for play, a player accepts these Terms and Conditions, the promotional material requirements, and the General Terms and Conditions.</p>
     </article>
@@ -164,10 +165,12 @@ export function RewardTerms() {
           {RELATED_ARTICLES.map(([label, to]) => <Link key={label} to={to} className="text-xl text-bulma hover:text-piccolo"><span className="mb-1 block text-[10px] uppercase leading-4 tracking-[0.5px] text-trunks">Bitcasino Information</span>{label}</Link>)}
         </div>
       </section>
-      <section className="mt-10 max-w-[596px] border-t border-beerus pt-8">
-        <h2 className="text-2xl font-bold text-bulma">Other ways to get help</h2>
-        <a href="mailto:hello@bitcasino.io" className="mt-4 flex items-center gap-4 bg-gohan px-6 py-4 text-bulma hover:bg-beerus"><span aria-hidden="true" className="text-4xl leading-none">@</span><span><strong className="block text-xl">Email us</strong><span className="text-sm text-trunks">hello@bitcasino.io</span></span></a>
-      </section>
+      {SUPPORT_EMAIL && (
+        <section className="mt-10 max-w-[596px] border-t border-beerus pt-8">
+          <h2 className="text-2xl font-bold text-bulma">Other ways to get help</h2>
+          <a href={`mailto:${SUPPORT_EMAIL}`} className="mt-4 flex items-center gap-4 bg-gohan px-6 py-4 text-bulma hover:bg-beerus"><span aria-hidden="true" className="text-4xl leading-none">@</span><span><strong className="block text-xl">Email us</strong><span className="text-sm text-trunks">{SUPPORT_EMAIL}</span></span></a>
+        </section>
+      )}
     </div>
   );
 }

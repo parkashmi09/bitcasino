@@ -21,7 +21,7 @@ export const CATEGORIES = Object.freeze([
   { slug: 'live-casino', label: 'Live Casino', icon: 'live' },
   /* The two live sub-categories the sidebar's Live Games group opens. Their
      pages are slices of `live-casino` rather than siblings beside it — see
-     `SLUG_EXTRA_TYPES` in `adapters/categories.js`. Both take the `cards`
+     `SUBCATEGORIES` in `adapters/categories.js`. Both take the `cards`
      glyph: the nav rows render `NavIcon`, which has the reference's own
      baccarat and blackjack art, so this only shows where `Icon` is used. */
   { slug: 'baccarat', label: 'Baccarat', icon: 'cards' },

@@ -31,7 +31,7 @@ const noticeReason = (pathname: string, reason: Refusal) => {
 
   if (reason === 'direct') return 'Direct users are managed by the Super Admin and are not part of your account.'
   if (reason === 'account') return 'This screen is only for marketing logins.'
-  if (reason === 'plan') return 'This section is not part of the site right now.'
+  if (reason === 'plan') return 'This section is not enabled for this site. Contact the platform to add it.'
 
   return 'Your role does not include this screen. Ask the site operator if you need access.'
 }
@@ -48,7 +48,7 @@ export const NotAvailableNotice = ({ pathname = '', reason = 'promotions' }: { p
       <span className='bg-muted text-muted-foreground flex size-10 items-center justify-center rounded-full'>
         <BanIcon className='size-5' />
       </span>
-      <h1 className='text-foreground text-base font-semibold'>Not available for your account</h1>
+      <h1 className='text-foreground text-base font-semibold'>{reason === 'plan' ? 'Not in your plan' : 'Not available for your account'}</h1>
       <p className='text-muted-foreground text-sm'>{noticeReason(pathname, reason)}</p>
       {home !== pathname && (
         <Link href={home} className='text-sm font-medium underline underline-offset-4'>
@@ -72,7 +72,7 @@ export const NotAvailableNotice = ({ pathname = '', reason = 'promotions' }: { p
 const RouteGate = ({ children }: { children: ReactNode }) => {
   const pathname = usePathname()
   const router = useRouter()
-  const { actor, loading, can, flagsLoading, flagEntitled } = useSession()
+  const { actor, loading, can, flagsLoading, flagEntitled, featureEntitled } = useSession()
   const home = useHomeHref()
   const mustChange = actor?.mustChangePassword === true
 
@@ -105,7 +105,8 @@ const RouteGate = ({ children }: { children: ReactNode }) => {
   else if (direct && actor.direct !== true) refusal = 'direct'
   else if (required?.account === 'marketing' && actor.marketing !== true) refusal = 'account'
   else if (required && !required.permissions.every(p => can(p))) refusal = 'permission'
-  else if (required?.ownerFlags.some(f => !flagEntitled(f))) refusal = 'plan'
+  else if (required && [...required.ownerFlags, ...required.planFlags].some(f => !flagEntitled(f))) refusal = 'plan'
+  else if (required?.planFeatures.some(f => !featureEntitled(f))) refusal = 'plan'
 
   if (refusal) return <NotAvailableNotice pathname={pathname} reason={refusal} />
 

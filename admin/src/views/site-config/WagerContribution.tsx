@@ -116,7 +116,7 @@ const WagerContribution = () => {
       <CardHeader>
         <CardTitle className='text-base'>Wager contribution</CardTitle>
         <CardDescription>
-          hash.game: “Wager amount = Bet Amount × Contribution Rate”. How much of a bet unlocks a locked deposit bonus. VIP,
+          Players see: “Wager amount = Bet Amount × Contribution Rate”. How much of a bet unlocks a locked deposit bonus. VIP,
           commission and rakeback always count the full bet.
         </CardDescription>
       </CardHeader>

@@ -406,70 +406,6 @@ export const THEMES = [
 ];
 
 /**
- * Card copy for the testimonials rail — `title`, `quote` and a 1-5 `rating`,
- * matching the shape the reference site's review cards render. Written for
- * this project; these are not collected from real players.
- */
-export const TESTIMONIALS = [
-  {
-    id: 'r1',
-    title: 'Ultrafast withdrawals!',
-    rating: 5,
-    quote:
-      'Withdrawals land before I have closed the tab. I cashed out on a Sunday night and the coins were in my wallet by the time I switched windows. After years of waiting three days elsewhere, that alone is why I stayed.',
-    author: 'Mara K.',
-  },
-  {
-    id: 'r2',
-    title: 'The live tables are the best',
-    rating: 5,
-    quote:
-      'Every live table loads instantly, the streams never stutter, and the dealers are genuinely good at their job. It feels far closer to a real floor than anything else I have played on.',
-    author: 'Devin O.',
-  },
-  {
-    id: 'r3',
-    title: 'Best support I have had',
-    rating: 5,
-    quote:
-      'Support answered in under two minutes, at three in the morning, and actually solved the problem instead of pasting a help article at me. No queue, no scripted replies, just a straight answer.',
-    author: 'Priya S.',
-  },
-  {
-    id: 'r4',
-    title: 'Clean, no nonsense',
-    rating: 4,
-    quote:
-      'Clean interface, nothing shouting at me, and the tournament leaderboard is easy to follow. I can find the game I want in two clicks, which sounds small until you have used the alternatives.',
-    author: 'Tomas L.',
-  },
-  {
-    id: 'r5',
-    title: 'Huge range of games',
-    rating: 5,
-    quote:
-      'The selection is enormous and it keeps growing every week. New releases show up here long before the other sites I use, and the provider filters make a catalogue that size genuinely browsable.',
-    author: 'Aiko N.',
-  },
-  {
-    id: 'r6',
-    title: 'Deposits are effortless',
-    rating: 4,
-    quote:
-      'Ten different coins accepted and every deposit has cleared in one confirmation. I have never had to email anyone about a stuck payment, which is more than I can say for the last two casinos I tried.',
-    author: 'Rafael M.',
-  },
-  {
-    id: 'r7',
-    title: 'Worth it for the VIP perks',
-    rating: 5,
-    quote:
-      'The loyalty tiers actually mean something. Cashback lands on time, the rewards are worth claiming, and my host checks in without ever pushing me to deposit more. That balance is rare.',
-    author: 'Elena V.',
-  },
-];
-
-/**
  * The promotion cards that do **not** have a promotion page behind them.
  *
  * `/promotions` renders `PROMO_PAGES` first (see `data/promotionPages.js`) and
@@ -551,7 +487,7 @@ export const HOME_BANNERS = [
     id: 'banner-league',
     title: 'League of Bitcasino',
     blurb:
-      'A four week race where every qualifying spin climbs the board. 50,000 USDT a week.',
+      'A race where every qualifying bet climbs the board. Top the leaderboard to share the prize pool.',
     href: '/promotions/league-of-bitcasino',
     art: '/images/banners/league.png',
     emblem: 'game-shows',
@@ -562,23 +498,23 @@ export const HOME_BANNERS = [
      * whose blurb sold a single slot and whose destination was that game's
      * play page — which worked, but is the one card of the three with no
      * promotion behind it. This one lands on the campaign's own page at the
-     * reference's slug; that page is a hero and a title, because the
-     * reference's body for it is empty. See `pages/WeeklyRakeback.jsx`.
+     * reference's slug. See `pages/WeeklyRakeback.jsx`.
      *
-     * Title and blurb are the reference's own promotion card, word for word.
+     * The blurb is the platform's own (the rate comes from the VIP card), not
+     * the reference's "up to 5%", which nothing here backs.
      */
     id: 'banner-weekly-rakeback',
     title: 'Weekly Rakeback',
     blurb:
-      'Enjoy a full week of action on selected slots from Monday to Sunday and earn up to 5% Rakeback.',
+      'Get a share of every bet back as rakeback each week. Your rate is set by your VIP level.',
     href: '/promotions/weekly-rakeback-2026',
     art: '/images/banners/weekly-rakeback.webp',
     emblem: 'jackpots',
   },
   {
     id: 'banner-deposit-rewards',
-    title: 'Get up to 5,000 USDT in deposit rewards',
-    blurb: 'Three bonuses worth up to 5,000 USDT are waiting — redeem yours.',
+    title: 'Welcome bonus on your first deposit',
+    blurb: 'Make your first deposit and get a bonus on top — the more you deposit, the bigger it is.',
     href: '/promotions/welcome',
     art: '/images/banners/deposit-rewards.webp',
     emblem: 'jackpots',

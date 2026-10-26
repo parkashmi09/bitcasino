@@ -202,7 +202,7 @@ export function AuthCheckbox({ name, checked, onChange, children }) {
         className={cn(
           'grid size-4 shrink-0 place-items-center rounded-i-xs border-[0.8px]',
           'transition-colors peer-focus-visible:ring-[3px] peer-focus-visible:ring-piccolo/50',
-          checked ? 'border-piccolo bg-piccolo text-goten' : 'border-trunks bg-goku/30',
+          checked ? 'border-piccolo bg-piccolo text-on-piccolo' : 'border-trunks bg-goku/30',
         )}
       >
         {checked && <Icon name="check" size={12} strokeWidth={3} />}

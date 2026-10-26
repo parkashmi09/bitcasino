@@ -111,7 +111,7 @@ function RenderFailed({ error, onReset }) {
           </button>
           <Link
             to="/"
-            className="rounded-i-sm bg-piccolo px-3 py-1.5 text-sm font-medium text-goten transition-opacity hover:opacity-90"
+            className="rounded-i-sm bg-piccolo px-3 py-1.5 text-sm font-medium text-on-piccolo transition-opacity hover:opacity-90"
           >
             Go to the lobby
           </Link>

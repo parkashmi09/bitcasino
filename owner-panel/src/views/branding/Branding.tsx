@@ -453,7 +453,7 @@ const Branding = () => {
                 ) : (
                   <span className='bg-muted-foreground/30 size-4 rounded-sm' />
                 )}
-                <span className='truncate'>{pageTitle || 'bc-games'}</span>
+                <span className='truncate'>{pageTitle || 'Site title'}</span>
               </div>
               <div className='rounded-lg border p-3'>
                 <div className='text-muted-foreground text-xs'>{current.siteName || 'site'} › casino</div>

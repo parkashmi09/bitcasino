@@ -171,7 +171,7 @@ function CategoryChip({ active, onClick, children }) {
       aria-pressed={active}
       className={cn(
         'cursor-pointer rounded-i-sm px-3 py-1.5 text-sm font-medium transition-colors',
-        active ? 'bg-piccolo text-goten' : 'bg-gohan text-bulma hover:bg-beerus',
+        active ? 'bg-piccolo text-on-piccolo' : 'bg-gohan text-bulma hover:bg-beerus',
       )}
     >
       {children}

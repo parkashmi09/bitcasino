@@ -1,4 +1,5 @@
-import { QueryClient } from '@tanstack/react-query';
+import { MutationCache, QueryClient } from '@tanstack/react-query';
+import { toast } from '@/lib/toast';
 import { ApiError } from '@/lib/api';
 
 /**
@@ -67,6 +68,13 @@ function retryDelay(attempt, error) {
 
 export function createQueryClient() {
   return new QueryClient({
+    // `meta.success` on a mutation: the toast it raises once it worked (string, or a function of its result).
+    mutationCache: new MutationCache({
+      onSuccess: (data, variables, _context, mutation) => {
+        const success = mutation.meta?.success;
+        toast.success(typeof success === 'function' ? success(data, variables) : success);
+      },
+    }),
     defaultOptions: {
       queries: {
         retry: shouldRetry,

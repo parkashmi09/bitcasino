@@ -5,7 +5,7 @@ import { cn } from '@/lib/cn';
    size occupy the same box. */
 const VARIANTS = {
   primary:
-    'border-[0.8px] border-transparent bg-piccolo text-goten hover:bg-piccolo-80 active:bg-piccolo-120 shadow-sm',
+    'border-[0.8px] border-transparent bg-piccolo text-on-piccolo hover:bg-piccolo-80 active:bg-piccolo-120 shadow-sm',
   secondary:
     'border-[0.8px] border-hit bg-gohan text-bulma hover:bg-beerus active:bg-hit',
   ghost:

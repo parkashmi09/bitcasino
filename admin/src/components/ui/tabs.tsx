@@ -16,10 +16,10 @@ function Tabs({ className, orientation = 'horizontal', ...props }: TabsPrimitive
   )
 }
 
-// ccpayment's tabs (its MUI theme follows Minimal UI): bare text tabs 40px apart (24px on phones) over a hairline
-// divider, the active one in ink with a sliding 2px ink underline.
+// ccpayment's tabs (its MUI theme follows Minimal UI): bare text tabs 40px apart (16px on phones) over a hairline
+// divider, the active one in ink with a sliding 2px ink underline. Too wide for the screen (phones): it scrolls sideways, never clips.
 const tabsListVariants = cva(
-  'group/tabs-list text-muted-foreground relative inline-flex w-fit items-center justify-start group-data-horizontal/tabs:h-auto group-data-horizontal/tabs:min-h-12 group-data-horizontal/tabs:gap-6 group-data-horizontal/tabs:shadow-[inset_0_-1px_0_0_var(--border)] sm:group-data-horizontal/tabs:gap-10 group-data-vertical/tabs:h-fit group-data-vertical/tabs:flex-col group-data-vertical/tabs:items-stretch',
+  'group/tabs-list text-muted-foreground relative inline-flex w-fit max-w-full items-center overflow-x-auto overflow-y-hidden [scrollbar-width:none] justify-start group-data-horizontal/tabs:h-auto group-data-horizontal/tabs:min-h-12 group-data-horizontal/tabs:gap-4 group-data-horizontal/tabs:shadow-[inset_0_-1px_0_0_var(--border)] sm:group-data-horizontal/tabs:gap-10 group-data-vertical/tabs:h-fit group-data-vertical/tabs:flex-col group-data-vertical/tabs:items-stretch',
   {
     variants: {
       variant: {

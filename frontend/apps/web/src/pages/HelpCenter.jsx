@@ -1,5 +1,6 @@
 import { Link } from 'react-router-dom';
 import { findHelpCategory } from '@/data/helpArticles';
+import { SUPPORT_EMAIL } from '@/lib/site';
 
 const IMAGE_ROOT = 'https://heathmont.imgix.net/bitcasino/images';
 
@@ -150,13 +151,15 @@ export function HelpCenter() {
           {CATEGORIES.map((category) => <CategoryCard key={category.id} category={category} />)}
         </section>
 
-        <section className="grid max-w-[596px] gap-4">
-          <h2 className="text-2xl font-bold text-bulma">Other ways to get help</h2>
-          <a href="mailto:hello@bitcasino.io" className="flex items-center gap-4 bg-gohan px-6 py-4 text-bulma transition-colors hover:bg-beerus">
-            <span aria-hidden="true" className="text-4xl leading-none">@</span>
-            <span><strong className="block text-xl">Email us</strong><span className="text-sm text-trunks">hello@bitcasino.io</span></span>
-          </a>
-        </section>
+        {SUPPORT_EMAIL && (
+          <section className="grid max-w-[596px] gap-4">
+            <h2 className="text-2xl font-bold text-bulma">Other ways to get help</h2>
+            <a href={`mailto:${SUPPORT_EMAIL}`} className="flex items-center gap-4 bg-gohan px-6 py-4 text-bulma transition-colors hover:bg-beerus">
+              <span aria-hidden="true" className="text-4xl leading-none">@</span>
+              <span><strong className="block text-xl">Email us</strong><span className="text-sm text-trunks">{SUPPORT_EMAIL}</span></span>
+            </a>
+          </section>
+        )}
 
         <nav aria-label="Footer breadcrumb" className="flex flex-wrap items-center gap-1 pb-4 text-sm text-trunks">
           <Link to="/" className="hover:text-piccolo">Bitcasino</Link>

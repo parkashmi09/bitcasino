@@ -119,7 +119,7 @@ const AffiliateForm = ({ initial }: { initial: Affiliate | undefined }) => {
         id='commissionRate'
         inputMode='decimal'
         label='Commission rate %'
-        hint='hash.game formula: wager × 1% × this rate × the game rate below. Default 25'
+        hint='Formula: wager × 1% × this rate × the game rate below. Default 25'
         value={form.commissionRate}
         onChange={e => setForm({ ...form, commissionRate: e.target.value })}
       />
@@ -371,7 +371,7 @@ const AffiliateSettings = ({ embedded = false }: { embedded?: boolean }) => {
       <Card className='max-w-xl shadow-none'>
         <CardHeader>
           <CardTitle className='text-base'>Rates</CardTitle>
-          <CardDescription>Exact decimal strings. Commission follows hash.game: wager × 1% × commission rate × game rate (Originals 28, Slots 60, Live 60, Sports 100).</CardDescription>
+          <CardDescription>Exact decimal strings. Commission: wager × 1% × commission rate × game rate (Originals 28, Slots 60, Live 60, Sports 100).</CardDescription>
         </CardHeader>
         <CardContent>
           <AffiliateForm key={q.data ? JSON.stringify(q.data) : 'loading'} initial={q.data} />

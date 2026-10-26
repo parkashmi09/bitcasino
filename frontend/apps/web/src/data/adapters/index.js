@@ -13,9 +13,9 @@
 export {
   CATEGORY_SLUGS,
   categoryFromType,
-  typeForCategory,
   isCategorySlug,
-  queryTypesFor,
+  categoryFilter,
+  subcategoriesOf,
 } from './categories.js';
 
 export { toGame, toGames, toRecentGames, sortValue, VOLATILITY } from './games.js';

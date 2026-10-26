@@ -80,7 +80,7 @@ const byStart = (a: BookEvent, b: BookEvent) => String(b.eventDate || '').locale
 const MarketAnalysis = () => {
   const [search, setSearch] = useState('')
   const [spinning, setSpinning] = useState(false)
-  const { data, error, refetch, isFetching } = useApi<AnalysisResponse>(`${MARKET_API}/analysis`)
+  const { data, error, refetch, isFetching, isPending } = useApi<AnalysisResponse>(`${MARKET_API}/analysis`)
 
   // zip: refresh pe icon kam se kam ek poora chakkar (2s) ghoomta hai
   useEffect(() => {
@@ -121,6 +121,11 @@ const MarketAnalysis = () => {
           {events.map(event => (
             <EventBlock key={event.eventId} event={event} />
           ))}
+          {!isPending && events.length === 0 && (
+            <Card size='sm' className='text-muted-foreground p-6 text-center text-sm'>
+              {search.trim() ? 'No event matches your search.' : 'No open bets in your downline right now.'}
+            </Card>
+          )}
         </div>
       )}
     </div>
