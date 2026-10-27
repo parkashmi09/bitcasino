@@ -20,6 +20,10 @@ import { ENDPOINTS, path } from '@/lib/endpoints';
 import { DIAL_CODES } from '@/data/countries';
 import { Brand } from '@/components/ui/Brand';
 
+/** Same shape the backend's email rule accepts; the server still has the last word. */
+const EMAIL_SHAPE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const EMAIL_MESSAGE = 'Enter a valid email address.';
+
 /**
  * Sign up.
  *
@@ -240,6 +244,9 @@ function SignUpForm() {
     } else if (!/^[A-Za-z0-9_.-]+$/.test(form.username.trim())) {
       found.username = 'Letters, digits and _ . - only.';
     }
+    if (form.email.trim() && !EMAIL_SHAPE.test(form.email.trim())) {
+      found.email = EMAIL_MESSAGE;
+    }
     if (form.password.length < MIN_PASSWORD) {
       found.password = `Use at least ${MIN_PASSWORD} characters.`;
     }
@@ -369,6 +376,11 @@ function SignUpForm() {
           type="email"
           value={form.email}
           onChange={set('email')}
+          // Checked as the player leaves the field, so a typo shows before submit.
+          onBlur={() => {
+            const email = form.email.trim();
+            if (email && !EMAIL_SHAPE.test(email)) setFieldErrors((current) => ({ ...current, email: EMAIL_MESSAGE }));
+          }}
           autoComplete="email"
           error={fieldErrors.email}
           disabled={busy}

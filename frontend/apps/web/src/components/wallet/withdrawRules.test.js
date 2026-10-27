@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { isAddressShape, manualDepositFields, requirementLines, savedFor } from './withdrawRules';
+import { fiatDestinationReady, isAddressShape, manualDepositFields, requirementLines, savedFor } from './withdrawRules';
 
 describe('requirementLines', () => {
   it('is empty when nothing blocks or nothing was read', () => {
@@ -47,5 +47,19 @@ describe('manualDepositFields', () => {
       account: { id: 7, upiId: 'house@upi', bankName: '', hasQrImage: true, minAmount: 100 },
     });
     expect(fields).toEqual({ amount: '500', currency: 'INR', transactionId: 'UTR123', upiId: 'house@upi' });
+  });
+});
+
+describe('fiatDestinationReady', () => {
+  const blank = { method: 'upi', holder: '', upiId: '', bankName: '', accountNumber: '', ifsc: '' };
+  it('needs the holder and a UPI id for INR UPI', () => {
+    expect(fiatDestinationReady({ ...blank, upiId: 'a@b' }, 'INR')).toBe(false);
+    expect(fiatDestinationReady({ ...blank, holder: 'A', upiId: 'a@b' }, 'INR')).toBe(true);
+    expect(fiatDestinationReady({ ...blank, holder: 'A', upiId: 'a@b' }, 'PKR')).toBe(false);
+  });
+  it('needs bank name, account number and IFSC for a bank payout', () => {
+    const bank = { ...blank, method: 'bank', holder: 'A', bankName: 'SBI', accountNumber: '123' };
+    expect(fiatDestinationReady(bank, 'INR')).toBe(false);
+    expect(fiatDestinationReady({ ...bank, ifsc: 'SBIN0000001' }, 'PKR')).toBe(true);
   });
 });

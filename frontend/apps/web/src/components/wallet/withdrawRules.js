@@ -48,3 +48,10 @@ export function manualDepositFields({ amount, currency, reference, account }) {
   }
   return fields;
 }
+
+/** What a fiat payout needs: the holder plus a UPI id, or full bank details (backend fiatWithdraw.validators). */
+export function fiatDestinationReady({ method, holder, upiId, bankName, accountNumber, ifsc }, currency) {
+  if (!holder.trim()) return false;
+  if (method === 'upi') return currency === 'INR' && upiId.trim().length > 0;
+  return Boolean(bankName.trim() && accountNumber.trim() && ifsc.trim());
+}

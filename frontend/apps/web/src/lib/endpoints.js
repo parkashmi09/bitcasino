@@ -228,6 +228,8 @@ export const ENDPOINTS = {
   // `{policy, ok, missing: ['kyc'|'wager'|'cap'|'daily'], kyc, wager, cap, dailyLimit, …}`;
   // `?currency=` (strict, the only key) gives that coin's cap/daily block. No cache.
   withdrawalRequirements: `${USER}/withdrawals/requirements`,
+  // A fiat (bank / UPI) payout request: `{amount, currency, accountHolderName, upiId | bankName+accountNumber+ifscCode}`.
+  withdrawFiat: `${USER}/withdrawals/fiat`,
   // The player's own payout addresses: `{whitelistOnly, addresses: [{id, label, currency,
   // network, address, memo}]}`. POST `{label, currency, network?, address, memo?}` (strict);
   // DELETE `/:id` (removing the last one switches enforcement off); PUT `enforcement`

@@ -245,6 +245,24 @@ export function useCreateDeposit() {
  * On success the balances and the withdrawal list are invalidated, because
  * both changed and neither is refetched by anything else.
  */
+/**
+ * A fiat payout (INR, PKR …) to a bank account or UPI id: staff pay it out and approve it.
+ * `details` is `{accountHolderName, upiId}` or `{accountHolderName, bankName, accountNumber, ifscCode}`.
+ */
+export function useSubmitFiatWithdrawal() {
+  const client = useQueryClient();
+
+  return useMutation({
+    meta: { success: 'Withdrawal requested. You will be notified once it is processed.' },
+    mutationFn: ({ currency, amount, details }) =>
+      api(ENDPOINTS.withdrawFiat, { method: 'POST', body: { amount: String(amount), currency, ...details } }),
+    onSuccess: () => {
+      client.invalidateQueries({ queryKey: walletKeys.all });
+      refreshBalances();
+    },
+  });
+}
+
 export function useSubmitWithdrawal() {
   const client = useQueryClient();
 

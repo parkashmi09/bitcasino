@@ -105,7 +105,7 @@ const { makeLadder } = require('./vipLadder');
  */
 const PLATFORM_LADDER = makeLadder({
   key: 'platform',
-  label: 'hash.game ladder — 33 levels, Bronze I to Eternal X',
+  label: '33-level ladder — Bronze I to Eternal X',
   bands: VIP_LEVELS,
   unranked: { level: 0, name: 'Beginner', card: 'unranked' },
   // hash.game: "Users must have a VIP Level of 1 or higher to receive bonus" (Bronze I).

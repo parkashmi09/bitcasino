@@ -21,13 +21,14 @@ import { compareDecimal, formatBalance, formatFiat, percentOf } from '@/lib/form
 import {
   useDepositAddress,
   useSubmitWithdrawal,
+  useSubmitFiatWithdrawal,
   usePaymentMethods,
   useCreateDeposit,
   useWhitelist,
   useWithdrawalRequirements,
 } from '@/queries/wallet';
 import { ManualDepositPanel } from '@/components/wallet/ManualDepositPanel';
-import { requirementLines, savedFor } from '@/components/wallet/withdrawRules';
+import { fiatDestinationReady, requirementLines, savedFor } from '@/components/wallet/withdrawRules';
 import { cn } from '@/lib/cn';
 
 /**
@@ -193,8 +194,16 @@ export function DepositDialog({ open, onClose }) {
      always lands on the gateway list rather than mid-form. */
   const changeTab = (next) => {
     if (next !== 'withdraw') setWithdrawing(null);
+    dismissHint();
     setTab(next);
   };
+
+  // The coach mark is a one-time pointer, not a fixture: it goes away on its own.
+  useEffect(() => {
+    if (!hint) return undefined;
+    const id = window.setTimeout(dismissHint, 6000);
+    return () => window.clearTimeout(id);
+  }, [hint, dismissHint]);
 
   const close = useCallback(() => {
     setClosing(true);
@@ -1359,13 +1368,18 @@ function WithdrawPage({ target, balance, onBack, onDone }) {
 
       <p className="font-primary text-xl font-medium">{`Withdraw ${target.coin}`}</p>
 
-      <WithdrawForm
-        currency={target.coin}
-        chain={target.network}
-        balance={balance}
-        decimals={meta.decimals}
-        onDone={onDone}
-      />
+      {/* A fiat balance has no chain: it is paid to a bank account or UPI id, not an address. */}
+      {currencyNetworks(target.coin).length === 0 ? (
+        <FiatWithdrawForm currency={target.coin} balance={balance} decimals={meta.decimals} onDone={onDone} />
+      ) : (
+        <WithdrawForm
+          currency={target.coin}
+          chain={target.network}
+          balance={balance}
+          decimals={meta.decimals}
+          onDone={onDone}
+        />
+      )}
     </div>
   );
 }
@@ -1576,6 +1590,182 @@ function WithdrawForm({ currency, chain, balance, decimals, onDone }) {
             onClick={send}
             // Disabled while in flight: a second click is a second payout.
             disabled={submit.isPending || password.length === 0}
+            className="h-11 flex-1 rounded-i-sm bg-piccolo text-sm font-medium text-on-piccolo transition-opacity hover:opacity-90 disabled:opacity-50"
+          >
+            {submit.isPending ? 'Sending…' : 'Confirm withdrawal'}
+          </button>
+        </div>
+      ) : (
+        <button
+          type="submit"
+          disabled={!ready}
+          className="h-11 rounded-i-sm bg-piccolo text-sm font-medium text-on-piccolo transition-opacity hover:opacity-90 disabled:opacity-50"
+        >
+          Review withdrawal
+        </button>
+      )}
+    </form>
+  );
+}
+
+
+const FIAT_INPUT =
+  'h-11 w-full rounded-i-sm border-[0.8px] border-beerus bg-goku px-3 text-sm text-bulma outline-none focus:border-piccolo disabled:text-trunks';
+
+function FiatWithdrawForm({ currency, balance, decimals, onDone }) {
+  const [method, setMethod] = useState(currency === 'INR' ? 'upi' : 'bank');
+  const [holder, setHolder] = useState('');
+  const [upiId, setUpiId] = useState('');
+  const [bankName, setBankName] = useState('');
+  const [accountNumber, setAccountNumber] = useState('');
+  const [ifsc, setIfsc] = useState('');
+  const [amount, setAmount] = useState('');
+  const [confirming, setConfirming] = useState(false);
+  const [done, setDone] = useState(false);
+
+  const submit = useSubmitFiatWithdrawal();
+  const requirements = useWithdrawalRequirements(currency);
+  const blockers = requirementLines(requirements.data);
+
+  const overBalance = compareDecimal(amount || '0', balance) > 0;
+  const positive = /[1-9]/.test(amount || '');
+  const ready =
+    positive && !overBalance && blockers.length === 0 &&
+    fiatDestinationReady({ method, holder, upiId, bankName, accountNumber, ifsc }, currency);
+  const details =
+    method === 'upi'
+      ? { accountHolderName: holder.trim(), upiId: upiId.trim() }
+      : { accountHolderName: holder.trim(), bankName: bankName.trim(), accountNumber: accountNumber.trim(), ifscCode: ifsc.trim().toUpperCase() };
+
+  const send = async () => {
+    try {
+      await submit.mutateAsync({ currency, amount, details });
+      setDone(true);
+      onDone?.();
+    } catch {
+      setConfirming(false);
+    }
+  };
+
+  if (done) {
+    return (
+      <div className="grid justify-items-center gap-2 rounded-i-md border-[0.8px] border-beerus bg-goku px-6 py-10 text-center">
+        <span className="grid size-14 place-items-center rounded-full bg-roshi/15 text-roshi">
+          <Icon name="check" size={28} />
+        </span>
+        <p className="text-sm font-medium text-bulma">Withdrawal requested</p>
+        <p className="text-xs leading-relaxed text-trunks">
+          {formatBalance(amount || '0', decimals)} {currency} is pending review. Staff pay it to your account and it appears in your history.
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <form
+      className="grid gap-3"
+      onSubmit={(event) => {
+        event.preventDefault();
+        if (ready && !confirming) setConfirming(true);
+      }}
+    >
+      {blockers.length > 0 && (
+        <ul role="alert" className="grid gap-1 rounded-i-sm bg-krillin/10 px-3 py-2 text-xs text-bulma">
+          {blockers.map((line) => (
+            <li key={line}>{line}</li>
+          ))}
+        </ul>
+      )}
+
+      {currency === 'INR' && (
+        <div role="radiogroup" aria-label="Pay out to" className="grid grid-cols-2 gap-1 rounded-i-sm bg-beerus p-1">
+          {[
+            ['upi', 'UPI'],
+            ['bank', 'Bank account'],
+          ].map(([id, label]) => (
+            <button
+              key={id}
+              type="button"
+              role="radio"
+              aria-checked={method === id}
+              disabled={confirming}
+              onClick={() => setMethod(id)}
+              className={cn(
+                'h-9 rounded-i-xs text-xs font-medium transition-colors',
+                method === id ? 'bg-goku text-bulma shadow-sm' : 'text-trunks hover:text-bulma',
+              )}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+      )}
+
+      <Field label="Account holder name">
+        <input value={holder} onChange={(e) => setHolder(e.target.value)} disabled={confirming} autoComplete="name" className={FIAT_INPUT} />
+      </Field>
+
+      {method === 'upi' ? (
+        <Field label="UPI ID">
+          <input value={upiId} onChange={(e) => setUpiId(e.target.value)} disabled={confirming} placeholder="name@bank" spellCheck={false} autoComplete="off" className={FIAT_INPUT} />
+        </Field>
+      ) : (
+        <>
+          <Field label="Bank name">
+            <input value={bankName} onChange={(e) => setBankName(e.target.value)} disabled={confirming} className={FIAT_INPUT} />
+          </Field>
+          <Field label="Account number">
+            <input value={accountNumber} onChange={(e) => setAccountNumber(e.target.value.replace(/\s/g, ''))} disabled={confirming} inputMode="numeric" autoComplete="off" className={FIAT_INPUT} />
+          </Field>
+          <Field label="IFSC code">
+            <input value={ifsc} onChange={(e) => setIfsc(e.target.value)} disabled={confirming} spellCheck={false} autoComplete="off" className={cn(FIAT_INPUT, 'uppercase')} />
+          </Field>
+        </>
+      )}
+
+      <Field label="Amount" hint={`${formatBalance(balance, decimals)} ${currency} available`}>
+        <input
+          value={amount}
+          onChange={(e) => setAmount(e.target.value.replace(/[^0-9.]/g, ''))}
+          disabled={confirming}
+          inputMode="decimal"
+          placeholder="0.00"
+          className={cn(FIAT_INPUT, 'tabular-nums')}
+        />
+        {overBalance && (
+          <p role="alert" className="mt-1.5 text-[11px] text-dodoria">
+            That is more than your {currency} balance.
+          </p>
+        )}
+      </Field>
+
+      {confirming && (
+        <div className="grid gap-1 rounded-i-md bg-goku px-3 py-2.5 text-xs">
+          <Row label="Sending" value={`${formatBalance(amount, decimals)} ${currency}`} />
+          <Row label="To" value={method === 'upi' ? `${holder.trim()} · ${upiId.trim()}` : `${holder.trim()} · ${bankName.trim()} · ${accountNumber.trim()} · ${ifsc.trim().toUpperCase()}`} />
+        </div>
+      )}
+
+      {submit.isError && (
+        <p role="alert" className="rounded-i-sm bg-dodoria/10 px-3 py-2 text-xs text-bulma">
+          {submit.error?.message || 'The withdrawal was refused.'}
+        </p>
+      )}
+
+      {confirming ? (
+        <div className="flex gap-2">
+          <button
+            type="button"
+            onClick={() => setConfirming(false)}
+            disabled={submit.isPending}
+            className="h-11 flex-1 rounded-i-sm bg-beerus text-sm font-medium text-bulma transition-colors hover:bg-trunks/20 disabled:opacity-50"
+          >
+            Back
+          </button>
+          <button
+            type="button"
+            onClick={send}
+            disabled={submit.isPending}
             className="h-11 flex-1 rounded-i-sm bg-piccolo text-sm font-medium text-on-piccolo transition-opacity hover:opacity-90 disabled:opacity-50"
           >
             {submit.isPending ? 'Sending…' : 'Confirm withdrawal'}

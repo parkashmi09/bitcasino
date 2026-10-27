@@ -34,7 +34,8 @@ export const GET = handler(async () => {
   const entitled = values.filter(Boolean).length
 
   const data: Overview = {
-    site: { key: siteKey, name: siteName, gatewayUrl, adminUrl, frontendUrl },
+    // The owner's Branding name when set (what players see), else the deployment's SITE_NAME.
+    site: { key: siteKey, name: doc.branding?.siteName || siteName, gatewayUrl, adminUrl, frontendUrl },
     health: { gateway: { ...gateway, ok: gateway.status === 200 }, admin, frontend },
     entitlements: { version: doc.version, updatedAt: doc.updatedAt, template: doc.template, lastSave: audit[0] ?? null, entitled, blocked: values.length - entitled, total: values.length }
   }

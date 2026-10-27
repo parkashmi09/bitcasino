@@ -11,6 +11,8 @@ import { MobileBottomNav } from './MobileBottomNav';
 import { useRecentlyPlayed } from '@/hooks/useRecentlyPlayed';
 import { useFavourites } from '@/hooks/useFavourites';
 import { RouteGate } from '@/hooks/useGates';
+import { useAuth } from '@/auth/AuthProvider';
+import { toast } from '@/lib/toast';
 
 export function Layout() {
   const [menuOpen, setMenuOpen] = useState(false);
@@ -18,6 +20,15 @@ export function Layout() {
   const [depositOpen, setDepositOpen] = useState(false);
   const [railCollapsed, setRailCollapsed] = useState(false);
   const { pathname } = useLocation();
+  const { status } = useAuth();
+
+  // The wallet is a signed-in surface: when the session ends (sign-out, or a refresh the server
+  // refused) close it and say why, rather than leave it open on 401s.
+  useEffect(() => {
+    if (status !== 'anonymous' || !depositOpen) return;
+    setDepositOpen(false);
+    toast.info('Your session ended. Log in again to use your wallet.', { title: 'Signed out' });
+  }, [status, depositOpen]);
 
   /**
    * The badge on the sidebar's `Recents` chip.
