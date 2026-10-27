@@ -58,9 +58,9 @@ export const TEMPLATE_CATALOGUE: TemplateEntry[] = [
   {
     key: 'hash_game',
     label: 'Original',
-    description: "The site's own colours. The default.",
-    swatch: { accent: '#24EE89', background: '#232626' },
-    colours: "The site's own colours, unchanged.",
+    description: "The site's own colours (bitcasino.io's default). The default.",
+    swatch: { accent: '#F2590D', background: '#FFFFFF' },
+    colours: "bitcasino.io's default: orange #F2590D on white, light mode.",
 
     // The one layout per feature the bc.game UI has (configs/siteUi.ts; same as the backend's hash_game).
     variants: {
