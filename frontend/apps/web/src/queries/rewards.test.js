@@ -20,6 +20,21 @@ describe('toTiers', () => {
     ]);
   });
 
+  it('keeps the Loyalty Club ladder one tier per level, with multiplier and milestones', () => {
+    const loyalty = {
+      unranked: { level: 0, name: 'Beginner', card: 'beginner', multiplier: '1' },
+      levels: [
+        { level: 1, name: 'Fan', minXp: '5', maxXp: '3749', card: 'fan', multiplier: '1', milestones: '1' },
+        { level: 2, name: 'Hero', minXp: '3750', maxXp: null, card: 'hero', multiplier: '3', milestones: 'unlimited' },
+      ],
+    };
+    expect(toTiers(loyalty).map(({ name, points, multiplier, milestones }) => [name, points, multiplier, milestones])).toEqual([
+      ['Beginner', '0 - 4', '1', undefined],
+      ['Fan', '5 - 3749', '1', '1'],
+      ['Hero', '3750 - ...', '3', 'unlimited'],
+    ]);
+  });
+
   it('answers an empty list for no ladder', () => {
     expect(toTiers(undefined)).toEqual([]);
   });

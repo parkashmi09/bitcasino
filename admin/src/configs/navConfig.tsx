@@ -427,7 +427,7 @@ export const navItems: NavItem[] = [
       { icon: 'LockKeyhole', label: 'Bonus balances', href: '/bonus-balances', permission: ['reports:read', 'users:read', 'wallet:read'], promotions: true, direct: true },
       { icon: 'CreditCard', label: 'Gift cards', href: '/gift-cards', permission: 'reports:read', promotions: true, direct: true, flag: 'giftcards', feature: 'gift_cards' },
       { icon: 'Disc3', label: 'Spin wheel', href: '/spin-wheel', permission: 'reports:read', promotions: true, direct: true, flag: 'wheelspin', feature: 'spin_wheel' },
-      { icon: 'Crown', label: 'VIP & club', href: '/vip', permission: 'reports:read', promotions: true, direct: true, flag: 'vipclub', feature: 'vip' },
+      { icon: 'Crown', label: 'VIP Club', href: '/vip', permission: 'reports:read', promotions: true, direct: true, flag: 'vipclub', feature: 'vip' },
       { icon: 'Link', label: 'Affiliate', href: '/affiliate', permission: 'reports:read', promotions: true, direct: true, flag: 'affiliate', feature: 'affiliate' },
       { icon: 'Flag', label: 'Races', href: '/races', permission: 'reports:read', promotions: true, direct: true, feature: 'races' }
     ]

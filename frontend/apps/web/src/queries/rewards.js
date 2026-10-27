@@ -55,8 +55,8 @@ export function toTiers(data) {
   const levels = Array.isArray(data?.levels) ? data.levels : [];
   const tiers = [];
   if (data?.unranked && levels[0]) {
-    const { card, name } = data.unranked;
-    tiers.push({ card, name: name || 'Beginner', minXp: '0', maxXp: String(Number(levels[0].minXp) - 1), levels: 1 });
+    const { card, name, multiplier, milestones } = data.unranked;
+    tiers.push({ card, name: name || 'Beginner', minXp: '0', maxXp: String(Number(levels[0].minXp) - 1), levels: 1, multiplier, milestones });
   }
   for (const level of levels) {
     const last = tiers[tiers.length - 1];
@@ -64,7 +64,9 @@ export function toTiers(data) {
       last.maxXp = level.maxXp;
       last.levels += 1;
     } else {
-      tiers.push({ card: level.card, name: title(level.card), minXp: level.minXp, maxXp: level.maxXp, levels: 1 });
+      // Loyalty Club ladder: one level per tier, with the multiplier and milestones it publishes.
+      const name = level.multiplier != null ? level.name : title(level.card);
+      tiers.push({ card: level.card, name, minXp: level.minXp, maxXp: level.maxXp, levels: 1, multiplier: level.multiplier, milestones: level.milestones });
     }
   }
   return tiers.map(({ minXp, maxXp, ...tier }, index) => ({

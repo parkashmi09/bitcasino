@@ -122,6 +122,8 @@ function makeLadder({ key, label, bands, unranked, bonusGates }) {
       maxXp: band.level === top.level ? null : String(band.maxXp),
       card: band.card,
       badgeUrl: band.badgeUrl ?? null,
+      // Loyalty Club ladder only: what the page prints per level.
+      ...(band.multiplier != null && { multiplier: band.multiplier, milestones: band.milestones ?? null }),
     }));
 
   return Object.freeze({

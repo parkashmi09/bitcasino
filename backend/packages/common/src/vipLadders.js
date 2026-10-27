@@ -128,10 +128,36 @@ const ADDAPLAY_LADDER = makeLadder({
   bonusGates: { daily: 20, weekly: 25, monthly: 30 },
 });
 
+/**
+ * The Loyalty Club ladder (bitcasino.io/loyalty): seven levels on loyalty points,
+ * Beginner 0–4, Fan 5, Expert 3,750, Master 30,000, Guru 250,000, Legend 750,000,
+ * Hero 3,750,000 and up. One point = $1 wagered, the same XP every ladder counts.
+ * `multiplier` and `milestones` are what the reference prints per level; they are
+ * published for the page and change no payout.
+ * bitcasino + smartbet only (not in hash-game-exchange): keep when porting hash's copy.
+ */
+const LOYALTY_BANDS = Object.freeze([
+  { level: 1, name: 'Fan', card: 'fan', minXp: 5, maxXp: 3749, multiplier: '1', milestones: '1' },
+  { level: 2, name: 'Expert', card: 'expert', minXp: 3750, maxXp: 29999, multiplier: '1', milestones: '6' },
+  { level: 3, name: 'Master', card: 'master', minXp: 30000, maxXp: 249999, multiplier: '1.25', milestones: '12' },
+  { level: 4, name: 'Guru', card: 'guru', minXp: 250000, maxXp: 749999, multiplier: '1.5', milestones: '11' },
+  { level: 5, name: 'Legend', card: 'legend', minXp: 750000, maxXp: 3749999, multiplier: '2', milestones: '12' },
+  { level: 6, name: 'Hero', card: 'hero', minXp: 3750000, maxXp: 99999999999999, multiplier: '3', milestones: 'unlimited' },
+]);
+
+const LOYALTY_LADDER = makeLadder({
+  key: 'loyalty_club',
+  label: 'Loyalty Club — 7 levels, Beginner to Hero (points)',
+  bands: LOYALTY_BANDS,
+  unranked: { level: 0, name: 'Beginner', card: 'beginner', multiplier: '1' },
+  bonusGates: { daily: 1, weekly: 1, monthly: 1 },
+});
+
 /** Every ladder, by key. */
 const VIP_LADDERS = Object.freeze({
   platform: PLATFORM_LADDER,
   club_ladder: ADDAPLAY_LADDER,
+  loyalty_club: LOYALTY_LADDER,
   /** Pre-048 rows and any client still sending the old name. */
   addaplay: ADDAPLAY_LADDER,
 });
@@ -235,4 +261,4 @@ function rebrand(ladder, { names, badges, thresholds = new Map() }) {
   });
 }
 
-module.exports = { VIP_LADDERS, ADDAPLAY_LADDER, ADDAPLAY_BANDS, PLATFORM_BANDS, vipLadderFor, resolveVipLadder, rebrand, clearVipBranding };
+module.exports = { VIP_LADDERS, ADDAPLAY_LADDER, ADDAPLAY_BANDS, LOYALTY_LADDER, PLATFORM_BANDS, vipLadderFor, resolveVipLadder, rebrand, clearVipBranding };

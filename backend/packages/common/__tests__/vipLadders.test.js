@@ -114,3 +114,33 @@ test('admin thresholds move the bands; a set that does not climb is ignored', ()
   const broken = rebrand(PLATFORM_LADDER, { names: new Map(), badges: new Map(), thresholds: new Map([[2, '500']]) });
   assert.equal(broken.levelFor('1000').level, 1, 'a threshold below the level beneath it changes nothing');
 });
+
+test('Loyalty Club ladder (bitcasino + smartbet)', async (t) => {
+  const { LOYALTY_LADDER, vipLadderFor: pick } = require('../src/vipLadders');
+  const { levelUpAmount, rakebackRateForCard } = require('../src/vipRewards');
+
+  await t.test('is what the loyalty_club variant selects', () => {
+    assert.equal(pick('loyalty_club'), LOYALTY_LADDER);
+  });
+
+  await t.test('ranks points on the bitcasino.io bands', () => {
+    const at = (xp) => LOYALTY_LADDER.levelFor(String(xp)).name;
+    assert.equal(at(4), 'Beginner');
+    assert.equal(at(5), 'Fan');
+    assert.equal(at(3749), 'Fan');
+    assert.equal(at(3750), 'Expert');
+    assert.equal(at(30000), 'Master');
+    assert.equal(at(250000), 'Guru');
+    assert.equal(at(750000), 'Legend');
+    assert.equal(at(3750000), 'Hero');
+    assert.equal(at(1e12), 'Hero');
+  });
+
+  await t.test('publishes multiplier and milestones, and pays the matching platform tier', () => {
+    const hero = LOYALTY_LADDER.publish().at(-1);
+    assert.equal(hero.multiplier, '3');
+    assert.equal(hero.milestones, 'unlimited');
+    assert.equal(rakebackRateForCard('fan'), rakebackRateForCard('bronze'));
+    assert.equal(levelUpAmount(6, 'hero'), levelUpAmount(24, 'eternal'));
+  });
+});

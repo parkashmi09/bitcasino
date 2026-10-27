@@ -308,10 +308,28 @@ function TierCard({ tier, current }) {
 
         <TierFact label="Points:">{tier.points}</TierFact>
         <TierRule />
-        <TierFact label="Levels:">{tier.levels}</TierFact>
+        {tier.multiplier != null ? (
+          <>
+            <TierFact label="Points multiplier:">{`${tier.multiplier}X`}</TierFact>
+            {tier.milestones != null && (
+              <>
+                <TierRule />
+                <TierFact label="Milestone rewards:">{milestoneText(tier.milestones)}</TierFact>
+              </>
+            )}
+          </>
+        ) : (
+          <TierFact label="Levels:">{tier.levels}</TierFact>
+        )}
       </div>
     </li>
   );
+}
+
+/** `'1'` → "1 milestone reward", `'unlimited'` → "Unlimited milestone rewards". */
+function milestoneText(count) {
+  if (count === 'unlimited') return 'Unlimited milestone rewards';
+  return `${count} milestone reward${count === '1' ? '' : 's'}`;
 }
 
 function TierFact({ label, children }) {

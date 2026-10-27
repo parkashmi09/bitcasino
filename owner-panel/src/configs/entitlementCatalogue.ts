@@ -314,6 +314,7 @@ const CATALOGUE: FeatureEntry[] = [
       { key: 'ring_panel', label: 'Header ring and detail page', description: '/vip-detail page (a dialog on phones), header ring and /user/enter panel, over its own 34-level ladder (data/vipConfig.js).' },
       { key: 'club_slider', label: 'Club page with ranking slider', description: '/vip-club page with banner, ranking slider, progress bar, benefits and FAQ; tier names from its own card map (api/vip.js).' },
       { key: 'club_ladder', label: 'Club page with a 75-level ladder', description: '/vip-club page with the level ring, bonus table and per-tier levels accordion, over its own 75-level ladder (VIP 01–VIP 75, brownz→diamond). Selecting it switches the BACKEND ladder: GET /user/vip, /user/vip/levels, USER_INFO, the bonus gates (VIP 20/25/30) and the player reports all rank on it (packages/common/src/vipLadders.js).' },
+      { key: 'loyalty_club', label: 'Loyalty Club, 7 levels on points', description: '/loyalty page with the seven Loyalty Club levels (Beginner, Fan, Expert, Master, Guru, Legend, Hero) on loyalty points, 1 point = $1 wagered, with each level\'s points multiplier and milestone rewards. Selecting it switches the BACKEND ladder (packages/common/src/vipLadders.js). bitcasino + smartbet only.' },
       { key: 'none', label: 'Off', description: 'No VIP surface.' }
     ]
   },

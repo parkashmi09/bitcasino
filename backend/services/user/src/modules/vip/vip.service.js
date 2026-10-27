@@ -268,7 +268,7 @@ class VipService {
     /* Decide every payment before writing any, so the transaction is short. */
     const due = [];
     for (const band of climbed) {
-      const amount = levelUpAmount(band.level);
+      const amount = levelUpAmount(band.level, band.card);
       if (money.gt(amount, '0')) {
         due.push({
           kind: 'level_up',

@@ -132,11 +132,15 @@ const CARD_REWARDS = Object.freeze({
   },
 });
 
+/* Loyalty Club ladder (vipLadders.js, bitcasino + smartbet only): each level pays the matching
+   platform tier's schedule, Beginner as unranked, Fan as bronze … Hero as eternal. */
+const LOYALTY_CARDS = { beginner: UNRANKED.card, fan: 'bronze', expert: 'silver', master: 'gold', guru: 'platinum', legend: 'diamond', hero: 'eternal' };
+
 /** Fallback when a player's rate has not been synced yet. Matches bronze. */
 const DEFAULT_RAKEBACK_RATE = CARD_REWARDS.bronze.rakebackRate;
 
 function rewardsForCard(card) {
-  return CARD_REWARDS[card] ?? CARD_REWARDS[UNRANKED.card];
+  return CARD_REWARDS[card] ?? CARD_REWARDS[LOYALTY_CARDS[card]] ?? CARD_REWARDS[UNRANKED.card];
 }
 
 function rewardsForLevel(level) {
@@ -161,8 +165,9 @@ function periodicAmount(card, type) {
   return '0';
 }
 
-function levelUpAmount(level) {
-  return rewardsForLevel(level).levelUp;
+/** `card` matters only on the Loyalty Club ladder, whose level numbers are not the platform's. */
+function levelUpAmount(level, card) {
+  return (LOYALTY_CARDS[card] ? rewardsForCard(card) : rewardsForLevel(level)).levelUp;
 }
 
 function rankUpAmount(card) {

@@ -72,6 +72,12 @@ const GENERATED = [
           "builtFor": "addaplay"
         },
         {
+          "key": "loyalty_club",
+          "label": "Loyalty Club, 7 levels on points",
+          "description": "/loyalty page with the seven Loyalty Club levels (Beginner, Fan, Expert, Master, Guru, Legend, Hero) on loyalty points, 1 point = $1 wagered, with each level's points multiplier and milestone rewards. Selecting it switches the BACKEND ladder (packages/common/src/vipLadders.js). bitcasino + smartbet only.",
+          "builtFor": "bitcasino"
+        },
+        {
           "key": "none",
           "label": "Off",
           "description": "No VIP surface."
