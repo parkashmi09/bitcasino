@@ -57,13 +57,16 @@ const GROUPS: { title: string; hint: string; keys: string[] }[] = [
   },
   {
     title: 'User accounts',
-    hint: 'How a sign-in locks, how many sessions a user keeps, how long a player stays signed in, and whether an email must be verified before money moves.',
-    keys: ['login_max_attempts', 'login_lock_minutes', 'max_active_sessions', 'player_session_minutes', 'require_email_verification']
+    hint: 'How a sign-in locks, how many sessions a user keeps, whether a player with no bet is signed out 5 minutes after sign-in, and whether an email must be verified before money moves.',
+    keys: ['login_max_attempts', 'login_lock_minutes', 'max_active_sessions', 'idle_logout', 'require_email_verification']
   }
 ]
 
+/** A setting that is the Super Admin's only while the owner has its flag on (owner panel → Player sessions). */
+const OWNER_FLAG: Record<string, string> = { idle_logout: 'idle_logout' }
+
 const OperatorSettings = () => {
-  const { can } = useSession()
+  const { can, flagEntitled } = useSession()
   const canWrite = can('config:write')
   const q = useApi<Setting[]>('admin/site-config/settings')
   const [draft, setDraft] = useState<Record<string, string | boolean | null>>({})
@@ -238,7 +241,7 @@ const OperatorSettings = () => {
               {group.keys.map(key => {
                 const s = byKey[key]
 
-                if (!s) return null
+                if (!s || !flagEntitled(OWNER_FLAG[key])) return null
 
                 return (
                   <div key={key} className='flex flex-wrap items-center justify-between gap-3 border-b pb-3 last:border-0 last:pb-0'>

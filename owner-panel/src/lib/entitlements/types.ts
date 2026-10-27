@@ -109,7 +109,7 @@ export type SiteCoin = {
   networks: { key: string; name: string }[]
 }
 
-/** One row of the site's `payment_methods` table (`GET /api/owner/payment-methods`). */
+/** One row of the site's `payment_methods` table (`siteMethods` in `GET /api/owner/entitlements`). */
 export type SiteMethod = {
   gateway: string
   currency: string
@@ -118,6 +118,9 @@ export type SiteMethod = {
   siteEnabled: boolean
   addedBy: 'site' | 'owner'
 }
+
+/** The site's payment methods as the owner panel read them; unreachable → none, with the reason. */
+export type SiteMethods = { methods: SiteMethod[]; source: 'site' | 'unavailable'; reason?: string }
 
 /** Where the variants of an older document (without `variants`) were filled from for editing. */
 export type VariantsSeed = 'backend' | 'template' | null

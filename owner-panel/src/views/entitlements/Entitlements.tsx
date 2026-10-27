@@ -72,6 +72,7 @@ import {
   type EditableDoc,
   type EntitlementsDoc,
   type SiteMethod,
+  type SiteMethods,
   type ToggleChange
 } from '@/lib/entitlements/types'
 import { isMethodCode, MAX_METHODS_PER_CURRENCY, type PaymentMethod } from '@/lib/entitlements/paymentMethods'
@@ -804,10 +805,10 @@ const TemplateCard = ({
 )
 
 const Entitlements = () => {
-  const { data: doc, error, isLoading, refetch, isRefetching } = useApi<EditableDoc>('/api/owner/entitlements')
+  const { data: doc, error, isLoading, refetch, isRefetching } = useApi<EditableDoc & { siteMethods?: SiteMethods }>('/api/owner/entitlements')
 
-  // The site's payment methods (seeded, the Super Admin's, the owner's), shown with the document's.
-  const { data: siteMethods } = useApi<{ methods: SiteMethod[]; source: 'site' | 'unavailable'; reason?: string }>('/api/owner/payment-methods')
+  // The site's payment methods (seeded, the Super Admin's, the owner's) come with the document, shown with the document's.
+  const siteMethods = doc?.siteMethods
 
   // Edits on top of the loaded document; null = nothing touched yet.
   const [edits, setEdits] = useState<Draft | null>(null)

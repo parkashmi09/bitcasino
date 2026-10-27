@@ -1,18 +1,16 @@
 import 'server-only'
 
 import { serverConfig } from '@/configs/site'
-import type { SiteMethod } from './types'
+import type { SiteMethod, SiteMethods } from './types'
 
 const LOOPBACK = new Set(['127.0.0.1', 'localhost', '::1', '[::1]'])
-
-type Answer = { methods: SiteMethod[]; source: 'site' | 'unavailable'; reason?: string }
 
 /**
  * Every payment method the site has (its seeded rows, the Super Admin's and the owner's):
  * `GET <SITE_GATEWAY_URL>/api/v1/admin/site-config/payment-methods/owner` with `x-owner-key`. Only
  * https, or http to this host (the key travels in the header). Unreachable → none, with the reason.
  */
-export async function siteMethods(): Promise<Answer> {
+export async function siteMethods(): Promise<SiteMethods> {
   const base = serverConfig.gatewayUrl.replace(/\/$/, '')
 
   if (!base || !serverConfig.sharedSecret) return { methods: [], source: 'unavailable', reason: 'SITE_GATEWAY_URL / OWNER_SHARED_SECRET not set' }

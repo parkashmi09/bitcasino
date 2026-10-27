@@ -3,6 +3,7 @@ import type { NextRequest } from 'next/server'
 import { serverConfig } from '@/configs/site'
 import { coinProblem } from '@/lib/entitlements/coins'
 import { readForEdit, saveEntitlements } from '@/lib/entitlements/store'
+import { siteMethods } from '@/lib/entitlements/siteMethods'
 import type { CoinDefinition } from '@/lib/entitlements/types'
 import type { RegionSetting } from '@/lib/entitlements/region'
 import type { WithdrawalCap } from '@/lib/entitlements/withdrawalCap'
@@ -13,8 +14,15 @@ import { handler, HttpError, ok } from '@/lib/owner/guard'
 
 export const dynamic = 'force-dynamic'
 
-/** The document with a full `variants` map (an older document is filled for editing, not written). */
-export const GET = handler(async () => ok(await readForEdit()))
+/**
+ * The document with a full `variants` map (an older document is filled for editing, not written), and
+ * the site's payment methods (seeded, the Super Admin's and the owner's) for the F2Pay methods editor.
+ */
+export const GET = handler(async () => {
+  const [doc, methods] = await Promise.all([readForEdit(), siteMethods()])
+
+  return ok({ ...doc, siteMethods: methods })
+})
 
 const boolMap = (value: unknown, name: string) => {
   if (!value || typeof value !== 'object' || Array.isArray(value)) throw new HttpError(400, 'VALIDATION_ERROR', `${name} must be an object`)

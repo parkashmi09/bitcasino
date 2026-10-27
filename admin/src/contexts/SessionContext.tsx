@@ -85,6 +85,9 @@ const SessionContext = createContext<SessionValue | null>(null)
 /** How often the owner's plan is re-read (cheap: an in-memory read on the backend). */
 const ENTITLEMENTS_POLL_MS = 4_000
 
+/** Owner flags that read OFF until the owner sets them (backend entitlements.js DEFAULT_OFF_FLAGS). */
+const DEFAULT_OFF_FLAGS = new Set(['sportsbook', 'idle_logout'])
+
 /** How often the operator's own feature flags are re-read for the sidebar. */
 const FLAGS_POLL_MS = 15_000
 
@@ -214,14 +217,14 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     [entitlements.data, liveFeatures.data]
   )
 
-  /* Same rule as the backend's `flagOnIn` (packages/common/src/entitlements.js): the sportsbook is
-     off unless the owner switched it on, and while it is on the exchange reads off — sports runs
-     one mode at a time, so every exchange screen hides. */
+  /* Same rule as the backend's `flagOnIn` (packages/common/src/entitlements.js): the sportsbook and
+     idle logout are off unless the owner switched them on, and while the sportsbook is on the
+     exchange reads off — sports runs one mode at a time, so every exchange screen hides. */
   const flagEntitled = useCallback(
     (key?: string | null): boolean => {
       if (!key) return true
       const flagsDoc = entitlements.data?.flags ?? {}
-      const on = (k: string) => (flagsDoc[k] === undefined ? k !== 'sportsbook' : flagsDoc[k] !== false)
+      const on = (k: string) => (flagsDoc[k] === undefined ? !DEFAULT_OFF_FLAGS.has(k) : flagsDoc[k] !== false)
 
       return key === 'sportsexchange' ? on(key) && !on('sportsbook') : on(key)
     },

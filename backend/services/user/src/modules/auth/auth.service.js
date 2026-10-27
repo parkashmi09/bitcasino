@@ -17,7 +17,7 @@ const {
 
 const errors = require('./auth.errors');
 const { sharedIpLocator, normaliseIp } = require('./geo/ipLocation');
-const { sitePolicy, withdrawBlock, manualPayments, operatorSettings } = require('@ibitplay/common');
+const { sitePolicy, withdrawBlock, manualPayments, operatorSettings, entitlements } = require('@ibitplay/common');
 const { RegionService } = require('../region/region.service');
 /* Registration is where a referral becomes a team. Safe to require here —
    the affiliate module does not reach back into auth. */
@@ -63,7 +63,8 @@ const MAX_FAILED_ATTEMPTS = 8;
 // variant of one email would get its own budget of guesses.
 const throttleKey = (identifier) => String(identifier ?? '').trim().toLowerCase().slice(0, 255);
 const SESSION_TTL_DAYS = 30;
-const LOCAL_ORIGIN = /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/;
+// Idle logout (owner flag `idle_logout` + the Super Admin's switch): checked once, this long after sign-in.
+const IDLE_LOGOUT_MS = 5 * 60_000;
 
 /**
  * How long withdrawals are frozen after a self-service password change.
@@ -107,6 +108,7 @@ class AuthService {
        to its own defaults rather than calling admin-service. */
     this.clients = clients ?? null;
     this.settings = operatorSettings({ clients, logger, config });
+    this.entitlements = entitlements;
     this.tokens = new TokenService(config);
     // `users.two_fa` holds an encrypted secret now, so the login path needs the
     // same box the twofa module writes with.
@@ -124,7 +126,7 @@ class AuthService {
    * valid password from an invalid one.
    */
   async login({ identifier, password, twoFactorCode, deviceLabel }, context = {}) {
-    const { ip, userAgent, origin } = withClientIp(context);
+    const { ip, userAgent } = withClientIp(context);
 
     // Before anything about the account: a restricted region learns nothing about it.
     await this.region.assertAllowed(ip);
@@ -212,7 +214,7 @@ class AuthService {
 
     await user.update({ last_login_at: new Date(), last_ip: ip || null });
 
-    const session = await this.#issueSession(user, { ip, userAgent, origin, deviceLabel });
+    const session = await this.#issueSession(user, { ip, userAgent, deviceLabel });
     this.#trackLogin(user.id, { ip, userAgent }, 'login');
     return session;
   }
@@ -250,9 +252,8 @@ class AuthService {
     return this.db.transaction(async (transaction) => {
       const next = await this.#createSession(
         user,
-        { ip: context.ip, userAgent: context.userAgent, origin: context.origin, deviceLabel: session.device_label },
-        transaction,
-        session.expires_at
+        { ip: context.ip, userAgent: context.userAgent, deviceLabel: session.device_label },
+        transaction
       );
 
       // Rotate only a session nobody rotated meanwhile: two refreshes racing with one token both
@@ -926,7 +927,7 @@ class AuthService {
    * `seen` guards the walk for the same reason it does there: `replaced_by` is
    * a column, not a guarantee, and a cycle would hang the request.
    */
-  async revokeSession(userId, sessionId) {
+  async revokeSession(userId, sessionId, reason = 'signed_out_by_user') {
     const session = await this.models.AuthSession.findOne({
       where: { id: sessionId, user_id: userId, revoked_at: null },
     });
@@ -941,7 +942,7 @@ class AuthService {
     while (current && !seen.has(current.id)) {
       seen.add(current.id);
       const [affected] = await this.models.AuthSession.update(
-        { revoked_at: new Date(), revoked_reason: 'signed_out_by_user' },
+        { revoked_at: new Date(), revoked_reason: reason },
         { where: { id: current.id, revoked_at: null } }
       );
       revoked += affected;
@@ -1071,29 +1072,44 @@ class AuthService {
     run().catch((err) => this.logger?.warn({ err: err.message, userId: String(userId) }, 'Login history not recorded'));
   }
 
+  /* A sign-in (password, Google, sign-up). With idle logout on, `idleCheckAt` is when the player
+     site calls `POST /idle-check` once; a refresh answers no `idleCheckAt`, so the time stays. */
   async #issueSession(user, context) {
     const { payload } = await this.db.transaction((transaction) =>
       this.#createSession(user, context, transaction)
     );
-    return payload;
+    return { ...payload, idleCheckAt: (await this.#idleLogoutOn()) ? new Date(Date.now() + IDLE_LOGOUT_MS) : null };
   }
 
-  /* `rotatedFrom` is the expiry of the session a refresh replaces. With the operator's
-     `player_session_minutes` on, the session ends that long after SIGN-IN: a rotation keeps the
-     old end instead of starting a new one, and the access token never outlives it. Default 5
-     (owner's call, 23 Oct 2026) when nothing is stored, also when admin-service is unreachable. Off (0), a
-     rotation slides another 30 days as before. A session signed in before the setting was turned
-     on keeps its own end. A sign-in from a localhost page (the dev copy of the player site) is
-     never cut short, but only with SESSION_CAP_EXEMPT_LOCALHOST: Origin is a header any script
-     can send, so on live it would turn the cap off for whoever asks. */
-  async #createSession(user, { ip, userAgent, origin, deviceLabel }, transaction, rotatedFrom = null) {
+  /** Idle logout is in force: the owner's flag (off unless set) and the Super Admin's switch (on unless set). */
+  async #idleLogoutOn() {
+    return (await this.entitlements.isFlagEntitled('idle_logout')) && String(await this.settings.read('idle_logout', true)) !== 'false';
+  }
+
+  /**
+   * The one check idle logout makes, 5 minutes after sign-in: no sports bet, Originals bet or casino
+   * bet (Slotegrator / JSGames) in the last 5 minutes signs this session out. Off → nothing happens.
+   */
+  async idleCheck({ id: userId, sessionId }) {
+    if (!sessionId || !(await this.#idleLogoutOn())) return { signedOut: false };
+
+    const since = new Date(Date.now() - IDLE_LOGOUT_MS);
+    const [[{ bet }]] = await this.db.sequelize.query(
+      `SELECT EXISTS (SELECT 1 FROM mssports."SportsBet" WHERE user_id = :userId AND created_at >= :since)
+           OR EXISTS (SELECT 1 FROM og_transactions WHERE user_id = :userId AND kind = 'bet' AND created_at >= :since)
+           OR EXISTS (SELECT 1 FROM gis_transactions WHERE user_id = :userId AND action = 'bet' AND created_at >= :since)
+           OR EXISTS (SELECT 1 FROM js_game_transactions WHERE user_id = :userId AND transaction_type = 'bet' AND "timestamp" >= :since) AS bet`,
+      { replacements: { userId, since } }
+    );
+    if (bet) return { signedOut: false };
+
+    await this.revokeSession(userId, sessionId, 'idle_logout');
+    return { signedOut: true };
+  }
+
+  async #createSession(user, { ip, userAgent, deviceLabel }, transaction) {
     const refreshToken = randomToken(48);
-    const localExempt = this.config?.SESSION_CAP_EXEMPT_LOCALHOST === true && LOCAL_ORIGIN.test(origin ?? '');
-    const minutes = localExempt ? 0 : Number(await this.settings.read('player_session_minutes', 5)) || 0;
-    const expiresAt =
-      minutes > 0
-        ? new Date(rotatedFrom ?? Date.now() + minutes * 60_000)
-        : new Date(Date.now() + SESSION_TTL_DAYS * 24 * 3600 * 1000);
+    const expiresAt = new Date(Date.now() + SESSION_TTL_DAYS * 24 * 3600 * 1000);
 
     const session = await this.models.AuthSession.create(
       {
@@ -1114,7 +1130,6 @@ class AuthService {
       sessionId: session.id,
       role: 'player',
       status: user.status || 'active',
-      notAfter: minutes > 0 ? expiresAt : null,
     });
 
     return {

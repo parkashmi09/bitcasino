@@ -603,6 +603,11 @@ export const FLAG_GROUPS: FlagGroup[] = [
     keys: ['f2pay_inr', 'f2pay_usdt']
   },
   {
+    title: 'Player sessions',
+    description: 'ON: 5 minutes after a player signs in, the site checks once for a sports, Originals or casino bet in those 5 minutes; none signs the player out. The site admin can switch it off.',
+    keys: ['idle_logout']
+  },
+  {
     title: 'Home page sections',
     description: 'Blocks on the landing page, top to bottom.',
     keys: [
@@ -623,9 +628,9 @@ export const FLAG_GROUPS: FlagGroup[] = [
 ]
 
 /* Flags that read OFF when the stored document has no value: switching one on changes what the
-   site IS (the sportsbook replaces the exchange), so it never happens by default or by "Allow all".
-   Same set in backend/packages/common/src/entitlements.js. */
-export const DEFAULT_OFF_FLAGS = new Set(['sportsbook'])
+   site IS (the sportsbook replaces the exchange, idle logout signs players out), so it never happens
+   by default or by "Allow all". Same set in backend/packages/common/src/entitlements.js. */
+export const DEFAULT_OFF_FLAGS = new Set(['sportsbook', 'idle_logout'])
 
 /* Sports runs one mode at a time: switching one of these on switches the other off. */
 export const EXCLUSIVE_FLAGS: Record<string, string> = { sportsbook: 'sportsexchange', sportsexchange: 'sportsbook' }
@@ -669,6 +674,7 @@ export const FLAG_LABELS: Record<string, string> = {
   gateway_f2pay: 'F2Pay (deposits)',
   f2pay_inr: 'INR (UPI)',
   f2pay_usdt: 'Crypto (USDT, TRC20)',
+  idle_logout: 'Idle logout (no bet in the first 5 minutes after sign-in)',
   idr: 'IDR',
   home_heroSection: 'Hero carousel',
   home_welcomebanner: 'Welcome banner',

@@ -22,6 +22,10 @@ function createUserController({ service }) {
       });
     }),
 
+    idleCheck: asyncHandler(async (req, res) => {
+      return response.ok(res, await service.idleCheck(req.user));
+    }),
+
     sessions: asyncHandler(async (req, res) => {
       return response.ok(res, await service.listSessions(req.user.id));
     }),

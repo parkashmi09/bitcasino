@@ -17,6 +17,8 @@ module.exports = function userRoutes(deps) {
   router.get('/me', noQuery(), ctrl.me);
   router.get('/sessions', noQuery(), ctrl.sessions);
   router.post('/logout', validate(v.logout), ctrl.logout);
+  // Idle logout's one check, 5 minutes after sign-in (the player site calls it at login's `idleCheckAt`).
+  router.post('/idle-check', noBody(), ctrl.idleCheck);
   router.post('/change-password', validate(v.changePassword), ctrl.changePassword);
   /**
    * The Remove button on Settings -> Security. `GET /sessions` shipped with the

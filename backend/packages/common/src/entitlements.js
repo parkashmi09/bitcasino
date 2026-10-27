@@ -153,8 +153,8 @@ async function isFeatureEntitled(key) {
 }
 
 /* Flags that read OFF when the owner never set them (owner-panel DEFAULT_OFF_FLAGS): the
-   sportsbook replaces the exchange, so it is never on by default. */
-const DEFAULT_OFF_FLAGS = new Set(['sportsbook']);
+   sportsbook replaces the exchange, so it is never on by default; idle logout signs players out. */
+const DEFAULT_OFF_FLAGS = new Set(['sportsbook', 'idle_logout']);
 
 /**
  * Sync flag read for code that holds the document. Sports runs one mode at a time: with the
