@@ -1,6 +1,9 @@
 import { Link } from 'react-router-dom';
 import { HelpCategoriesSidebar } from '../components/sections/HelpCategoriesSidebar';
 import { SUPPORT_EMAIL } from '@/lib/site';
+import { Brand } from '@/components/ui/Brand';
+import { withBrand } from '@/lib/branding';
+import { useSiteName } from '@/queries/siteConfig';
 
 const RELATED_ARTICLES = [
   ['General Terms & Conditions', '/help-center/terms-and-conditions'],
@@ -30,11 +33,11 @@ const complaintDetails = [
 function Breadcrumbs() {
   return (
     <nav aria-label="Breadcrumb" className="flex flex-wrap items-center gap-1 text-sm text-bulma">
-      <Link to="/" className="hover:text-piccolo">Bitcasino</Link>
+      <Link to="/" className="hover:text-piccolo"><Brand /></Link>
       <span aria-hidden="true">›</span>
       <Link to="/help-center" className="hover:text-piccolo">Help centre</Link>
       <span aria-hidden="true">›</span>
-      <Link to="/help-center/terms-and-conditions" className="hover:text-piccolo">Bitcasino Information</Link>
+      <Link to="/help-center/terms-and-conditions" className="hover:text-piccolo"><Brand /> Information</Link>
       <span aria-hidden="true">›</span>
       <span>Dispute Resolution</span>
     </nav>
@@ -45,13 +48,13 @@ function Article() {
   return (
     <article className="min-w-0 max-w-[800px] text-[15px] leading-6 text-bulma md:text-base md:leading-7">
       <div className="mb-8">
-        <p className="mb-2 text-[10px] uppercase leading-4 tracking-[0.5px] text-trunks">Bitcasino Information</p>
+        <p className="mb-2 text-[10px] uppercase leading-4 tracking-[0.5px] text-trunks"><Brand /> Information</p>
         <h1 className="font-primary text-2xl font-bold leading-8 text-bulma">Dispute Resolution</h1>
       </div>
 
       <h2 className="mb-4 mt-10 font-primary text-xl font-bold leading-7 text-bulma">Player Complaint Procedure</h2>
       <h2 className="mb-4 mt-10 font-primary text-xl font-bold leading-7 text-bulma">1. Purpose</h2>
-      <p>The purpose of this Complaints Handling Procedure (the "Procedure") is to establish a clear and structured process for managing player complaints fairly, transparently, and efficiently. Bitcasino is committed to providing players with a reliable avenue for resolving disputes related to our gaming services, including account issues, transactions, and gameplay concerns.</p>
+      <p>The purpose of this Complaints Handling Procedure (the "Procedure") is to establish a clear and structured process for managing player complaints fairly, transparently, and efficiently. <Brand /> is committed to providing players with a reliable avenue for resolving disputes related to our gaming services, including account issues, transactions, and gameplay concerns.</p>
       <p className="mt-4">This Procedure aims to:</p>
       <ul className="mt-4 list-disc space-y-2 ps-7 marker:text-piccolo md:ps-8">
         <li>Provide a standardized approach to managing and resolving customer complaints.</li>
@@ -112,6 +115,7 @@ function Article() {
 }
 
 export function DisputeResolution() {
+  const site = useSiteName();
   return (
     <div className="w-full max-w-[99rem] overflow-x-clip md:mx-auto">
       <Breadcrumbs />
@@ -122,9 +126,9 @@ export function DisputeResolution() {
       <section className="mt-14 border-t border-beerus pt-8">
         <h2 className="mb-5 text-2xl font-bold text-bulma">Related articles</h2>
         <div className="grid gap-6 md:grid-cols-3">
-          {RELATED_ARTICLES.map(([label, to]) => (
+          {withBrand(RELATED_ARTICLES, site).map(([label, to]) => (
             <Link key={label} to={to} className="text-xl text-bulma hover:text-piccolo">
-              <span className="mb-1 block text-[10px] uppercase leading-4 tracking-[0.5px] text-trunks">Bitcasino Information</span>
+              <span className="mb-1 block text-[10px] uppercase leading-4 tracking-[0.5px] text-trunks"><Brand /> Information</span>
               {label}
             </Link>
           ))}

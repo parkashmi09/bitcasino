@@ -5,8 +5,9 @@ import { CatalogueRail } from '@/components/sections/CatalogueRail';
 import { ThemeRail } from '@/components/sections/ThemeRail';
 import { TrustSection } from '@/components/sections/TrustSection';
 import { ProviderRail } from '@/components/sections/ProviderRail';
-import { useSiteConfig } from '@/queries';
-import { HOME_RAILS, THEME_RAIL_INDEX } from '@/data/homeRails';
+import { useHomeSlides, useLobbyCategories, useSiteConfig } from '@/queries';
+import { HOME_RAILS, THEME_RAIL_INDEX, lobbyRail } from '@/data/homeRails';
+import { OriginalsRail } from '@/components/sections/OriginalsRail';
 
 /**
  * Section order follows the reference home page.
@@ -70,6 +71,12 @@ import { HOME_RAILS, THEME_RAIL_INDEX } from '@/data/homeRails';
 export function Home() {
   const { status } = useAuth();
   const { config } = useSiteConfig();
+  const lobby = useLobbyCategories();
+  const heroOn = config.flag('home_heroSection');
+  const slides = useHomeSlides({ enabled: heroOn });
+  const hasSlides = heroOn && Boolean(slides.data?.length);
+  // A disabled query stays pending; with the section off the answer is simply "no slides".
+  const slidesKnown = !heroOn || !slides.isPending;
   const signedOut = status === 'anonymous';
 
   /**
@@ -89,24 +96,28 @@ export function Home() {
     'live-casino': 'home_livecasino',
     'popular-slots': 'home_popularslots',
     crash: 'home_crashgames',
+    live: 'home_livecasino',
+    'crash-games': 'home_crashgames',
   };
 
-  const rails = HOME_RAILS.filter((rail) => {
-    const flag = rail.source.kind === 'collection' ? RAIL_FLAGS[rail.source.slug] : null;
+  // The site admin's lobby categories drive the rails, in its order and with its names; until they
+  // answer (or if there are none) the built-in rails stand in. Originals have their own rail.
+  const fallback = HOME_RAILS.filter((rail) => rail.source.slug !== 'originals');
+  const source = lobby.data?.length ? lobby.data.map(lobbyRail) : lobby.isPending ? [] : fallback;
+
+  const rails = source.filter((rail) => {
+    const flag = rail.source.kind === 'collection' || rail.source.kind === 'lobby' ? RAIL_FLAGS[rail.source.slug] : null;
     return flag ? config.flag(flag) : true;
   });
 
-  // Split on the ORIGINAL index rather than the filtered one: the Themes strip
-  // belongs after "Exclusives", and counting into a list a flag has shortened
-  // would drift it up the page every time an operator hid a rail.
-  const themeAt = HOME_RAILS.slice(0, THEME_RAIL_INDEX).filter((rail) =>
-    rails.includes(rail),
-  ).length;
+  // The Themes strip sits after the first four rails, as on the reference.
+  const themeAt = Math.min(THEME_RAIL_INDEX - 1, rails.length);
 
   return (
     <>
-      {status === 'authenticated' && <HomeBanner />}
-      {signedOut && <Hero />}
+      {/* The site admin's banners (Content -> Banners) for everyone; the built-in hero only when there are none. */}
+      {(status === 'authenticated' || (signedOut && hasSlides)) && <HomeBanner />}
+      {signedOut && !hasSlides && slidesKnown && <Hero />}
       {status === 'loading' && <AboveTheFoldSkeleton />}
 
       {signedOut && <ProviderRail />}
@@ -115,6 +126,8 @@ export function Home() {
           above the rails because that is where the reference puts it, and it
           costs no space while the feed is empty. */}
       {/* {config.flag('home_latestwins') && <LatestWins />} */}
+
+      {config.flag('originals') && <OriginalsRail />}
 
       {rails.slice(0, themeAt).map((rail) => (
         <CatalogueRail key={rail.title} {...rail} />

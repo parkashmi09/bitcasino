@@ -1,11 +1,13 @@
 import { createContext, useContext, useEffect, useMemo } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { api } from '@/lib/api';
 import { ENDPOINTS } from '@/lib/endpoints';
 import { ALL_ON, gateOf, makeGates } from '@/lib/gates';
 import { useAuth } from '@/auth/AuthProvider';
-import { useSiteConfig } from '@/queries/siteConfig';
+import { useBranding, useSiteConfig } from '@/queries/siteConfig';
+import { applyBranding } from '@/lib/branding';
+import { subscribe } from '@/lib/socket';
 import { queryKeys } from '@/queries/keys';
 
 /**
@@ -50,6 +52,19 @@ export function GatesProvider({ children }) {
   useEffect(() => {
     if (palette) document.documentElement.dataset.palette = palette;
   }, [palette]);
+
+  // The owner's name, title, meta and favicon (owner panel → Branding).
+  const branding = useBranding();
+  useEffect(() => applyBranding(branding), [branding]);
+
+  // An admin or owner save pushes these to every player socket: re-read flags, plan and branding
+  // now instead of waiting out the hour-long staleTime (hash `services/realtime.js` PUSHES).
+  const queryClient = useQueryClient();
+  useEffect(() => {
+    const refresh = () => queryClient.invalidateQueries({ queryKey: queryKeys.site.all });
+    const offs = ['siteConfigUpdated', 'featuresUpdated'].map((event) => subscribe(event, refresh));
+    return () => offs.forEach((off) => off());
+  }, [queryClient]);
 
   const { pathname } = useLocation();
   const navigate = useNavigate();

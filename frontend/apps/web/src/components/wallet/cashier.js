@@ -4,9 +4,9 @@ import { CURRENCY_ORDER } from '@/data/currencies';
  * What the cashier may offer, from the gates (`lib/gates.js`). Pure, so the
  * header's Deposit button and the drawer agree on it.
  *
- * - `deposit` is the gateway rails (crypto address, F2Pay), both AUTOMATIC on
- *   the backend (`deposit_mode: automatic`). This drawer has no manual bank
- *   transfer form, so a manual-only site has no Deposit tab here.
+ * - `deposit` is the gateway rails (crypto address, F2Pay; `deposit_mode`
+ *   automatic) and/or the manual transfer (`deposit_mode` manual + the admin's
+ *   switch, `ManualDepositPanel`), so a manual-only site keeps its Deposit tab.
  * - `withdraw` stays for a withdraw-LOCKED player (`/me` `withdraw_locked`),
  *   who is told why — hash's rule. Any other `withdraw: false` hides it.
  *
@@ -15,7 +15,7 @@ import { CURRENCY_ORDER } from '@/data/currencies';
 export function cashierTabs(gates, withdrawLocked = false) {
   const lockedOut = withdrawLocked && !gates.agentPlayer && gates.blocked('withdraw') === 'account';
   return [
-    gates.autoDeposit() && 'deposit',
+    (gates.autoDeposit() || gates.manualDeposit()) && 'deposit',
     gates.on('buy') && 'buy',
     (gates.on('withdraw') || lockedOut) && 'withdraw',
     gates.on('swap') && 'swap',

@@ -1,9 +1,12 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { HOME_BANNERS } from '@/data/catalog';
+import { withBrand } from '@/lib/branding';
+import { useSiteName } from '@/queries/siteConfig';
 import { useGates } from '@/hooks/useGates';
 import { useHomeSlides } from '@/queries';
 import { cn } from '@/lib/cn';
+import { Rail } from './Rail';
 
 /**
  * ═════════════════════════════════════════════════════════════════════════
@@ -92,7 +95,8 @@ export function HomeBanner() {
   const { flag, routeOn } = useGates();
   const show = flag('home_heroSection');
   const { data: slides } = useHomeSlides({ enabled: show });
-  const banners = (slides?.length ? slides : HOME_BANNERS).filter(
+  const site = useSiteName();
+  const banners = (slides?.length ? slides : withBrand(HOME_BANNERS, site)).filter(
     (banner) => !banner.href || routeOn(banner.href),
   );
   const N = banners.length;
@@ -238,19 +242,20 @@ export function HomeBanner() {
       onFocusCapture={() => (pausedRef.current = true)}
       onBlurCapture={() => (pausedRef.current = false)}
     >
+      {/* From `sm`: the reference's row, measured on bitcasino.io at 1920 — three 499×304 cards, 12px
+          apart, the rest a scroll away (Rail's arrows). */}
+      <Rail title="Featured promotions" headingClassName="sr-only" className="-mt-5 max-sm:hidden">
+        {banners.map((banner) => (
+          <BannerCard key={banner.id} banner={banner} className="w-[calc((100%-24px)/3)] shrink-0" />
+        ))}
+      </Rail>
+
+      {/* Below `sm`: a looping scroller with one card centred and its neighbours peeking. `-mx-4`
+          cancels `main`'s gutter so the peek runs to the screen edge. */}
       <div
         ref={trackRef}
         onScroll={handleScroll}
-        className={[
-          // Below `sm`: a scroller carrying one card centred and its
-          // neighbours peeking. `-mx-4` cancels `main`'s gutter so the peek
-          // runs to the edge of the screen, as it does on the reference, and
-          // it is also what makes the slide's 63% resolve against the whole
-          // viewport — 270px at the 428px the reference was measured on.
-          'no-scrollbar -mx-4 flex snap-x snap-mandatory gap-4 overflow-x-auto overscroll-x-contain',
-          // From `sm`: the reference's row, and nothing scrolls.
-          'sm:mx-0 sm:snap-none sm:justify-between sm:overflow-x-visible',
-        ].join(' ')}
+        className="no-scrollbar -mx-4 flex snap-x snap-mandatory gap-3 overflow-x-auto overscroll-x-contain sm:hidden"
       >
         {Array.from({ length: COPIES * N }, (_, i) => {
           const banner = banners[i % N];
@@ -258,57 +263,14 @@ export function HomeBanner() {
           const spare = copy !== MIDDLE;
 
           return (
-            <div
+            <BannerCard
               key={`${copy}-${banner.id}`}
-              // The two spare copies exist to make the loop seamless, not to
-              // be read: assistive technology and the tab order see the middle
-              // copy's three cards and nothing else.
-              aria-hidden={spare || undefined}
-              className={cn(
-                'relative w-[63%] shrink-0 snap-center',
-                spare ? 'sm:hidden' : 'sm:w-full sm:shrink',
-              )}
-            >
-              <div
-                style={{ backgroundImage: `url(${banner.art})` }}
-                className={[
-                  'relative flex flex-col justify-end gap-2 overflow-hidden rounded-2xl',
-                  'bg-[#0F0025] bg-cover bg-center bg-no-repeat',
-                  'min-h-[410px] p-5',
-                  'sm:h-full sm:min-h-[300px] sm:max-w-[250px] sm:px-4 sm:py-5',
-                  'lg:min-h-[400px] lg:max-w-[350px] lg:px-6 lg:py-7',
-                  'xl:min-h-[514px] xl:max-w-[496px] xl:px-8 2xl:py-9',
-                ].join(' ')}
-              >
-                <h2
-                  className={[
-                    'text-center font-secondary font-medium text-goten',
-                    'text-2xl md:text-[18px] md:leading-4',
-                    'lg:text-[24px] lg:leading-6 xl:text-[32px] xl:leading-8',
-                  ].join(' ')}
-                >
-                  {banner.title}
-                </h2>
-
-                <p className="px-14 text-center text-sm font-normal text-goten max-md:hidden md:px-0">
-                  {banner.blurb}
-                </p>
-              </div>
-
-              {/* Stretched hit target. Sits above the card so the whole tile is
-                  clickable, and carries the accessible name for the link. */}
-              {banner.href && (
-                <CardLink
-                  href={banner.href}
-                  aria-label={banner.title || 'Promotion'}
-                  tabIndex={spare ? -1 : undefined}
-                  className={[
-                    'absolute inset-0 z-1 rounded-2xl',
-                    'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-piccolo',
-                  ].join(' ')}
-                />
-              )}
-            </div>
+              banner={banner}
+              // The spare copies make the loop seamless; assistive technology and the tab order
+              // see the middle copy only.
+              spare={spare}
+              className="w-[80%] shrink-0 snap-center"
+            />
           );
         })}
       </div>
@@ -336,6 +298,34 @@ export function HomeBanner() {
         ))}
       </div>
     </section>
+  );
+}
+
+/**
+ * One promo card, sized as the reference's: 499×304, 12px corners, art covering it; the title
+ * (Big Shoulders 900, uppercase) and blurb sit top-left in the left 40%, scaled to the card width.
+ */
+function BannerCard({ banner, spare = false, className }) {
+  return (
+    <div aria-hidden={spare || undefined} className={cn('@container relative', className)}>
+      <div
+        style={{ backgroundImage: `url(${banner.art})` }}
+        className="relative aspect-[499/304] overflow-hidden rounded-[12px] bg-[#0F0025] bg-cover bg-center bg-no-repeat"
+      >
+        <div className="absolute left-[5.4%] top-[8.9%] w-[40%] text-goten">
+          <h2 className="font-display text-[7.6cqw] font-black uppercase leading-none">{banner.title}</h2>
+          {banner.blurb && <p className="mt-[3.4cqw] text-[3.27cqw] leading-[1.33]">{banner.blurb}</p>}
+        </div>
+      </div>
+      {banner.href && (
+        <CardLink
+          href={banner.href}
+          aria-label={banner.title || 'Promotion'}
+          tabIndex={spare ? -1 : undefined}
+          className="absolute inset-0 z-1 rounded-[12px] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-piccolo"
+        />
+      )}
+    </div>
   );
 }
 

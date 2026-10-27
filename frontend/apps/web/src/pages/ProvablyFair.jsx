@@ -1,6 +1,9 @@
 import { Link } from 'react-router-dom';
 import { HelpCategoriesSidebar } from '../components/sections/HelpCategoriesSidebar';
 import { SUPPORT_EMAIL } from '@/lib/site';
+import { Brand } from '@/components/ui/Brand';
+import { withBrand } from '@/lib/branding';
+import { useSiteName } from '@/queries/siteConfig';
 
 const RELATED_ARTICLES = [
   ['How many games are there in Bitcasino?', '/help-center/help-getting-started/how-many-games-are-there-in-bitcasino-'],
@@ -31,13 +34,13 @@ const publishedRows = [
 function Breadcrumbs() {
   return (
     <nav aria-label="Breadcrumb" className="flex flex-wrap items-center gap-1 text-sm text-bulma">
-      <Link to="/" className="hover:text-piccolo">Bitcasino</Link>
+      <Link to="/" className="hover:text-piccolo"><Brand /></Link>
       <span aria-hidden="true">›</span>
       <Link to="/help-center" className="hover:text-piccolo">Help centre</Link>
       <span aria-hidden="true">›</span>
       <Link to="/help-center/help-getting-started" className="hover:text-piccolo">Getting Started</Link>
       <span aria-hidden="true">›</span>
-      <span>Learn about Bitcasino Originals provably fair games</span>
+      <span>Learn about <Brand /> Originals provably fair games</span>
     </nav>
   );
 }
@@ -70,7 +73,7 @@ function Article() {
     <article className="min-w-0 max-w-[800px] text-[15px] leading-6 text-bulma md:text-base md:leading-7">
       <div className="mb-8">
         <p className="mb-2 text-[10px] uppercase leading-4 tracking-[0.5px] text-trunks">Getting Started</p>
-        <h1 className="font-primary text-2xl font-bold leading-8 text-bulma">Learn about Bitcasino Originals provably fair games</h1>
+        <h1 className="font-primary text-2xl font-bold leading-8 text-bulma">Learn about <Brand /> Originals provably fair games</h1>
       </div>
 
       <Section title="What is Provably Fair?">
@@ -197,6 +200,7 @@ function Article() {
 }
 
 export function ProvablyFair() {
+  const site = useSiteName();
   return (
     <div className="w-full max-w-[99rem] overflow-x-clip md:mx-auto">
       <Breadcrumbs />
@@ -207,7 +211,7 @@ export function ProvablyFair() {
       <section className="mt-14 border-t border-beerus pt-8">
         <h2 className="mb-5 text-2xl font-bold text-bulma">Related articles</h2>
         <div className="grid gap-6 md:grid-cols-3">
-          {RELATED_ARTICLES.map(([label, to]) => (
+          {withBrand(RELATED_ARTICLES, site).map(([label, to]) => (
             <Link key={label} to={to} className="text-xl text-bulma hover:text-piccolo">
               <span className="mb-1 block text-[10px] uppercase leading-4 tracking-[0.5px] text-trunks">Getting Started</span>
               {label}

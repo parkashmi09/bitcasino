@@ -128,6 +128,8 @@ export function makeGates({ flags, features, capabilities, ready = true } = {}) 
       return !gate || on(gate);
     },
     policy,
+    /** The owner's light/dark rule: `dark_only` (always dark, no toggle) or `switch`; null until the plan answers. */
+    themeMode: () => (list ? policy('theme_mode') : null),
     /** The manual (bank transfer) deposit may show. */
     manualDeposit: () => on('deposit') && can('deposit') && manualOpen(),
     /** The gateway (crypto address) deposit may show. */

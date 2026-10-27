@@ -180,5 +180,6 @@ describe('the race, promotion and slide adapters', () => {
     expect(slides.map((slide) => slide.id)).toEqual(['slider-1', 'slider-2']);
     expect(slides[1]).toMatchObject({ href: '/sports', art: '/b', title: 'B' });
     expect(slides[0].href).toBeNull();
+    expect(toSlides([{ type: 'slider-1', url: '/a', updatedAt: 'T1' }])[0].art).toBe('/a?v=T1');
   });
 });

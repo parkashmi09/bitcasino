@@ -52,7 +52,6 @@ import { CATEGORY_ART } from '../src/data/adapters/games.js';
 import { KNOWN_LOGOS } from '../src/data/adapters/providers.js';
 import {
   PLATFORM_COLLECTIONS,
-  CUT_COLLECTIONS,
   resolveCollection,
 } from '../src/data/adapters/collections.js';
 import { HOME_RAILS } from '../src/data/homeRails.js';
@@ -586,7 +585,7 @@ for (const rail of HOME_RAILS) {
     rows = res.data;
   }
 
-  const games = kind === 'cut' ? resolveCollection(slug).cut(toGames(rows)) : toGames(rows);
+  const games = toGames(rows);
 
   if (games.length === 0) {
     fail(`"${rail.title}"`, `${kind} "${slug}" resolved to 0 games — the rail draws nothing`);
@@ -622,31 +621,6 @@ console.log('\nThemes strip');
 }
 
 // ── The client-side cuts still find something ──────────────────────────
-/**
- * `new`, `exclusives` and `live-rtp` are cut out of one fetched page because
- * the browse route has no `label` filter and no sort — see
- * `data/adapters/collections.js`. They are the surfaces that will break first
- * against a real catalogue, so an empty cut is reported rather than passed
- * over as "the operator curated nothing".
- */
-console.log('\nClient-side cuts  (no label filter upstream — see collections.js)');
-{
-  const res = await get(`${CASINO}/games`, gamesQuery({ page: 1, limit: 100 }));
-  if (res.error) {
-    fail('cut source', res.error);
-  } else {
-    const games = toGames(res.data);
-    for (const [slug, meta] of Object.entries(CUT_COLLECTIONS)) {
-      const cut = meta.cut(games);
-      if (cut.length === 0) {
-        fail(`"${slug}"`, `cut 0 of ${games.length} — the rail and /games/${slug} are both empty`);
-      } else {
-        ok(`"${slug}"`, `${cut.length} of ${games.length}`);
-      }
-    }
-  }
-}
-
 // ── The live surfaces ──────────────────────────────────────────────────
 /**
  * The four public socket events behind the ticker, the game-page feed and

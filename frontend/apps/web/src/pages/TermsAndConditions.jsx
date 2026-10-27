@@ -1,6 +1,9 @@
 import { Link } from 'react-router-dom';
 import { HelpCategoriesSidebar } from '../components/sections/HelpCategoriesSidebar';
 import { OPERATOR_NOTICE, SUPPORT_EMAIL } from '@/lib/site';
+import { Brand } from '@/components/ui/Brand';
+import { withBrand } from '@/lib/branding';
+import { useSiteName } from '@/queries/siteConfig';
 
 const RELATED_ARTICLES = [
   ['Dispute Resolution', '/help-center/dispute-resolution'],
@@ -141,11 +144,11 @@ const sections = [
 function Breadcrumbs() {
   return (
     <nav aria-label="Breadcrumb" className="flex flex-wrap items-center gap-1 text-sm text-bulma">
-      <Link to="/" className="hover:text-piccolo">Bitcasino</Link>
+      <Link to="/" className="hover:text-piccolo"><Brand /></Link>
       <span aria-hidden="true">›</span>
       <Link to="/help-center" className="hover:text-piccolo">Help centre</Link>
       <span aria-hidden="true">›</span>
-      <Link to="/help-center" className="hover:text-piccolo">Bitcasino Information</Link>
+      <Link to="/help-center" className="hover:text-piccolo"><Brand /> Information</Link>
       <span aria-hidden="true">›</span>
       <span>General Terms &amp; Conditions</span>
     </nav>
@@ -153,10 +156,11 @@ function Breadcrumbs() {
 }
 
 function Article() {
+  const site = useSiteName();
   return (
     <article className="min-w-0 max-w-[800px] text-[15px] leading-6 text-bulma md:text-base md:leading-7">
       <div className="mb-8">
-        <p className="mb-2 text-[10px] uppercase leading-4 tracking-[0.5px] text-trunks">Bitcasino Information</p>
+        <p className="mb-2 text-[10px] uppercase leading-4 tracking-[0.5px] text-trunks"><Brand /> Information</p>
         <h1 className="font-primary text-2xl font-bold leading-8 text-bulma">General Terms &amp; Conditions</h1>
         <button type="button" onClick={() => window.print()} className="mt-4 rounded-md border border-bulma bg-transparent px-5 py-2 font-medium text-bulma hover:bg-gohan">
           Print
@@ -166,12 +170,12 @@ function Article() {
 
       <h2 className="mb-4 mt-10 font-primary text-xl font-bold leading-7 text-bulma">Definitions</h2>
       <ul className="mb-8 list-disc space-y-2 ps-7 marker:text-piccolo md:ps-8">
-        {definitions.map(([term, description]) => (
+        {withBrand(definitions, site).map(([term, description]) => (
           <li key={term}><em>{term}</em> &ndash; {description}</li>
         ))}
       </ul>
 
-      {sections.map(([heading, paragraphs]) => (
+      {withBrand(sections, site).map(([heading, paragraphs]) => (
         <section key={heading} className="scroll-mt-24">
           <h2 className="mb-4 mt-10 font-primary text-xl font-bold leading-7 text-bulma">{heading}</h2>
           {paragraphs.map((paragraph, index) => (
@@ -184,6 +188,7 @@ function Article() {
 }
 
 export function TermsAndConditions() {
+  const site = useSiteName();
   return (
     <div className="w-full max-w-[99rem] overflow-x-clip md:mx-auto">
       <Breadcrumbs />
@@ -194,9 +199,9 @@ export function TermsAndConditions() {
       <section className="mt-14 border-t border-beerus pt-8">
         <h2 className="mb-5 text-2xl font-bold text-bulma">Related articles</h2>
         <div className="grid gap-6 md:grid-cols-3">
-          {RELATED_ARTICLES.map(([label, to]) => (
+          {withBrand(RELATED_ARTICLES, site).map(([label, to]) => (
             <Link key={label} to={to} className="text-xl text-bulma hover:text-piccolo">
-              <span className="mb-1 block text-[10px] uppercase leading-4 tracking-[0.5px] text-trunks">Bitcasino Information</span>
+              <span className="mb-1 block text-[10px] uppercase leading-4 tracking-[0.5px] text-trunks"><Brand /> Information</span>
               {label}
             </Link>
           ))}

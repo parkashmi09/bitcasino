@@ -1,6 +1,9 @@
 import { Link } from 'react-router-dom';
 import { findHelpCategory } from '@/data/helpArticles';
 import { SUPPORT_EMAIL } from '@/lib/site';
+import { Brand } from '@/components/ui/Brand';
+import { withBrand } from '@/lib/branding';
+import { useSiteName } from '@/queries/siteConfig';
 
 const IMAGE_ROOT = 'https://heathmont.imgix.net/bitcasino/images';
 
@@ -116,7 +119,7 @@ const CATEGORIES = [
 ];
 
 function CategoryCard({ category }) {
-  const articles = findHelpCategory(category.id)?.articles ?? [];
+  const articles = withBrand(findHelpCategory(category.id)?.articles ?? [], useSiteName());
   return (
     <article
       data-testid={category.id}
@@ -139,6 +142,7 @@ function CategoryCard({ category }) {
 }
 
 export function HelpCenter() {
+  const site = useSiteName();
   return (
     <div className="w-full max-w-[99rem] overflow-x-clip">
       <div className="grid gap-4">
@@ -148,7 +152,7 @@ export function HelpCenter() {
         </header>
 
         <section aria-label="Help Centre categories" className="grid grid-cols-1 gap-4 pb-6 md:grid-cols-3">
-          {CATEGORIES.map((category) => <CategoryCard key={category.id} category={category} />)}
+          {withBrand(CATEGORIES, site).map((category) => <CategoryCard key={category.id} category={category} />)}
         </section>
 
         {SUPPORT_EMAIL && (
@@ -162,7 +166,7 @@ export function HelpCenter() {
         )}
 
         <nav aria-label="Footer breadcrumb" className="flex flex-wrap items-center gap-1 pb-4 text-sm text-trunks">
-          <Link to="/" className="hover:text-piccolo">Bitcasino</Link>
+          <Link to="/" className="hover:text-piccolo"><Brand /></Link>
           <span aria-hidden="true">›</span>
           <span>Help centre</span>
         </nav>

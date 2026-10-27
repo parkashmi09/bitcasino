@@ -32,8 +32,17 @@ vi.mock('@/hooks/useReferral', async (importActual) => ({
   }),
 }));
 
+vi.mock('@/auth/AuthProvider', () => ({ useAuth: () => ({ user: { id: 1 } }) }));
+// The owner's site name reads a query; this page's tests are not about it.
+vi.mock('@/components/ui/Brand', () => ({ Brand: () => 'Bitcasino' }));
+vi.mock('@/queries/siteConfig', () => ({ useSiteName: () => 'Bitcasino' }));
+
+const claimAll = vi.fn();
+
 // The site admin's unlock table, as `GET /admin/site-config/public` carries it.
 vi.mock('@/queries', () => ({
+  useAffiliateUnclaimed: () => ({ isPending: false, data: { total: '12.50000000', currency: 'USDT' } }),
+  useClaimAffiliate: () => ({ mutate: claimAll, isPending: false }),
   useSiteConfig: () => ({
     config: {
       raw: {
@@ -163,5 +172,14 @@ describe('the unlock table', () => {
     expect(within(dialog).getByText('Gold I')).toBeTruthy();
     expect(within(dialog).getByText('500,000')).toBeTruthy();
     expect(within(dialog).getByText('80.00')).toBeTruthy();
+  });
+});
+
+describe('unclaimed referral rewards', () => {
+  it('shows what is waiting and claims it all with one press', () => {
+    renderPage();
+    expect(screen.getByText('12.50 USDT')).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'Claim rewards' }));
+    expect(claimAll).toHaveBeenCalledTimes(1);
   });
 });

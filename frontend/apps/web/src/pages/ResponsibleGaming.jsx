@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom';
 import { HelpCategoriesSidebar } from '../components/sections/HelpCategoriesSidebar';
 import { SUPPORT_EMAIL } from '@/lib/site';
+import { Brand } from '@/components/ui/Brand';
 
 const RELATED_ARTICLES = [
   ['What is the Vault?', '/help-center/your-account/what-is-the-vault'],
@@ -11,7 +12,7 @@ const RELATED_ARTICLES = [
 function Breadcrumbs() {
   return (
     <nav aria-label="Breadcrumb" className="flex flex-wrap items-center gap-1 text-sm text-bulma">
-      <Link to="/" className="hover:text-piccolo">Bitcasino</Link>
+      <Link to="/" className="hover:text-piccolo"><Brand /></Link>
       <span aria-hidden="true">›</span>
       <Link to="/help-center" className="hover:text-piccolo">Help centre</Link>
       <span aria-hidden="true">›</span>
@@ -34,10 +35,10 @@ function Article() {
         <h1 className="font-primary text-2xl font-bold leading-8 text-bulma">Responsible Gaming</h1>
       </div>
 
-      <p>At Bitcasino, we offer a platform and services that enable our clients to enjoy gaming and betting. We aim to provide you with a safe, secure, regulated environment which will give you a pleasant and rewarding experience. We encourage our clients to use our services responsibly and in a reasonable manner.</p>
-      <p className="mt-4">Gambling of all varieties has been a popular form of entertainment for many years. Here at Bitcasino, we encourage it to be exactly that: fun. We also encourage our customers not to allow gambling to affect their usual daily routine or time spent with family and friends. Make sure that money spent is set aside for leisure and not for other purposes. It is very important not to rely on paying for life's necessities with possible gambling gains, as this is not guaranteed.</p>
+      <p>At <Brand />, we offer a platform and services that enable our clients to enjoy gaming and betting. We aim to provide you with a safe, secure, regulated environment which will give you a pleasant and rewarding experience. We encourage our clients to use our services responsibly and in a reasonable manner.</p>
+      <p className="mt-4">Gambling of all varieties has been a popular form of entertainment for many years. Here at <Brand />, we encourage it to be exactly that: fun. We also encourage our customers not to allow gambling to affect their usual daily routine or time spent with family and friends. Make sure that money spent is set aside for leisure and not for other purposes. It is very important not to rely on paying for life's necessities with possible gambling gains, as this is not guaranteed.</p>
       <p className="mt-4">While most customers gamble in this manner, we understand that a small minority can develop problems with their gambling.</p>
-      <p className="mt-4">At Bitcasino, our customers' wellbeing is of utmost importance. We take our role within responsible gambling very seriously and recommend that you:</p>
+      <p className="mt-4">At <Brand />, our customers' wellbeing is of utmost importance. We take our role within responsible gambling very seriously and recommend that you:</p>
 
       <ul className="mt-4 list-disc space-y-2 ps-7 marker:text-piccolo md:ps-8">
         <li>Treat betting and gaming as entertainment and only use money set aside for entertainment.</li>
@@ -54,12 +55,12 @@ function Article() {
         <li><SupportLink href="https://www.gamblingtherapy.org/">Gambling Therapy</SupportLink></li>
       </ul>
 
-      <p className="mt-4">You can also contact our friendly Bitcasino support agents if you would like to discuss our self-exclusion process. Sometimes a short break can be useful in gathering your thoughts and stopping you from making a rash wagering decision.</p>
+      <p className="mt-4">You can also contact our friendly <Brand /> support agents if you would like to discuss our self-exclusion process. Sometimes a short break can be useful in gathering your thoughts and stopping you from making a rash wagering decision.</p>
       <p className="mt-4">On request, we will place your account on a minimum 24-hour cooling-off period. This will be followed by one of our support agents informing you of the voluntary 1-week, 1-month, 3-month, 6-month or permanent self-exclusions available.</p>
       <p className="mt-4">Please note that accounts closed under our self-exclusion Policy cannot be reversed or reopened for any reason. Once your self-exclusion has expired, we will email you to let you know your account is active again. Permanent self-exclusion will remain in place indefinitely.</p>
 
       <h2 className="mb-4 mt-10 font-primary text-xl font-bold leading-7 text-bulma">Underage</h2>
-      <p>You must be over 18 years of age, or the legal minimum age for gambling in the jurisdiction where you reside under the laws applicable to you, to gamble with Bitcasino.</p>
+      <p>You must be over 18 years of age, or the legal minimum age for gambling in the jurisdiction where you reside under the laws applicable to you, to gamble with <Brand />.</p>
       <p className="mt-4">If you have minors living in your household, we recommend reviewing parental-control software that may help control and restrict content accessible on your devices.</p>
       <ul className="mt-4 list-disc space-y-2 ps-7 marker:text-piccolo md:ps-8">
         <li><SupportLink href="https://www.netnanny.com/">https://www.netnanny.com/</SupportLink></li>

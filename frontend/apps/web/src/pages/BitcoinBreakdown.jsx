@@ -2,6 +2,9 @@ import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { DepositDialog } from '@/components/layout/DepositDialog';
 import { Icon } from '@/components/ui/Icon';
+import { Brand } from '@/components/ui/Brand';
+import { withBrand } from '@/lib/branding';
+import { useSiteName } from '@/queries/siteConfig';
 
 const IMAGE_ROOT = 'https://heathmont.imgix.net/bitcasino/images';
 
@@ -80,6 +83,7 @@ function WalletAccordion({ item, open, onToggle }) {
 }
 
 export function BitcoinBreakdown() {
+  const site = useSiteName();
   const [depositOpen, setDepositOpen] = useState(false);
   const [openWallet, setOpenWallet] = useState(0);
 
@@ -99,12 +103,12 @@ export function BitcoinBreakdown() {
       <section className="mx-auto mb-10 grid w-full max-w-[1392px] gap-6 px-0 sm:px-2 md:px-4">
         <h2 className="font-secondary text-3xl font-medium text-bulma">Get some Bitcoins!</h2>
         <div className="grid gap-2">
-          {WALLET_STEPS.map((item, index) => <WalletAccordion key={item.title} item={item} open={openWallet === index} onToggle={() => setOpenWallet(openWallet === index ? -1 : index)} />)}
+          {withBrand(WALLET_STEPS, site).map((item, index) => <WalletAccordion key={item.title} item={item} open={openWallet === index} onToggle={() => setOpenWallet(openWallet === index ? -1 : index)} />)}
         </div>
       </section>
 
       <nav aria-label="Breadcrumb" className="flex flex-wrap items-center gap-1 pb-4 text-sm text-trunks">
-        <Link to="/" className="hover:text-piccolo">Bitcasino</Link><span aria-hidden="true">›</span><span>The Big Bitcoin Breakdown</span>
+        <Link to="/" className="hover:text-piccolo"><Brand /></Link><span aria-hidden="true">›</span><span>The Big Bitcoin Breakdown</span>
       </nav>
 
       {depositOpen && <DepositDialog open onClose={() => setDepositOpen(false)} />}

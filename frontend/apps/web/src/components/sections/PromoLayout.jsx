@@ -5,7 +5,8 @@ import { PROMOTIONS } from '@/data/catalog';
 import { PROMO_PAGES } from '@/data/promotionPages';
 import { useGates } from '@/hooks/useGates';
 import { cn } from '@/lib/cn';
-import { usePromotions } from '@/queries';
+import { usePromotions, useSiteName } from '@/queries';
+import { withBrand } from '@/lib/branding';
 import { promotionOn } from '@/queries/promotions';
 
 /**
@@ -275,8 +276,9 @@ export function PromoFinePrint({ blocks }) {
  */
 function OtherPromotions({ slug }) {
   const gates = useGates();
+  const siteName = useSiteName();
   const { data } = usePromotions({ enabled: gates.on('promotions') });
-  const others = [...PROMO_PAGES, ...(data?.live ?? []), ...PROMOTIONS]
+  const others = [...withBrand(PROMO_PAGES, siteName), ...(data?.live ?? []), ...withBrand(PROMOTIONS, siteName)]
     .filter((promo) => promo.slug !== slug && gates.routeOn(promo.href) && promotionOn(promo, gates))
     .slice(0, 2);
 

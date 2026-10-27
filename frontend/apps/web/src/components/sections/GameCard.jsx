@@ -2,6 +2,7 @@ import { Link } from 'react-router-dom';
 import { Icon } from '@/components/ui/Icon';
 import { formatCompact } from '@/lib/format';
 import { cn } from '@/lib/cn';
+import { providerLabel } from '@/data/adapters/providers';
 
 const BADGE_LABEL = {
   new: 'New',
@@ -36,7 +37,6 @@ const BADGE_FILL = {
  * it cannot just be renamed at the source. The reference prints `Bitcasino`
  * under its own originals, so that is what the tile shows.
  */
-const PROVIDER_LABEL = { 'In-House': 'Bitcasino' };
 
 /**
  * Game tile.
@@ -188,7 +188,7 @@ export function GameCard({ game, wide = false, className }) {
             {game.title}
           </span>
           <span className="text-[9px] font-semibold leading-3 text-goten opacity-80">
-            {PROVIDER_LABEL[game.provider] ?? game.provider}
+            {providerLabel(game.provider)}
           </span>
         </span>
       </span>

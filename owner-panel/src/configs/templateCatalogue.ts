@@ -28,6 +28,32 @@ export type TemplateEntry = {
  * layout per feature, so a template never switches a feature or a variant here
  * (configs/siteUi.ts). `variants` stay for the backend's own catalogue (same keys there).
  */
+/** The Original layout per feature: the colour-only palettes below keep it. */
+const ORIGINAL_VARIANTS: Record<string, string> = {
+  vip: 'ring_panel',
+  promotions: 'event_list',
+  spin_wheel: 'none',
+  gift_cards: 'redeem_dialog',
+  bonus: 'reward_hub',
+  affiliate: 'referral_hub',
+  races: 'daily_contest',
+  challenges: 'quest_hub',
+  raffles: 'ticket_raffle',
+  vault: 'flat_balance',
+  swap: 'swap_page',
+  tips: 'none',
+  p2p: 'none',
+  chat: 'none',
+  notifications: 'notice_centre',
+  banners: 'artwork_slides',
+  blog: 'none',
+  casino_lobby: 'tabbed_themes',
+  club_membership: 'none',
+  kyc: 'document_cockpit',
+  push_notifications: 'none',
+  analytics: 'none'
+}
+
 export const TEMPLATE_CATALOGUE: TemplateEntry[] = [
   {
     key: 'hash_game',
@@ -176,6 +202,102 @@ export const TEMPLATE_CATALOGUE: TemplateEntry[] = [
       kyc: 'requirement_list',
       push_notifications: 'none'
     }
+  },
+  {
+    key: 'lapis_ledger',
+    label: 'Lapis Ledger',
+    description: 'Lapis Ledger: colour theme only; every feature stays as Original.',
+    colours: 'Deep lapis buttons with an emerald sidebar.',
+    swatch: { accent: '#678AF4', background: '#14181F' },
+    variants: ORIGINAL_VARIANTS
+  },
+  {
+    key: 'seashell_teal',
+    label: 'Seashell Teal',
+    description: 'Seashell Teal: colour theme only; every feature stays as Original.',
+    colours: 'Warm seashell ground, ocean-blue actions, emerald highlights.',
+    swatch: { accent: '#2A8FC0', background: '#141A1C' },
+    variants: ORIGINAL_VARIANTS
+  },
+  {
+    key: 'navy_coral',
+    label: 'Navy Coral',
+    description: 'Navy Coral: colour theme only; every feature stays as Original.',
+    colours: 'Banking navy with a slate-green sidebar and coral highlights.',
+    swatch: { accent: '#3B87D6', background: '#12171C' },
+    variants: ORIGINAL_VARIANTS
+  },
+  {
+    key: 'indigo_mint',
+    label: 'Indigo Mint',
+    description: 'Indigo Mint: colour theme only; every feature stays as Original.',
+    colours: 'Electric indigo buttons on a deep-teal sidebar, mint for wins.',
+    swatch: { accent: '#6E76F0', background: '#121428' },
+    variants: ORIGINAL_VARIANTS
+  },
+  {
+    key: 'cobalt_citrine',
+    label: 'Cobalt Citrine',
+    description: 'Cobalt Citrine: colour theme only; every feature stays as Original.',
+    colours: 'Cobalt actions with an aquamarine sidebar and a sharp orange highlight.',
+    swatch: { accent: '#4C6CE0', background: '#10141F' },
+    variants: ORIGINAL_VARIANTS
+  },
+  {
+    key: 'copper_harbour',
+    label: 'Copper Harbour',
+    description: 'Copper Harbour: colour theme only; every feature stays as Original.',
+    colours: 'Harbour slate sidebar and burnt-copper buttons.',
+    swatch: { accent: '#D6794D', background: '#161616' },
+    variants: ORIGINAL_VARIANTS
+  },
+  {
+    key: 'wisteria',
+    label: 'Wisteria',
+    description: 'Wisteria: colour theme only; every feature stays as Original.',
+    colours: 'Amethyst actions over a periwinkle sidebar.',
+    swatch: { accent: '#A27BC4', background: '#17141C' },
+    variants: ORIGINAL_VARIANTS
+  },
+  {
+    key: 'jade_night',
+    label: 'Jade Night',
+    description: 'Jade Night: colour theme only; every feature stays as Original.',
+    colours: 'Forest jade buttons, deep-plum sidebar.',
+    swatch: { accent: '#429155', background: '#141414' },
+    variants: ORIGINAL_VARIANTS
+  },
+  {
+    key: 'magma',
+    label: 'Magma',
+    description: 'Magma: colour theme only; every feature stays as Original.',
+    colours: 'Obsidian sidebar with one hot magma colour for actions.',
+    swatch: { accent: '#FE3B15', background: '#141417' },
+    variants: ORIGINAL_VARIANTS
+  },
+  {
+    key: 'royal_dusk',
+    label: 'Royal Dusk',
+    description: 'Royal Dusk: colour theme only; every feature stays as Original.',
+    colours: 'Sky-blue actions on a royal-navy sidebar, ruby highlights.',
+    swatch: { accent: '#0C8EF4', background: '#111723' },
+    variants: ORIGINAL_VARIANTS
+  },
+  {
+    key: 'tangerine_field',
+    label: 'Tangerine Field',
+    description: 'Tangerine Field: colour theme only; every feature stays as Original.',
+    colours: 'Field-green actions on a linen ground, tangerine sidebar.',
+    swatch: { accent: '#3E9A6D', background: '#151715' },
+    variants: ORIGINAL_VARIANTS
+  },
+  {
+    key: 'ocean_ruby',
+    label: 'Ocean Ruby',
+    description: 'Ocean Ruby: colour theme only; every feature stays as Original.',
+    colours: 'Ocean-blue actions, emerald sidebar, ruby accents.',
+    swatch: { accent: '#2E86DE', background: '#10161C' },
+    variants: ORIGINAL_VARIANTS
   }
 ]
 

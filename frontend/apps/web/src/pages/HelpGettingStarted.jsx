@@ -1,6 +1,9 @@
 import { Link, useParams } from 'react-router-dom';
 import { HelpCategoriesSidebar } from '../components/sections/HelpCategoriesSidebar';
 import { OPERATOR_NOTICE, SUPPORT_EMAIL } from '@/lib/site';
+import { Brand } from '@/components/ui/Brand';
+import { withBrand } from '@/lib/branding';
+import { useSiteName } from '@/queries/siteConfig';
 
 const ARTICLES = [
   {
@@ -96,7 +99,7 @@ const ARTICLES = [
 function Breadcrumbs({ article }) {
   return (
     <nav aria-label="Breadcrumb" className="flex flex-wrap items-center gap-1 text-sm text-bulma">
-      <Link to="/" className="hover:text-piccolo">Bitcasino</Link>
+      <Link to="/" className="hover:text-piccolo"><Brand /></Link>
       <span aria-hidden="true">›</span>
       <Link to="/help-center" className="hover:text-piccolo">Help centre</Link>
       <span aria-hidden="true">›</span>
@@ -140,8 +143,9 @@ function ArticlePage({ article }) {
 }
 
 export function HelpGettingStarted() {
+  const site = useSiteName();
   const { articleSlug } = useParams();
-  const article = ARTICLES.find(({ slug }) => slug === articleSlug);
+  const article = withBrand(ARTICLES, site).find(({ slug }) => slug === articleSlug);
 
   if (articleSlug && article) return <ArticlePage article={article} />;
 
@@ -155,7 +159,7 @@ export function HelpGettingStarted() {
         </header>
         <section aria-labelledby="getting-started-heading" className="grid grid-cols-1 gap-4 pb-6 md:grid-cols-3">
           <h2 id="getting-started-heading" className="sr-only">Getting Started support articles</h2>
-          {ARTICLES.map(({ title, slug }) => (
+          {withBrand(ARTICLES, site).map(({ title, slug }) => (
             <div key={slug} className="grid self-start gap-1">
               <span className="text-[10px] uppercase leading-4 tracking-[0.5px] text-trunks">Support</span>
               <Link to={`/help-center/help-getting-started/${slug}`} className="text-xl leading-8 text-bulma transition-colors hover:text-piccolo">{title}</Link>
@@ -164,7 +168,7 @@ export function HelpGettingStarted() {
         </section>
         <SupportFooter />
         <nav aria-label="Footer breadcrumb" className="flex flex-wrap items-center gap-1 pb-4 text-sm text-trunks">
-          <Link to="/" className="hover:text-piccolo">Bitcasino</Link>
+          <Link to="/" className="hover:text-piccolo"><Brand /></Link>
           <span aria-hidden="true">›</span>
           <Link to="/help-center" className="hover:text-piccolo">Help centre</Link>
           <span aria-hidden="true">›</span>

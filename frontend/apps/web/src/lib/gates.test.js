@@ -41,3 +41,11 @@ describe('gates', () => {
     expect(manual.on('withdraw')).toBe(false);
   });
 });
+
+describe('owner theme_mode', () => {
+  it('is null until the plan answers, then the owner policy or the dark-only default', () => {
+    expect(makeGates({ features: null }).themeMode()).toBeNull();
+    expect(makeGates({ features: [] }).themeMode()).toBe('dark_only');
+    expect(makeGates({ features: [{ feature: 'theme_mode', variant: 'switch' }] }).themeMode()).toBe('switch');
+  });
+});

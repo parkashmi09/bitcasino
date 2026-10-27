@@ -1,6 +1,7 @@
 /** @typedef {'light' | 'dark'} Theme */
 
-const STORAGE_KEY = 'bc.theme';
+// v2: `bc.theme` still holds the `dark` an owner-forced dark mode wrote for every visitor.
+const STORAGE_KEY = 'bc.theme.v2';
 
 /** The reference site ships a light theme by default; dark is opt-in. */
 export const DEFAULT_THEME = 'light';

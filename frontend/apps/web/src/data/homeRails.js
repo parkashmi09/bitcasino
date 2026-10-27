@@ -15,9 +15,7 @@
  *   operator fills them, and the backend's own lobby falls back to the same
  *   `?category=` list (`CATEGORY_AUTO_LISTS`) while they are.
  * - Two rails have no curated equivalent and read their category too.
- * - Two are badge cuts the browse route cannot express at all — see
- *   `data/adapters/collections.js` for why, and for the two backend changes
- *   that would fix it.
+ * - New Releases reads the admin's `new` Lobby category.
  *
  * The old file padded short rails with filler from other categories so every
  * row scrolled. That is gone: a rail with four games in it now shows four.
@@ -25,7 +23,7 @@
  * the row, and on a real catalogue the rails are long anyway.
  */
 
-/** @typedef {{kind: 'category' | 'collection' | 'cut', slug: string}} RailSource */
+/** @typedef {{kind: 'category' | 'collection' | 'lobby', slug: string, auto?: string | null}} RailSource */
 
 /**
  * @type {Array<{
@@ -37,7 +35,7 @@
  */
 export const HOME_RAILS = Object.freeze([
   {
-    title: 'BitCasino Originals',
+    title: 'Originals',
     href: '/categories/originals',
     // No curated row for the in-house games; the type is the list.
     source: { kind: 'category', slug: 'originals' },
@@ -57,12 +55,7 @@ export const HOME_RAILS = Object.freeze([
   {
     title: 'New Releases',
     href: '/games/new',
-    source: { kind: 'cut', slug: 'new' },
-  },
-  {
-    title: 'BitCasino Exclusives',
-    href: '/games/exclusives',
-    source: { kind: 'cut', slug: 'exclusives' },
+    source: { kind: 'lobby', slug: 'new', auto: null },
   },
   {
     title: 'Crash and Instant Win',
@@ -77,7 +70,34 @@ export const HOME_RAILS = Object.freeze([
 ]);
 
 /**
- * The Themes strip sits between "Exclusives" and "Crash" on the reference
- * page. `Home` splits `HOME_RAILS` here to slot it in.
+ * The Themes strip sits just before "Crash" on the reference page. `Home`
+ * splits `HOME_RAILS` here to slot it in.
  */
 export const THEME_RAIL_INDEX = 5;
+
+/**
+ * Lobby category (site admin) -> the site's category page, whose filter is the automatic list the
+ * backend's `CATEGORY_AUTO_LISTS` uses for it. `hot` and `new` have none: they show only what the
+ * admin picks, and a rail with no games is not drawn.
+ */
+export const LOBBY_AUTO = Object.freeze({
+  slots: 'video-slots',
+  live: 'live-casino',
+  'game-shows': 'game-shows',
+  'table-game': 'table-games',
+  blackjack: 'blackjack',
+  roulette: 'roulette',
+  baccarat: 'baccarat',
+  poker: 'poker',
+  'crash-games': 'crash',
+});
+
+/** One lobby category row (`{slug, name}`) -> a home rail. */
+export function lobbyRail(category) {
+  const auto = LOBBY_AUTO[category.slug] ?? null;
+  return {
+    title: category.name,
+    href: auto ? `/categories/${auto}` : undefined,
+    source: { kind: 'lobby', slug: category.slug, auto },
+  };
+}

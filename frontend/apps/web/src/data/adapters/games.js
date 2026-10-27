@@ -140,8 +140,8 @@ export function toGame(row) {
     ...(num(parameters.players) === undefined ? {} : { players: num(parameters.players) }),
     ...(num(parameters.jackpot) === undefined ? {} : { jackpot: num(parameters.jackpot) }),
     /**
-     * Whether the slot sells its bonus round, which is what
-     * `/themes/bonus-buy-in` cuts on.
+     * Whether the slot sells its bonus round, shown as a pill
+     * on the game page.
      *
      * Only ever set when the platform said `true`. An absent flag means "this
      * catalogue does not record the feature", not "this game does not have

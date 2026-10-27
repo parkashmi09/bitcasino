@@ -10,8 +10,14 @@ describe('cashierTabs', () => {
     expect(cashierTabs(makeGates())).toEqual(['deposit', 'buy', 'withdraw', 'swap', 'vault']);
   });
 
-  it('drops the owner-plan sections and the gateway deposit on a manual-only site', () => {
+  it('keeps Deposit (the manual transfer) on a manual-only site, drops the owner-plan sections', () => {
     const gates = makeGates({ features: [policy('deposit_mode', 'manual')] });
+    expect(gates.autoDeposit()).toBe(false);
+    expect(cashierTabs(gates)).toEqual(['deposit', 'buy', 'withdraw']);
+  });
+
+  it('drops Deposit on a manual-only site whose admin switched manual deposits off', () => {
+    const gates = makeGates({ features: [policy('deposit_mode', 'manual')], capabilities: { manualDeposit: false } });
     expect(cashierTabs(gates)).toEqual(['buy', 'withdraw']);
   });
 

@@ -4,6 +4,8 @@ import { Icon } from '@/components/ui/Icon';
 import { FIAT_DISPLAY_CURRENCIES } from '@/data/currencies';
 import { BTC_UNITS, useBtcUnit, useFiatCurrency } from '@/hooks/useWallet';
 import { cn } from '@/lib/cn';
+import { WhitelistSettings } from '@/components/wallet/WhitelistSettings';
+import { useGates } from '@/hooks/useGates';
 
 /**
  * The reference's `cashier_wallet_settings`, drawn inside the wallet drawer:
@@ -32,6 +34,7 @@ export function WalletSettings({ onBack, onNavigate }) {
   const [btcUnit, setBtcUnit] = useBtcUnit();
   const [fiat, setFiat] = useFiatCurrency();
   const fiatId = useId();
+  const gates = useGates();
 
   return (
     <div className="grid gap-8">
@@ -101,6 +104,8 @@ export function WalletSettings({ onBack, onNavigate }) {
             <span className="text-base leading-6 text-bulma">Add Two-factor authentication</span>
             <Icon name="chevron-right" size={18} className="text-trunks rtl:-scale-x-100" />
           </Link>
+
+          {gates.on('withdraw') && <WhitelistSettings />}
         </div>
       </div>
     </div>

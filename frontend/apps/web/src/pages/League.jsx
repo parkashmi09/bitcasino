@@ -8,6 +8,7 @@ import {
   PromoSteps,
   PromoTable,
 } from '@/components/sections/PromoLayout';
+import { Button } from '@/components/ui/Button';
 import { Skeleton } from '@/components/ui/Skeleton';
 import { useAuth } from '@/auth/AuthProvider';
 import {
@@ -19,7 +20,9 @@ import {
 } from '@/data/league';
 import { formatBalance } from '@/lib/format';
 import { cn } from '@/lib/cn';
-import { raceTitle, useRaceBoards, useRaces } from '@/queries';
+import { raceTitle, useClaimRaceReward, useRaceBoards, useRaceRewards, useRaces } from '@/queries';
+import { withBrand } from '@/lib/branding';
+import { useSiteName } from '@/queries/siteConfig';
 
 /**
  * `/promotions/league-of-bitcasino` — the platform's wager races.
@@ -34,6 +37,7 @@ import { raceTitle, useRaceBoards, useRaces } from '@/queries';
  * `data/league.js`.
  */
 export function League() {
+  const site = useSiteName();
   const [params, setParams] = useSearchParams();
   const races = useRaces();
   const configs = races.data ?? [];
@@ -42,8 +46,9 @@ export function League() {
   const [board] = useRaceBoards(config ? [config.type] : []);
 
   return (
-    <PromoPage promo={LEAGUE}>
+    <PromoPage promo={withBrand(LEAGUE, site)}>
       <Intro />
+      <MyPrizes />
 
       {configs.length > 1 && (
         <div role="tablist" className="flex justify-center gap-2">
@@ -81,7 +86,7 @@ export function League() {
         </>
       }
 
-      <PromoFinePrint blocks={LEAGUE_FINE_PRINT} />
+      <PromoFinePrint blocks={withBrand(LEAGUE_FINE_PRINT, site)} />
     </PromoPage>
   );
 }
@@ -139,6 +144,40 @@ function Prizes({ type, board, payout }) {
           ))}
         </PromoTable>
       )}
+    </PromoSection>
+  );
+}
+
+/** The signed-in player's settled race prizes still waiting; each one is claimed on its own. */
+function MyPrizes() {
+  const { user } = useAuth();
+  const rewards = useRaceRewards({ enabled: Boolean(user) });
+  const claim = useClaimRaceReward();
+  const rows = rewards.data ?? [];
+  if (!user || rows.length === 0) return null;
+
+  return (
+    <PromoSection heading="Your prizes" blurb="Your finished races paid out. Claim each prize to add it to your balance.">
+      <PromoTable columns={['Race', 'Rank', 'Prize', 'Claim']} widths={['30%', '15%', '30%', '25%']}>
+        {rows.map((row) => (
+          <tr key={row.id}>
+            <PromoCell>{raceTitle(row.type)}</PromoCell>
+            <PromoCell className="tabular-nums">#{row.rank}</PromoCell>
+            <PromoCell className="tabular-nums">
+              {formatBalance(row.amount)} {row.currency}
+            </PromoCell>
+            <PromoCell>
+              <Button
+                size="sm"
+                onClick={() => claim.mutate(row.id)}
+                disabled={claim.isPending && claim.variables === row.id}
+              >
+                Claim
+              </Button>
+            </PromoCell>
+          </tr>
+        ))}
+      </PromoTable>
     </PromoSection>
   );
 }

@@ -4,6 +4,7 @@ import { ENDPOINTS } from '@/lib/endpoints';
 import { tokenStore } from './tokenStore';
 import { bindSession } from '@/lib/socket';
 import { toast } from '@/lib/toast';
+import { brandName, readCachedBranding } from '@/lib/branding';
 
 /**
  * Session state for the whole app.
@@ -169,7 +170,7 @@ export function AuthProvider({ children }) {
         body: fields,
       });
       const session = await login({ identifier: fields.username, password: fields.password });
-      toast.success(`Welcome to Bitcasino, ${fields.username}!`, { title: 'Account created' });
+      toast.success(`Welcome to ${brandName(readCachedBranding())}, ${fields.username}!`, { title: 'Account created' });
       return session;
     },
     [login],

@@ -2,6 +2,9 @@ import { Link, Navigate, useParams } from 'react-router-dom';
 import { HelpCategoriesSidebar } from '@/components/sections/HelpCategoriesSidebar';
 import { findHelpCategory } from '@/data/helpArticles';
 import { SUPPORT_EMAIL } from '@/lib/site';
+import { Brand } from '@/components/ui/Brand';
+import { withBrand } from '@/lib/branding';
+import { useSiteName } from '@/queries/siteConfig';
 
 function RichText({ parts }) {
   return parts.map((part, index) => {
@@ -126,9 +129,9 @@ function HelpFooter() {
 
 export function HelpArticle() {
   const { categorySlug, articleSlug } = useParams();
-  const category = findHelpCategory(categorySlug);
+  const category = withBrand(findHelpCategory(categorySlug), useSiteName());
   const article = category?.articles.find((item) => item.slug === articleSlug);
   if (!category || !article?.slug) return <Navigate to="/help-center" replace />;
   const relatedArticles = category.articles.filter((item) => item.slug && item.slug !== article.slug).slice(0, 3);
-  return <div className="w-full max-w-[99rem] overflow-x-clip md:mx-auto"><nav aria-label="Breadcrumb" className="flex flex-wrap items-center gap-1 text-sm text-bulma"><Link to="/" className="hover:text-piccolo">Bitcasino</Link><span>›</span><Link to="/help-center" className="hover:text-piccolo">Help centre</Link><span>›</span><Link to={`/help-center/${category.slug}`} className="hover:text-piccolo">{category.title}</Link><span>›</span><span>{article.title}</span></nav><div className="mt-8 grid gap-10 md:grid-cols-[minmax(0,1fr)_280px] md:gap-8 lg:grid-cols-[minmax(0,800px)_280px] lg:justify-between"><article className="min-w-0 max-w-[800px] text-[15px] leading-6 text-bulma md:text-base md:leading-7"><p className="mb-2 text-[10px] uppercase leading-4 tracking-[0.5px] text-trunks">{category.title}</p><h1 className="font-primary text-2xl font-bold leading-8 text-bulma">{article.title}</h1><ArticleContent article={article} /></article><HelpCategoriesSidebar /></div><section className="mt-14 border-t border-beerus pt-8"><h2 className="mb-5 text-2xl font-bold text-bulma">Related articles</h2><div className="grid gap-6 md:grid-cols-3">{relatedArticles.map((item) => <Link key={item.slug} to={`/help-center/${category.slug}/${item.slug}`} className="text-xl text-bulma hover:text-piccolo"><span className="mb-1 block text-[10px] uppercase leading-4 tracking-[0.5px] text-trunks">{category.title}</span>{item.title}</Link>)}</div></section><HelpFooter /></div>;
+  return <div className="w-full max-w-[99rem] overflow-x-clip md:mx-auto"><nav aria-label="Breadcrumb" className="flex flex-wrap items-center gap-1 text-sm text-bulma"><Link to="/" className="hover:text-piccolo"><Brand /></Link><span>›</span><Link to="/help-center" className="hover:text-piccolo">Help centre</Link><span>›</span><Link to={`/help-center/${category.slug}`} className="hover:text-piccolo">{category.title}</Link><span>›</span><span>{article.title}</span></nav><div className="mt-8 grid gap-10 md:grid-cols-[minmax(0,1fr)_280px] md:gap-8 lg:grid-cols-[minmax(0,800px)_280px] lg:justify-between"><article className="min-w-0 max-w-[800px] text-[15px] leading-6 text-bulma md:text-base md:leading-7"><p className="mb-2 text-[10px] uppercase leading-4 tracking-[0.5px] text-trunks">{category.title}</p><h1 className="font-primary text-2xl font-bold leading-8 text-bulma">{article.title}</h1><ArticleContent article={article} /></article><HelpCategoriesSidebar /></div><section className="mt-14 border-t border-beerus pt-8"><h2 className="mb-5 text-2xl font-bold text-bulma">Related articles</h2><div className="grid gap-6 md:grid-cols-3">{relatedArticles.map((item) => <Link key={item.slug} to={`/help-center/${category.slug}/${item.slug}`} className="text-xl text-bulma hover:text-piccolo"><span className="mb-1 block text-[10px] uppercase leading-4 tracking-[0.5px] text-trunks">{category.title}</span>{item.title}</Link>)}</div></section><HelpFooter /></div>;
 }

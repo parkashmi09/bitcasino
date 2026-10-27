@@ -1,13 +1,13 @@
 /**
  * Shared by the proxy and the route handlers; the name is not a secret. Named after the site
- * (owner-panel/.env.local SITE_NAME, e.g. Parker567 → `parker567_owner_session`).
+ * (owner-panel/.env.local SITE_NAME, e.g. TestPlay → `testplay_owner_session`).
  */
 export const SESSION_COOKIE = `${(process.env.SITE_NAME || 'site').toLowerCase().replace(/[^a-z0-9]+/g, '_')}_owner_session`
 
 export const siteConfig = {
   key: 'hash-game-exchange',
   name: 'Owner Panel',
-  tagline: 'hash-game-exchange',
+  tagline: 'TestPlay',
   environment: process.env.NEXT_PUBLIC_ENV_LABEL ?? 'localhost'
 } as const
 
@@ -23,8 +23,8 @@ export const serverConfig = {
   // Ed25519 private key (base64 PKCS8 DER). The backend holds only the public half.
   signingKey: process.env.OWNER_SIGNING_KEY ?? '',
   siteKey: process.env.SITE_KEY || 'hash-game-exchange',
-  siteName: process.env.SITE_NAME || 'Hash Game Exchange',
-  gatewayUrl: process.env.SITE_GATEWAY_URL || process.env.NEXT_PUBLIC_API_BASE || 'https://api.parker567.com',
+  siteName: process.env.SITE_NAME || 'Your site',
+  gatewayUrl: process.env.SITE_GATEWAY_URL || process.env.NEXT_PUBLIC_API_BASE || 'https://apitest.cfzautomation.com',
   adminUrl: process.env.SITE_ADMIN_URL ?? '',
   frontendUrl: process.env.SITE_FRONTEND_URL ?? ''
 }

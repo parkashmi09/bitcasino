@@ -11,7 +11,7 @@
     <ellipse cx="356" cy="112" rx="62" ry="20" fill="#4C1D95" opacity="0.75"/>
     <circle cx="356" cy="66" r="42" fill="#FFD980"/>
     <circle cx="356" cy="66" r="30" fill="none" stroke="#B4380E" stroke-width="5" opacity="0.55"/>
-    <path d="M344 46h14a10 10 0 0 1 0 20h-14V46Zm0 20h17a11 11 0 0 1 0 22h-17V66Z" fill="#B4380E"/>
+    <path d="M356 46l6 12.6 13.8 2-10 9.8 2.4 13.8L356 77.7l-12.2 6.5 2.4-13.8-10-9.8 13.8-2Z" fill="#B4380E"/>
   </g>
   <text x="28" y="58" font-family="'Space Grotesk',system-ui,sans-serif" font-size="26" font-weight="700" fill="#fff">LEAGUE</text>
   <text x="28" y="90" font-family="'DM Sans',system-ui,sans-serif" font-size="17" font-weight="500" fill="#fff" opacity="0.9">Climb the ranks</text>

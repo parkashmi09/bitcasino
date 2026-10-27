@@ -34,20 +34,12 @@ import { useGates } from '@/hooks/useGates';
 const PRIMARY = [
   { label: 'Originals', to: '/categories/originals', icon: 'originals' },
   { label: 'New Releases', to: '/games/new', icon: 'new-releases' },
-  { label: 'Live RTP', to: '/games/live-rtp', icon: 'live-rtp' },
   { label: 'Promotions', to: '/promotions', icon: 'promotions' },
   { label: 'Tournaments', to: '/tournaments', icon: 'tournaments' },
   { label: 'Providers', to: '/providers', icon: 'providers' },
 ];
 
 const LIVE_GROUP = [
-  { label: 'Live Exclusives', to: '/themes/live-exclusives', icon: 'live-exclusive' },
-  /* `/themes/vip-prive`, not `/vip`. They are two different pages on the
-     reference and this row is the first: the high-limit room, a grid of twenty
-     Salon Prive tables. `/vip` is the account's own VIP standing, which the
-     reference links as `VIP Club` from the footer — and which this site's
-     footer links there too. */
-  { label: 'VIP Prive', to: '/themes/vip-prive', icon: 'vip' },
   { label: 'Baccarat', to: '/categories/baccarat', icon: 'baccarat' },
   { label: 'Blackjack', to: '/categories/blackjack', icon: 'blackjack' },
   { label: 'Roulette', to: '/categories/roulette', icon: 'roulette' },
@@ -57,14 +49,8 @@ const LIVE_GROUP = [
 
 const GAMES = [
   { label: 'Slots', to: '/categories/video-slots', icon: 'slots' },
-  /* Themes, not categories. Neither is a game type — one is five own-brand
-     titles and the other is every slot with a feature — and the reference
-     files both under `/themes/`. The spellings are its own: `Bitcasino`
-     without the inner capital, and `Buy-in` with a lower-case `i`. */
-  { label: 'Bitcasino Exclusives', to: '/themes/bitcasino-exclusives', icon: 'bitcasino-exclusive' },
   { label: 'Jackpots', to: '/categories/jackpots', icon: 'jackpots' },
   { label: 'Crash & Instant', to: '/categories/crash', icon: 'crash' },
-  { label: 'Bonus Buy-in', to: '/themes/bonus-buy-in', icon: 'bonus-buy' },
   { label: 'Table Games', to: '/categories/table-games', icon: 'table-games' },
   { label: 'All Games', to: '/games', icon: 'all-games' },
 ];
@@ -305,7 +291,7 @@ export function SidebarNav({ onNavigate, recentsCount, favouritesCount }) {
           className="relative block min-h-[78px] overflow-hidden rounded-xl focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-piccolo"
         >
           <img
-            src="/images/sidebar-promo.avif"
+            src="/images/sidebar-promo.svg"
             alt="League — climb the ranks"
             width={232}
             height={75}

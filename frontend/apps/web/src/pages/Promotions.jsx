@@ -2,9 +2,10 @@ import { useSearchParams } from 'react-router-dom';
 import { Breadcrumb } from '@/components/ui/Breadcrumb';
 import { PromotionRows, PromotionTabs } from '@/components/sections/PromotionList';
 import { PROMOTIONS } from '@/data/catalog';
+import { withBrand } from '@/lib/branding';
 import { PROMO_PAGES } from '@/data/promotionPages';
 import { useGates } from '@/hooks/useGates';
-import { usePromotions } from '@/queries';
+import { usePromotions, useSiteName } from '@/queries';
 import { promotionOn } from '@/queries/promotions';
 
 /**
@@ -49,14 +50,15 @@ export function Promotions() {
   const showPast = params.get('showPast') === 'true';
 
   const gates = useGates();
+  const siteName = useSiteName();
   const { routeOn } = gates;
   const { data, isPending } = usePromotions();
   const past = (data?.past ?? []).filter((promo) => promotionOn(promo, gates));
 
   const live = [
-    ...PROMO_PAGES.filter((promo) => routeOn(promo.href)),
+    ...withBrand(PROMO_PAGES.filter((promo) => routeOn(promo.href)), siteName),
     ...(data?.live ?? []).filter((promo) => promotionOn(promo, gates)),
-    ...PROMOTIONS.filter((promo) => routeOn(promo.href)),
+    ...withBrand(PROMOTIONS.filter((promo) => routeOn(promo.href)), siteName),
   ];
   const promotions = showPast ? [...live, ...past] : live;
 

@@ -219,6 +219,36 @@ const CATALOGUE: FeatureEntry[] = [
     ]
   },
   {
+    // Admin colour theme: a policy (owner-only), bitcasino + smartbet. Mirrors backend featureCatalogue.js.
+    key: 'admin_theme',
+    label: 'Admin colour theme',
+    category: 'business',
+    flag: null,
+    policy: true,
+    defaultVariant: 'same',
+    note: 'The site admin\'s colours, apart from the player site\'s template. Same as the site: the admin follows the template. Original: the admin keeps its own colours.',
+    variants: [
+      { key: 'same', label: 'Same as the site', description: 'The admin takes the template the player site uses. The default.' },
+      { key: 'original', label: 'Original', description: 'The admin keeps its own colours whatever the site uses.' },
+      { key: 'carbon_gold', label: 'Carbon Gold', description: 'The admin uses the Carbon Gold palette.' },
+      { key: 'violet_night', label: 'Violet Night', description: 'The admin uses the Violet Night palette.' },
+      { key: 'emerald_dark', label: 'Emerald Dark', description: 'The admin uses the Emerald Dark palette.' },
+      { key: 'neon_navy', label: 'Neon Navy', description: 'The admin uses the Neon Navy palette.' },
+      { key: 'lapis_ledger', label: 'Lapis Ledger', description: 'The admin uses the Lapis Ledger palette.' },
+      { key: 'seashell_teal', label: 'Seashell Teal', description: 'The admin uses the Seashell Teal palette.' },
+      { key: 'navy_coral', label: 'Navy Coral', description: 'The admin uses the Navy Coral palette.' },
+      { key: 'indigo_mint', label: 'Indigo Mint', description: 'The admin uses the Indigo Mint palette.' },
+      { key: 'cobalt_citrine', label: 'Cobalt Citrine', description: 'The admin uses the Cobalt Citrine palette.' },
+      { key: 'copper_harbour', label: 'Copper Harbour', description: 'The admin uses the Copper Harbour palette.' },
+      { key: 'wisteria', label: 'Wisteria', description: 'The admin uses the Wisteria palette.' },
+      { key: 'jade_night', label: 'Jade Night', description: 'The admin uses the Jade Night palette.' },
+      { key: 'magma', label: 'Magma', description: 'The admin uses the Magma palette.' },
+      { key: 'royal_dusk', label: 'Royal Dusk', description: 'The admin uses the Royal Dusk palette.' },
+      { key: 'tangerine_field', label: 'Tangerine Field', description: 'The admin uses the Tangerine Field palette.' },
+      { key: 'ocean_ruby', label: 'Ocean Ruby', description: 'The admin uses the Ocean Ruby palette.' }
+    ]
+  },
+  {
     // Slotegrator INR games in PKR: a policy (always on, owner-only). Mirrors backend featureCatalogue.js.
     key: 'slotegrator_inr_as_pkr',
     label: 'Slotegrator: INR games in PKR',
@@ -411,6 +441,7 @@ const CATALOGUE: FeatureEntry[] = [
       { key: 'none', label: 'Off', description: 'No tips.' }
     ]
   },
+
   // P2P trading is not offered for now (backend module unmounted as modules/_p2p), so it has no switch.
   {
     key: 'chat',

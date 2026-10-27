@@ -148,6 +148,9 @@ const Providers = () => {
   const list = useApi<ProviderSetting[]>(LIST, undefined, { retry: false })
   const [filter, setFilter] = useState('')
 
+  // The catalogue holds one aggregator at a time; the other's providers stay listed with 0 games. Hidden unless asked.
+  const [showParked, setShowParked] = useState(false)
+
   const setEnabled = useApiMutation({
     fn: (v: { name: string; enabled: boolean }) => api.patch(`${LIST}/${encodeURIComponent(v.name)}`, { enabled: v.enabled }),
     invalidate: [['api', LIST], ['api', 'admin/casino/games/providers']], // The provider switch is shown here only.
@@ -155,7 +158,12 @@ const Providers = () => {
   })
 
   const needle = filter.trim().toLowerCase()
-  const rows = (list.data ?? []).filter(p => !needle || p.name.toLowerCase().includes(needle) || p.displayName?.toLowerCase().includes(needle))
+  const all = list.data ?? []
+  const parked = all.filter(p => p.games === 0).length
+
+  const rows = all
+    .filter(p => showParked || p.games > 0)
+    .filter(p => !needle || p.name.toLowerCase().includes(needle) || p.displayName?.toLowerCase().includes(needle))
 
   const columns: Column<ProviderSetting>[] = [
     {
@@ -216,7 +224,17 @@ const Providers = () => {
       <PageHeader
         title='Providers'
         description='The game providers in the casino lobby. Switch one off to take every one of its games off the site (lobby, search and launch); upload a logo to show it instead of the name.'
-        actions={<Input placeholder='Filter…' className='w-48' value={filter} onChange={e => setFilter(e.target.value)} />}
+        actions={
+          <div className='flex items-center gap-4'>
+            {parked > 0 && (
+              <label className='text-muted-foreground flex items-center gap-2 text-sm'>
+                <Switch checked={showParked} onCheckedChange={setShowParked} />
+                Show {parked} with no games
+              </label>
+            )}
+            <Input placeholder='Filter…' className='w-48' value={filter} onChange={e => setFilter(e.target.value)} />
+          </div>
+        }
       />
       <DataTable
         columns={columns}

@@ -18,7 +18,16 @@ import { useRewards } from '@/hooks/useRewards';
 import { currencyMeta, currencyNetworks } from '@/data/currencies';
 import QRCode from 'qrcode';
 import { compareDecimal, formatBalance, formatFiat, percentOf } from '@/lib/format';
-import { useDepositAddress, useSubmitWithdrawal, usePaymentMethods, useCreateDeposit } from '@/queries/wallet';
+import {
+  useDepositAddress,
+  useSubmitWithdrawal,
+  usePaymentMethods,
+  useCreateDeposit,
+  useWhitelist,
+  useWithdrawalRequirements,
+} from '@/queries/wallet';
+import { ManualDepositPanel } from '@/components/wallet/ManualDepositPanel';
+import { requirementLines, savedFor } from '@/components/wallet/withdrawRules';
 import { cn } from '@/lib/cn';
 
 /**
@@ -327,7 +336,7 @@ export function DepositDialog({ open, onClose }) {
             <Segmented tabs={actions} value={active} onChange={changeTab} hasHint={hint && !picking} />
           )}
 
-          {active === 'deposit' && (
+          {active === 'deposit' && gates.autoDeposit() && (
             <div className="grid gap-3">
               <ExchangeCard />
 
@@ -355,6 +364,14 @@ export function DepositDialog({ open, onClose }) {
                   offers (UPI in INR, USDT on TRON). Self-hiding when the provider
                   is off or does not cover the selected currency. */}
               <F2PayPanel currency={currency} />
+            </div>
+          )}
+
+          {/* The manual transfer (owner deposit_mode manual/both + the admin's switch). Quiet
+              beside the gateway rails: a coin with no house account just shows nothing. */}
+          {active === 'deposit' && gates.manualDeposit() && (
+            <div className={cn(gates.autoDeposit() && 'mt-3')}>
+              <ManualDepositPanel currency={currency} crypto={Boolean(chain)} quiet={gates.autoDeposit()} />
             </div>
           )}
 
@@ -1361,13 +1378,25 @@ function WithdrawForm({ currency, chain, balance, decimals, onDone }) {
   const [done, setDone] = useState(null);
 
   const submit = useSubmitWithdrawal();
+  // What the backend will still refuse (KYC, wagering, caps), and the player's saved addresses.
+  const requirements = useWithdrawalRequirements(currency);
+  const blockers = requirementLines(requirements.data);
+  const whitelist = useWhitelist();
+  const saved = savedFor(whitelist.data?.addresses, currency, chain);
+  // "Withdraw only to saved addresses" is on: the destination is picked, never typed.
+  const whitelistOnly = whitelist.data?.whitelistOnly === true;
 
   /** String-safe: take a percentage without ever making the balance a float. */
   const takePercent = (percent) => setAmount(percentOf(balance, percent, decimals));
 
   const overBalance = compareDecimal(amount || '0', balance) > 0;
   const positive = /[1-9]/.test(amount || '');
-  const ready = address.trim().length > 0 && positive && !overBalance;
+  const ready =
+    address.trim().length > 0 &&
+    positive &&
+    !overBalance &&
+    blockers.length === 0 &&
+    (!whitelistOnly || saved.some((row) => row.address === address));
 
   const reset = () => {
     setAddress('');
@@ -1427,6 +1456,36 @@ function WithdrawForm({ currency, chain, balance, decimals, onDone }) {
         if (!confirming) setConfirming(true);
       }}
     >
+      {blockers.length > 0 && (
+        <ul role="alert" className="grid gap-1 rounded-i-sm bg-krillin/10 px-3 py-2 text-xs text-bulma">
+          {blockers.map((line) => (
+            <li key={line}>{line}</li>
+          ))}
+        </ul>
+      )}
+
+      {(saved.length > 0 || whitelistOnly) && (
+        <Field
+          label="Saved address"
+          hint={whitelistOnly ? 'Only saved addresses are allowed' : undefined}
+        >
+          <select
+            value={saved.some((row) => row.address === address) ? address : ''}
+            onChange={(e) => setAddress(e.target.value)}
+            disabled={confirming}
+            className="h-11 w-full rounded-i-sm border-[0.8px] border-beerus bg-goku px-3 text-sm text-bulma outline-none focus:border-piccolo"
+          >
+            <option value="">{saved.length ? 'Choose a saved address' : `No saved ${currency} address`}</option>
+            {saved.map((row) => (
+              <option key={row.id} value={row.address}>
+                {`${row.label} · ${row.address.slice(0, 6)}…${row.address.slice(-4)}`}
+              </option>
+            ))}
+          </select>
+        </Field>
+      )}
+
+      {!whitelistOnly && (
       <Field label={`${currency} address`}>
         <input
           value={address}
@@ -1438,6 +1497,7 @@ function WithdrawForm({ currency, chain, balance, decimals, onDone }) {
           className="h-11 w-full rounded-i-sm border-[0.8px] border-beerus bg-goku px-3 font-mono text-xs text-bulma outline-none focus:border-piccolo disabled:text-trunks"
         />
       </Field>
+      )}
 
       <Field
         label="Amount"

@@ -4,7 +4,6 @@ import { QueryClientProvider } from '@tanstack/react-query';
 
 import { createQueryClient } from './client';
 import { useGames, useCollection, useGameSearch, useGame } from './games';
-import { useRail } from './collections';
 import { useSiteConfig } from './siteConfig';
 
 /**
@@ -334,71 +333,3 @@ describe('useGame', () => {
   });
 });
 
-/**
- * Shared cache keys must mean shared shapes.
- *
- * React Query caches by key and runs `select` per observer, so two hooks that
- * build the same key with different `queryFn` return shapes each see whatever
- * the OTHER fetched first — silently, and only when both are mounted.
- *
- * That shipped once: `useCutSource` cached a bare array under
- * `games.list({page:1, limit:100})`, the home page's "New Releases" rail
- * primed it, and the search dialog — reading the same entry through
- * `useGames` — destructured `rows` off an array, got `undefined`, and rendered
- * "Most Popular Games — 0" with no request in the network panel at all.
- * Nothing threw; the list was just empty.
- */
-describe('games.list cache shape', () => {
-  it('serves the same entry to a rail and to useGames', async () => {
-    const rows = [ROW];
-    const fetchMock = respondWith(() => envelope(rows, { pagination: { total: 1 } }));
-
-    const client = createQueryClient();
-    // staleTime is preserved here on purpose: `setDefaultOptions` REPLACES
-    // the client defaults, and dropping it back to 0 makes the second observer
-    // refetch — which would mask the very sharing this test is about.
-    client.setDefaultOptions({ queries: { retry: false, staleTime: Infinity } });
-    const shared = ({ children }) => (
-      <QueryClientProvider client={client}>{children}</QueryClientProvider>
-    );
-
-    // The rail primes the entry first, exactly as the home page does.
-    const rail = renderHook(() => useRail({ kind: 'cut', slug: 'new' }), { wrapper: shared });
-    await waitFor(() => expect(rail.result.current.games).toBeDefined());
-
-    // Then the dialog reads the SAME key through a different hook.
-    const dialog = renderHook(() => useGames({ limit: 100 }), { wrapper: shared });
-    await waitFor(() => expect(dialog.result.current.isSuccess).toBe(true));
-
-    // One fetch between them — that sharing is the point — and the second
-    // observer still gets games rather than an empty list.
-    expect(fetchMock).toHaveBeenCalledTimes(1);
-    expect(dialog.result.current.data.games).toHaveLength(1);
-    expect(dialog.result.current.data.games[0].slug).toBe('cobalt-sky');
-  });
-
-  it('serves the same entry to useGames and then to a rail', async () => {
-    // The reverse order, because whichever hook fetches FIRST is what decides
-    // the cached shape — a fix that only works one way round is not a fix.
-    const fetchMock = respondWith(() => envelope([ROW], { pagination: { total: 1 } }));
-
-    const client = createQueryClient();
-    // staleTime is preserved here on purpose: `setDefaultOptions` REPLACES
-    // the client defaults, and dropping it back to 0 makes the second observer
-    // refetch — which would mask the very sharing this test is about.
-    client.setDefaultOptions({ queries: { retry: false, staleTime: Infinity } });
-    const shared = ({ children }) => (
-      <QueryClientProvider client={client}>{children}</QueryClientProvider>
-    );
-
-    const dialog = renderHook(() => useGames({ limit: 100 }), { wrapper: shared });
-    await waitFor(() => expect(dialog.result.current.isSuccess).toBe(true));
-
-    const rail = renderHook(() => useRail({ kind: 'cut', slug: 'live-rtp' }), { wrapper: shared });
-    await waitFor(() => expect(rail.result.current.games).toBeDefined());
-
-    expect(fetchMock).toHaveBeenCalledTimes(1);
-    // `live-rtp` keeps only games that carry an RTP; ROW does.
-    expect(rail.result.current.games).toHaveLength(1);
-  });
-});

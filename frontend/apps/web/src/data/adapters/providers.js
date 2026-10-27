@@ -67,7 +67,38 @@ const LOGO_ALIASES = Object.freeze({
   // this platform deals itself. It is not a studio, so it has no studio mark —
   // the originals lockup is the right art for it.
   'in-house': 'bitcasino-originals',
+  // The live catalogue's short provider names -> their studio's mark.
+  pragmatic: 'pragmatic-play',
+  pragmaticlive: 'pragmatic-play',
+  hacksaw: 'hacksaw-gaming',
+  jili: 'jili-games',
+  // kingmidas.svg has a filled backdrop that turns to a solid bar in the muted grey.
+  km: 'kingmidas-mark',
+  microgaming: 'microgaming-asia',
 });
+
+/** How a short catalogue name reads on the site when the admin set no display name. */
+const PROVIDER_LABELS = Object.freeze({
+  // The games this platform deals itself carry the site's own name.
+  'in-house': 'Originals',
+  '2j': '2J',
+  bgaming: 'BGaming',
+  evolution: 'Evolution',
+  ezugi: 'Ezugi',
+  hacksaw: 'Hacksaw Gaming',
+  ideal: 'iDeal',
+  jili: 'JILI',
+  km: 'Kingmidas',
+  microgaming: 'Microgaming',
+  netent: 'NetEnt',
+  pgsoft: 'PG Soft',
+  pragmatic: 'Pragmatic Play',
+  pragmaticlive: 'Pragmatic Play Live',
+  spribe: 'Spribe',
+});
+
+/** Catalogue rows that are not studios (launch routes, the off sportsbook): no tile. */
+const NOT_STUDIOS = new Set(['lobby', 'sports', 'esports']);
 
 /**
  * The placeholder studio logos that exist under `public/images/providers/`.
@@ -79,20 +110,85 @@ const LOGO_ALIASES = Object.freeze({
  */
 const KNOWN_LOGOS = Object.freeze(
   new Set([
-    'northlight',
-    'vertex-play',
-    'lumen-games',
-    'halcyon',
-    'nine-peaks',
-    'copperline',
-    'tidewater',
-    'foxglove',
+    '155',
+    '2j',
+    'amusnet',
+    'avatarux',
+    'aviatrix',
+    'backseatgaming',
+    'betsoft',
+    'bgaming',
+    'big-daddy-gaming',
+    'big-time-gaming',
     'bitcasino-originals',
-    // Not a placeholder studio: `Evolution` really runs the seven live tables
-    // behind `/themes/live-exclusives`, and `evolution.svg` is its own mark.
-    // Its derived slug and its file name already agree, so it needs no alias —
-    // only to be admitted here, or the providers grid draws it logoless.
+    'booming',
+    'bulbul',
+    'caleta',
+    'clutch-gaming',
+    'copperline',
+    'cq9',
+    'degen-studios',
+    'egtdigital',
+    'endorphina',
     'evolution',
+    'ezugi',
+    'foxglove',
+    'gameart',
+    'games-global',
+    'gamingcorps',
+    'gamzix',
+    'habanero',
+    'hacksaw-gaming',
+    'halcyon',
+    'happy-duck',
+    'ideal',
+    'jdb-gaming',
+    'jili-games',
+    'just-slots',
+    'kalamba-games',
+    'kingmidas',
+    'kingmidas-mark',
+    'lumen-games',
+    'microgaming-asia',
+    'netent',
+    'nine-peaks',
+    'nolimit-city',
+    'northlight',
+    'novomatic',
+    'onetouch',
+    'onlyplay',
+    'origami',
+    'penguin-king',
+    'peter-and-sons',
+    'pgsoft',
+    'phoenix7',
+    'playace',
+    'playngo',
+    'playtech',
+    'popiplay',
+    'pragmatic-play',
+    'push-gaming',
+    'red-tiger',
+    'relax-gaming',
+    'rubyplay',
+    'sexy',
+    'shady-lady',
+    'skywind',
+    'slotmill',
+    'smartsoft',
+    'sneakyslots',
+    'spinlab',
+    'spinomenal',
+    'spribe',
+    'thunderkick',
+    'tidewater',
+    'truelabs',
+    'turbo-games',
+    'vertex-play',
+    'voltent',
+    'wicked-games',
+    'winfast',
+    'winfinity',
   ]),
 );
 
@@ -108,7 +204,10 @@ const providerLogo = (slug) => {
   return KNOWN_LOGOS.has(asset) ? `/images/providers/${asset}.svg` : null;
 };
 
-export { KNOWN_LOGOS, LOGO_ALIASES };
+export { KNOWN_LOGOS, LOGO_ALIASES, PROVIDER_LABELS };
+
+/** A catalogue provider name as the site shows it (`pragmatic` -> `Pragmatic Play`). */
+export const providerLabel = (name) => PROVIDER_LABELS[providerSlug(name)] ?? name;
 
 /**
  * One `gis_providers` row -> one `Provider`.
@@ -131,7 +230,7 @@ export function toProvider(row, counts = {}) {
   if (!name) return null;
 
   const slug = providerSlug(name);
-  if (!slug) return null;
+  if (!slug || NOT_STUDIOS.has(slug)) return null;
 
   return {
     // The name IS the identity upstream — there is no id column — so the slug
@@ -139,9 +238,13 @@ export function toProvider(row, counts = {}) {
     // and a URL both need.
     id: slug,
     name,
+    // What the site shows: the admin's display name, else ours, else the catalogue name.
+    label: row?.displayName || PROVIDER_LABELS[slug] || name,
     slug,
-    logo: providerLogo(slug),
-    gameCount: counts[name] ?? 0,
+    // A logo uploaded in the site admin wins over our bundled mark.
+    logo: row?.logoUrl || providerLogo(slug),
+    // The stats route counts only its top providers; an uncounted one is unknown, not empty.
+    gameCount: counts[name] ?? null,
   };
 }
 

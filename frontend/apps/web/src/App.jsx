@@ -2,7 +2,7 @@ import { BrowserRouter, Navigate, Route, Routes, useParams } from 'react-router-
 import { Layout } from '@/components/layout/Layout';
 import { Home } from '@/pages/Home';
 import { Category } from '@/pages/Category';
-import { Theme } from '@/pages/Theme';
+import { OriginalsPage } from '@/components/sections/OriginalsRail';
 import { Recent } from '@/pages/Recent';
 import { Favourites } from '@/pages/Favourites';
 import { Providers } from '@/pages/Providers';
@@ -156,6 +156,7 @@ function AppRoutes() {
                 operator picked, the category is every game of that type.
                 Inferring from the slug would make one of these two routes
                 permanently unreachable. */}
+            <Route path="categories/originals" element={<OriginalsPage />} />
             <Route path="categories/:slug" element={<Category mode="category" />} />
             {/* Before the collection route in source order for readability
                 only — React Router ranks a static segment above a dynamic one
@@ -188,11 +189,6 @@ function AppRoutes() {
                 `NotFound`. */}
             <Route path="games" element={<Category mode="all" />} />
             <Route path="games/:slug" element={<Category mode="collection" />} />
-            {/* The reference's third list space. A theme is a hand-picked set
-                that cuts across type and studio, which is neither a category
-                nor one of the platform's curated rows — `Theme.jsx` says why
-                it is its own page rather than a third `mode` on `Category`. */}
-            <Route path="themes/:slug" element={<Theme />} />
             <Route path="providers" element={<Providers />} />
             {/* The studio index and one studio's catalogue are different pages
                 on the reference — the detail view is a filterable game list. */}

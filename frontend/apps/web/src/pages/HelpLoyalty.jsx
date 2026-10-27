@@ -1,5 +1,6 @@
 import { Link } from 'react-router-dom';
 import { SUPPORT_EMAIL } from '@/lib/site';
+import { Brand } from '@/components/ui/Brand';
 
 const ARTICLES = [
   ['How does the Loyalty Club work?', '/help-center/help-loyalty/how-loyalty-works'],
@@ -15,7 +16,7 @@ const ARTICLES = [
 function Breadcrumbs() {
   return (
     <nav aria-label="Breadcrumb" className="flex flex-wrap items-center gap-1 text-sm text-bulma">
-      <Link to="/" className="hover:text-piccolo">Bitcasino</Link>
+      <Link to="/" className="hover:text-piccolo"><Brand /></Link>
       <span aria-hidden="true">›</span>
       <Link to="/help-center" className="hover:text-piccolo">Help centre</Link>
       <span aria-hidden="true">›</span>
@@ -59,7 +60,7 @@ export function HelpLoyalty() {
         )}
 
         <nav aria-label="Footer breadcrumb" className="flex flex-wrap items-center gap-1 pb-4 text-sm text-trunks">
-          <Link to="/" className="hover:text-piccolo">Bitcasino</Link>
+          <Link to="/" className="hover:text-piccolo"><Brand /></Link>
           <span aria-hidden="true">›</span>
           <Link to="/help-center" className="hover:text-piccolo">Help centre</Link>
           <span aria-hidden="true">›</span>

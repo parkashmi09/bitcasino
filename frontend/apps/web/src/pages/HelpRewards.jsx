@@ -1,5 +1,8 @@
 import { Link } from 'react-router-dom';
 import { SUPPORT_EMAIL } from '@/lib/site';
+import { Brand } from '@/components/ui/Brand';
+import { withBrand } from '@/lib/branding';
+import { useSiteName } from '@/queries/siteConfig';
 
 const ARTICLES = [
   ['Tournaments on Bitcasino', '/help-center/help-your-bonuses/tournaments-on-bitcasino'],
@@ -15,7 +18,7 @@ const ARTICLES = [
 function Breadcrumbs() {
   return (
     <nav aria-label="Breadcrumb" className="flex flex-wrap items-center gap-1 text-sm text-bulma">
-      <Link to="/" className="hover:text-piccolo">Bitcasino</Link>
+      <Link to="/" className="hover:text-piccolo"><Brand /></Link>
       <span aria-hidden="true">›</span>
       <Link to="/help-center" className="hover:text-piccolo">Help centre</Link>
       <span aria-hidden="true">›</span>
@@ -25,6 +28,7 @@ function Breadcrumbs() {
 }
 
 export function HelpRewards() {
+  const site = useSiteName();
   return (
     <div className="w-full max-w-[99rem] overflow-x-clip">
       <div className="grid gap-6">
@@ -37,7 +41,7 @@ export function HelpRewards() {
 
         <section aria-labelledby="rewards-support-heading" className="grid grid-cols-1 gap-4 pb-6 md:grid-cols-3">
           <h2 id="rewards-support-heading" className="sr-only">Rewards support articles</h2>
-          {ARTICLES.map(([label, to]) => (
+          {withBrand(ARTICLES, site).map(([label, to]) => (
             <div key={label} className="grid self-start gap-1">
               <span className="text-[10px] uppercase leading-4 tracking-[0.5px] text-trunks">Support</span>
               <Link to={to} className="text-xl leading-8 text-bulma transition-colors hover:text-piccolo">{label}</Link>
@@ -59,7 +63,7 @@ export function HelpRewards() {
         )}
 
         <nav aria-label="Footer breadcrumb" className="flex flex-wrap items-center gap-1 pb-4 text-sm text-trunks">
-          <Link to="/" className="hover:text-piccolo">Bitcasino</Link>
+          <Link to="/" className="hover:text-piccolo"><Brand /></Link>
           <span aria-hidden="true">›</span>
           <Link to="/help-center" className="hover:text-piccolo">Help centre</Link>
           <span aria-hidden="true">›</span>

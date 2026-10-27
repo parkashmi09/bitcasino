@@ -1,6 +1,7 @@
 import { NavLink } from 'react-router-dom';
 import { HeaderIconLink } from './HeaderMenu';
 import { useNotifications } from '@/hooks/useNotifications';
+import { useGates } from '@/hooks/useGates';
 
 /**
  * The bell.
@@ -25,6 +26,9 @@ import { useNotifications } from '@/hooks/useNotifications';
  */
 export function NotificationsMenu({ className }) {
   const { unread } = useNotifications();
+  const gates = useGates();
+  // The owner's `notifications` feature off: no bell (the page route is gated the same way).
+  if (!gates.on('notifications')) return null;
 
   return (
     <HeaderIconLink

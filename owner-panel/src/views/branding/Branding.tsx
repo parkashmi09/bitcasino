@@ -344,14 +344,14 @@ const Branding = () => {
               <CardDescription>The browser tab, search results and the site&apos;s own mentions of its name.</CardDescription>
             </CardHeader>
             <CardContent className='flex flex-col gap-4'>
-              <TextField error={fields.siteName} name='siteName' value={current.siteName} onChange={v => set('siteName', v)} placeholder='parker567' help='Required once branded. Also the alt text of the logo.' />
-              <TextField error={fields.title} name='title' value={current.title} onChange={v => set('title', v)} placeholder='Parker567 — Casino & Sports' help='The home page title (and the default for every page).' />
+              <TextField error={fields.siteName} name='siteName' value={current.siteName} onChange={v => set('siteName', v)} placeholder='TestPlay' help='Required once branded. Also the alt text of the logo.' />
+              <TextField error={fields.title} name='title' value={current.title} onChange={v => set('title', v)} placeholder='TestPlay — Casino & Sports' help='The home page title (and the default for every page).' />
               <TextField
                 name='titleTemplate'
                 error={fields.titleTemplate}
                 value={current.titleTemplate}
                 onChange={v => set('titleTemplate', v)}
-                placeholder='%s · Parker567'
+                placeholder='%s · TestPlay'
                 help='How a page with its own title is named; %s is that title. Empty = the page title alone.'
               />
               <TextField error={fields.description} name='description' value={current.description} onChange={v => set('description', v)} multiline help='<meta name="description">, shown under the title in search results.' />

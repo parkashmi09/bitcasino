@@ -2,46 +2,12 @@ import { useQuery } from '@tanstack/react-query';
 import { api } from '@/lib/api';
 import { ENDPOINTS, path } from '@/lib/endpoints';
 import { toGames } from '@/data/adapters';
-import { CUT_SAMPLE, resolveCollection } from '@/data/adapters/collections';
-import { resolveTheme } from '@/data/adapters/themes';
+import { resolveCollection } from '@/data/adapters/collections';
 import { queryKeys } from './keys';
 import { fetchGameList } from './games';
 import { collectionQuery, gamesQuery } from './params';
 
-/**
- * The lists behind `/games/:slug` and the home rails.
- *
- * Three of them are a client-side cut over a fetched page rather than a real
- * platform read — `data/adapters/collections.js` explains why the browse route
- * cannot serve them and what the two fixes would be. The important part here
- * is that the two kinds share a cache: a cut reads the SAME query entry the
- * plain catalogue list uses, so `new`, `exclusives` and `live-rtp` cost one
- * request between them rather than three.
- */
-
-/**
- * The unfiltered catalogue page every client-side cut is taken from.
- *
- * Deliberately the same key `useGames({limit: CUT_SAMPLE})` would build, so
- * the three cuts and any page asking for the same list are one fetch.
- *
- * Which is precisely why it fetches through `fetchGameList` rather than
- * calling `api()` itself: a shared key means a shared SHAPE. This hook used to
- * return a bare array, so the home page's "New Releases" rail primed the
- * `{page: 1, limit: 100}` entry with one — and the search dialog, which reads
- * the same entry through `useGames`, destructured `rows` off an array, got
- * `undefined`, and rendered an empty list with no request in the network
- * panel. See the note on `fetchGameList`.
- */
-function useCutSource({ enabled = true } = {}) {
-  const query = gamesQuery({ page: 1, limit: CUT_SAMPLE });
-
-  return useQuery({
-    queryKey: queryKeys.games.list(query),
-    queryFn: ({ signal }) => fetchGameList(query, signal),
-    enabled,
-  });
-}
+/** The lists behind `/games/:slug` and the home rails. */
 
 /**
  * The catalogue rows out of a query result, whichever kind fetched it.
@@ -60,7 +26,7 @@ function useCutSource({ enabled = true } = {}) {
  * silently, which is the bug this exists to have prevented.
  *
  * @param {unknown} data
- * @param {'collection' | 'cut' | 'category'} kind
+ * @param {'collection' | 'category'} kind
  */
 function rowsOf(data, kind) {
   if (data === undefined) return undefined;
@@ -91,9 +57,6 @@ function usePlatformCollection(slug, { limit = 24, enabled = true } = {}) {
  * a collection that resolved and is empty — the first is a wrong URL and the
  * second is a curated list nobody has filled.
  *
- * Both hooks are called unconditionally and one of them is disabled, because
- * hooks cannot be called in a branch. The disabled one costs nothing.
- *
  * @param {string} slug
  * @param {object} [options]
  * @param {number} [options.limit]
@@ -101,12 +64,10 @@ function usePlatformCollection(slug, { limit = 24, enabled = true } = {}) {
 export function useGameCollection(slug, { limit = 48 } = {}) {
   const target = resolveCollection(slug);
 
-  const platform = usePlatformCollection(target?.slug, {
-    limit,
-    enabled: target?.kind === 'collection',
-  });
-
-  const source = useCutSource({ enabled: target?.kind === 'cut' });
+  const lobby = useRail(
+    target?.kind === 'collection' ? { kind: 'lobby', slug: target.lobby, auto: target.auto } : null,
+    { limit },
+  );
 
   if (!target) {
     return {
@@ -120,60 +81,14 @@ export function useGameCollection(slug, { limit = 48 } = {}) {
     };
   }
 
-  const active = target.kind === 'cut' ? source : platform;
-  const rows = rowsOf(active.data, target.kind);
-
   return {
-    games: rows === undefined ? undefined : target.cut ? target.cut(toGames(rows)) : toGames(rows),
+    games: lobby.games,
     label: target.label,
     kind: target.kind,
     notFound: false,
-    isPending: active.isPending,
-    error: active.error ?? null,
-    refetch: active.refetch,
-  };
-}
-
-/**
- * One theme at `/themes/:slug`.
- *
- * Same shape as `useGameCollection` — `{games, label, isPending, error,
- * refetch, notFound}` — so `Theme.jsx` and `Category.jsx` read alike.
- *
- * A theme is always a cut, never a platform read: it names its members and
- * cuts across type and studio, which is a list `GET /casino/games` has no
- * parameter for. See `data/adapters/themes.js`.
- *
- * It shares `useCutSource`, so a theme costs no request of its own on a page
- * that has already read the catalogue — and, more to the point, the three
- * badge cuts and every theme are one fetch between them rather than one each.
- *
- * @param {string} slug
- */
-export function useTheme(slug) {
-  const theme = resolveTheme(slug);
-  const source = useCutSource({ enabled: Boolean(theme) });
-
-  if (!theme) {
-    return {
-      games: [],
-      label: null,
-      notFound: true,
-      isPending: false,
-      error: null,
-      refetch: () => {},
-    };
-  }
-
-  const rows = rowsOf(source.data, 'cut');
-
-  return {
-    games: rows === undefined ? undefined : theme.cut(toGames(rows)),
-    label: theme.label,
-    notFound: false,
-    isPending: source.isPending,
-    error: source.error ?? null,
-    refetch: source.refetch,
+    isPending: lobby.isPending,
+    error: lobby.error ?? null,
+    refetch: lobby.refetch,
   };
 }
 
@@ -184,7 +99,7 @@ export function useTheme(slug) {
  * both a curated row and a category, and only the caller knows which it means.
  * A rail says so outright.
  *
- * All three hooks run on every call with two of them disabled — hooks cannot
+ * All the hooks run on every call with the others disabled — hooks cannot
  * be called in a branch, and a disabled query neither fetches nor subscribes.
  *
  * @param {import('@/data/homeRails').RailSource} source
@@ -195,13 +110,23 @@ export function useRail(source, { limit = 24 } = {}) {
   const kind = source?.kind;
   const slug = source?.slug;
 
-  const categoryQuery = gamesQuery({ category: slug, page: 1, limit });
+  // A lobby category: the admin's picks first; none picked falls back to its automatic list.
+  const lobby = useQuery({
+    queryKey: ['lobby-category', slug, limit],
+    queryFn: ({ signal }) =>
+      api(path(ENDPOINTS.lobbyCategory, { slug }), { query: { limit }, auth: false, signal }),
+    enabled: kind === 'lobby' && Boolean(slug),
+  });
+  const lobbyEmpty = kind === 'lobby' && Array.isArray(lobby.data) && lobby.data.length === 0;
+  const categorySlug = kind === 'lobby' ? source?.auto : slug;
+
+  const categoryQuery = gamesQuery({ category: categorySlug, page: 1, limit });
 
   const category = useQuery({
     queryKey: queryKeys.games.list(categoryQuery),
-    // `fetchGameList`, for the same reason as `useCutSource` above.
+    // `fetchGameList`: a shared key needs a shared shape (see the note there).
     queryFn: ({ signal }) => fetchGameList(categoryQuery, signal),
-    enabled: kind === 'category' && Boolean(slug),
+    enabled: Boolean(categorySlug) && (kind === 'category' || lobbyEmpty),
   });
 
   const collection = usePlatformCollection(slug, {
@@ -209,14 +134,20 @@ export function useRail(source, { limit = 24 } = {}) {
     enabled: kind === 'collection',
   });
 
-  const source_ = useCutSource({ enabled: kind === 'cut' });
+  if (kind === 'lobby' && !(lobbyEmpty && categorySlug)) {
+    return {
+      games: lobby.data === undefined ? undefined : toGames(Array.isArray(lobby.data) ? lobby.data : []),
+      isPending: lobby.isPending,
+      error: lobby.error ?? null,
+      refetch: lobby.refetch,
+    };
+  }
 
-  const active = kind === 'cut' ? source_ : kind === 'collection' ? collection : category;
-  const cut = kind === 'cut' ? resolveCollection(slug)?.cut : null;
-  const rows = rowsOf(active.data, kind);
+  const active = kind === 'collection' ? collection : category;
+  const rows = rowsOf(active.data, kind === 'lobby' ? 'category' : kind);
 
   return {
-    games: rows === undefined ? undefined : cut ? cut(toGames(rows)) : toGames(rows),
+    games: rows === undefined ? undefined : toGames(rows),
     isPending: active.isPending,
     error: active.error ?? null,
     refetch: active.refetch,
@@ -231,3 +162,25 @@ export function useRail(source, { limit = 24 } = {}) {
  * collections to draw five tiles would be five requests for nothing.
  */
 export { PLATFORM_COLLECTIONS } from '@/data/adapters/collections';
+
+/** The site admin's lobby categories, in its order (only the ones shown on the site). */
+export function useLobbyCategories() {
+  return useQuery({
+    queryKey: ['lobby-categories'],
+    queryFn: ({ signal }) => api(ENDPOINTS.lobbyCategories, { auth: false, signal }),
+    select: (data) => (Array.isArray(data) ? data : (data?.rows ?? [])),
+    staleTime: 60 * 1000,
+  });
+}
+
+/** The in-house originals: `{id, name, slug}` for each active one. */
+export function useInHouseGames() {
+  return useQuery({
+    queryKey: ['in-house-games'],
+    queryFn: ({ signal }) => api(ENDPOINTS.inHouseGames, { auth: false, signal }),
+    select: (data) =>
+      (Array.isArray(data) ? data : [])
+        .filter((g) => g.vendor === 'in-house' && g.is_active !== false)
+        .map((g) => ({ id: g.game_uid ?? String(g.id), name: g.game_name, type: g.game_type })),
+  });
+}

@@ -12,6 +12,7 @@ import { MaximizeIcon, MinimizeIcon, SearchIcon } from 'lucide-react'
 // Component Imports
 import ModeToggle from '@/components/layout/ModeToggle'
 import OwnerBalance from '@/components/layout/OwnerBalance'
+import PaletteSync from '@/components/layout/PaletteSync'
 import BrandMark from '@/components/shared/BrandMark'
 import ProfileDropdown from '@/components/shared/ProfileDropdown'
 import { Button } from '@/components/ui/button'
@@ -117,6 +118,7 @@ const Header = () => {
           <MenuSearch />
         </div>
         <div className='flex items-center gap-1 sm:gap-2'>
+          <PaletteSync />
           <OwnerBalance />
           <FullscreenToggle />
           <ModeToggle />

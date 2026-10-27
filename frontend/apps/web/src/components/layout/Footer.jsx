@@ -7,6 +7,8 @@ import { useSiteConfig } from '@/queries';
 import { CURRENCY_ORDER } from '@/data/currencies';
 import { useGates } from '@/hooks/useGates';
 import { OPERATOR_NOTICE, SITE_NAME } from '@/lib/site';
+import { brandName } from '@/lib/branding';
+import { useBranding } from '@/queries/siteConfig';
 
 /**
  * Fat footer, laid out to the reference site's measurements.
@@ -228,6 +230,7 @@ function MarkRow({ items }) {
 
 export function Footer() {
   const wide = useMediaQuery(UNFOLD_AT);
+  const name = brandName(useBranding());
 
   /**
    * The marks to show, from the operator's own currency flags.
@@ -259,11 +262,11 @@ export function Footer() {
           <div className="grid gap-6 xl:grid-cols-[13.75rem_1fr_auto] xl:items-start xl:justify-between 2xl:gap-16">
             <div className="text-bulma">
               <h2 className="font-primary text-sm font-normal leading-5 text-bulma">
-                About {SITE_NAME}
+                About {name}
               </h2>
               {ABOUT_PARAGRAPHS.map((paragraph, index) => (
                 <p key={paragraph.slice(0, 24)} className={cn('m-0 text-sm leading-5', index > 0 && 'mt-5')}>
-                  {paragraph}
+                  {paragraph.replaceAll(SITE_NAME, name)}
                 </p>
               ))}
             </div>

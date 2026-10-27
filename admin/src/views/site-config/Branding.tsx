@@ -155,7 +155,7 @@ const MetaForm = ({ b }: { b: SiteBranding }) => {
       <FormErrorsProvider errors={f.errors} onClear={f.clear}>
         <TextField label='Site name' maxLength={40} {...field('siteName')} />
         <TextField label='Page title' maxLength={70} {...field('title')} />
-        <TextField label='Title template' hint='%s is the page name, e.g. "%s · Parker567".' maxLength={80} {...field('titleTemplate')} />
+        <TextField label='Title template' hint='%s is the page name, e.g. "%s · TestPlay".' maxLength={80} {...field('titleTemplate')} />
         <TextAreaField label='Meta description' maxLength={300} rows={3} {...field('description')} />
         <TextField label='Meta keywords' hint='Comma-separated, up to 20.' {...field('keywords')} />
         <TextField label='Open Graph title' maxLength={90} {...field('ogTitle')} />

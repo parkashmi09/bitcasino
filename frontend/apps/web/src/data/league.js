@@ -11,7 +11,7 @@ export const LEAGUE = {
   slug: 'league-of-bitcasino',
   title: 'League of Bitcasino',
   /** The home banner's League art, under a top-anchored crop (see `PromoLayout`). */
-  art: '/images/banners/league.png',
+  art: '/images/banners/league.svg',
   blurb:
     'Wager races: every settled bet climbs the board, and the top places share the prize pool.',
 };

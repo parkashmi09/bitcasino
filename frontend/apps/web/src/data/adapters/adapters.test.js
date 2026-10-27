@@ -18,11 +18,9 @@ import {
 import { toSiteConfig } from './siteConfig';
 import {
   PLATFORM_COLLECTIONS,
-  CUT_COLLECTIONS,
   resolveCollection,
 } from './collections';
 import { CATEGORIES } from '../categories';
-import { THEME_SLUGS, resolveTheme } from './themes';
 
 /**
  * The adapters, against the shapes the platform actually answers.
@@ -314,6 +312,7 @@ describe('providers', () => {
     expect(toProvider({ name: 'In-House' }, COUNTS)).toEqual({
       id: 'in-house',
       name: 'In-House',
+      label: 'Originals',
       slug: 'in-house',
       // Aliased: there is no `in-house.svg`, and In-House is not a studio.
       logo: '/images/providers/bitcasino-originals.svg',
@@ -340,9 +339,9 @@ describe('providers', () => {
 
   it('renders a studio with no count rather than omitting it', () => {
     // The counts query is allowed to fail on its own; a grid of studios with
-    // no counts is a working page.
-    expect(toProvider({ name: 'Tidewater Gaming' }, COUNTS).gameCount).toBe(0);
-    expect(toProvider({ name: 'Tidewater Gaming' }).gameCount).toBe(0);
+    // no counts is a working page. Unknown is null, so the grid shows no "0 games".
+    expect(toProvider({ name: 'Tidewater Gaming' }, COUNTS).gameCount).toBe(null);
+    expect(toProvider({ name: 'Tidewater Gaming' }).gameCount).toBe(null);
   });
 
   it('sorts alphabetically and drops nameless rows', () => {
@@ -433,10 +432,14 @@ describe('collections', () => {
     }
   });
 
-  it('resolves the three this site cuts client-side', () => {
-    for (const slug of ['new', 'exclusives', 'live-rtp']) {
-      expect(resolveCollection(slug).kind).toBe('cut');
-    }
+  it('no longer serves the always-empty badge cut', () => {
+    expect(resolveCollection('exclusives')).toBeNull();
+  });
+
+  it('reads the curated rows from the admin lobby categories', () => {
+    expect(resolveCollection('new')).toMatchObject({ kind: 'collection', lobby: 'new', auto: null });
+    expect(resolveCollection('live-casino')).toMatchObject({ lobby: 'live', auto: 'live-casino' });
+    expect(resolveCollection('indian')).toBeNull();
   });
 
   it('prefers the curated row for a slug that is also a category', () => {
@@ -454,32 +457,9 @@ describe('collections', () => {
 
   it('answers null for a slug this site does not serve', () => {
     expect(resolveCollection('sportsbook')).toBeNull();
+    expect(resolveCollection('live-rtp')).toBeNull();
     expect(resolveCollection('')).toBeNull();
     expect(resolveCollection(undefined)).toBeNull();
-  });
-
-  it('cuts new and exclusives by badge', () => {
-    const games = [
-      { id: '1', badge: 'new' },
-      { id: '2', badge: 'exclusive' },
-      { id: '3' },
-      { id: '4', badge: 'hot' },
-    ];
-
-    expect(CUT_COLLECTIONS.new.cut(games).map((g) => g.id)).toEqual(['1']);
-    expect(CUT_COLLECTIONS.exclusives.cut(games).map((g) => g.id)).toEqual(['2']);
-  });
-
-  it('drops games with no RTP from live-rtp rather than sorting them', () => {
-    // A list titled "Live RTP" must not contain rows whose RTP nobody knows,
-    // and sorting undefined leaves them wherever the engine happens to.
-    const games = [
-      { id: 'a', rtp: 94 },
-      { id: 'b' },
-      { id: 'c', rtp: 97.2 },
-    ];
-
-    expect(CUT_COLLECTIONS['live-rtp'].cut(games).map((g) => g.id)).toEqual(['c', 'a']);
   });
 
   it('every category the nav offers has a type mapping', () => {
@@ -489,60 +469,3 @@ describe('collections', () => {
   });
 });
 
-/**
- * The two kinds of theme.
- *
- * `/themes/:slug` serves both a curated list (Live Exclusives, VIP Prive,
- * Bitcasino Exclusives) and a rule (Bonus Buy-in). They behave differently in
- * one way that matters and is easy to break: a curated list keeps ITS OWN
- * order, because an operator arranged it, and a rule keeps the catalogue's.
- */
-describe('themes', () => {
-  const games = [
-    { id: '1', slug: 'exclusive-blackjack' },
-    { id: '2', slug: 'nothing-to-do-with-a-theme', bonusBuy: true },
-    { id: '3', slug: 'exclusive-speed-baccarat-1' },
-    { id: '4', slug: 'also-not-in-a-theme' },
-  ];
-
-  it('keeps a curated theme in the order the theme names, not the catalogue', () => {
-    // `exclusive-speed-baccarat-1` is named FIRST in the theme and arrives
-    // second here. The operator's order is the curation; losing it turns a
-    // arranged row into an arbitrary one.
-    const theme = resolveTheme('live-exclusives');
-
-    expect(theme.cut(games).map((g) => g.id)).toEqual(['3', '1']);
-  });
-
-  it('cuts a rule-based theme by the flag, leaving the catalogue order alone', () => {
-    // Bonus Buy-in is seventy-four pages on the reference — a filter over a
-    // feature, not a list anyone picked. It has no order of its own to impose.
-    const theme = resolveTheme('bonus-buy-in');
-
-    expect(theme.cut(games).map((g) => g.id)).toEqual(['2']);
-  });
-
-  it('only takes a bonus-buy flag the catalogue actually set', () => {
-    // Absent means "not recorded", never "false" — a real sync records neither
-    // and must yield an empty theme rather than every slot on the site.
-    const theme = resolveTheme('bonus-buy-in');
-
-    expect(theme.cut([{ id: 'x' }, { id: 'y', bonusBuy: false }])).toEqual([]);
-  });
-
-  it('answers null for a slug it does not serve', () => {
-    // The page turns this into "list not found" rather than an empty grid: a
-    // wrong URL and an empty curated list are different answers.
-    expect(resolveTheme('not-a-theme')).toBeNull();
-  });
-
-  it('every theme the sidebar links has content behind it', () => {
-    for (const slug of THEME_SLUGS) {
-      const theme = resolveTheme(slug);
-      expect(theme, slug).not.toBeNull();
-      expect(theme.label, slug).toBeTruthy();
-      // Either a list of members or a rule, never neither.
-      expect(Boolean(theme.games?.length) || typeof theme.cut === 'function', slug).toBe(true);
-    }
-  });
-});

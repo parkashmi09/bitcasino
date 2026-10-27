@@ -108,8 +108,8 @@ const GENERATED = TITLES.map(([title, category], i) => {
     ...(isLive ? { players: Math.floor(seeded(i + 1) * 900) + 40 } : {}),
     ...(isJackpot ? { jackpot: Math.floor(seeded(i + 7) * 900_000) + 100_000 } : {}),
     /**
-     * Whether the slot sells its bonus round outright, which is what
-     * `/themes/bonus-buy-in` lists.
+     * Whether the slot sells its bonus round outright, shown as a
+     * pill on the game page.
      *
      * A property of the GAME, seeded like the three stats above rather than
      * written into a hand-picked list — because on the reference that page is
@@ -348,8 +348,8 @@ export const byCategory = (category) =>
 
 /**
  * The `/games/:slug` lists — collections cut from the catalogue by something
- * other than category, which is what the sidebar's "New Releases" and
- * "Live RTP" rows and the home rails' "See all" links point at. Without these
+ * other than category, which is what the sidebar's "New Releases"
+ * row and the home rails' "See all" links point at. Without these
  * those routes resolve to no category and render an empty grid.
  */
 export const COLLECTIONS = {
@@ -360,10 +360,6 @@ export const COLLECTIONS = {
   exclusives: {
     label: 'BitCasino Exclusives',
     select: (games) => games.filter((game) => game.badge === 'exclusive'),
-  },
-  'live-rtp': {
-    label: 'Live RTP',
-    select: (games) => [...games].sort((a, b) => b.rtp - a.rtp),
   },
 };
 
@@ -400,7 +396,6 @@ export const THEMES = [
   { id: 't1', label: 'Live Exclusives', href: '/themes/live-exclusives', art: '/images/themes/live-exclusives.svg' },
   { id: 't2', label: 'VIP Salon', href: '/themes/vip-salon', art: '/images/themes/vip-salon.svg' },
   { id: 't3', label: 'House Exclusives', href: '/themes/house-exclusives', art: '/images/themes/house-exclusives.svg' },
-  { id: 't4', label: 'Bonus Buy-In', href: '/themes/bonus-buy-in', art: '/images/themes/bonus-buy-in.svg' },
   { id: 't5', label: 'Megaways', href: '/themes/megaways', art: '/images/themes/megaways.svg' },
   { id: 't6', label: 'Drops and Wins', href: '/themes/drops-and-wins', art: '/images/themes/drops-and-wins.svg' },
 ];
@@ -489,7 +484,7 @@ export const HOME_BANNERS = [
     blurb:
       'A race where every qualifying bet climbs the board. Top the leaderboard to share the prize pool.',
     href: '/promotions/league-of-bitcasino',
-    art: '/images/banners/league.png',
+    art: '/images/banners/league.svg',
     emblem: 'game-shows',
   },
   {

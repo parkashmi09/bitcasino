@@ -90,6 +90,7 @@ const SLUG_FILTER = Object.freeze({
   'table-games': { category: 'table' },
   crash: { category: 'crash' },
   'game-shows': { category: 'game-shows' },
+  poker: { category: 'poker' },
   jackpots: { search: 'jackpot' },
 });
 

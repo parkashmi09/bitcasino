@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 288 64" width="288" height="64">
+  <defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#3B82F6"/><stop offset="1" stop-color="#8B5CF6"/></linearGradient></defs>
+  <rect x="4" y="6" width="52" height="52" rx="12" fill="url(#g)"/>
+  <path d="M23 21v22a1.6 1.6 0 0 0 2.4 1.4l17.4-11a1.6 1.6 0 0 0 0-2.8l-17.4-11A1.6 1.6 0 0 0 23 21z" fill="#fff"/>
+  <text x="68" y="44" font-family="Poppins, 'Segoe UI', Arial, Helvetica, sans-serif" font-size="32" font-weight="800" letter-spacing="-0.5" fill="#ffffff">Test<tspan fill="#8FB4FF">Play</tspan></text>
+</svg>

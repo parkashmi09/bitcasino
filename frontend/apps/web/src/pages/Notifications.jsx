@@ -34,7 +34,7 @@ import { cn } from '@/lib/cn';
  * does and why this does not copy it.
  */
 export function Notifications() {
-  const { items, unread, markAllRead, isPending, isError } = useNotifications();
+  const { items, unread, markAllRead, markRead, isPending, isError } = useNotifications();
 
   return (
     // 750px is the reference's reading column for this page. It lives here
@@ -107,10 +107,22 @@ export function Notifications() {
                   className="absolute -start-3.5 top-[7px] size-1.5 rounded-full bg-piccolo"
                 />
               )}
-              <div className="text-sm leading-[21px] text-bulma">{item.body}</div>
-              <p className="text-xs leading-4 tracking-[0.3px] text-bulma uppercase">
-                {formatDate(item.at)}
-              </p>
+              {/* An unread row is a button: pressing it marks that one read. */}
+              <button
+                type="button"
+                onClick={() => markRead(item)}
+                disabled={item.read}
+                className={cn('block w-full text-start', item.read ? 'cursor-default' : 'cursor-pointer')}
+              >
+                {!item.read && <span className="sr-only">Unread. Press to mark as read. </span>}
+                {item.title && (
+                  <span className="block text-sm leading-[21px] font-semibold text-bulma">{item.title}</span>
+                )}
+                <span className="block text-sm leading-[21px] whitespace-pre-line text-bulma">{item.body}</span>
+                <span className="block text-xs leading-4 tracking-[0.3px] text-bulma uppercase">
+                  {formatDate(item.at)}
+                </span>
+              </button>
               <hr className="h-px border-0 bg-beerus" />
             </li>
           ))}

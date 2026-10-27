@@ -10,6 +10,8 @@ import { useAuth } from '@/auth/AuthProvider';
 import { useMediaQuery } from '@/hooks/useMediaQuery';
 import { cn } from '@/lib/cn';
 import { useGates } from '@/hooks/useGates';
+import { useTheme } from '@/hooks/useTheme';
+import { HEADER_CONTROL } from './HeaderMenu';
 
 /**
  * Top bar, 64px tall on the reference site.
@@ -62,9 +64,8 @@ import { useGates } from '@/hooks/useGates';
  * `HeaderMenu.jsx`, and `docs/11-comparing-against-the-reference.md` for how to
  * re-read it.
  *
- * There is no theme toggle: the reference ships light only. The dark palette
- * still exists and `main.jsx` still applies whatever `lib/theme` has stored, so
- * setting `bc.theme` switches the app; it simply has no control in the UI.
+ * The site opens light (lib/theme DEFAULT_THEME). A light/dark toggle shows
+ * only when the owner's `theme_mode` policy is `switch`.
  *
  * Three states, not two. Between them sits `loading` — the moment after a
  * reload when a stored refresh token is being exchanged and nobody yet knows
@@ -129,6 +130,8 @@ export function Header({ onOpenSearch, onOpenDeposit }) {
       <div className="flex flex-1 items-center justify-end gap-1.5">
         {status === 'loading' && <UserMenuSkeleton />}
 
+        {gates.themeMode() === 'switch' && <ThemeToggle />}
+
         {signedIn && (
           <>
             <RecentsLink className="max-xl:hidden" />
@@ -153,5 +156,21 @@ export function Header({ onOpenSearch, onOpenDeposit }) {
         )}
       </div>
     </header>
+  );
+}
+
+/** Light ⇄ dark, for a site whose owner lets players choose (`theme_mode: switch`). */
+function ThemeToggle() {
+  const { theme, toggle } = useTheme();
+  const dark = theme === 'dark';
+  return (
+    <button
+      type="button"
+      onClick={toggle}
+      aria-label={dark ? 'Switch to light theme' : 'Switch to dark theme'}
+      className={cn(HEADER_CONTROL, 'w-10')}
+    >
+      <Icon name={dark ? 'sun' : 'moon'} size={20} />
+    </button>
   );
 }

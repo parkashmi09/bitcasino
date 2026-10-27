@@ -13,7 +13,11 @@ import {
 } from '@/data/referral';
 import { cn } from '@/lib/cn';
 import { formatBalance } from '@/lib/format';
-import { useSiteConfig } from '@/queries';
+import { useAffiliateUnclaimed, useClaimAffiliate, useSiteConfig } from '@/queries';
+import { useAuth } from '@/auth/AuthProvider';
+import { Brand } from '@/components/ui/Brand';
+import { withBrand } from '@/lib/branding';
+import { useSiteName } from '@/queries/siteConfig';
 
 /**
  * `/profile/refer-a-friend`.
@@ -168,7 +172,7 @@ function InviteBanner({ link, status, unlocks, onOpenTerms }) {
             Referral Terms &amp; Conditions
           </button>{' '}
           and understand that anyone with my invite link will be aware I use
-          Bitcasino.
+          {' '}<Brand />.
         </p>
       </div>
 
@@ -391,6 +395,7 @@ const DOTS_HORIZONTAL = {
 };
 
 function HowItWorks() {
+  const site = useSiteName();
   return (
     <section className="flex w-full flex-col gap-4 md:mt-8 md:gap-10">
       <h2 className="w-full font-secondary text-2xl font-light text-bulma md:text-center md:text-3xl">
@@ -427,7 +432,7 @@ function HowItWorks() {
         />
 
         <ol className="relative flex flex-col justify-center gap-8 md:flex-row md:gap-4">
-          {REFERRAL_STEPS.map((step, index) => (
+          {withBrand(REFERRAL_STEPS, site).map((step, index) => (
             <li
               key={step.title}
               className={cn(
@@ -554,7 +559,31 @@ function Statistics({ referrals, earned, currency, status }) {
         value={status === 'loading' ? '—' : `${formatBalance(earned)} ${currency}`.trim()}
         art="/images/refer/earned.png"
       />
+      <UnclaimedRewards />
     </section>
+  );
+}
+
+/** Referral tier and commission rewards earned but not yet paid; one button claims them all. */
+function UnclaimedRewards() {
+  const { user } = useAuth();
+  const unclaimed = useAffiliateUnclaimed({ enabled: Boolean(user) });
+  const claim = useClaimAffiliate();
+  const total = unclaimed.data?.total ?? '0';
+  const ready = Number(total) > 0;
+
+  return (
+    <div className="flex flex-wrap items-center justify-between gap-4 rounded-i-sm border border-beerus px-5 py-4">
+      <div className="min-w-0">
+        <h3 className="font-secondary text-xl leading-8 font-light text-bulma">Ready to claim</h3>
+        <p className="font-secondary text-2xl font-light text-bulma tabular-nums">
+          {unclaimed.isPending ? '—' : `${formatBalance(total)} ${unclaimed.data?.currency ?? ''}`.trim()}
+        </p>
+      </div>
+      <Button onClick={() => claim.mutate()} disabled={!ready || claim.isPending}>
+        {claim.isPending ? 'Claiming…' : 'Claim rewards'}
+      </Button>
+    </div>
   );
 }
 
@@ -599,10 +628,11 @@ function StatCard({ label, value, art }) {
  * `Boosts` uses for its explainer.
  */
 function Faq() {
+  const site = useSiteName();
   const [expanded, setExpanded] = useState(false);
   const [open, setOpen] = useState(null);
 
-  const shown = expanded ? REFERRAL_FAQ : REFERRAL_FAQ.slice(0, REFERRAL_FAQ_VISIBLE);
+  const shown = expanded ? withBrand(REFERRAL_FAQ, site) : withBrand(REFERRAL_FAQ, site).slice(0, REFERRAL_FAQ_VISIBLE);
 
   return (
     <section className="grid gap-6">
@@ -738,6 +768,7 @@ function PrizeTable() {
  * the restart after a table — so the list is drawn in two runs around it.
  */
 function ReferralTermsDialog({ open, onClose }) {
+  const site = useSiteName();
   return (
     <Dialog
       open={open}
@@ -746,9 +777,9 @@ function ReferralTermsDialog({ open, onClose }) {
       width="max-w-[520px]"
       maxHeight="max-h-[75%] md:max-h-[480px]"
     >
-      <p className="text-sm leading-5 text-trunks">{REFERRAL_TERMS.intro}</p>
+      <p className="text-sm leading-5 text-trunks">{withBrand(REFERRAL_TERMS, site).intro}</p>
 
-      {REFERRAL_TERMS.sections.map((section) => (
+      {withBrand(REFERRAL_TERMS, site).sections.map((section) => (
         <section key={section.heading} className="grid gap-3">
           <h3 className="pt-2 text-base font-semibold text-bulma">{section.heading}</h3>
           <TermsItemsList items={section.items} />

@@ -354,3 +354,71 @@ export function useVaultTransfer() {
     },
   });
 }
+
+/**
+ * What still stands between the player and a withdrawal of `currency`:
+ * `{ok, missing, kyc, wager, cap, dailyLimit, bonusForfeitRequired}` (hash `withdrawal.js`).
+ * Read fresh each time the form opens; the backend enforces the same rules on submit.
+ */
+export function useWithdrawalRequirements(currency, { enabled = true } = {}) {
+  return useQuery({
+    queryKey: ['wallet', 'withdraw-requirements', currency],
+    queryFn: ({ signal }) => api(ENDPOINTS.withdrawalRequirements, { query: { currency }, signal }),
+    enabled: Boolean(currency) && enabled,
+    staleTime: 0,
+    retry: false,
+  });
+}
+
+/** The player's saved payout addresses: `{whitelistOnly, addresses}`. */
+export function useWhitelist({ enabled = true } = {}) {
+  return useQuery({
+    queryKey: ['wallet', 'whitelist'],
+    queryFn: ({ signal }) => api(ENDPOINTS.withdrawWhitelist, { signal }),
+    enabled,
+  });
+}
+
+/** Add / remove an address, or switch "withdraw only to saved addresses". */
+export function useWhitelistChange() {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: ({ action, id, entry, enabled }) => {
+      if (action === 'add') return api(ENDPOINTS.withdrawWhitelist, { method: 'POST', body: entry });
+      if (action === 'remove') return api(path(ENDPOINTS.withdrawWhitelistItem, { id }), { method: 'DELETE' });
+      return api(ENDPOINTS.withdrawWhitelistEnforcement, { method: 'PUT', body: { enabled } });
+    },
+    onSuccess: () => client.invalidateQueries({ queryKey: ['wallet', 'whitelist'] }),
+  });
+}
+
+/** The house accounts for a manual deposit of `coin`; with `amount`, only those taking it. */
+export const bankDetailsQuery = (coin, amount) => ({
+  queryKey: ['wallet', 'bank-details', coin, amount ?? null],
+  queryFn: ({ signal }) =>
+    api(path(ENDPOINTS.bankDetails, { coin }), { query: amount ? { amount } : undefined, signal }).then((rows) =>
+      Array.isArray(rows) ? rows : [],
+    ),
+});
+
+export function useBankDetails(coin, { enabled = true } = {}) {
+  return useQuery({ ...bankDetailsQuery(coin), enabled: Boolean(coin) && enabled });
+}
+
+/**
+ * File a manual deposit: multipart, the destination's own fields, the reference and
+ * the screenshot. Never retried: a second POST is a second claim.
+ */
+export function useSubmitFiatDeposit() {
+  const client = useQueryClient();
+  return useMutation({
+    meta: { success: 'Deposit submitted. It is credited once it is approved.' },
+    mutationFn: ({ fields, screenshot }) => {
+      const form = new FormData();
+      Object.entries(fields).forEach(([key, value]) => form.append(key, value));
+      if (screenshot) form.append('screenshot', screenshot, screenshot.name);
+      return api(ENDPOINTS.fiatDeposits, { method: 'POST', body: form });
+    },
+    onSuccess: () => client.invalidateQueries({ queryKey: walletKeys.all }),
+  });
+}

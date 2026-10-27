@@ -2,6 +2,7 @@ import { useQuery } from '@tanstack/react-query';
 import { api } from '@/lib/api';
 import { ENDPOINTS } from '@/lib/endpoints';
 import { toSiteConfig } from '@/data/adapters';
+import { brandName, cleanBranding, readCachedBranding, writeCachedBranding } from '@/lib/branding';
 import { queryKeys } from './keys';
 
 /**
@@ -60,3 +61,26 @@ export function useSiteConfig() {
     error: query.error ?? null,
   };
 }
+
+/**
+ * The owner panel's branding, or null (unbranded: the UI keeps its own name and
+ * logo). Starts from the cached answer so the logo does not swap on load.
+ */
+export function useBranding() {
+  const query = useQuery({
+    queryKey: queryKeys.site.branding(),
+    queryFn: async ({ signal }) => {
+      const branding = cleanBranding(await api(ENDPOINTS.branding, { auth: false, signal }));
+      writeCachedBranding(branding);
+      return branding;
+    },
+    initialData: readCachedBranding,
+    initialDataUpdatedAt: 0,
+    staleTime: 60 * 60 * 1000,
+    retry: 1,
+  });
+  return query.data ?? null;
+}
+
+/** The site's name for copy: the owner panel's branded name, else this build's. */
+export const useSiteName = () => brandName(useBranding());

@@ -26,6 +26,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { useApi, useApiMutation, useListState, usePagedApi } from '@/hooks/use-api'
+import { useSession } from '@/contexts/SessionContext'
 import { api } from '@/lib/api/client'
 import { check } from '@/lib/validate'
 import { formatNumber } from '@/lib/format'
@@ -486,18 +487,21 @@ const Clubs = () => {
 const VipClub = () => {
   const f = useStatsFilters({ defaultPreset: '30d' })
 
+  // Clubs only when the owner's plan has `club_membership`; otherwise the page is the VIP ladder.
+  const clubs = useSession().featureEntitled('club_membership')
+
   return (
   <div>
     <PageHeader title='VIP & club' description='The VIP ladder users climb by wagering, and the clubs (leader → agents → members) that share in club turnover.' />
-    <Tabs defaultValue='clubs'>
+    <Tabs key={String(clubs)} defaultValue={clubs ? 'clubs' : 'vip'}>
       <TabsList className='mb-4'>
-        <TabsTrigger value='clubs'>Clubs</TabsTrigger>
+        {clubs && <TabsTrigger value='clubs'>Clubs</TabsTrigger>}
         <TabsTrigger value='vip'>VIP ladder</TabsTrigger>
         <TabsTrigger value='stats'>
           <ChartColumnIcon /> Stats
         </TabsTrigger>
       </TabsList>
-      <TabsContent value='clubs'><Clubs /></TabsContent>
+      {clubs && <TabsContent value='clubs'><Clubs /></TabsContent>}
       <TabsContent value='vip'><VipLadder /></TabsContent>
       {/* Charts alag tab me — lists pehle dikhen. */}
       <TabsContent value='stats'><RewardStats section='vip' filters={f} rewardNote={false} /></TabsContent>

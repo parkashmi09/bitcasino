@@ -166,6 +166,16 @@ export const ENDPOINTS = {
   // is meant to be public.
   affiliateTeam: `${USER}/affiliate/team`,
   affiliateRewards: `${USER}/affiliate/rewards`,
+  // `{total, claimedTotal, currency}` waiting to be paid; claim-all pays every unclaimed tier and
+  // commission row into the wallet and answers `{total, currency, count}` (409 NOTHING_TO_CLAIM).
+  affiliateUnclaimed: `${USER}/affiliate/rewards/unclaimed`,
+  affiliateClaimAll: `${USER}/affiliate/rewards/claim-all`,
+
+  // ── Notifications (owner feature `notifications`) ───────────────────
+  // The player's own inbox: rows `{id, title, body, type, read, createdAt}`, newest first.
+  notifications: `${USER}/notifications`,
+  notificationRead: `${USER}/notifications/:id/read`,
+  notificationsReadAll: `${USER}/notifications/read-all`,
 
   // ── Preferences ─────────────────────────────────────────────────────
   // `userconfig`: theme, language, and the two notification switches. GET
@@ -215,6 +225,27 @@ export const ENDPOINTS = {
   // Submitted crypto withdrawals and their aggregate. The list is the record
   // of what a player asked for; the socket event is how they ask.
   withdrawalsCrypto: `${USER}/withdrawals/crypto`,
+  // `{policy, ok, missing: ['kyc'|'wager'|'cap'|'daily'], kyc, wager, cap, dailyLimit, …}`;
+  // `?currency=` (strict, the only key) gives that coin's cap/daily block. No cache.
+  withdrawalRequirements: `${USER}/withdrawals/requirements`,
+  // The player's own payout addresses: `{whitelistOnly, addresses: [{id, label, currency,
+  // network, address, memo}]}`. POST `{label, currency, network?, address, memo?}` (strict);
+  // DELETE `/:id` (removing the last one switches enforcement off); PUT `enforcement`
+  // `{enabled}` (refused on an empty list: WHITELIST_EMPTY_WHITELIST).
+  withdrawWhitelist: `${USER}/withdrawals/whitelist`,
+  withdrawWhitelistItem: `${USER}/withdrawals/whitelist/:id`,
+  withdrawWhitelistEnforcement: `${USER}/withdrawals/whitelist/enforcement`,
+
+  // ── Manual deposit (owner `deposit_mode` manual/both + admin switch) ──
+  // The house accounts for a coin: `[{id, bankName, accountNumber, ifscCode,
+  // accountHolderName, upiId, network, walletAddress, hasQrImage, minAmount,
+  // maxAmount}]`; `?amount=` keeps only the accounts that take that amount.
+  // `:id/qr` is the QR image (authenticated, read as a Blob).
+  bankDetails: `${USER}/bank-details/:coin`,
+  bankDetailsQr: `${USER}/bank-details/:coin/:id/qr`,
+  // MULTIPART POST `{amount, currency, transactionId, bankName?, accountNumber?, ifscCode?,
+  // accountHolderName?, upiId?, network?, walletAddress?}` + `screenshot` file; staff approve.
+  fiatDeposits: `${USER}/deposits/fiat`,
 
   // Public — the coins and chains the deposit picker offers. Public because a
   // signed-out visitor is allowed to see what a site accepts before signing
@@ -299,6 +330,14 @@ export const ENDPOINTS = {
   // count: those are ours.
   providers: `${CASINO}/games/providers`,
 
+  // The site admin's lobby categories (Casino -> Lobby curation), in its order.
+  // A category answers the games the admin picked; none picked = its automatic list (ours to fetch).
+  lobbyCategories: `${CASINO}/games/categories`,
+  lobbyCategory: `${CASINO}/games/categories/:slug`,
+
+  // The in-house originals (dice, crash, limbo…), outside the catalogue.
+  inHouseGames: `${CASINO}/js-games/v1/games`,
+
   // ═══════════════════════════════════════════════════════════════════
   // TWO PUBLIC CASINO READS ARE DELIBERATELY ABSENT FROM THIS TABLE.
   //
@@ -339,6 +378,9 @@ export const ENDPOINTS = {
   // is what turns them real, with no code change here.
   // ═══════════════════════════════════════════════════════════════════
   gisLaunch: `${CASINO}/gis/launch`,
+  // Any lobby game: the backend opens it through the owner's aggregator (JSGames V2 or GIS) and
+  // answers `{gameLaunchUrl, via}` (casino `games/gameLauncher.js`).
+  gameLaunch: `${CASINO}/games/launch`,
   gisLaunchDemo: `${CASINO}/gis/launch-demo`,
 
   // ── Site configuration ──────────────────────────────────────────────
@@ -351,6 +393,8 @@ export const ENDPOINTS = {
   // The OWNER's plan: `[{feature, kind?, variant, options?}]`, listed = on. Policies
   // (business_model, deposit_mode, …) ride in the same list. Read by `hooks/useGates.jsx`.
   ownerFeatures: `${ADMIN}/features/public`,
+  // The OWNER panel's branding: name, title/meta, logo and square mark (`lib/branding.js`).
+  branding: `${ADMIN}/branding/public`,
 
   // ── Content ─────────────────────────────────────────────────────────
   // All public, and all on ADMIN-service — the `public` audience mounts at
@@ -448,6 +492,9 @@ export const ENDPOINTS = {
   races: `${USER}/race`,
   raceBoard: `${USER}/race/:type/leaderboard`,
   raceHistory: `${USER}/race/history`,
+  // The caller's prizes (`?claimed=false` = waiting), rows `{id, type, rank, amount, currency, claimed}`.
+  raceRewards: `${USER}/race/rewards`,
+  raceRewardClaim: `${USER}/race/rewards/:rewardId/claim`,
 
   // ── Operator promotions (owner feature `promotions`) ────────────────
   // Public, on ADMIN-service. The list carries no body; the slug read does

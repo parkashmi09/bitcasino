@@ -98,7 +98,7 @@ export function Provider() {
 
   return (
     <GameList
-      title={provider.name}
+      title={provider.label}
       games={games ?? []}
       filters={[
         {
@@ -110,8 +110,8 @@ export function Provider() {
           onChange: setCategory,
         },
       ]}
-      empty={`${provider.name} has no games in this category.`}
-      breadcrumb={[{ label: 'Providers', to: '/providers' }, { label: provider.name }]}
+      empty={`${provider.label} has no games in this category.`}
+      breadcrumb={[{ label: 'Providers', to: '/providers' }, { label: provider.label }]}
     />
   );
 }

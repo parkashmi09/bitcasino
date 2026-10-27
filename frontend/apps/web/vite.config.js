@@ -44,7 +44,16 @@ export default defineConfig({
         changeOrigin: true,
         configure: (proxy) => proxy.on('proxyReq', (req) => req.removeHeader('origin')),
       },
-      '/socket.io': { target: API_TARGET || 'http://127.0.0.1:4001', changeOrigin: true, ws: true },
+      '/socket.io': {
+        target: API_TARGET || 'http://127.0.0.1:4001',
+        changeOrigin: true,
+        ws: true,
+        // The socket server checks Origin too, on the polling requests and the websocket upgrade.
+        configure: (proxy) => {
+          proxy.on('proxyReq', (req) => req.removeHeader('origin'));
+          proxy.on('proxyReqWs', (req) => req.removeHeader('origin'));
+        },
+      },
       '/casino-socket': {
         target: 'http://127.0.0.1:4003',
         changeOrigin: true,

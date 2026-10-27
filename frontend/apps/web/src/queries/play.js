@@ -74,22 +74,22 @@ export function isPlayable(game) {
  */
 export function useLaunchGame() {
   return useMutation({
-    mutationFn: ({ mode, gameUuid, playerName, currency, device = 'desktop', language }) =>
+    mutationFn: ({ mode, gameUuid, currency, device = 'desktop', language }) =>
       mode === 'fun'
         ? api(ENDPOINTS.gisLaunchDemo, {
             method: 'POST',
             body: compactBody({ gameUuid, device, language }),
           })
-        : api(ENDPOINTS.gisLaunch, {
+        : api(ENDPOINTS.gameLaunch, {
             method: 'POST',
             /**
-             * `playerName` and `currency` are required by the validator and it
-             * is `.strict()` — an extra key is a 422, not a silent drop. The
-             * player ID is NOT sent: it comes from the token, which is what
-             * closed legacy's hole of playing someone else's balance.
+             * The validator is `.strict()` — an extra key is a 422, not a
+             * silent drop. The player ID is NOT sent: it comes from the token.
+             * The backend picks the aggregator from the game's row, so a
+             * JSGames lobby and a Slotegrator one both open here.
              */
-            body: compactBody({ gameUuid, playerName, currency, device, language }),
-          }),
+            body: compactBody({ gameUuid, currencyCode: currency, device, language }),
+          }).then((answer) => ({ ...answer, url: answer?.gameLaunchUrl ?? answer?.url ?? null })),
     retry: false,
   });
 }

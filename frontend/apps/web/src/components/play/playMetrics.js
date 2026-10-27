@@ -1,4 +1,5 @@
 import { categoryLabel } from '@/data/categories';
+import { providerLabel } from '@/data/adapters/providers';
 
 /**
  * The play page's shared metric builders — deliberately its own module rather
@@ -21,7 +22,7 @@ export function fmt(value) {
 /** Every figure the page can honestly print for a game, label first. */
 export function gameMetrics(game) {
   const rows = [];
-  rows.push(['Provider', game.provider]);
+  rows.push(['Provider', providerLabel(game.provider)]);
   if (game.category) rows.push(['Game type', categoryLabel(game.category)]);
   if (game.rtp !== undefined) rows.push(['RTP', `${fmt(game.rtp)}%`]);
   if (game.volatility) rows.push(['Volatility', capitalize(game.volatility)]);

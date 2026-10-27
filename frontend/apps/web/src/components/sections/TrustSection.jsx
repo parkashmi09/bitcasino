@@ -2,6 +2,9 @@ import { useId, useState } from 'react';
 import { Link as RouterLink } from 'react-router-dom';
 import { cn } from '@/lib/cn';
 import { useGates } from '@/hooks/useGates';
+import { Brand } from '@/components/ui/Brand';
+import { withBrand } from '@/lib/branding';
+import { useSiteName } from '@/queries/siteConfig';
 
 /** A link in the copy below; plain text while its section is switched off. */
 function Link({ to, children }) {
@@ -101,6 +104,7 @@ const WITHDRAW_STEPS = [
 ];
 
 export function TrustSection() {
+  const site = useSiteName();
   const [open, setOpen] = useState(false);
   const contentId = useId();
 
@@ -116,36 +120,36 @@ export function TrustSection() {
         <div className={PROSE}>
           <h2 className="text-center">
             <Link to="/promotions">
-              Bitcasino is a crypto casino with a welcome bonus on your first
+              <Brand /> is a crypto casino with a welcome bonus on your first
               deposit
             </Link>
           </h2>
 
           <p>
-            Let Bitcasino take your gaming experience to the next level, offering
+            Let <Brand /> take your gaming experience to the next level, offering
             you endless opportunities to play with your favourite cryptocurrency
             and score big wins.
           </p>
           <p>
             With unmatched <Link to="/promotions">welcome offers</Link>, exciting
-            bonuses, and a world-class game selection, Bitcasino is built for
+            bonuses, and a world-class game selection, <Brand /> is built for
             players who want to play with crypto.
           </p>
           <p>
-            Bitcasino is built around security, convenience, and a commitment to
+            <Brand /> is built around security, convenience, and a commitment to
             elevating your gameplay.
           </p>
-          <p>Discover what’s in store when you choose to play at Bitcasino.</p>
+          <p>Discover what’s in store when you choose to play at <Brand />.</p>
 
           <h2>A Bitcoin casino you can trust</h2>
           <p>
-            Bitcasino is run by its own independent operator. The operator’s
+            <Brand /> is run by its own independent operator. The operator’s
             company and licence details are on our{' '}
             <Link to="/help-center/our-license">license page</Link> and available
             from customer support on request.
           </p>
           <p>
-            As a secure crypto casino, Bitcasino guarantees that all
+            As a secure crypto casino, <Brand /> guarantees that all
             your funds, transactions, and data are protected with industry-grade
             encryption and blockchain-integrated safeguards. You can place your
             wagers with confidence, knowing your gameplay is backed by proven
@@ -153,24 +157,24 @@ export function TrustSection() {
           </p>
           <p>
             Whether you play with Bitcoin (BTC), Ethereum (ETH), or other
-            supported cryptocurrencies, Bitcasino offers a seamless experience
+            supported cryptocurrencies, <Brand /> offers a seamless experience
             with fast deposits, smooth gameplay, and easy access to the best
             crypto casino features available.
           </p>
           <p>
-            Start your journey today and discover how Bitcasino makes crypto
+            Start your journey today and discover how <Brand /> makes crypto
             gaming safe, simple, and rewarding.
           </p>
 
           <h2>Selection of games</h2>
           <p>
-            At Bitcasino, finding top-quality casino games is never a challenge.
+            At <Brand />, finding top-quality casino games is never a challenge.
             We offer a vast selection of titles from leading game providers, each
             with its own unique theme, features, and gameplay style to suit every
             kind of player.
           </p>
           <p>
-            Explore thousands of games all in one place. Every game on Bitcasino
+            Explore thousands of games all in one place. Every game on <Brand />{' '}
             is developed by some of the most trusted and innovative names in the
             industry.
           </p>
@@ -183,7 +187,7 @@ export function TrustSection() {
 
           <h2>Fun mode</h2>
           <p>
-            Not quite ready to wager real crypto? No problem. With Bitcasino’s Fun
+            Not quite ready to wager real crypto? No problem. With <Brand />’s Fun
             Mode, you can explore your favourite games without risking any funds.
             It’s the perfect way to get familiar with different titles and test
             out features before you commit.
@@ -210,7 +214,7 @@ export function TrustSection() {
 
           <h2>Tournaments</h2>
           <p>
-            Looking to level up the excitement? Bitcasino’s{' '}
+            Looking to level up the excitement? <Brand />’s{' '}
             <Link to="/tournaments">tournaments</Link> and promos add an extra
             layer of challenge and reward to your gameplay.
           </p>
@@ -231,14 +235,14 @@ export function TrustSection() {
 
           <h2>Payment methods</h2>
           <p>
-            As a fully crypto-focused casino, Bitcasino offers some of the most
+            As a fully crypto-focused casino, <Brand /> offers some of the most
             convenient and secure{' '}
-            <Link to="/help-center/payment-options">payment options</Link> for
+            <Link to="/help-center/help-payment-options">payment options</Link> for
             deposits and withdrawals.
           </p>
           <p>
             You can easily use your preferred cryptocurrency to fund your account
-            and cash out your winnings. For added convenience, Bitcasino partners
+            and cash out your winnings. For added convenience, <Brand /> partners
             with trusted services that allow you to convert fiat to crypto—making
             it simple to get started, even if you’re new to digital assets.
           </p>
@@ -249,7 +253,7 @@ export function TrustSection() {
             It’s ideal for players who want reliable value without market
             volatility.
           </p>
-          <p>Here’s a list of all the supported crypto payments at Bitcasino:</p>
+          <p>Here’s a list of all the supported crypto payments at <Brand />:</p>
           <ul>
             {COINS.map((coin) => (
               <li key={coin}>{coin}</li>
@@ -258,14 +262,14 @@ export function TrustSection() {
 
           <h2>Play Bitcoin Casino: Best Online BTC Casino Games</h2>
           <p>
-            Finding the perfect game at Bitcasino is as easy as it gets. With an
+            Finding the perfect game at <Brand /> is as easy as it gets. With an
             extensive library of over 5,000 games from some of the most reputable
             game providers in the industry, you’ll never run out of exciting,
             high-quality, and rewarding options to explore.
           </p>
           <p>
             Whether you’re into slots, live dealer tables, or unique formats,
-            Bitcasino has something to match every style of play.
+            {' '}<Brand /> has something to match every style of play.
           </p>
           <p>
             Browse the game categories below and start playing at one of the top
@@ -276,7 +280,7 @@ export function TrustSection() {
           <p>
             Choose from{' '}
             <Link to="/categories/video-slots">over 4,000 slot games</Link> at
-            Bitcasino—each offering unique themes, features, and ways to win. With
+            {' '}<Brand />—each offering unique themes, features, and ways to win. With
             so many options, finding the perfect slot to match your style is
             effortless.
           </p>
@@ -292,13 +296,13 @@ export function TrustSection() {
           </p>
           <p>
             Spin the reels, unlock rewarding features, and chase big wins as you
-            explore Bitcasino’s diverse and dynamic slot collection.
+            explore <Brand />’s diverse and dynamic slot collection.
           </p>
 
           <h3>Live casino</h3>
           <p>
             Looking for the thrill of a real casino without leaving home?
-            Bitcasino’s{' '}
+            {' '}<Brand />’s{' '}
             <Link to="/categories/live-casino">live casino section</Link> brings
             the authentic casino atmosphere to your screen—complete with
             professional dealers, HD streaming, and real-time action.
@@ -310,13 +314,13 @@ export function TrustSection() {
           </p>
           <p>
             With immersive visuals, interactive features, and secure crypto
-            betting, Bitcasino’s live casino delivers a high-end gaming experience
+            betting, <Brand />’s live casino delivers a high-end gaming experience
             that’s as close to a physical casino as it gets.
           </p>
 
           <h3>Table games</h3>
           <p>
-            At Bitcasino, there’s no shortage of classic table games tailored for
+            At <Brand />, there’s no shortage of classic table games tailored for
             crypto players. Whether you’re into strategic showdowns or fast-paced
             action, you’ll find your favourites right here—available in both video
             and live formats.
@@ -327,7 +331,7 @@ export function TrustSection() {
           <p>
             <Link to="/categories/table-games">Poker</Link> remains one of the
             most iconic and skill-based games in the casino world—and it’s a
-            favourite at Bitcasino for good reason.
+            favourite at <Brand /> for good reason.
           </p>
           <p>
             Unlike most casino games that rely heavily on chance, poker demands
@@ -364,7 +368,7 @@ export function TrustSection() {
             rest. It’s fast-paced, fun, and comes with excellent odds.
           </p>
           <p>
-            Try your luck on one of Bitcasino’s many baccarat tables and discover
+            Try your luck on one of <Brand />’s many baccarat tables and discover
             why this game has stood the test of time.
           </p>
 
@@ -404,7 +408,7 @@ export function TrustSection() {
 
           <h2>Software providers</h2>
           <p>
-            Bitcasino partners with the leading game{' '}
+            <Brand /> partners with the leading game{' '}
             <Link to="/providers">providers</Link> in the crypto casino industry
             to offer a top-tier selection of high-quality games. Each title is
             built with advanced graphics, smooth animation, immersive sound, and
@@ -419,7 +423,7 @@ export function TrustSection() {
 
           <h2>Promotions</h2>
           <p>
-            Bitcasino is a crypto casino that rewards players at every
+            <Brand /> is a crypto casino that rewards players at every
             opportunity. From daily to monthly{' '}
             <Link to="/promotions">promotions</Link>, you’ll find a range of
             offers designed to boost your gameplay, including cashback, bonuses,
@@ -429,7 +433,7 @@ export function TrustSection() {
 
           <h3>VIP</h3>
           <p>
-            Looking for exclusive treatment? Bitcasino’s{' '}
+            Looking for exclusive treatment? <Brand />’s{' '}
             <Link to="/vip">VIP Club</Link> is designed for our most dedicated
             players. By invitation only, this program offers access to premium
             rewards, special bonuses, and tailor-made promotions you won’t find
@@ -444,12 +448,12 @@ export function TrustSection() {
 
           <h2>Crypto casino online: All about blockchain and betting</h2>
           <p>
-            Bitcasino is built to deliver a smooth and rewarding crypto betting
+            <Brand /> is built to deliver a smooth and rewarding crypto betting
             experience. By using your digital assets, you can play your favourite
             games and win real prizes with speed, security, and flexibility that
             traditional casinos can’t match.
           </p>
-          <p>Here’s what sets crypto casinos like Bitcasino apart:</p>
+          <p>Here’s what sets crypto casinos like <Brand /> apart:</p>
 
           <h4>Anonymity</h4>
           <p>
@@ -463,7 +467,7 @@ export function TrustSection() {
           <p>
             Deposits and withdrawals with crypto are nearly instant. You won’t
             have to wait hours or days like with traditional banking methods. With
-            Bitcasino, you get quick access to your funds whenever you need them.
+            {' '}<Brand />, you get quick access to your funds whenever you need them.
           </p>
 
           <h4>Security</h4>
@@ -475,18 +479,18 @@ export function TrustSection() {
 
           <h2>Access your games anywhere</h2>
           <p>
-            Play your favourite Bitcasino games anytime, anywhere. Whether you’re
-            on desktop or mobile, Bitcasino is designed to give you a smooth,
+            Play your favourite <Brand /> games anytime, anywhere. Whether you’re
+            on desktop or mobile, <Brand /> is designed to give you a smooth,
             flexible gaming experience tailored to your style.
           </p>
           <p>
-            For desktop users, simply access Bitcasino through your preferred web
+            For desktop users, simply access <Brand /> through your preferred web
             browser. If you’re on mobile, we recommend downloading the{' '}
-            <Link to="/blog/bitcasino-app-guide">Bitcasino app</Link> for seamless
+            <Link to="/blog/bitcasino-app-guide"><Brand /> app</Link> for seamless
             access to games on the go.
           </p>
 
-          <h2>Getting started at Bitcasino</h2>
+          <h2>Getting started at <Brand /></h2>
           <p>
             Ready to play? Follow these quick steps to create your account and
             start your journey:
@@ -494,7 +498,7 @@ export function TrustSection() {
 
           <h3>How to create an account</h3>
           <ol>
-            {ACCOUNT_STEPS.map((step) => (
+            {withBrand(ACCOUNT_STEPS, site).map((step) => (
               <li key={step}>{step}</li>
             ))}
           </ol>
@@ -506,7 +510,7 @@ export function TrustSection() {
             ))}
           </ol>
 
-          <h3>How to withdraw from Bitcasino</h3>
+          <h3>How to withdraw from <Brand /></h3>
           <ol>
             {WITHDRAW_STEPS.map((step) => (
               <li key={step}>{step}</li>

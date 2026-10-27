@@ -98,10 +98,10 @@ export function Providers() {
                 {provider.logo ? (
                   <img
                     src={provider.logo}
-                    alt={provider.name}
+                    alt={provider.label}
                     loading="lazy"
                     decoding="async"
-                    className="h-7 w-auto max-w-full object-contain"
+                    className="provider-mark h-7 w-auto max-w-full object-contain"
                   />
                 ) : (
                   // A monogram, not the name again — the name is already the
@@ -113,15 +113,17 @@ export function Providers() {
                     aria-hidden="true"
                     className="grid size-7 place-items-center rounded-full bg-beerus font-secondary text-xs font-semibold text-trunks"
                   >
-                    {monogram(provider.name)}
+                    {monogram(provider.label)}
                   </span>
                 )}
                 <span className="text-center text-xs font-medium text-bulma">
-                  {provider.name}
+                  {provider.label}
                 </span>
-                <span className="text-[11px] text-trunks">
-                  {provider.gameCount} {provider.gameCount === 1 ? 'game' : 'games'}
-                </span>
+                {provider.gameCount != null && (
+                  <span className="text-[11px] text-trunks">
+                    {provider.gameCount} {provider.gameCount === 1 ? 'game' : 'games'}
+                  </span>
+                )}
               </Link>
             </li>
           ))}

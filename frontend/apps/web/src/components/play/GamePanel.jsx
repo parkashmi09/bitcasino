@@ -27,7 +27,7 @@ import { GameInfo } from './GameInfo';
 const NOT_CONFIGURED = new Set(['GIS_NOT_CONFIGURED']);
 
 export function GamePanel({ game, view, onExpand, onFullscreen }) {
-  const { status, user } = useAuth();
+  const { status } = useAuth();
   const [currency] = useDisplayCurrency();
   const navigate = useNavigate();
   const launch = useLaunchGame();
@@ -38,7 +38,7 @@ export function GamePanel({ game, view, onExpand, onFullscreen }) {
   const fullscreen = view === 'fullscreen';
   const url = launch.data?.url ?? null;
 
-  /** Launch a mode — `POST /casino/gis/launch` (real) or `/launch-demo` (fun).
+  /** Launch a mode — `POST /casino/games/launch` (real) or GIS `/launch-demo` (fun).
    *  Neither is called on mount: a launch writes a `gis_sessions` row and logs
    *  the play, so doing it on page load would record a round nobody played. */
   const open = (next) => {
@@ -51,10 +51,8 @@ export function GamePanel({ game, view, onExpand, onFullscreen }) {
     launch.mutate({
       mode: next,
       gameUuid: game.slug,
-      // Required by the `.strict()` validator on the real-money route. The
-      // player ID is NOT sent — it comes from the token.
-      playerName: user?.name ?? user?.username ?? 'player',
       currency,
+      device: window.matchMedia('(max-width: 767px)').matches ? 'mobile' : 'desktop',
     });
   };
 

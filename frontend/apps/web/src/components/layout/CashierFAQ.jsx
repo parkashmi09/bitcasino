@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { Icon } from '@/components/ui/Icon';
 import { Button } from '@/components/ui/Button';
 import { cn } from '@/lib/cn';
+import { Brand } from '@/components/ui/Brand';
 
 /**
  * The in-drawer FAQ screen the reference's `Support & Settings → FAQ` row
@@ -113,7 +114,7 @@ const FAQ = [
     question: 'What currencies and payment methods do you offer?',
     body: (
       <>
-        <p>The available currency options in Bitcasino are:</p>
+        <p>The available currency options in <Brand /> are:</p>
         <p>
           Tether (USDT), Bitcoin (BTC), Ethereum (ETH), Binance USD (BUSD), Binance Coin (BNB),
           Tron (TRX), Ripple (XRP), TON, Litecoin (LTC), Cardano (ADA), Dogecoin (DOGE).
@@ -127,7 +128,7 @@ const FAQ = [
       <>
         <p>
           While we don&apos;t apply any transaction fees for deposits and withdrawals at
-          Bitcasino, there may be transaction fees you have to pay for using the blockchain
+          {' '}<Brand />, there may be transaction fees you have to pay for using the blockchain
           and/or your bank.
         </p>
       </>

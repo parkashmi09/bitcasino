@@ -3,7 +3,7 @@ import { Icon } from '@/components/ui/Icon';
 import { Button } from '@/components/ui/Button';
 import { Skeleton } from '@/components/ui/Skeleton';
 import { MAX_LIMIT, useGames } from '@/queries';
-import { providerSlug } from '@/data/adapters/providers';
+import { providerLabel, providerSlug } from '@/data/adapters/providers';
 import { fmt } from './playMetrics';
 
 /**
@@ -26,7 +26,6 @@ import { fmt } from './playMetrics';
  * bumps the query, never a request for a page the route cannot supply. The
  * same label fix as the lobby tiles — `In-House` prints as `Bitcasino`.
  */
-const PROVIDER_LABEL = { 'In-House': 'Bitcasino' };
 
 const STEP = 24;
 
@@ -36,7 +35,7 @@ export function ProviderGames({ game }) {
 
   const { data, isPending, isError } = useGames({ provider: game.provider, limit: take });
 
-  const label = PROVIDER_LABEL[game.provider] ?? game.provider;
+  const label = providerLabel(game.provider);
   const games = (data?.games ?? []).filter((other) => other.id !== game.id);
   const total = data?.pagination?.total ?? games.length;
   /** The route caps `limit` at 100, so a studio with more is truncated there. */
@@ -90,7 +89,7 @@ export function ProviderGames({ game }) {
 }
 
 function Tile({ game }) {
-  const label = PROVIDER_LABEL[game.provider] ?? game.provider;
+  const label = providerLabel(game.provider);
 
   return (
     <Link to={`/play/${game.category ?? 'games'}/${game.slug}`} className="block transition-opacity hover:opacity-80">

@@ -47,7 +47,7 @@ const Providers = ({ children, sidebarDefaultOpen }: Props) => {
     <QueryClientProvider client={queryClient}>
       <SessionProvider>
         {/* Own storage key: a `light` saved under next-themes' shared `theme` key no longer overrides the dark default. */}
-        <ThemeProvider attribute='class' defaultTheme='dark' enableSystem={false} storageKey='bitcasino-admin-theme'>
+        <ThemeProvider attribute='class' defaultTheme='dark' enableSystem={false} storageKey='admin-theme-v2'>
           <MuiProvider>
             <TooltipProvider>
               <SidebarProvider defaultOpen={sidebarDefaultOpen}>{children}</SidebarProvider>

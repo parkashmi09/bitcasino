@@ -40,6 +40,14 @@ const RootLayout = ({ children }: Readonly<{ children: ReactNode }>) => {
       data-scroll-behavior='smooth'
       suppressHydrationWarning
     >
+      <head>
+        {/* The owner's palette from the last visit (components/layout/PaletteSync.tsx), set before paint. */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html: "try{var p=localStorage.getItem('admin.palette');if(p)document.documentElement.dataset.palette=p}catch(e){}"
+          }}
+        />
+      </head>
       <body className='flex min-h-full w-full flex-auto flex-col'>
         <NuqsAdapter>
           <Providers sidebarDefaultOpen={true}>{children}</Providers>

@@ -34,7 +34,7 @@
  * @property {'low' | 'medium' | 'high'} volatility
  * @property {number} hitRatio Winning spins, as a percentage.
  * @property {number} [players] Seats taken, for live-dealer tables only.
- * @property {true} [bonusBuy] The slot sells its bonus round outright. `/themes/bonus-buy-in` cuts on it; absent means the catalogue does not record the feature.
+ * @property {true} [bonusBuy] The slot sells its bonus round outright. Shown on the game page; absent means the catalogue does not record the feature.
  * @property {number} [jackpot]
  */
 

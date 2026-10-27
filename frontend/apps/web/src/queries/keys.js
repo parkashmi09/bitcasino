@@ -107,6 +107,9 @@ export const queryKeys = {
     kyc: () => ['account', 'kyc'],
     history: (limit, offset) => ['account', 'history', limit, offset],
     transfers: (limit, offset) => ['account', 'transfers', limit, offset],
+    notifications: () => ['account', 'notifications'],
+    affiliateUnclaimed: () => ['account', 'affiliate-unclaimed'],
+    raceRewards: () => ['account', 'race-rewards'],
   },
 
   /**
@@ -129,6 +132,7 @@ export const queryKeys = {
     all: ['site'],
     config: () => ['site', 'config'],
     features: () => ['site', 'features'],
+    branding: () => ['site', 'branding'],
   },
 
   /** Rewards, rakeback and VIP. `vipLevels` is public; `firstDeposit` differs signed in and out. */

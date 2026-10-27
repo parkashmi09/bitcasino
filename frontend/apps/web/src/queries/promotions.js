@@ -5,6 +5,7 @@ import { queryKeys } from '@/queries/keys';
 import { refreshBalances } from '@/hooks/useWallet';
 import { useAuth } from '@/auth/AuthProvider';
 import { formatBalance } from '@/lib/format';
+import { toast } from '@/lib/toast';
 
 /**
  * The promotions surfaces: the spin wheel, the VIP standing, the player's
@@ -299,6 +300,65 @@ export function useTournaments() {
   };
 }
 
+/** "12.5 USDT added to your balance." — the claim toast for any `{amount|total, currency}` answer. */
+export const paidMessage = (paid) =>
+  `${formatBalance(paid?.amount ?? paid?.total ?? '0')} ${paid?.currency ?? ''}`.trim() + ' added to your balance.';
+
+const claimFailed = (error) => toast.error(error?.message || 'Could not claim. Try again in a moment.');
+
+/** The signed-in player's race prizes still waiting to be claimed (a settled race writes one per winner). */
+export function useRaceRewards({ enabled = true } = {}) {
+  return useQuery({
+    queryKey: queryKeys.account.raceRewards(),
+    queryFn: ({ signal }) => api(ENDPOINTS.raceRewards, { query: { claimed: 'false', limit: 50 }, signal }),
+    select: (rows) => (Array.isArray(rows) ? rows : []).filter((row) => !row.claimed),
+    enabled,
+    staleTime: 60 * 1000,
+  });
+}
+
+/** Pays one race prize into the wallet (`POST /user/race/rewards/:rewardId/claim`). */
+export function useClaimRaceReward() {
+  const client = useQueryClient();
+
+  return useMutation({
+    meta: { success: paidMessage },
+    mutationFn: (rewardId) => api(path(ENDPOINTS.raceRewardClaim, { rewardId }), { method: 'POST' }),
+    retry: false,
+    onSuccess: () => {
+      client.invalidateQueries({ queryKey: queryKeys.account.raceRewards() });
+      refreshBalances();
+    },
+    onError: claimFailed,
+  });
+}
+
+/** Referral tier and commission rewards not yet paid: `{total, claimedTotal, currency}`. */
+export function useAffiliateUnclaimed({ enabled = true } = {}) {
+  return useQuery({
+    queryKey: queryKeys.account.affiliateUnclaimed(),
+    queryFn: ({ signal }) => api(ENDPOINTS.affiliateUnclaimed, { signal }),
+    enabled,
+    staleTime: 60 * 1000,
+  });
+}
+
+/** Pays every unclaimed referral reward into the wallet; answers `{total, currency, count}`. */
+export function useClaimAffiliate() {
+  const client = useQueryClient();
+
+  return useMutation({
+    meta: { success: paidMessage },
+    mutationFn: () => api(ENDPOINTS.affiliateClaimAll, { method: 'POST' }),
+    retry: false,
+    onSuccess: () => {
+      client.invalidateQueries({ queryKey: queryKeys.account.affiliateUnclaimed() });
+      refreshBalances();
+    },
+    onError: claimFailed,
+  });
+}
+
 /* ═══════════════════════════════════════════════════════════════════════
  * Operator promotions — owner feature `promotions` (`GET /admin/promotions`)
  * ═══════════════════════════════════════════════════════════════════════ */
@@ -371,6 +431,8 @@ export function usePromotion(segment, slug) {
 
 const SLIDE_PLACEMENT = /^(slider-|home_top_)\d+$/;
 
+const versioned = (url, at) => (at ? `${url}${url.includes('?') ? '&' : '?'}v=${encodeURIComponent(at)}` : url);
+
 export function toSlides(rows) {
   return (Array.isArray(rows) ? rows : [])
     .filter((row) => SLIDE_PLACEMENT.test(row?.type ?? '') && row.active !== false)
@@ -384,7 +446,8 @@ export function toSlides(rows) {
       title: row.title ?? '',
       blurb: row.subtitle ?? '',
       href: row.cta?.href ?? null,
-      art: row.url ?? path(ENDPOINTS.bannerImage, { filename: row.type }),
+      // Versioned: a re-upload keeps the same URL, so without it the browser shows the old art.
+      art: versioned(row.url ?? path(ENDPOINTS.bannerImage, { filename: row.type }), row.updatedAt),
     }));
 }
 

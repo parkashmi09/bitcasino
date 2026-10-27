@@ -1,6 +1,9 @@
 import { Link } from 'react-router-dom';
 import { HelpCategoriesSidebar } from '../components/sections/HelpCategoriesSidebar';
 import { SUPPORT_EMAIL } from '@/lib/site';
+import { Brand } from '@/components/ui/Brand';
+import { withBrand } from '@/lib/branding';
+import { useSiteName } from '@/queries/siteConfig';
 
 const RELATED_ARTICLES = [
   ['Dispute Resolution', '/help-center/dispute-resolution'],
@@ -11,13 +14,13 @@ const RELATED_ARTICLES = [
 function Breadcrumbs() {
   return (
     <nav aria-label="Breadcrumb" className="flex flex-wrap items-center gap-1 text-sm text-bulma">
-      <Link to="/" className="hover:text-piccolo">Bitcasino</Link>
+      <Link to="/" className="hover:text-piccolo"><Brand /></Link>
       <span aria-hidden="true">›</span>
       <Link to="/help-center" className="hover:text-piccolo">Help centre</Link>
       <span aria-hidden="true">›</span>
-      <Link to="/help-center/terms-and-conditions" className="hover:text-piccolo">Bitcasino Information</Link>
+      <Link to="/help-center/terms-and-conditions" className="hover:text-piccolo"><Brand /> Information</Link>
       <span aria-hidden="true">›</span>
-      <span>Bitcasino Privacy Policy</span>
+      <span><Brand /> Privacy Policy</span>
     </nav>
   );
 }
@@ -26,12 +29,12 @@ function Article() {
   return (
     <article className="min-w-0 max-w-[800px] text-[15px] leading-6 text-bulma md:text-base md:leading-7">
       <div className="mb-8">
-        <p className="mb-2 text-[10px] uppercase leading-4 tracking-[0.5px] text-trunks">Bitcasino Information</p>
-        <h1 className="font-primary text-2xl font-bold leading-8 text-bulma">Bitcasino Privacy Policy</h1>
+        <p className="mb-2 text-[10px] uppercase leading-4 tracking-[0.5px] text-trunks"><Brand /> Information</p>
+        <h1 className="font-primary text-2xl font-bold leading-8 text-bulma"><Brand /> Privacy Policy</h1>
       </div>
 
       <p><em>Updated: 19.08.2021</em></p>
-      <p className="mt-4">Bitcasino (the Company) takes protecting your privacy very seriously.</p>
+      <p className="mt-4"><Brand /> (the Company) takes protecting your privacy very seriously.</p>
       <p className="mt-4">We implement suitable technical and administrative controls in our endeavours to keep your personal information protected at all times. This Privacy Policy explains how your personal information is handled. By using our services, you agree to accept these terms.</p>
       <p className="mt-4">Personal Information is any information that allows you to be identified and may include your name and address, date of birth, payment details and any other information you may wish to provide or that is collected about you. We take measures to ensure that use of your Personal Information is compliant with data protection and privacy regulations in the countries where we operate. This Privacy Policy applies to Personal Information we collect when you use our websites or otherwise interact with us.</p>
       <p className="mt-4">The controller of the personal data is the operator of this site.</p>
@@ -77,6 +80,7 @@ function Article() {
 }
 
 export function PrivacyPolicy() {
+  const site = useSiteName();
   return (
     <div className="w-full max-w-[99rem] overflow-x-clip md:mx-auto">
       <Breadcrumbs />
@@ -87,7 +91,7 @@ export function PrivacyPolicy() {
       <section className="mt-14 border-t border-beerus pt-8">
         <h2 className="mb-5 text-2xl font-bold text-bulma">Related articles</h2>
         <div className="grid gap-6 md:grid-cols-3">
-          {RELATED_ARTICLES.map(([label, to]) => <Link key={label} to={to} className="text-xl text-bulma hover:text-piccolo"><span className="mb-1 block text-[10px] uppercase leading-4 tracking-[0.5px] text-trunks">Bitcasino Information</span>{label}</Link>)}
+          {withBrand(RELATED_ARTICLES, site).map(([label, to]) => <Link key={label} to={to} className="text-xl text-bulma hover:text-piccolo"><span className="mb-1 block text-[10px] uppercase leading-4 tracking-[0.5px] text-trunks"><Brand /> Information</span>{label}</Link>)}
         </div>
       </section>
       {SUPPORT_EMAIL && (

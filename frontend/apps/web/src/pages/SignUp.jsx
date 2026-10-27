@@ -18,6 +18,7 @@ import { useGates } from '@/hooks/useGates';
 import { ApiError, api } from '@/lib/api';
 import { ENDPOINTS, path } from '@/lib/endpoints';
 import { DIAL_CODES } from '@/data/countries';
+import { Brand } from '@/components/ui/Brand';
 
 /**
  * Sign up.
@@ -466,7 +467,7 @@ function SignUpForm() {
         </AuthCheckbox>
 
         <AuthCheckbox name="acceptsOffers" checked={acceptsOffers} onChange={setAcceptsOffers}>
-          I agree to receive marketing communication about exclusive Bitcasino rewards and
+          I agree to receive marketing communication about exclusive <Brand /> rewards and
           promotions
         </AuthCheckbox>
 

@@ -77,10 +77,10 @@ export function ProviderRail() {
             >
               <img
                 src={provider.logo}
-                alt={provider.name}
+                alt={provider.label}
                 loading="lazy"
                 decoding="async"
-                className="h-10 w-auto max-w-full object-contain opacity-40 hover:opacity-100"
+                className="provider-mark h-10 w-auto max-w-full object-contain"
               />
             </Link>
           </li>

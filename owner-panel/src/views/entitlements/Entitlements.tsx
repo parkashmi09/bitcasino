@@ -798,7 +798,7 @@ const TemplateCard = ({
       )}
     </div>
     <p className='text-xs'>
-      <span className='font-medium'>On this UI:</span> {template.colours}
+      <span className='font-medium'>Player site:</span> {template.colours}
     </p>
   </button>
 )
@@ -1236,7 +1236,7 @@ const Entitlements = () => {
                     <p className='text-muted-foreground text-sm'>
                       The site&apos;s colour theme. This site runs the {UI_LABEL}: a template recolours it (layout,
                       fonts and art stay) and never changes a feature below. Original keeps the site&apos;s
-                      own colours.
+                      own colours. The site admin follows it unless Policies → Admin colour theme picks its own.
                     </p>
                   </div>
                   <div className='grid gap-4 sm:grid-cols-2 xl:grid-cols-4'>

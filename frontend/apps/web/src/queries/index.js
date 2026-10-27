@@ -33,9 +33,9 @@ export {
 
 export { useProviders, useProviderGames } from './providers';
 
-export { useGameCollection, useTheme, useRail, PLATFORM_COLLECTIONS } from './collections';
+export { useGameCollection, useRail, useLobbyCategories, useInHouseGames, PLATFORM_COLLECTIONS } from './collections';
 
-export { useSiteConfig } from './siteConfig';
+export { useSiteConfig, useBranding, useSiteName } from './siteConfig';
 
 export {
   useLaunchGame,
@@ -91,6 +91,10 @@ export {
   useRaceHistory,
   raceTitle,
   useTournaments,
+  useRaceRewards,
+  useClaimRaceReward,
+  useAffiliateUnclaimed,
+  useClaimAffiliate,
   usePromotions,
   usePromotion,
   useHomeSlides,

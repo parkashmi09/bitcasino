@@ -1,6 +1,9 @@
 import { Link } from 'react-router-dom';
 import { HelpCategoriesSidebar } from '../components/sections/HelpCategoriesSidebar';
 import { SUPPORT_EMAIL } from '@/lib/site';
+import { Brand } from '@/components/ui/Brand';
+import { withBrand } from '@/lib/branding';
+import { useSiteName } from '@/queries/siteConfig';
 
 const RELATED_ARTICLES = [
   ['Dispute Resolution', '/help-center/dispute-resolution'],
@@ -78,13 +81,13 @@ const EXCLUDED_GAMES = [
 function Breadcrumbs() {
   return (
     <nav aria-label="Breadcrumb" className="flex flex-wrap items-center gap-1 text-sm text-bulma">
-      <Link to="/" className="hover:text-piccolo">Bitcasino</Link>
+      <Link to="/" className="hover:text-piccolo"><Brand /></Link>
       <span aria-hidden="true">›</span>
       <Link to="/help-center" className="hover:text-piccolo">Help centre</Link>
       <span aria-hidden="true">›</span>
-      <Link to="/help-center/terms-and-conditions" className="hover:text-piccolo">Bitcasino Information</Link>
+      <Link to="/help-center/terms-and-conditions" className="hover:text-piccolo"><Brand /> Information</Link>
       <span aria-hidden="true">›</span>
-      <span>Bitcasino Reward Terms &amp; Conditions</span>
+      <span><Brand /> Reward Terms &amp; Conditions</span>
     </nav>
   );
 }
@@ -113,38 +116,38 @@ function Article() {
   return (
     <article className="min-w-0 max-w-[800px] text-[15px] leading-6 text-bulma md:text-base md:leading-7">
       <div className="mb-8">
-        <p className="mb-2 text-[10px] uppercase leading-4 tracking-[0.5px] text-trunks">Bitcasino Information</p>
-        <h1 className="font-primary text-2xl font-bold leading-8 text-bulma">Bitcasino Reward Terms &amp; Conditions</h1>
+        <p className="mb-2 text-[10px] uppercase leading-4 tracking-[0.5px] text-trunks"><Brand /> Information</p>
+        <h1 className="font-primary text-2xl font-bold leading-8 text-bulma"><Brand /> Reward Terms &amp; Conditions</h1>
       </div>
-      <p>At Bitcasino, players can win rewards by participating in regular promotions and tournaments, activating Casino Boost, or being part of the Bitcasino Loyalty Club.</p>
-      <p className="mt-4">All rewards come without wagering requirements. Bitcasino does not offer deposit or welcome rewards.</p>
+      <p>At <Brand />, players can win rewards by participating in regular promotions and tournaments, activating Casino Boost, or being part of the <Brand /> Loyalty Club.</p>
+      <p className="mt-4">All rewards come without wagering requirements. <Brand /> does not offer deposit or welcome rewards.</p>
       <p className="mt-4">Depending on the promotion or tournament, players can receive:</p>
       <ul className="my-4 list-disc space-y-1 ps-6 marker:text-piccolo">
         <li><strong>Free spins</strong> - free rounds on a game</li>
         <li><strong>Free chips</strong> - given specifically for table games</li>
         <li><strong>Cash rewards</strong> - cash added to a player's balance automatically</li>
       </ul>
-      <p>Players can find available rewards and enable promo codes in the Rewards tab of their account. Bitcasino may change or cancel any promotion at its sole discretion.</p>
+      <p>Players can find available rewards and enable promo codes in the Rewards tab of their account. <Brand /> may change or cancel any promotion at its sole discretion.</p>
 
       <h2 className="mb-4 mt-10 text-xl font-bold leading-7 text-bulma">Reward money wagering</h2>
       <p>For reward money with wagering requirements, players must turn over the reward and its winnings a specified number of times before making a withdrawal.</p>
       <p className="mt-4">The wagering contribution depends on the game category:</p>
       <ul className="my-4 list-disc space-y-1 ps-6 marker:text-piccolo">
-        <li>Slots: 100%</li><li>Live Game Shows: 20%</li><li>Live-dealer games: 10%</li><li>Table Games and RNG-based games: 10%</li><li>Bitcasino Originals: 10%</li>
+        <li>Slots: 100%</li><li>Live Game Shows: 20%</li><li>Live-dealer games: 10%</li><li>Table Games and RNG-based games: 10%</li><li><Brand /> Originals: 10%</li>
       </ul>
       <p>Certain casino games are excluded from Loyalty and reward wagering:</p>
       <ExcludedGamesTable />
 
-      <h2 className="mb-4 mt-10 text-xl font-bold leading-7 text-bulma">Bitcasino Loyalty Club</h2>
+      <h2 className="mb-4 mt-10 text-xl font-bold leading-7 text-bulma"><Brand /> Loyalty Club</h2>
       <p>Players receive loyalty level points from real-money bets on the games they play. Different loyalty levels give milestone rewards tailored to the player's gameplay.</p>
-      <p className="mt-4">To find out more, visit the <Link to="/profile/loyalty" className="underline hover:text-piccolo">Bitcasino Loyalty Club</Link>.</p>
+      <p className="mt-4">To find out more, visit the <Link to="/profile/loyalty" className="underline hover:text-piccolo"><Brand /> Loyalty Club</Link>.</p>
 
       <h2 className="mb-4 mt-10 text-xl font-bold leading-7 text-bulma">Withdrawals</h2>
       <p>Withdrawals cannot be made when a player has an active reward. The reward must be completed, or the player may forfeit or cancel it from the Rewards tab.</p>
 
       <h2 className="mb-4 mt-10 text-xl font-bold leading-7 text-bulma">Reward abuse</h2>
       <p>Reward abuse includes breaching reward terms, opening multiple accounts to claim multiple rewards, or allowing another person to place bets on a player's account while a reward is active.</p>
-      <p className="mt-4">Where there is reasonable suspicion or proof of reward abuse, Bitcasino may forfeit the reward and associated winnings, remove related funds, restrict products, exclude the player from future promotions, or terminate the account.</p>
+      <p className="mt-4">Where there is reasonable suspicion or proof of reward abuse, <Brand /> may forfeit the reward and associated winnings, remove related funds, restrict products, exclude the player from future promotions, or terminate the account.</p>
       <p className="mt-4">Methods, techniques or software that give a player an edge over other players or the reward system are prohibited. Rewards are intended for non-professional entertainment purposes only.</p>
       <p className="mt-4">By enabling a reward or using reward funds for play, a player accepts these Terms and Conditions, the promotional material requirements, and the General Terms and Conditions.</p>
     </article>
@@ -152,6 +155,7 @@ function Article() {
 }
 
 export function RewardTerms() {
+  const site = useSiteName();
   return (
     <div className="w-full max-w-[99rem] overflow-x-clip md:mx-auto">
       <Breadcrumbs />
@@ -162,7 +166,7 @@ export function RewardTerms() {
       <section className="mt-14 border-t border-beerus pt-8">
         <h2 className="mb-5 text-2xl font-bold text-bulma">Related articles</h2>
         <div className="grid gap-6 md:grid-cols-3">
-          {RELATED_ARTICLES.map(([label, to]) => <Link key={label} to={to} className="text-xl text-bulma hover:text-piccolo"><span className="mb-1 block text-[10px] uppercase leading-4 tracking-[0.5px] text-trunks">Bitcasino Information</span>{label}</Link>)}
+          {withBrand(RELATED_ARTICLES, site).map(([label, to]) => <Link key={label} to={to} className="text-xl text-bulma hover:text-piccolo"><span className="mb-1 block text-[10px] uppercase leading-4 tracking-[0.5px] text-trunks"><Brand /> Information</span>{label}</Link>)}
         </div>
       </section>
       {SUPPORT_EMAIL && (

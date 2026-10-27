@@ -1,5 +1,7 @@
 import { useCallback, useMemo, useSyncExternalStore } from 'react';
+import { useAuth } from '@/auth/AuthProvider';
 import { useNotificationFeed } from '@/queries/live';
+import { useInbox, useMarkInboxRead } from '@/queries/notifications';
 
 /**
  * The announcement feed, plus which of it has been read.
@@ -81,47 +83,51 @@ const readStore = {
   },
 };
 
-/** The feed with a `read` flag on each row, the unread count, and the action. */
+/**
+ * The player's inbox (server rows, server read state) and the public
+ * announcement feed (local read set), newest first, with the unread count and
+ * the two actions.
+ */
 export function useNotifications() {
+  const { user } = useAuth();
   const readIds = useSyncExternalStore(readStore.subscribe, readStore.get, readStore.get);
-  const { data, isPending, isError } = useNotificationFeed();
+  const feed = useNotificationFeed();
+  const inbox = useInbox({ enabled: Boolean(user) });
+  const markInbox = useMarkInboxRead();
 
-  /**
-   * `useMemo` for a fallback of `[]`, which looks like overkill and is not.
-   *
-   * React Query hands back the SAME array between renders while the data has
-   * not changed, so `data` is stable — but `data ?? []` builds a fresh empty
-   * array on every render before the first response lands, and that array is
-   * a dependency of the `useCallback` below. Without the memo, `markAllRead`
-   * has a new identity on every render of a not-yet-loaded feed, which is
-   * exactly the churn that makes a memoised child re-render for no reason.
-   */
-  const rows = useMemo(() => data ?? [], [data]);
+  // Memoised so a not-yet-loaded feed does not hand `markAllRead` a new `[]` every render.
+  const rows = useMemo(() => feed.data ?? [], [feed.data]);
+  const inboxRows = useMemo(() => inbox.data ?? [], [inbox.data]);
+  const inboxUnread = inboxRows.some((row) => !row.read);
+  const { mutate } = markInbox;
 
-  /**
-   * `Mark all as read` marks what is CURRENTLY ON SCREEN, and keeps the ids
-   * that were already stored.
-   *
-   * Dropping the old ones would resurrect a notice that has since fallen off
-   * the twenty-row window and then come back — an operator editing an old
-   * announcement is enough to do that. The set only grows, which is fine: it
-   * is a handful of short strings, and the alternative trades a bounded
-   * `localStorage` key for a pip that lights up at random.
-   */
+  /* Keeps the stored ids: dropping them would bring back an announcement that left the
+     twenty-row window and returned. */
   const markAllRead = useCallback(() => {
     const seen = new Set(readStore.get());
     for (const row of rows) seen.add(row.id);
     readStore.set([...seen]);
-  }, [rows]);
+    if (inboxUnread) mutate();
+  }, [rows, inboxUnread, mutate]);
 
-  const items = rows.map((item) => ({ ...item, read: readIds.includes(item.id) }));
+  const markRead = useCallback(
+    (item) => {
+      if (item.read) return;
+      if (item.serverId) mutate(item.serverId);
+      else readStore.set([...new Set([...readStore.get(), item.id])]);
+    },
+    [mutate],
+  );
+
+  const items = [...inboxRows, ...rows.map((item) => ({ ...item, read: readIds.includes(item.id) }))].sort(
+    (a, b) => (Date.parse(b.at) || 0) - (Date.parse(a.at) || 0),
+  );
   const unread = items.reduce((count, item) => count + (item.read ? 0 : 1), 0);
 
-  /**
-   * `isPending` and `isError` are surfaced because the page has to tell three
-   * states apart that all render as an empty list: still loading, the read
-   * failed, and an operator has posted nothing. The header's pip needs none of
-   * them — `unread` is 0 in all three, which is the correct pip either way.
-   */
-  return { items, unread, markAllRead, isPending, isError };
+  /* The page tells loading, failed and empty apart; the bell only needs `unread`. One source
+     answering is enough to show a list. */
+  const isPending = feed.isPending && (!user || inbox.isPending);
+  const isError = feed.isError && (!user || inbox.isError);
+
+  return { items, unread, markAllRead, markRead, isPending, isError };
 }
