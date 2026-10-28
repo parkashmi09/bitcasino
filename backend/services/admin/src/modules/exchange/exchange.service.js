@@ -72,7 +72,7 @@ class ExchangeService {
       this.#wallet(actor.id),
       this.#staffTotals(belowMe),
       this.#playerTotals({ parent_staff_id: { [Op.in]: staffIds } }),
-      actor.canIssueFunds ? this.#playerTotals({ parent_staff_id: null }) : null,
+      actor.canIssueFunds ? this.#playerTotals({ parent_staff_id: null, is_demo: false }) : null,
       actor.canIssueFunds ? this.#ownerTopupTotal(actor.id) : null,
       this.#recentTransfers(staffIds),
     ]);
@@ -329,9 +329,9 @@ class ExchangeService {
     const staffIds = await this.#treeStaffIds(actor);
 
     if (userId) {
-      const user = await this.models.Users.findByPk(userId, { attributes: ['id', 'parent_staff_id'], raw: true });
+      const user = await this.models.Users.findByPk(userId, { attributes: ['id', 'parent_staff_id', 'is_demo'], raw: true });
       const visible = user && (staffIds.includes(Number(user.parent_staff_id))
-        || (user.parent_staff_id == null && actor.canIssueFunds));
+        || (user.parent_staff_id == null && !user.is_demo && actor.canIssueFunds));
       if (!visible) throw notInTree();
       const wallet = await this.models.Credits.findOne({ where: { uid: userId }, attributes: ['id'], raw: true });
       return wallet?.id ?? null;

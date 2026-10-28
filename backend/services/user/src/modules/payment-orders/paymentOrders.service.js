@@ -231,7 +231,7 @@ class PaymentOrdersService {
     const gateway = this.#gateway(providerName);
     await this.#assertOwnerAllows(providerName);
 
-    if (!gateway.supports(currency, FLOW.PAY_OUT, this.config)) {
+    if (!gateway.supports(currency, FLOW.PAY_OUT, this.config) || !(await this.#currencyOn(gateway, currency))) {
       throw errors.CURRENCY_NOT_SUPPORTED({ provider: providerName, currency });
     }
 
@@ -312,6 +312,8 @@ class PaymentOrdersService {
           method: paymentSystem,
           details: validation.value,
           notifyUrl: this.#notifyUrl(providerName, FLOW.PAY_OUT),
+          // F2Pay's payout wants the payee's phone and email.
+          customer: gateway.needsCustomer ? await this.#customer(userId) : null,
         },
         this.config,
         { http: this.http }
@@ -395,13 +397,15 @@ class PaymentOrdersService {
     }
 
     if (flow !== FLOW.PAY_IN) {
-      const [apayOut, waypayOut] = await Promise.all([
+      const [apayOut, waypayOut, f2Out] = await Promise.all([
         this.models.Apaywithdrawals.findAll({ where: { user_id: as('Apaywithdrawals') }, raw: true }),
         this.models.PayOutTransactions.findAll({ where: { user_id: as('PayOutTransactions') }, raw: true }),
+        this.models.F2payWithdrawals.findAll({ where: { user_id: userId }, raw: true }),
       ]);
       rows.push(
         ...apayOut.map((r) => this.#shape('apay', FLOW.PAY_OUT, r.custom_transaction_id, r.amount, r.currency, r.status, r.created_at)),
-        ...waypayOut.map((r) => this.#shape('waypay', FLOW.PAY_OUT, r.out_trade_no, r.amount, r.currency, r.status, r.created_at))
+        ...waypayOut.map((r) => this.#shape('waypay', FLOW.PAY_OUT, r.out_trade_no, r.amount, r.currency, r.status, r.created_at)),
+        ...f2Out.map((r) => this.#shape('f2pay', FLOW.PAY_OUT, r.mch_order_no, r.amount, r.currency, r.status, r.created_at))
       );
     }
 
@@ -416,7 +420,9 @@ class PaymentOrdersService {
   async getAvailableMethods({ provider: providerName }) {
     const gateway = this.#gateway(providerName);
     await this.#assertOwnerAllows(providerName);
-    if (gateway.methodsInDb) return { provider: providerName, methods: await this.#methods(providerName, gateway) };
+    if (gateway.methodsInDb) {
+      return { provider: providerName, methods: await this.#methods(providerName, gateway), payout: await this.#payoutCurrencies(gateway) };
+    }
     if (!gateway.getAvailableMethods) return { provider: providerName, methods: null };
     return {
       provider: providerName,
@@ -578,6 +584,27 @@ class PaymentOrdersService {
     return rows
       .filter((r) => gateway.supports(r.currency, FLOW.PAY_IN) && plan.flags[gateway.currencySwitch(r.currency)] !== false)
       .map((r) => ({ method: r.code, currency: r.currency }));
+  }
+
+  /** The owner's currency switch for this gateway (`f2pay_inr`, missing = on); a gateway without one is always on. */
+  async #currencyOn(gateway, currency) {
+    if (!gateway.currencySwitch) return true;
+    const plan = await entitlements.getEntitlements();
+    return plan.flags[gateway.currencySwitch(currency)] !== false;
+  }
+
+  /**
+   * The currencies this gateway pays out in right now (the player site's Automatic withdraw):
+   * none while the deployment's AUTO_WITHDRAWALS_ENABLED or the owner's withdrawal_mode is off.
+   */
+  async #payoutCurrencies(gateway) {
+    if (!this.config.AUTO_WITHDRAWALS_ENABLED) return [];
+    if (!(await sitePolicy.allows(this.models, 'withdrawal_mode', 'automatic')).allowed) return [];
+    const out = [];
+    for (const currency of ['INR']) {
+      if (gateway.supports(currency, FLOW.PAY_OUT) && (await this.#currencyOn(gateway, currency))) out.push(currency);
+    }
+    return out;
   }
 
   /**
@@ -757,6 +784,13 @@ class PaymentOrdersService {
       }, { transaction });
       return;
     }
+    if (providerName === 'f2pay') {
+      await this.models.F2payWithdrawals.create({
+        user_id: userId, mch_order_no: reference, amount, currency, status: 'Pending',
+        account_number: details.account_number, ifsc: details.bank_code, account_holder_name: details.account_name,
+      }, { transaction });
+      return;
+    }
     await this.models.PayOutTransactions.create({
       user_id: userId, transaction_id: reference, out_trade_no: reference,
       currency, amount, status: 0, pay_type: paymentSystem,
@@ -820,6 +854,8 @@ class PaymentOrdersService {
         await this.models.Apaywithdrawals.update(
           { payment_details: { providerReference } }, { where: { custom_transaction_id: reference } }
         );
+      } else if (providerName === 'f2pay') {
+        await this.models.F2payWithdrawals.update({ plat_no: providerReference }, { where: { mch_order_no: reference } });
       } else {
         await this.models.PayOutTransactions.update(
           { transaction_id: providerReference }, { where: { out_trade_no: reference } }
@@ -874,6 +910,11 @@ class PaymentOrdersService {
           { status: 'Failed', error_reason: String(reason ?? '').slice(0, 500), refunded },
           { where: { custom_transaction_id: reference } }
         );
+      } else if (providerName === 'f2pay') {
+        await this.models.F2payWithdrawals.update(
+          { status: 'Failed', error_reason: String(reason ?? '').slice(0, 500), refunded },
+          { where: { mch_order_no: reference } }
+        );
       } else {
         await this.models.PayOutTransactions.update({ status: 2 }, { where: { out_trade_no: reference } });
       }
@@ -908,7 +949,9 @@ class PaymentOrdersService {
     }
     if (providerName === 'f2pay') {
       const r = await this.models.F2payDeposits.findOne({ where: { mch_order_no: reference }, raw: true });
-      return r && this.#shape('f2pay', FLOW.PAY_IN, reference, r.amount, r.currency, r.status, r.created_at, r.user_id, r.plat_no);
+      if (r) return this.#shape('f2pay', FLOW.PAY_IN, reference, r.amount, r.currency, r.status, r.created_at, r.user_id, r.plat_no);
+      const out = await this.models.F2payWithdrawals.findOne({ where: { mch_order_no: reference }, raw: true });
+      return out && this.#shape('f2pay', FLOW.PAY_OUT, reference, out.amount, out.currency, out.status, out.created_at, out.user_id, out.plat_no);
     }
     if (providerName === 'apay') {
       const dep = await Apaydeposits.findOne({ where: { custom_transaction_id: reference }, raw: true });

@@ -105,6 +105,7 @@ test('dashboard stats against a database', async (t) => {
   const agentId = newId();
   const playerA = newId(); // a direct signup (no parent) — the only one this dashboard counts
   const playerB = newId(); // under the agent — a client, never on the Direct Users dashboard
+  const playerX = newId(); // a demo user (the Demo button): direct, but on no admin figure at all
   const COIN = `T${String(process.pid % 100_000).padStart(5, '0')}`.slice(0, 8);
   const GIS_COIN = `G${COIN.slice(1)}`;
   const PAY_COIN = `P${COIN.slice(1)}`;
@@ -117,13 +118,13 @@ test('dashboard stats against a database', async (t) => {
   const cleanup = async () => {
     await models.FiatDeposits.destroy({ where: { user_id: [String(playerA), String(playerB)] } });
     await models.FiatWithdrawals.destroy({ where: { uid: [playerA, playerB] } });
-    await sequelize.query('DELETE FROM mssports."SportsBet" WHERE user_id IN (:ids)', { replacements: { ids: [playerA, playerB] } });
-    await sequelize.query('DELETE FROM mssports.users WHERE user_id IN (:ids)', { replacements: { ids: [playerA, playerB] } }).catch(() => {});
-    await sequelize.query('DELETE FROM mssports.credits_ledger WHERE user_id IN (:ids)', { replacements: { ids: [String(playerA), String(playerB)] } });
+    await sequelize.query('DELETE FROM mssports."SportsBet" WHERE user_id IN (:ids)', { replacements: { ids: [playerA, playerB, playerX] } });
+    await sequelize.query('DELETE FROM mssports.users WHERE user_id IN (:ids)', { replacements: { ids: [playerA, playerB, playerX] } }).catch(() => {});
+    await sequelize.query('DELETE FROM mssports.credits_ledger WHERE user_id IN (:ids)', { replacements: { ids: [String(playerA), String(playerB), String(playerX)] } });
     await sequelize.query('DELETE FROM bets WHERE uid IN (:ids)', { replacements: { ids: [playerA, playerB] } });
     await sequelize.query('DELETE FROM gis_transactions WHERE user_id IN (:ids)', { replacements: { ids: [playerA, playerB] } });
     await sequelize.query('DELETE FROM game_transactions WHERE user_id IN (:ids)', { replacements: { ids: [playerA, playerB] } });
-    await models.Users.destroy({ where: { id: [playerA, playerB] } });
+    await models.Users.destroy({ where: { id: [playerA, playerB, playerX] } });
     await models.Staff.destroy({ where: { id: [agentId, ownerId] } });
     await models.Exchangerate.destroy({ where: { currency: [COIN, GIS_COIN, PAY_COIN] } });
   };
@@ -134,6 +135,7 @@ test('dashboard stats against a database', async (t) => {
     await models.Staff.create({ id: agentId, name: `s-agent-${agentId}`, email: `a${agentId}@t.test`, password: 'x', role_id: agentRoleId, parent_id: ownerId });
     await models.Users.create({ id: playerA, name: `sa-${playerA}`, password: 'x', status: 'active', parent_staff_id: null, created: day('03') });
     await models.Users.create({ id: playerB, name: `sb-${playerB}`, password: 'x', status: 'active', parent_staff_id: agentId, created: day('20') });
+    await models.Users.create({ id: playerX, name: `sx-${playerX}`, password: 'x', status: 'active', parent_staff_id: null, is_demo: true, created: day('03') });
     await models.Exchangerate.create({ currency: COIN, usd_rate: '2' });
     await models.Exchangerate.create({ currency: GIS_COIN, usd_rate: '1' });
 
@@ -161,6 +163,21 @@ test('dashboard stats against a database', async (t) => {
     await sequelize.query(
       `INSERT INTO mssports.users (user_id, username, password, role_id, "createdAt", "updatedAt") VALUES (:a, :n, 'x', 4, now(), now()) ON CONFLICT (user_id) DO NOTHING`,
       { replacements: { a: playerA, n: `sa-${playerA}` } }
+    );
+    // The demo user's sports play: a 70 stake and a 25 win, on no figure below.
+    await sequelize.query(
+      `INSERT INTO mssports.users (user_id, username, password, role_id, "createdAt", "updatedAt") VALUES (:x, :n, 'x', 4, now(), now()) ON CONFLICT (user_id) DO NOTHING`,
+      { replacements: { x: playerX, n: `sx-${playerX}` } }
+    );
+    await sequelize.query(
+      `INSERT INTO mssports."SportsBet" (user_id, game_type, bet_type, odds, sport_id, stake_amount, original_currency, status, result_status, created_at, updated_at)
+       VALUES (:x, 'MO', 'back', 2, '4', 70, :coin, 'open', NULL, :at, :at)`,
+      { replacements: { x: playerX, coin: COIN, at: day('05') } }
+    );
+    await sequelize.query(
+      `INSERT INTO mssports.credits_ledger (user_id, amount, reason, netamount, profit, loss, currency, created_at)
+       VALUES (:x, 25, 'settlement', 25, 25, NULL, :coin, :at)`,
+      { replacements: { x: String(playerX), coin: COIN, at: day('05') } }
     );
     await sequelize.query(
       `INSERT INTO mssports."SportsBet" (user_id, game_type, bet_type, odds, sport_id, stake_amount, original_currency, status, result_status, created_at, updated_at)
@@ -222,6 +239,13 @@ test('dashboard stats against a database', async (t) => {
     assert.equal(d4.net, '-487.00000000');
   });
 
+  await t.test('a demo user is on no figure — not the direct users (above), not the root’s whole site', async () => {
+    const site = new DashboardStatsService({ models, db: connection, logger, config: { ROOT_STAFF_ID: ownerId } });
+    const r = await site.series({ actor: { id: ownerId }, ...window, granularity: 'month', currency: COIN });
+    assert.equal(r.totals.sportsStaked, '40.00000000', 'the demo user’s 70 is not turnover');
+    assert.equal(r.totals.sportsGgr, '-59.00000000', 'playerA −9 and the client’s −50; the demo user’s 25 is not');
+  });
+
   await t.test('an agent sees nothing here — its players are clients, not direct users', async () => {
     const r = await service.series({ actor: { id: agentId }, ...window, granularity: 'month', currency: COIN });
 
@@ -231,11 +255,12 @@ test('dashboard stats against a database', async (t) => {
     assert.equal(r.totals.casinoWagered, '0.00000000');
   });
 
-  await t.test('without a currency the figures are converted to USD at the current rate', async () => {
+  await t.test('without a currency the figures are converted to the site\'s default coin at the current rate', async () => {
     const r = await service.series({ actor: { id: ownerId }, ...window, granularity: 'week' });
 
     assert.equal(r.converted, true);
-    assert.equal(r.currency, 'USD');
+    // The owner's default_currency, USDT when unset (reportingCurrency); USDT is 1:1 with USD.
+    assert.equal(r.currency, 'USDT');
     assert.equal(r.totals.deposits, '303.00000000', '150 COIN at 2, plus 3 USD at 1');
     assert.equal(r.unconverted.length, 0);
     // 2001-03-03 is a Saturday: its ISO week starts on Monday the 26th of February.

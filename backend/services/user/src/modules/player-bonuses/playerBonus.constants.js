@@ -6,6 +6,8 @@ const SOURCE = Object.freeze({
   SPIN_WHEEL: 'spin_wheel',
   // hash.game's "Monthly Deposit Bonus": the Nth deposit of the month (migration 136).
   MONTHLY_DEPOSIT: 'monthly_deposit',
+  // A share of the player's net loss over a period, claimed by the player (../loss-bonus).
+  LOSS_BONUS: 'loss_bonus',
 });
 
 const SOURCES = Object.freeze(Object.values(SOURCE));
@@ -24,6 +26,7 @@ const REF_TYPE = Object.freeze({
   [SOURCE.FIRST_DEPOSIT]: 'FIRST_DEPOSIT_BONUS',
   [SOURCE.SPIN_WHEEL]: 'SPIN_WHEEL_BONUS',
   [SOURCE.MONTHLY_DEPOSIT]: 'DEPOSIT_BONUS',
+  [SOURCE.LOSS_BONUS]: 'LOSS_BONUS',
 });
 const refTypeOf = (source) => REF_TYPE[source] ?? 'PLAYER_BONUS';
 
@@ -31,6 +34,7 @@ const LABEL = Object.freeze({
   [SOURCE.FIRST_DEPOSIT]: 'First deposit bonus',
   [SOURCE.SPIN_WHEEL]: 'Spin wheel bonus',
   [SOURCE.MONTHLY_DEPOSIT]: 'Deposit bonus',
+  [SOURCE.LOSS_BONUS]: 'Loss bonus',
 });
 const labelOf = (source) => LABEL[source] ?? 'Bonus';
 

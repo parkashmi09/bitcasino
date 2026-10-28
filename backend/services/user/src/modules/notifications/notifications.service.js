@@ -1,6 +1,6 @@
 'use strict';
 
-const { isAgentPlayer } = require('@ibitplay/auth');
+const { isAgentPlayer, isDemoPlayer } = require('@ibitplay/auth');
 const { filterFor, categoryOf, AGENT_HIDDEN_TYPES } = require('./categories');
 
 const BASE = '/internal/admin/notifications';
@@ -30,6 +30,8 @@ class NotificationsService {
    * client can page without a second call to learn the total.
    */
   async list({ userId, limit, offset, unreadOnly, category = 'all' }) {
+    // A demo account gets no notifications at all (user, 2026-10-27).
+    if (await isDemoPlayer(userId)) return { rows: [], total: 0, limit, offset };
     const filter = filterFor(category, { agentPlayer: await this.#agentPlayer(userId) });
     // A tab the player may not see (promotions for an agent-tree player): empty, not an error.
     if (!filter) return { rows: [], total: 0, limit, offset };
@@ -51,6 +53,7 @@ class NotificationsService {
    * the panel will not show.
    */
   async unreadCount({ userId }) {
+    if (await isDemoPlayer(userId)) return { unread: 0, byCategory: { system: 0, transactions: 0, promotions: 0 } };
     const agentPlayer = await this.#agentPlayer(userId);
     const raw = await this.clients.admin.get(`${BASE}/unread`, {
       query: {

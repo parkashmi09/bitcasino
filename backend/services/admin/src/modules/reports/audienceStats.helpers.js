@@ -35,11 +35,13 @@ async function playerScope(models, staff, { channel = 'all', alias = 'u', logger
   const staffIds = (await visibleStaffIds(models, staff.id, { logger })).map(Number).filter(Number.isFinite);
   const seesUnassigned = staffIds.includes(1);
   const inTree = `${alias}.parent_staff_id IN (:${key})`;
+  // A demo user (the Demo button's throwaway account) is never shown in the admin.
+  const direct = `(${alias}.parent_staff_id IS NULL AND NOT ${alias}.is_demo)`;
   const replacements = { [key]: staffIds };
 
   if (channel === 'direct') {
     if (!seesUnassigned) return { empty: true, sql: 'FALSE', replacements: {} };
-    return { empty: false, sql: `${alias}.parent_staff_id IS NULL`, replacements: {} };
+    return { empty: false, sql: direct, replacements: {} };
   }
 
   if (!staffIds.length) {
@@ -50,7 +52,7 @@ async function playerScope(models, staff, { channel = 'all', alias = 'u', logger
 
   return {
     empty: false,
-    sql: seesUnassigned ? `(${inTree} OR ${alias}.parent_staff_id IS NULL)` : inTree,
+    sql: seesUnassigned ? `(${inTree} OR ${direct})` : inTree,
     replacements,
   };
 }

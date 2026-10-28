@@ -30,7 +30,7 @@ const SEARCH_SQL = `
     SELECT c.id, u.id, NULL::bigint, u.name, 'USER'
       FROM users u
       LEFT JOIN credits c ON c.uid = u.id
-     WHERE (u.parent_staff_id IN (:staffIds) OR (:withDirectUsers AND u.parent_staff_id IS NULL))
+     WHERE (u.parent_staff_id IN (:staffIds) OR (:withDirectUsers AND u.parent_staff_id IS NULL AND NOT u.is_demo))
        AND u.name ILIKE :like
   ) a
   ORDER BY LOWER(a.username), a.user_type

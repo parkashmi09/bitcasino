@@ -152,30 +152,58 @@ export async function ensureOwner() {
       `SELECT s.name, s.email FROM public.staff s JOIN public.roles r ON r.id = s.role_id
         WHERE r.level = 1 ORDER BY s.id LIMIT 1`
     );
-    const site = config.OWNER_SITE_KEY || 'site';
-    owner = await MsOwner.create({
-      owner_id: OWNER_ID,
-      username: admin?.name || 'owner',
-      website_name: site,
-      domain_name: site,
-      website_ui: config.SITE_TEMPLATE || 'default',
-      country: 'IN',
-      logo: '',
-      favicon: '',
-      game_providers: [],
-      subscription_plan: 'platform',
-      platform_configurations: {},
-      payment_methods: [],
-      site_email_address: admin?.email || `owner@${site}`,
-      // Nobody signs in to mssports directly; the platform's own login issues the token.
-      password: '!',
-      platform_name: site,
-      role: 'OWNER',
-    });
+    owner = await MsOwner.create(ownerRow(OWNER_ID, admin?.name || 'owner', admin?.email));
   }
   await ensureWallet(OWNER_ID, 'OWNER', owner.username);
   markFresh(key);
   return OWNER_ID;
+}
+
+/**
+ * TENEXCH's `demo_owner`: the owner every demo account (`public.users.is_demo`, the Demo button)
+ * sits under, in place of the site's owner — so a demo's P&L and commission never reach it
+ * (walletService skips demo users) and no owner report counts it. Made once, on the first demo.
+ */
+export async function ensureDemoOwner() {
+  const key = 'demo-owner';
+  if (isFresh(key)) return fresh.get(`${key}:id`);
+  let owner = await MsOwner.findOne({ where: { username: 'demo_owner' } });
+  if (!owner) {
+    // The site's owner first, so id 1 stays its own. Not the id sequence: owner 1 was written by
+    // hand, so the sequence may still say 1.
+    await ensureOwner();
+    const next = await one('SELECT GREATEST(COALESCE(MAX(owner_id), 0), :site) + 1 AS id FROM mssports."Owners"', { site: OWNER_ID });
+    owner = await MsOwner.create(ownerRow(Number(next.id), 'demo_owner'));
+  }
+  await ensureWallet(owner.owner_id, 'OWNER', owner.username);
+  fresh.set(`${key}:id`, owner.owner_id);
+  markFresh(key);
+  return owner.owner_id;
+}
+
+/** An mssports `Owners` row. Nobody signs in to mssports directly; the platform's own login issues the token. */
+function ownerRow(ownerId, username, email = null) {
+  const site = config.OWNER_SITE_KEY || 'site';
+  // `domain_name` and `site_email_address` are unique: the demo owner gets its own.
+  const domain = ownerId === OWNER_ID ? site : `${username}.${site}`;
+  return {
+    owner_id: ownerId,
+    username,
+    website_name: site,
+    domain_name: domain,
+    website_ui: config.SITE_TEMPLATE || 'default',
+    country: 'IN',
+    logo: '',
+    favicon: '',
+    game_providers: [],
+    subscription_plan: 'platform',
+    platform_configurations: {},
+    payment_methods: [],
+    site_email_address: email || `owner@${domain}`,
+    password: '!',
+    platform_name: site,
+    role: 'OWNER',
+  };
 }
 
 /** Mirror one staff account (and its upline first). Returns 'owner' for the Super Admin. */
@@ -228,12 +256,13 @@ export async function ensureUser(userId) {
   const key = `user:${userId}`;
   if (isFresh(key)) return;
   const row = await one(
-    `SELECT id, name, parent_staff_id, status, is_locked, system_locked, bet_status, sports_betlocked
+    `SELECT id, name, parent_staff_id, status, is_locked, system_locked, bet_status, sports_betlocked, is_demo, demo_expires_at
        FROM public.users WHERE id = :id`,
     { id: userId }
   );
   if (!row) throw new Error(`User ${userId} not found`);
-  const ownerId = await ensureOwner();
+  // A demo account sits under TENEXCH's demo owner, not the site's (ensureDemoOwner).
+  const ownerId = row.is_demo ? await ensureDemoOwner() : await ensureOwner();
   const parentKind = row.parent_staff_id ? await ensureStaff(Number(row.parent_staff_id)) : 'owner';
   const roleId = await ensureRole(USER_ROLE);
   const state = {
@@ -243,6 +272,8 @@ export async function ensureUser(userId) {
     parent_owner_id: parentKind === 'owner' ? ownerId : null,
     status: row.status === 'active' && !row.is_locked && !row.system_locked ? 'Active' : 'InActive',
     bet_locked: Boolean(row.sports_betlocked) || (row.bet_status != null && row.bet_status !== 'active'),
+    is_demo: Boolean(row.is_demo),
+    demo_expires_at: row.demo_expires_at ?? null,
   };
   let user = await MsUser.findByPk(userId);
   if (!user) {

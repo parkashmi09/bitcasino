@@ -342,7 +342,7 @@ function createWithdrawRequirements(deps) {
    * whatever the policy (a page can show progress), `required` says which are enforced.
    */
   async function evaluate(userId, { currency } = {}) {
-    const [r, kyc, open] = await Promise.all([rules(), kycStatus(userId), openWagering(userId)]);
+    const [r, kyc, open, forfeit] = await Promise.all([rules(), kycStatus(userId), openWagering(userId), bonuses.forfeitPolicy?.() ?? { allowed: true }]);
     const remaining = sum([open.bonus.remaining, open.deposit.remaining]);
     const done = money.lte(remaining, '0');
     const missing = [];
@@ -382,15 +382,17 @@ function createWithdrawRequirements(deps) {
         required: r.wager,
         done,
         remaining,
-        // What would still block after the player forfeits their bonuses.
-        remainingAfterForfeit: open.deposit.remaining,
+        // What would still block after the player forfeits their bonuses (everything, when the
+        // site admin does not allow a forfeit).
+        remainingAfterForfeit: forfeit.allowed ? open.deposit.remaining : remaining,
         currency: UNIT,
         bonus: open.bonus,
         deposit: open.deposit,
       },
       // Any active bonus is forfeited by a withdrawal (409 BONUS_FORFEIT_REQUIRED, then
       // `forfeitBonus: true`), whatever the policy: bonus money is never cash.
-      bonusForfeitRequired: open.bonus.bonuses.length > 0,
+      bonusForfeitRequired: forfeit.allowed && open.bonus.bonuses.length > 0,
+      bonusForfeitAllowed: forfeit.allowed,
       cap,
       // The owner's daily limit (rolling 24 hours): one block for `?currency=`, else one per limited currency.
       dailyLimit,

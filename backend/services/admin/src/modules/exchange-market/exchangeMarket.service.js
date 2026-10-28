@@ -16,8 +16,8 @@ const { marketLabel, rateText } = require('./betLabels');
 // zip ka EXCLUDE_HELPER_KEYS — fancy ke bookkeeping rows ({sel}back / lay / totalstake) nahi
 const REAL_RUNNERS = `e.team_name NOT ILIKE '%back' AND e.team_name NOT ILIKE '%lay' AND e.team_name NOT ILIKE '%totalstake'`;
 
-// downline ke players — :staffIds aur :withDirect replacements chahiye
-const IN_SCOPE = `(u.parent_staff_id IN (:staffIds) OR (:withDirect AND u.parent_staff_id IS NULL))`;
+// downline ke players — :staffIds aur :withDirect replacements chahiye. Demo user kabhi nahi.
+const IN_SCOPE = `(u.parent_staff_id IN (:staffIds) OR (:withDirect AND u.parent_staff_id IS NULL AND NOT u.is_demo))`;
 
 // Direct Users | Agent Users tab → SQL (na bheja = dono, purana jawab).
 const CHANNEL_SQL = { direct: 'u.parent_staff_id IS NULL', agent: 'u.parent_staff_id IS NOT NULL' };

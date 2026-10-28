@@ -105,7 +105,7 @@ class DirectWalletService {
   async listUsers({ actor, search, limit = 20, offset = 0 }) {
     if (!actor.canIssueFunds) throw onlyOwner();
 
-    const where = ['u.parent_staff_id IS NULL'];
+    const where = ['u.parent_staff_id IS NULL', 'NOT u.is_demo'];
     const replacements = { limit, offset };
     if (search) {
       where.push("(u.name ILIKE :term OR u.id::text LIKE :idTerm)");

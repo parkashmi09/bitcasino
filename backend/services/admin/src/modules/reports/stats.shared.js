@@ -81,15 +81,16 @@ async function resolveScope({ models, config, logger }, staff) {
 const isEmptyScope = (scope) => scope !== null && !scope.staffIds.length;
 
 /**
- * `AND <owner> IN (players of the caller's staff)`, or nothing for the root.
+ * `AND <owner> IN (players of the caller's staff)`, or for the root every owner but a demo user.
  *
  * A subquery rather than a pre-fetched id list, so a large tree is one bound
  * array of staff ids rather than tens of thousands of player ids. `text`
  * owners (`ccdeposit.userid`, `credits_ledger.user_id`) are compared as text.
  */
 function scopeSql(column, scope, { text = false } = {}) {
-  if (scope === null) return '';
   const id = text ? 'u.id::text' : 'u.id';
+  // The root sees everyone but a demo user (the Demo button's throwaway account); a row with no owner stays.
+  if (scope === null) return ` AND (${column} IS NULL OR ${column} NOT IN (SELECT ${id} FROM users u WHERE u.is_demo))`;
   return ` AND ${column} IN (SELECT ${id} FROM users u WHERE u.parent_staff_id IN (:staffIds))`;
 }
 

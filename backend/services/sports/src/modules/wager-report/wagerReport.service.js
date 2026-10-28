@@ -103,6 +103,8 @@ class WagerReportService {
       where: {
         result_status: ['won', 'loss'],
         created_at: { [Op.gte]: start, [Op.lt]: end },
+        // A demo user (the Demo button's throwaway account) is in no promotion.
+        user_id: { [Op.notIn]: literal('(SELECT id FROM public.users WHERE is_demo)') },
       },
       attributes: [
         'user_id',

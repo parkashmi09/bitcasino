@@ -150,6 +150,29 @@ const OPERATOR_SETTINGS = Object.freeze({
   // minutes after sign-in a player with no sports / Originals / casino bet in them is signed out.
   idle_logout: { env: 'IDLE_LOGOUT', kind: 'boolean', default: true, label: 'Sign a player out who places no bet in the first 5 minutes' },
   require_email_verification: { env: 'REQUIRE_EMAIL_VERIFICATION', kind: 'boolean', label: 'Verify email before transacting' },
+
+  // Read by user-service's PlayerBonusService (user, 2026-10-28). The lock is in force only while
+  // the owner's `bonus.wagering_lock` is on too; the forfeit pair is the withdraw popup's copy.
+  bonus_wagering_lock: { env: 'BONUS_WAGERING_LOCK', kind: 'boolean', default: true, label: 'Keep a granted bonus locked until it is wagered' },
+  bonus_forfeit_allowed: { env: 'BONUS_FORFEIT_ALLOWED', kind: 'boolean', default: true, label: 'Let a player give up a locked bonus to withdraw' },
+  bonus_forfeit_title: { env: 'BONUS_FORFEIT_TITLE', kind: 'text', maxLength: 80, default: 'You will lose your bonus', label: 'Forfeit popup title' },
+  bonus_forfeit_message: {
+    env: 'BONUS_FORFEIT_MESSAGE',
+    kind: 'text',
+    maxLength: 400,
+    default: 'Your bonus is still locked because its wagering requirement has not been met. If you withdraw now, the locked bonus will be forfeited and cannot be recovered. Your cash balance will not be affected.',
+    label: 'Forfeit popup message',
+  },
+
+  // Loss bonus (lossback), read by user-service's LossBonusService (user, 2026-10-28): a share of a
+  // player's net loss over the last completed period, claimed by the player. Amounts are in the
+  // site's reward currency; OFF until the Super Admin turns it on.
+  loss_bonus_enabled: { env: 'LOSS_BONUS_ENABLED', kind: 'boolean', default: false, label: 'Loss bonus on' },
+  loss_bonus_percent: { env: 'LOSS_BONUS_PERCENT', kind: 'decimal', min: 0, max: 100, default: '10', label: 'Loss bonus % of net loss' },
+  loss_bonus_period_days: { env: 'LOSS_BONUS_PERIOD_DAYS', kind: 'number', min: 1, max: 31, default: 7, label: 'Period (days; 7 = Monday to Monday, 1 = daily)' },
+  loss_bonus_min_loss: { env: 'LOSS_BONUS_MIN_LOSS', kind: 'decimal', min: 0, default: '0', label: 'Minimum net loss to qualify' },
+  loss_bonus_max: { env: 'LOSS_BONUS_MAX', kind: 'decimal', min: 0, default: '0', label: 'Maximum bonus per period (0 = no cap)' },
+  loss_bonus_wager_multiplier: { env: 'LOSS_BONUS_WAGER_MULTIPLIER', kind: 'decimal', min: 0, max: 100, default: '1', label: 'Wager before the bonus becomes cash (× bonus; 0 = cash at once)' },
 });
 
 /** A pair whose maximum may not sit under its minimum. */
@@ -1042,6 +1065,8 @@ class SiteConfigService {
     // our exchange. Never both; `flagOnIn` closes the exchange while the sportsbook is on.
     flags.sportsbook = flags.sports && entitlements.flagOnIn(planDoc, 'sportsbook');
     flags.sportsexchange = flags.sports && entitlements.flagOnIn(planDoc, 'sportsexchange');
+    // The owner's Demo login switch: the player site draws the Demo button only while it is on.
+    flags.demo_login = entitlements.flagOnIn(planDoc, 'demo_login');
 
     const amounts = Object.fromEntries(
       PUBLIC_AMOUNTS.map((name) => [name, this.#amount(row?.[name])])
@@ -1154,11 +1179,12 @@ class SiteConfigService {
         env: spec.env,
         envValue: envValue === undefined ? null : String(envValue),
         stored: has ? stored[key] : null,
-        // `default`: the value with nothing stored and no env (only idle_logout has one).
+        // `default`: the value with nothing stored and no env (idle_logout and the bonus settings).
         value: has ? stored[key] : (envValue === undefined ? spec.default ?? null : envValue),
         source: has ? 'operator' : 'environment',
         ...(spec.min !== undefined ? { min: spec.min } : {}),
         ...(spec.max !== undefined ? { max: spec.max } : {}),
+        ...(spec.maxLength !== undefined ? { maxLength: spec.maxLength } : {}),
       };
     });
   }
@@ -1358,7 +1384,7 @@ class SiteConfigService {
     const everyone = staffIds.includes(root);
 
     const player = await this.models.Users.findOne({
-      where: { id: userId, ...(everyone ? {} : { parent_staff_id: staffIds }) },
+      where: { id: userId, is_demo: false, ...(everyone ? {} : { parent_staff_id: staffIds }) },
       attributes: ['id'],
       raw: true,
     });
@@ -1525,6 +1551,15 @@ function coerceSetting(key, spec, raw) {
     if (typeof raw === 'boolean') return raw;
     if (raw === 'true' || raw === 'false') return raw === 'true';
     throw errors.INVALID_SETTING({ setting: key, reason: 'expected true or false' });
+  }
+
+  if (spec.kind === 'text') {
+    const text = String(raw).trim();
+    if (!text) throw errors.INVALID_SETTING({ setting: key, reason: 'empty — use Reset to default instead' });
+    if (text.length > spec.maxLength) throw errors.INVALID_SETTING({ setting: key, reason: `longer than ${spec.maxLength} characters` });
+    // eslint-disable-next-line no-control-regex
+    if (/[<>\u0000-\u0008\u000b-\u001f]/.test(text)) throw errors.INVALID_SETTING({ setting: key, reason: 'no angle brackets or control characters' });
+    return text;
   }
 
   if (spec.kind === 'timezone') {

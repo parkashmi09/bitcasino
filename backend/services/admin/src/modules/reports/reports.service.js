@@ -868,6 +868,7 @@ class ReportsService {
       okCrypto: STATS_WITHDRAWAL_DONE.withdrawals,
       okBank: STATS_WITHDRAWAL_DONE.fiat_withdrawals,
       okGateway: STATS_WITHDRAWAL_DONE.apaywithdrawals,
+      okF2pay: STATS_WITHDRAWAL_DONE.f2paywithdrawals,
     };
     // Deposits: the shared real-deposit rails (no Direct User Wallet credit).
     const real = realDepositsSql({ who: (column) => ` AND ${column}::text = :uid` });
@@ -886,6 +887,9 @@ class ReportsService {
            UNION ALL
            SELECT 'withdraw', UPPER(g.currency), g.amount FROM apaywithdrawals g
             WHERE g.user_id = :uid AND LOWER(g.status) IN (:okGateway) AND g.refunded IS NOT TRUE
+           UNION ALL
+           SELECT 'withdraw', UPPER(p.currency), p.amount FROM f2paywithdrawals p
+            WHERE p.user_id = :uidNum AND LOWER(p.status) IN (:okF2pay)
          ) m GROUP BY side, cur`,
         { replacements, type: QueryTypes.SELECT }
       ),
@@ -1201,7 +1205,7 @@ class ReportsService {
     const replacements = { staffIds };
     const parts = [
       seesUnassigned
-        ? '(u.parent_staff_id IN (:staffIds) OR u.parent_staff_id IS NULL)'
+        ? '(u.parent_staff_id IN (:staffIds) OR (u.parent_staff_id IS NULL AND NOT u.is_demo))'
         : 'u.parent_staff_id IN (:staffIds)',
     ];
     // Direct Users | Agent Users tab: direct = koi parent nahi, agent = agent ke neeche.
@@ -1592,6 +1596,14 @@ class ReportsService {
     for (const row of gatewayWithdrawals) {
       push(row.created_at, 'Withdrawal', 'DEBIT', `Gateway withdrawal (${row.status})`, `-${row.amount}`, Number(row.id) || 0);
     }
+    // F2Pay payouts: held from the request on, so Pending counts; a Failed one was refunded.
+    const f2payWithdrawals = await this.models.F2payWithdrawals.findAll({
+      where: { user_id: uid, currency: { [Op.iLike]: currency }, status: { [Op.in]: ['Success', 'Pending'] } },
+      raw: true,
+    });
+    for (const row of f2payWithdrawals) {
+      push(row.created_at, 'Withdrawal', 'DEBIT', `F2Pay withdrawal (${row.status})`, `-${row.amount}`, Number(row.id) || 0);
+    }
 
     /**
      * 6. Sports settlement.
@@ -1771,9 +1783,11 @@ class ReportsService {
      */
     const seesUnassigned = staffIds.map(Number).includes(1);
 
+    // A demo user (the Demo button's throwaway account) is never shown — kept beside, not inside,
+    // the `Op.or`, because a search replaces `where[Op.or]`.
     if (channel === 'direct') {
       if (!seesUnassigned) return { empty: true, where: {} };
-      return { empty: false, where: { parent_staff_id: null } };
+      return { empty: false, where: { parent_staff_id: null, is_demo: false } };
     }
 
     if (channel === 'agent') return { empty: false, where: { parent_staff_id: staffIds } };
@@ -1781,7 +1795,7 @@ class ReportsService {
     return {
       empty: false,
       where: seesUnassigned
-        ? { [Op.or]: [{ parent_staff_id: staffIds }, { parent_staff_id: null }] }
+        ? { [Op.or]: [{ parent_staff_id: staffIds }, { parent_staff_id: null }], is_demo: false }
         : { parent_staff_id: staffIds },
     };
   }
@@ -1915,11 +1929,15 @@ class ReportsService {
         { replacements: { ids: asText, types: AGENT_FUNDING_TYPES }, type: QueryTypes.SELECT }
       ),
 
-      // The WayPay payouts (same statuses as packages/common withdrawalCapFigures).
+      // The WayPay and F2Pay payouts that were paid.
       sequelize.query(
-        `SELECT user_id::text AS user_id, SUM(amount) AS withdrawn FROM pay_out_transactions
-          WHERE user_id::text IN (:ids) AND upper(currency) = 'INR' AND status = 1
-          GROUP BY 1`,
+        `SELECT user_id, SUM(amount) AS withdrawn FROM (
+           SELECT user_id::text AS user_id, amount FROM pay_out_transactions
+            WHERE user_id::text IN (:ids) AND upper(currency) = 'INR' AND status = 1
+           UNION ALL
+           SELECT user_id::text, amount FROM f2paywithdrawals
+            WHERE user_id::text IN (:ids) AND upper(currency) = 'INR' AND lower(status) = 'success'
+         ) p GROUP BY 1`,
         { replacements: { ids: asText }, type: QueryTypes.SELECT }
       ),
       S.loadRates(this.models),

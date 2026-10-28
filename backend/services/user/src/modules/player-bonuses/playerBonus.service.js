@@ -1,7 +1,7 @@
 'use strict';
 
 const { Op } = require('sequelize');
-const { money, entitlements, wagerCategory } = require('@ibitplay/common');
+const { money, entitlements, wagerCategory, operatorSettings } = require('@ibitplay/common');
 const { promotionsBlocked } = require('@ibitplay/auth');
 
 const { WalletService } = require('../wallet/wallet.service');
@@ -72,14 +72,37 @@ class PlayerBonusService {
     this.lockOption =
       deps.bonusWageringLock ??
       (async () => (await entitlements.featureOptions('bonus'))?.wagering_lock !== false);
+    /** The Super Admin's bonus settings (site admin → Limits and policy → Bonus). */
+    this.settings = deps.operatorSettings ?? operatorSettings(deps);
   }
 
+  /** The owner's switch AND the Super Admin's `bonus_wagering_lock`: both on = locked. */
   async lockOn() {
     try {
-      return (await this.lockOption()) !== false;
+      if ((await this.lockOption()) === false) return false;
+      return String(await this.settings.read('bonus_wagering_lock', true)) !== 'false';
     } catch (error) {
       this.logger?.warn({ err: error }, 'Bonus wagering lock option unreadable — lock stays on');
       return true;
+    }
+  }
+
+  /**
+   * The Super Admin's forfeit rule and popup copy. `allowed` false: a locked bonus must be wagered
+   * before any withdrawal (403 BONUS_WAGER_REQUIRED), and `forfeitBonus: true` cannot skip it.
+   * Unreadable = the old behaviour (allowed, the default copy).
+   */
+  async forfeitPolicy() {
+    try {
+      const [allowed, title, message] = await Promise.all([
+        this.settings.read('bonus_forfeit_allowed', true),
+        this.settings.read('bonus_forfeit_title', null),
+        this.settings.read('bonus_forfeit_message', null),
+      ]);
+      return { allowed: String(allowed) !== 'false', title, message };
+    } catch (error) {
+      this.logger?.warn({ err: error }, 'Bonus forfeit settings unreadable — forfeit stays allowed');
+      return { allowed: true, title: null, message: null };
     }
   }
 
@@ -503,17 +526,19 @@ class PlayerBonusService {
           : await this.models.PlayerBonus.findAll({ where: { user_id: userId, status: STATUS.ACTIVE }, raw: true })
       ).filter((b) => b.unlock_mode !== UNLOCK_MODE.GRADUAL);
       if (!active.length) return { forfeited: [] };
-      if (!forfeitBonus) {
-        throw errors.FORFEIT_REQUIRED({
-          count: active.length,
-          bonuses: active.map((b) => ({
-            id: String(b.id),
-            amount: D(b.amount),
-            currency: b.currency,
-            remaining: remainingOf(b),
-          })),
-        });
-      }
+      const policy = await this.forfeitPolicy();
+      const details = {
+        count: active.length,
+        bonuses: active.map((b) => ({
+          id: String(b.id),
+          amount: D(b.amount),
+          currency: b.currency,
+          remaining: remainingOf(b),
+        })),
+      };
+      // Checked on the confirmed resend too: the popup is not the only way to send `forfeitBonus`.
+      if (!policy.allowed) throw errors.WAGER_REQUIRED(details);
+      if (!forfeitBonus) throw errors.FORFEIT_REQUIRED({ ...details, title: policy.title, message: policy.message });
       if (!t) return { forfeited: [], pending: active.length };
       for (const b of active) await this.#end(b.id, STATUS.FORFEITED, END_REASON.WITHDRAWAL, null, t);
       this.logger?.info({ userId: String(userId), bonuses: active.map((b) => String(b.id)) }, 'Active bonuses forfeited by a withdrawal');

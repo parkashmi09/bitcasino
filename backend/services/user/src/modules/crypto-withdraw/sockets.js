@@ -124,7 +124,8 @@ function register({ on, deps }) {
           error.code?.startsWith('SITE_POLICY_') ||
           error.code === 'WITHDRAW_NOT_FOR_AGENT_USERS' ||
           error.code === 'WITHDRAW_BLOCKED' ||
-          error.code === 'BONUS_FORFEIT_REQUIRED'
+          error.code === 'BONUS_FORFEIT_REQUIRED' ||
+          error.code === 'BONUS_WAGER_REQUIRED'
         ) {
           return refuse(error);
         }

@@ -24,6 +24,19 @@ module.exports = defineErrors('AUTH', {
     status: 403,
     message: 'This account is not active',
   },
+  /** A demo account's time is up (`users.demo_expires_at`); it is deleted soon after. */
+  DEMO_DISABLED: {
+    status: 403,
+    message: 'Demo accounts are not available on this site',
+  },
+  DEMO_UNAVAILABLE: {
+    status: 503,
+    message: 'A demo account could not be created right now. Try again.',
+  },
+  DEMO_EXPIRED: {
+    status: 401,
+    message: 'Your demo session has ended. Start a new demo or use a real ID.',
+  },
   TOO_MANY_ATTEMPTS: {
     status: 429,
     message: 'Too many failed sign-in attempts. Try again later.',

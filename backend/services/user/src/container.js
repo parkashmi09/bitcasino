@@ -100,6 +100,10 @@ async function createContainer({ logger: injectedLogger } = {}) {
       const row = await connection.models.Users.findByPk(userId, { attributes: ['parent_staff_id'], raw: true });
       return row?.parent_staff_id ?? null;
     },
+    loadIsDemo: async (userId) => {
+      const row = await connection.models.Users.findByPk(userId, { attributes: ['is_demo'], raw: true });
+      return Boolean(row?.is_demo);
+    },
     loadStaff: (staffId) => clients.admin.get(`/internal/admin/staff-directory/staff/${staffId}`),
     // The owner's business model, read live: on b2b no player gets promotions (agentPlayers.js).
     loadBusinessModel: () => sitePolicy.readPolicy(connection.models, 'business_model'),

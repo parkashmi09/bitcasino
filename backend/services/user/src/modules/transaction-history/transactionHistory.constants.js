@@ -19,6 +19,7 @@
  *   withdrawals           crypto payouts           modules/crypto-withdraw
  *   fiat_withdrawals      manual bank payouts      modules/fiat-withdraw
  *   apaywithdrawals       A-Pay payouts            modules/psp
+ *   f2paywithdrawals      F2Pay payouts            modules/payment-orders
  *
  * `deposits` is NOT in that list. Nothing in the new backend writes it — only
  * `legacy/Wallet/Deposit.js` ever did — so a history built from it shows a
@@ -308,6 +309,31 @@ const WITHDRAWAL_SOURCES = Object.freeze([
         date: row.created_at,
       };
     },
+  },
+  {
+    method: 'f2pay',
+    type: 'Fiat',
+    model: 'F2payWithdrawals',
+    userColumn: 'user_id',
+    userIdIsText: false,
+    dateColumn: 'created_at',
+    orderColumn: 'id',
+    currencyColumn: 'currency',
+    present: (row) => ({
+      id: row.id,
+      reference: row.mch_order_no,
+      amount: row.amount,
+      currency: row.currency,
+      status: row.status,
+      details: `Bank: ${row.ifsc ?? 'N/A'}, Acc: ${maskTail(row.account_number)}`,
+      destination: {
+        accountNumber: maskTail(row.account_number),
+        accountHolderName: row.account_holder_name ?? null,
+        ifscCode: row.ifsc ?? null,
+      },
+      errorReason: row.error_reason ?? null,
+      date: row.created_at,
+    }),
   },
 ]);
 

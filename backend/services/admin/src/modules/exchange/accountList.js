@@ -46,7 +46,7 @@ const CHILDREN_SQL = `
          u.phone, u.last_city, u.created, c.sports_pts, c.upper_point, c.down_point, c.thirdparty_pts, c.original_game_pts
     FROM users u
     LEFT JOIN credits c ON c.uid = u.id
-   WHERE u.parent_staff_id = :parentId OR (:withDirectUsers AND u.parent_staff_id IS NULL)`;
+   WHERE u.parent_staff_id = :parentId OR (:withDirectUsers AND u.parent_staff_id IS NULL AND NOT u.is_demo)`;
 
 /** Ek DB row → screen ki row. */
 function toRow(r) {

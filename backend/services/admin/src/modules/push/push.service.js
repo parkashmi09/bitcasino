@@ -502,7 +502,7 @@ class PushService {
     if (!staff?.id) throw errors.AUDIENCE_NOT_ALLOWED({ kind: audience.kind });
     const { staffIds, root } = await this.#tree(staff);
     const scope = root
-      ? `(parent_staff_id IN (:staffIds) OR parent_staff_id IS NULL)`
+      ? `(parent_staff_id IN (:staffIds) OR (parent_staff_id IS NULL AND NOT is_demo))`
       : `parent_staff_id IN (:staffIds)`;
 
     if (audience.kind === 'players') {

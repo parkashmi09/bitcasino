@@ -3,7 +3,7 @@
 const crypto = require('node:crypto');
 
 const { money, currencyRegistry, directLedger } = require('@ibitplay/common');
-const { isAgentPlayer } = require('@ibitplay/auth');
+const { isRestrictedPlayer } = require('@ibitplay/auth');
 const { EVENTS, roomForUser, encode } = require('@ibitplay/socket');
 
 const errors = require('./wallet.errors');
@@ -105,8 +105,8 @@ class WalletService {
 
     const { uid, ...balances } = wallet;
 
-    // An agent's player runs on INR alone (user, 2026-10-17): no other coin is listed for them.
-    if (await isAgentPlayer(userId)) return { INR: money.fromStored(balances.inr ?? '0') };
+    // An agent's player runs on INR alone (user, 2026-10-17), and so does a demo account: no other coin is listed for them.
+    if (await isRestrictedPlayer(userId)) return { INR: money.fromStored(balances.inr ?? '0') };
     /**
      * Canonical decimal strings, so a client never sees "0" for one currency
      * and "0.00000000" for another.
@@ -241,7 +241,7 @@ class WalletService {
     const wallet = await this.repo.findWallet(userId);
     if (!wallet) throw errors.WALLET_NOT_FOUND({ userId });
     // Agent's player sees INR alone, like getBalances.
-    if (CURRENCY_COLUMN[String(currency ?? '').toUpperCase()] !== 'inr' && (await isAgentPlayer(userId))) return money.fromStored('0');
+    if (CURRENCY_COLUMN[String(currency ?? '').toUpperCase()] !== 'inr' && (await isRestrictedPlayer(userId))) return money.fromStored('0');
 
     if (isCustomCurrency(currency)) return money.fromStored(await this.repo.customBalance(userId, currency));
     const column = resolveColumn(currency);
@@ -290,7 +290,7 @@ class WalletService {
   async debit(input, context = {}) {
     // Agent's player: no stake / spend in any coin but INR (casino, originals, every debit path).
     // Credits stay open so refunds and rollbacks of an old bet still settle.
-    if (CURRENCY_COLUMN[String(input.currency ?? '').toUpperCase()] !== 'inr' && (await isAgentPlayer(input.userId))) {
+    if (CURRENCY_COLUMN[String(input.currency ?? '').toUpperCase()] !== 'inr' && (await isRestrictedPlayer(input.userId))) {
       throw errors.AGENT_PLAYER_INR_ONLY({ userId: input.userId, currency: input.currency });
     }
     return this.#move({ ...input, direction: OPERATION.DEBIT }, context);

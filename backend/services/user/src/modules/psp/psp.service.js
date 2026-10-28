@@ -112,8 +112,10 @@ class PspService {
       return { status: 'ok', duplicate: true, reference: parsed.reference };
     }
 
-    // An in-between state (F2Pay reports more than paid / failed): nothing to do yet.
+    // An in-between state (F2Pay reports more than paid / failed): nothing to do yet. Kept in the
+    // audit log so the state the provider sent can be read later.
     if (parsed.status === PSP_STATUS.PENDING) {
+      await this.#record(audit, { accepted: false, rejection: 'NOT_FINAL' });
       return { status: 'ok', settled: false, reference: parsed.reference };
     }
 
@@ -302,6 +304,12 @@ class PspService {
     }
     audit.userId = payout.userId;
     audit.currency = payout.currency;
+
+    // ── Still in flight (F2Pay's Processing): nothing to do until a final state arrives. ──
+    if (parsed.status === PSP_STATUS.PENDING) {
+      await this.#record(audit, { accepted: false, rejection: 'NOT_FINAL' });
+      return { status: 'ok', settled: false, pending: true, reference: parsed.reference };
+    }
 
     // ── Success: the money already left. Record and stop. ─────────────
     if (parsed.status === PSP_STATUS.SUCCESS) {
@@ -603,6 +611,15 @@ class PspService {
   async #findPayout(providerName, reference) {
     const { Apaywithdrawals, PayOutTransactions } = this.models;
 
+    if (providerName === 'f2pay') {
+      const row = await this.models.F2payWithdrawals.findOne({ where: { mch_order_no: reference }, raw: true });
+      return row && {
+        model: 'F2payWithdrawals', key: { mch_order_no: reference },
+        reference, userId: row.user_id, amount: row.amount, currency: row.currency,
+        status: row.status, refunded: Boolean(row.refunded),
+      };
+    }
+
     if (providerName === 'apay') {
       const row = await Apaywithdrawals.findOne({ where: { custom_transaction_id: reference }, raw: true });
       return row && {
@@ -628,7 +645,7 @@ class PspService {
     if (!model) return;
 
     const success = status === PSP_STATUS.SUCCESS;
-    const patch = payout.model === 'Apaywithdrawals'
+    const patch = payout.model === 'Apaywithdrawals' || payout.model === 'F2payWithdrawals'
       ? { status: success ? 'Success' : 'Failed', ...(refunded !== undefined ? { refunded } : {}) }
       : { status: success ? 1 : 2 };
 

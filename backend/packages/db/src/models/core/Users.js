@@ -222,6 +222,18 @@ module.exports = (sequelize) => {
       defaultValue: false,
       field: "system_locked",
     },
+    // migration 161-demo-users: the Demo button's throwaway account, and when its session ends.
+    is_demo: {
+      type: DataTypes.BOOLEAN,
+      allowNull: false,
+      defaultValue: false,
+      field: "is_demo",
+    },
+    demo_expires_at: {
+      type: DataTypes.DATE,
+      allowNull: true,
+      field: "demo_expires_at",
+    },
     gt: {
       type: DataTypes.DECIMAL,
       allowNull: true,

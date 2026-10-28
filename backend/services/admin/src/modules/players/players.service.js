@@ -472,7 +472,7 @@ class PlayersService {
       where: {
         id,
         ...(seesUnassigned
-          ? { [Op.or]: [{ parent_staff_id: tree }, { parent_staff_id: null }] }
+          ? { [Op.or]: [{ parent_staff_id: tree }, { parent_staff_id: null, is_demo: false }] }
           : { parent_staff_id: tree }),
       },
       attributes: ['id', 'name', 'status', 'parent_staff_id'],

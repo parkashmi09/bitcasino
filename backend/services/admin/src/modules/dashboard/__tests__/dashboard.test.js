@@ -403,7 +403,8 @@ async function scopeTests(t, conn, logger) {
   const playerA = newId();
   const playerB = newId();
   const playerD = newId();
-  const players = [playerA, playerB, playerD];
+  const playerX = newId(); // a demo user (the Demo button): direct, but never on the admin
+  const players = [playerA, playerB, playerD, playerX];
   const tag = `scope-${process.pid}-${playerA}`;
 
   const service = new DashboardService({ models, db: conn, logger, config: { ROOT_STAFF_ID: ownerId } });
@@ -427,11 +428,12 @@ async function scopeTests(t, conn, logger) {
       { id: playerA, name: `${tag}-a`, email: `${tag}-a@t.test`, password: 'x', status: 'active', parent_staff_id: agentA },
       { id: playerB, name: `${tag}-b`, email: `${tag}-b@t.test`, password: 'x', status: 'active', parent_staff_id: agentB },
       { id: playerD, name: `${tag}-d`, email: `${tag}-d@t.test`, password: 'x', status: 'active', parent_staff_id: null },
+      { id: playerX, name: `${tag}-x`, email: `${tag}-x@t.test`, password: 'x', status: 'active', parent_staff_id: null, is_demo: true },
     ]);
     // Currencies with no rate, so each player's deposit is identifiable in
     // the `unconverted` list of a headline figure.
     await models.FiatDeposits.bulkCreate(
-      [[playerA, 'SCPA'], [playerB, 'SCPB'], [playerD, 'SCPD']].map(([uid, currency]) => ({
+      [[playerA, 'SCPA'], [playerB, 'SCPB'], [playerD, 'SCPD'], [playerX, 'SCPX']].map(([uid, currency]) => ({
         user_id: String(uid), amount: '10', currency, status: 'approved', account_holder_name: 'T', created_at: new Date(),
       }))
     );
@@ -497,6 +499,18 @@ async function scopeTests(t, conn, logger) {
     assert.ok(seen.has('SCPD'), 'the direct user’s deposit is counted');
     assert.equal(seen.has('SCPA'), false, 'a client’s deposit is not');
     assert.equal(seen.has('SCPB'), false, 'a client’s deposit is not');
+  });
+
+  await t.test('a demo user is in no list, count or figure, not even the root’s', async () => {
+    // `registrations list only direct users` above already holds the root to [playerD].
+    const overview = await service.overview({ actor: { id: ownerId } });
+    assert.equal(currencies(overview).has('SCPX'), false, 'the demo user’s money is not counted');
+    const moves = await service.movements({ actor: { id: ownerId }, kind: 'deposits', userId: playerX, limit: 50, offset: 0 });
+    assert.equal(moves.total, 0);
+    await assert.rejects(
+      () => service.memberTeam({ actor: { id: ownerId }, userId: playerX }),
+      (err) => err.code === 'DASHBOARD_PLAYER_NOT_FOUND'
+    );
   });
 
   await t.test('no caller is an empty dashboard, not the whole site', async () => {

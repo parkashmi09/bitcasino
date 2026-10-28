@@ -440,7 +440,7 @@ class BetAdminService {
 
     const users = await this.models.Users.findAll({
       where: includeUnassigned
-        ? { [Op.or]: [{ parent_staff_id: staffIds }, { parent_staff_id: null }] }
+        ? { [Op.or]: [{ parent_staff_id: staffIds }, { parent_staff_id: null, is_demo: false }] }
         : { parent_staff_id: staffIds },
       attributes: ['id'],
       raw: true,

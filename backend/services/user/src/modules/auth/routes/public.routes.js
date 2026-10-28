@@ -64,6 +64,8 @@ module.exports = function publicRoutes(deps) {
   });
 
   router.post('/login', loginLimiter, validate(v.login), ctrl.login);
+  // Each press makes an account, so it is metered like registration.
+  router.post('/demo-login', registerLimiter, ctrl.demoLogin);
   router.post('/refresh', validate(v.refresh), ctrl.refresh);
 
   // Google sign-in (../google.js). Metered with login: every path ends in a session.

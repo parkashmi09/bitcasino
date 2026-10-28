@@ -34,6 +34,7 @@ const QueryTypes = Object.freeze({ SELECT: 'SELECT' });
  *   withdrawals (crypto) not 'Rejected'                       coin
  *   apaywithdrawals      not refunded, not rejected/declined/cancelled
  *                        ('Failed' with refunded = false still holds the player's money)
+ *   f2paywithdrawals     as apaywithdrawals (F2Pay payouts)
  *   pay_out_transactions status 0 (pending) or 1 (paid); 2 = failed and refunded
  *   staff_transfers      from_type 'user', a player-funding type (an agent collecting), INR
  *   owner_direct_ledger  entry_type 'user_withdraw' (Super Admin took it back), as above
@@ -86,6 +87,9 @@ const WITHDRAWN_SQL = `
           AND refunded IS NOT TRUE AND lower(status) NOT IN ${NOT_OUT})
     + (SELECT COALESCE(SUM(amount), 0) FROM pay_out_transactions
         WHERE user_id = :uid AND upper(currency) = :cur AND status IN (0, 1))
+    + (SELECT COALESCE(SUM(amount), 0) FROM f2paywithdrawals
+        WHERE user_id = :uid AND upper(currency) = :cur
+          AND refunded IS NOT TRUE AND lower(status) NOT IN ${NOT_OUT})
     + (SELECT COALESCE(SUM(amount), 0) FROM staff_transfers
         WHERE :cur = 'INR' AND from_type = 'user' AND from_id = :uid AND transfer_type IN ${FUNDING})
     AS total`;
@@ -173,6 +177,7 @@ const CURRENCIES_SQL = `
     UNION SELECT upper(coin) FROM withdrawals WHERE uid = :uid AND lower(status) NOT IN ${NOT_OUT}
     UNION SELECT upper(currency) FROM apaywithdrawals WHERE user_id = :uidText AND refunded IS NOT TRUE AND lower(status) NOT IN ${NOT_OUT}
     UNION SELECT upper(currency) FROM pay_out_transactions WHERE user_id = :uid AND status IN (0, 1)
+    UNION SELECT upper(currency) FROM f2paywithdrawals WHERE user_id = :uid AND refunded IS NOT TRUE AND lower(status) NOT IN ${NOT_OUT}
   ) c WHERE cur IS NOT NULL ORDER BY cur`;
 
 function createCapFigures({ db }) {

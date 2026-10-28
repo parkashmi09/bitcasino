@@ -833,13 +833,37 @@ test('payment orders', async (t) => {
     assert.equal(row.status, 'Failed');
   });
 
-  await t.test('F2Pay takes deposits only, in rupees and paise', async () => {
+  await t.test('an F2Pay withdrawal holds the balance and sends a signed BANK_INR payout', async () => {
+    const uid = newUid();
+    await seed(uid, '1000');
+    const { service, calls } = build(cashier, F2PAY);
+
+    const order = await service.createWithdrawal({ userId: uid, provider: 'f2pay', currency: 'INR', amount: '100', details: BANK });
+    assert.equal(order.status, 'pending');
+    assert.equal(calls[0].url, 'https://f2pay.test/payout/inr/order/create');
+    const sent = calls[0].body;
+    assert.ok(crypto.verify('sha256', Buffer.from(sent.bizContent), ours.publicKey, Buffer.from(sent.sign, 'base64')));
+    const biz = JSON.parse(sent.bizContent);
+    assert.equal(biz.mchOrderNo, order.reference);
+    assert.equal(biz.amount, '100.00');
+    assert.equal(biz.methodCode, 'BANK_INR');
+    assert.equal(biz.customerAccountNum, BANK.account_number);
+    assert.equal(biz.ifsc, BANK.bank_code);
+    assert.equal(biz.notifyUrl, 'https://api.example.test/api/v1/user/psp/f2pay/payout-callback');
+
+    const row = await connection.models.F2payWithdrawals.findOne({ where: { mch_order_no: order.reference }, raw: true });
+    assert.equal(row.status, 'Pending');
+    assert.equal(row.plat_no, 'F2P-1');
+    assert.equal(await balanceOf(uid), '900.00000000', 'held on request');
+  });
+
+  await t.test('F2Pay pays out INR only, in rupees and paise; a refused payout is refunded', async () => {
     const uid = newUid();
     await seed(uid, '1000');
     const { service, calls } = build(cashier, F2PAY);
 
     await assert.rejects(
-      () => service.createWithdrawal({ userId: uid, provider: 'f2pay', currency: 'INR', amount: '100', details: BANK }),
+      () => service.createWithdrawal({ userId: uid, provider: 'f2pay', currency: 'USDT', amount: '100', details: BANK }),
       (err) => err.code === 'PAYORDER_CURRENCY_NOT_SUPPORTED'
     );
     await assert.rejects(
@@ -847,6 +871,15 @@ test('payment orders', async (t) => {
       (err) => err.code === 'PAYORDER_PROVIDER_REJECTED'
     );
     assert.equal(calls.length, 0, 'neither reached F2Pay');
+
+    const refused = build(() => ({ code: '20010', msg: 'not in payout ip white list' }), F2PAY).service;
+    await assert.rejects(
+      () => refused.createWithdrawal({ userId: uid, provider: 'f2pay', currency: 'INR', amount: '100', details: BANK }),
+      (err) => err.code === 'PAYORDER_PROVIDER_REJECTED'
+    );
+    const row = await connection.models.F2payWithdrawals.findOne({ where: { user_id: uid }, raw: true });
+    assert.equal(row.status, 'Failed');
+    assert.equal(row.refunded, true);
     assert.equal(await balanceOf(uid), '1000.00000000');
   });
 

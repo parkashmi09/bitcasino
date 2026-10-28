@@ -664,7 +664,7 @@ class NotificationsService {
     const staffIds = await visibleStaffIds(this.models, staff.id, { logger: this.logger });
     const includeUnassigned = staffIds.map(Number).includes(1);
     const tree = includeUnassigned
-      ? { [Op.or]: [{ parent_staff_id: staffIds }, { parent_staff_id: null }] }
+      ? { [Op.or]: [{ parent_staff_id: staffIds }, { parent_staff_id: null, is_demo: false }] }
       : { parent_staff_id: staffIds };
     const tab = channel === 'direct' ? { parent_staff_id: null } : channel === 'agent' ? { parent_staff_id: { [Op.ne]: null } } : null;
 
@@ -687,7 +687,7 @@ class NotificationsService {
       where: {
         id: userId,
         ...(includeUnassigned
-          ? { [Op.or]: [{ parent_staff_id: staffIds }, { parent_staff_id: null }] }
+          ? { [Op.or]: [{ parent_staff_id: staffIds }, { parent_staff_id: null, is_demo: false }] }
           : { parent_staff_id: staffIds }),
       },
       attributes: ['id'],

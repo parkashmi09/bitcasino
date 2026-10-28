@@ -114,6 +114,9 @@ const USED_SQL = `
           AND refunded IS NOT TRUE AND lower(status) NOT IN ${NOT_OUT} AND created_at >= ${WINDOW})
     + (SELECT COALESCE(SUM(amount), 0) FROM pay_out_transactions
         WHERE user_id = :uid AND upper(currency) = :cur AND status IN (0, 1) AND created_at >= ${WINDOW})
+    + (SELECT COALESCE(SUM(amount), 0) FROM f2paywithdrawals
+        WHERE user_id = :uid AND upper(currency) = :cur
+          AND refunded IS NOT TRUE AND lower(status) NOT IN ${NOT_OUT} AND created_at >= ${WINDOW})
     + (SELECT COALESCE(SUM(crypto_amount), 0) FROM p2p_orders_sell
         WHERE user_id = :uidText AND upper(coin) = :cur
           AND upper(status) IN ('PENDING','RELEASED','DISPUTED') AND created_at >= ${WINDOW})

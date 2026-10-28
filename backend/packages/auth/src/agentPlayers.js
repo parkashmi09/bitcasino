@@ -140,12 +140,16 @@ function ttlCache(ttlMs, max = 10_000) {
 function createAgentPlayerResolver({
   loadOwnerStaffId,
   loadStaff,
+  // Optional: `users.is_demo` (migration 161). A demo account is a direct user with every
+  // capability above taken away, like an agent's player.
+  loadIsDemo = null,
   playerTtlMs = 30_000,
 } = {}) {
   if (typeof loadOwnerStaffId !== 'function') throw new Error('createAgentPlayerResolver requires loadOwnerStaffId');
   if (typeof loadStaff !== 'function') throw new Error('createAgentPlayerResolver requires loadStaff');
 
   const owners = ttlCache(playerTtlMs);
+  const demos = ttlCache(playerTtlMs);
 
   async function ownerOf(userId) {
     const key = String(userId);
@@ -163,14 +167,27 @@ function createAgentPlayerResolver({
       // Koi bhi parent = child user (staff level nahi dekhte).
       return Boolean(await ownerOf(userId));
     },
+    async isDemoPlayer(userId) {
+      if (!loadIsDemo || userId === null || userId === undefined) return false;
+      const key = String(userId);
+      const cached = demos.get(key);
+      if (cached !== undefined) return cached;
+      const value = Boolean(await loadIsDemo(userId));
+      demos.set(key, value);
+      return value;
+    },
     async capabilities(userId) {
-      return capabilitiesFor(await this.isAgentPlayer(userId));
+      return capabilitiesFor((await this.isAgentPlayer(userId)) || (await this.isDemoPlayer(userId)));
     },
     /** Forget one player's owner (re-parented) — or everything. */
     invalidate(userId) {
       if (userId === undefined) {
         owners.clear();
-      } else owners.delete(String(userId));
+        demos.clear();
+      } else {
+        owners.delete(String(userId));
+        demos.delete(String(userId));
+      }
     },
   };
 }
@@ -238,7 +255,7 @@ async function promotionsBlocked(userId) {
   } catch {
     return true;
   }
-  return isAgentPlayer(userId);
+  return isRestrictedPlayer(userId);
 }
 
 function promotionsB2bError() {
@@ -259,8 +276,19 @@ async function isAgentPlayer(userId) {
   return active.isAgentPlayer(userId);
 }
 
+/** A demo account (`users.is_demo`): a direct user, but locked down like an agent's player. */
+async function isDemoPlayer(userId) {
+  if (!active || typeof active.isDemoPlayer !== 'function') return false;
+  return active.isDemoPlayer(userId);
+}
+
+/** Loses every capability in AGENT_PLAYER_RESTRICTIONS: an agent's player or a demo account. */
+async function isRestrictedPlayer(userId) {
+  return (await isAgentPlayer(userId)) || (await isDemoPlayer(userId));
+}
+
 async function playerCapabilities(userId) {
-  const caps = capabilitiesFor(await isAgentPlayer(userId));
+  const caps = capabilitiesFor(await isRestrictedPlayer(userId));
   // A B2B site has no promotions for anybody; a failed read leaves them as the account says
   // (the routes still refuse for themselves).
   if (caps.promotions && (await siteHasNoPromotions().catch(() => false))) caps.promotions = false;
@@ -271,7 +299,7 @@ async function playerCapabilities(userId) {
 async function assertPlayerCapability(userId, capability) {
   if (!AGENT_PLAYER_RESTRICTIONS[capability]) throw new Error(`Unknown player capability "${capability}"`);
   if (capability === 'promotions' && (await siteHasNoPromotions())) throw promotionsB2bError();
-  if (await isAgentPlayer(userId)) throw agentPlayerError(capability);
+  if (await isRestrictedPlayer(userId)) throw agentPlayerError(capability);
 }
 
 /**
@@ -307,6 +335,8 @@ module.exports = {
   siteHasNoPromotions,
   promotionsBlocked,
   isAgentPlayer,
+  isDemoPlayer,
+  isRestrictedPlayer,
   playerCapabilities,
   assertPlayerCapability,
   denyAgentPlayer,

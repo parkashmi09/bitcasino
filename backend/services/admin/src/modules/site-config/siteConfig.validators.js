@@ -314,9 +314,10 @@ const updateOperatorSettings = {
   body: z
     .object(
       Object.fromEntries(
-        Object.keys(OPERATOR_SETTINGS).map((name) => [
+        Object.entries(OPERATOR_SETTINGS).map(([name, spec]) => [
           name,
-          z.union([z.string().max(100), z.number(), z.boolean(), z.null()]).optional(),
+          // A `text` setting is as long as its own `maxLength` (the forfeit popup message: 400).
+          z.union([z.string().max(spec.maxLength ?? 100), z.number(), z.boolean(), z.null()]).optional(),
         ])
       )
     )

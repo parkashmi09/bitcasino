@@ -582,6 +582,7 @@ class DashboardService {
     const window = (since) => [
       this.#groupByCurrency(this.models.Withdrawals, WITHDRAWAL_DONE.withdrawals, 'date', since, 'coin', this.#ownerWhere(scope, 'uid')),
       this.#groupByCurrency(this.models.FiatWithdrawals, WITHDRAWAL_DONE.fiat_withdrawals, 'date', since, 'currency', this.#ownerWhere(scope, 'uid')),
+      this.#groupByCurrency(this.models.F2payWithdrawals, WITHDRAWAL_DONE.f2paywithdrawals, 'created_at', since, 'currency', this.#ownerWhere(scope, 'user_id')),
     ];
 
     const [lifetime, today, inRange] = await Promise.all([
@@ -855,7 +856,7 @@ class DashboardService {
     if (!staffIds.includes(root)) return none;
 
     const users = await this.models.Users.findAll({
-      where: { parent_staff_id: null },
+      where: { parent_staff_id: null, is_demo: false },
       attributes: ['id'],
       raw: true,
     });
@@ -863,9 +864,9 @@ class DashboardService {
     return { empty: false, userIds: users.map((u) => String(u.id)) };
   }
 
-  /** `users` rows inside the scope — direct users, or nobody. */
+  /** `users` rows inside the scope — direct users (never a demo user), or nobody. */
   #playerWhere(scope) {
-    return scope.empty ? { id: [] } : { parent_staff_id: null };
+    return scope.empty ? { id: [] } : { parent_staff_id: null, is_demo: false };
   }
 
   /** Rows of another table whose owner column belongs to a direct user. */

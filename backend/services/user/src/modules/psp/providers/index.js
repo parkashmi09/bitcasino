@@ -336,13 +336,15 @@ const f2pay = {
       // Unreadable: no reference, so the service refuses it.
     }
     // Paid = the order's amount arrived. UnequalPaid = a different amount did; its `actualAmount`
-    // then fails the shared amount check and is not credited automatically.
-    const paid = biz.state === 'Paid' || biz.state === 'UnequalPaid';
+    // then fails the shared amount check and is not credited automatically. A payout callback
+    // names its state `status`: Completed = paid out, Failed = refund.
+    const state = biz.state ?? biz.status;
+    const paid = state === 'Paid' || state === 'UnequalPaid' || state === 'Completed';
     return {
       reference: biz.mchOrderNo,
       providerReference: biz.platNo ?? null,
-      status: paid ? PSP_STATUS.SUCCESS : biz.state === 'Failed' || biz.state === 'Closed' ? PSP_STATUS.FAILED : PSP_STATUS.PENDING,
-      amount: String((biz.state === 'UnequalPaid' ? biz.actualAmount : biz.amount) ?? '0'),
+      status: paid ? PSP_STATUS.SUCCESS : state === 'Failed' || state === 'Closed' ? PSP_STATUS.FAILED : PSP_STATUS.PENDING,
+      amount: String((state === 'UnequalPaid' ? biz.actualAmount : biz.amount) ?? '0'),
       utr: biz.utr ?? null,
     };
   },

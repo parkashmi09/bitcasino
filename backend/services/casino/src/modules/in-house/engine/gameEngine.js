@@ -109,7 +109,8 @@ class GameEngine {
     await assertInHouseEntitled(game);
 
     // The admin's Casino lock / Account lock (Risk management) stops in-house play too, as it does provider games.
-    const locks = await this.models.Users.findOne({ where: { id: userId }, attributes: ['casino_locked', 'system_locked'], raw: true });
+    const locks = await this.models.Users.findOne({ where: { id: userId }, attributes: ['casino_locked', 'system_locked', 'is_demo'], raw: true });
+    if (locks?.is_demo) throw errors.DEMO_NOT_ALLOWED({ userId });
     if (locks?.casino_locked || locks?.system_locked) throw errors.CASINO_LOCKED({ userId });
 
     const decimal = money.toDecimalString(stake);

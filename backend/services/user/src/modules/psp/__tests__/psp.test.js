@@ -874,4 +874,43 @@ test('payment provider callbacks', async (t) => {
     await f2payCallback({ mchOrderNo: reference, state: 'Closed', amount: '500.00' });
     assert.equal((await f2payRow(reference)).status, 'Failed');
   });
+
+  // The payout: the balance was held on request (payment-orders), so this seeds it already debited.
+  const f2payPayout = (biz) => {
+    const bizContent = JSON.stringify(biz);
+    const body = { merchantId: 'F2_TEST', signType: 'RSA', bizContent, sign: crypto.sign('sha256', Buffer.from(bizContent), f2pay.privateKey).toString('base64') };
+    return f2psp.handlePayoutCallback({ provider: 'f2pay', body, ip: '203.0.113.9' });
+  };
+  const pendingF2payPayout = async (uid, amount) => {
+    const reference = newRef();
+    await connection.models.F2payWithdrawals.create({ user_id: uid, mch_order_no: reference, amount, currency: 'INR', status: 'Pending' });
+    return reference;
+  };
+  const payoutRow = (reference) => connection.models.F2payWithdrawals.findOne({ where: { mch_order_no: reference }, raw: true });
+
+  await t.test('F2Pay payout: Processing changes nothing, Completed marks it paid and refunds nothing', async () => {
+    const uid = newUid();
+    await seed(uid, '0');
+    const reference = await pendingF2payPayout(uid, '100');
+
+    assert.equal((await f2payPayout({ mchOrderNo: reference, status: 'Processing', amount: '100.00' })).pending, true);
+    assert.equal((await payoutRow(reference)).status, 'Pending');
+
+    assert.equal((await f2payPayout({ mchOrderNo: reference, status: 'Completed', amount: '100.00' })).settled, true);
+    assert.equal((await payoutRow(reference)).status, 'Success');
+    assert.equal(await balanceOf(uid), '0.00000000');
+  });
+
+  await t.test('F2Pay payout: Failed refunds the recorded amount exactly once', async () => {
+    const uid = newUid();
+    await seed(uid, '0');
+    const reference = await pendingF2payPayout(uid, '100');
+    const failed = { mchOrderNo: reference, status: 'Failed', amount: '100.00' };
+
+    await f2payPayout(failed);
+    await f2payPayout(failed);
+    assert.equal(await balanceOf(uid), '100.00000000');
+    const row = await payoutRow(reference);
+    assert.deepEqual([row.status, row.refunded], ['Failed', true]);
+  });
 });

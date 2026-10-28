@@ -599,9 +599,15 @@ const f2pay = {
   methodsInDb: true,
 
   supports(currency, flow) {
-    // Deposits only, INR and crypto (USDT) only (user, 2026-10-24: "f2pay ka code bss inr and crypto ke
-    // liye hi rakho") — the payout below stays commented out. Paid and credited in that currency: no conversion.
-    return flow !== 'payout' && (currency === 'INR' || F2PAY_CRYPTO.includes(currency));
+    // INR and crypto (USDT) only (user, 2026-10-24: "f2pay ka code bss inr and crypto ke liye hi rakho"),
+    // no conversion. The payout (automatic withdrawal, user 2026-10-27) is INR bank transfer only.
+    if (flow === 'payout') return currency === 'INR';
+    return currency === 'INR' || F2PAY_CRYPTO.includes(currency);
+  },
+
+  // A payout is a bank transfer: the `imps` details (account_name, account_number, bank_code = IFSC).
+  systemFor() {
+    return 'imps';
   },
 
   /**
@@ -641,13 +647,14 @@ const f2pay = {
     return interpretF2pay(response, config);
   },
 
-  /*
-   * PAYOUT — kept commented out on purpose (user, 2026-10-24: "payout wala code abhi ke liye
-   * comment kar dena"). To switch it on: uncomment this, let `supports` return true for
-   * 'payout', and add F2Pay to `#recordPendingWithdrawal` / psp `#findPayout` with a
-   * f2paywithdrawals table. F2Pay's payout callback status is `Completed` / `Failed`.
-   *
-  async createWithdrawal({ reference, amount, notifyUrl, details }, config, { http }) {
+  /**
+   * The automatic withdrawal: BANK_INR straight to the player's account. The balance is already held
+   * (payment-orders); F2Pay's payout callback reports `Completed` / `Failed` (psp). F2Pay wants the
+   * payee's phone and email: the player's own, placeholders when the profile has none.
+   */
+  async createWithdrawal({ reference, amount, notifyUrl, details, customer }, config, { http }) {
+    if (!/^\d+(\.\d{1,2})?$/.test(String(amount))) return { ok: false, message: 'Amount can have at most 2 decimals' };
+    const phone = String(customer?.phone ?? '').replace(/\D/g, '');
     const bizContent = JSON.stringify({
       amount: Number(amount).toFixed(2),
       mchOrderNo: reference,
@@ -656,13 +663,12 @@ const f2pay = {
       customerAccountNum: details.account_number,
       customerName: details.account_name,
       ifsc: details.bank_code,
-      customerPhone: details.phone,
-      customerEmail: details.email,
+      customerPhone: phone.slice(-10) || '9999999999',
+      customerEmail: customer?.email || 'noreply@example.com',
     });
     const response = await http.post(`${config.F2PAY_BASE_URL}/payout/inr/order/create`, f2payRequest(reference, bizContent, config));
     return interpretF2pay(response, config);
   },
-   */
 };
 
 /** The coins F2Pay's crypto payin collects (methods e.g. PI_USDT_TRX are `payment_methods` rows). */

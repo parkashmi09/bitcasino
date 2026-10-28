@@ -11,7 +11,7 @@ const { manageableStaffIds } = require('../staff-directory/staffDirectory.servic
  *
  * Login wala sirf apne tree ka data dekhta hai:
  *   staffIds  = uske neeche ke saare staff (khud bhi). Owner = poori site.
- *   players   = un staff ke players + (sirf owner) direct users (parent_staff_id NULL).
+ *   players   = un staff ke players + (sirf owner) direct users (parent_staff_id NULL, demo user kabhi nahi).
  *
  * "Search By Client Name" me koi account chuna ho to report usi tak simit:
  *   player → sirf wahi,  staff → uske neeche ke players.
@@ -38,7 +38,7 @@ async function playersUnder(sequelize, staffIds, withDirectUsers) {
   if (!staffIds.length && !withDirectUsers) return [];
   const rows = await sequelize.query(
     `SELECT id FROM users
-      WHERE parent_staff_id IN (:staffIds) OR (:withDirectUsers AND parent_staff_id IS NULL)`,
+      WHERE parent_staff_id IN (:staffIds) OR (:withDirectUsers AND parent_staff_id IS NULL AND NOT is_demo)`,
     { replacements: { staffIds: staffIds.length ? staffIds : [0], withDirectUsers }, type: QueryTypes.SELECT }
   );
   return rows.map((r) => String(r.id));
@@ -49,7 +49,8 @@ async function findClient(sequelize, tree, { clientType, clientId }) {
   if (!clientType || !clientId) return null;
 
   if (clientType === 'user') {
-    const [user] = await sequelize.query('SELECT id, name, parent_staff_id FROM users WHERE id = :id', {
+    // A demo user (the Demo button's throwaway account) is in nobody's tree.
+    const [user] = await sequelize.query('SELECT id, name, parent_staff_id FROM users WHERE id = :id AND NOT is_demo', {
       replacements: { id: clientId },
       type: QueryTypes.SELECT,
     });
@@ -94,7 +95,7 @@ async function searchClients(sequelize, tree, search) {
        SELECT 'user' AS type, u.id::text AS id, u.name AS username, 'User' AS role
          FROM users u
         WHERE u.name ILIKE :q
-          AND (u.parent_staff_id IN (:staffIds) OR (:withDirectUsers AND u.parent_staff_id IS NULL))
+          AND (u.parent_staff_id IN (:staffIds) OR (:withDirectUsers AND u.parent_staff_id IS NULL AND NOT u.is_demo))
        UNION ALL
        SELECT 'staff', s.id::text, s.name, r.name
          FROM staff s JOIN roles r ON r.id = s.role_id

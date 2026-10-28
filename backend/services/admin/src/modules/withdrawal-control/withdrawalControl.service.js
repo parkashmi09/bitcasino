@@ -53,7 +53,7 @@ class WithdrawalControlService {
       this.sequelize.query(
         `SELECT COUNT(*)::int AS direct_users,
                 COUNT(*) FILTER (WHERE withdraw_locked IS TRUE)::int AS locked_direct_users
-           FROM users WHERE parent_staff_id IS NULL`,
+           FROM users WHERE parent_staff_id IS NULL AND NOT is_demo`,
         { type: QueryTypes.SELECT }
       ),
     ]);
@@ -80,7 +80,7 @@ class WithdrawalControlService {
    * INR balance, Deposited, Wagered, Withdrawn / max (cap), Joined, lock.
    */
   async users({ search, status = 'all', limit = 20, offset = 0 }) {
-    const where = { parent_staff_id: null };
+    const where = { parent_staff_id: null, is_demo: false };
     if (status === 'locked') where.withdraw_locked = true;
     if (search) {
       const term = `%${escapeLike(search.trim())}%`;

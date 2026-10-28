@@ -724,6 +724,13 @@ class StatementsService {
     })) {
       push(row.created_at, KIND.GATEWAY_WITHDRAW, `Gateway withdrawal (${row.status})`, 'Gateway', `-${row.amount}`, row.order_id, Number(row.id) || 0);
     }
+    // F2Pay payouts: held from the request on, so Pending counts; a Failed one was refunded.
+    for (const row of await this.models.F2payWithdrawals.findAll({
+      where: { user_id: uid, currency: like, status: { [Op.in]: ['Success', 'Pending'] } },
+      raw: true,
+    })) {
+      push(row.created_at, KIND.GATEWAY_WITHDRAW, `F2Pay withdrawal (${row.status})`, 'Gateway', `-${row.amount}`, row.mch_order_no, Number(row.id) || 0);
+    }
 
     /**
      * 6. Sports settlement.
@@ -1180,7 +1187,7 @@ class StatementsService {
       where: {
         id,
         ...(seesUnassigned
-          ? { [Op.or]: [{ parent_staff_id: tree }, { parent_staff_id: null }] }
+          ? { [Op.or]: [{ parent_staff_id: tree }, { parent_staff_id: null, is_demo: false }] }
           : { parent_staff_id: tree }),
       },
       attributes: ['id', 'name', 'email', 'parent_staff_id'],

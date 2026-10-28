@@ -718,6 +718,7 @@ class PlayerStatsService {
       okCrypto: WITHDRAWAL_DONE.withdrawals,
       okBank: WITHDRAWAL_DONE.fiat_withdrawals,
       okGateway: WITHDRAWAL_DONE.apaywithdrawals,
+      okF2pay: WITHDRAWAL_DONE.f2paywithdrawals,
       agentFunding: AGENT_FUNDING,
     };
     const cur = (expr) => (currency ? ` AND UPPER(${expr}) = :currency` : '');
@@ -734,6 +735,9 @@ class PlayerStatsService {
          FROM apaywithdrawals g
         WHERE LOWER(g.status) IN (:okGateway) AND (g.refunded IS NOT TRUE)
           AND ${rangeSql('g.created_at')}${who('g.user_id', true)}${cur('g.currency')}`,
+      `SELECT p.user_id::bigint, p.created_at, UPPER(p.currency), p.amount
+         FROM f2paywithdrawals p
+        WHERE LOWER(p.status) IN (:okF2pay) AND ${rangeSql('p.created_at')}${who('p.user_id')}${cur('p.currency')}`,
       // An agent collecting from its player. (A Direct User Wallet debit is not a withdrawal — owner, 19 Oct 2026.)
       `SELECT t.from_id, t.created_at, 'INR', t.amount
          FROM staff_transfers t

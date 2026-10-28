@@ -20,6 +20,9 @@ function createPublicController({ service }) {
       return response.ok(res, result);
     }),
 
+    /** The Demo button: a throwaway demo account, signed in (`AuthService.demoLogin`). */
+    demoLogin: asyncHandler(async (req, res) => response.created(res, await service.demoLogin(context(req)))),
+
     refresh: asyncHandler(async (req, res) => {
       const result = await service.refresh(req.body, context(req));
       return response.ok(res, result);

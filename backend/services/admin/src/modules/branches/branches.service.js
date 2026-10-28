@@ -25,7 +25,7 @@ const publicBranch = (b) => ({
 });
 
 /** A branch's players: direct users it created. A player with a parent is never one, whatever its column says. */
-const BRANCH_PLAYERS = 'SELECT u.id FROM users u WHERE u.branch_id = :branchId AND u.parent_staff_id IS NULL';
+const BRANCH_PLAYERS = 'SELECT u.id FROM users u WHERE u.branch_id = :branchId AND u.parent_staff_id IS NULL AND NOT u.is_demo';
 
 /** Which casino rounds (statements `casinoRoundsSql` sources) each bet report shows. */
 const BET_SOURCES = Object.freeze({ originals: ['inhouse', 'og'], casino: ['gis', 'jsgamesv2', 'seamless'] });
@@ -82,7 +82,7 @@ class BranchesService {
     const filter = where.join(' AND ');
     const [rows, [{ total }]] = await Promise.all([
       this.#query(
-        `SELECT b.*, (SELECT COUNT(*)::int FROM users u WHERE u.branch_id = b.id AND u.parent_staff_id IS NULL) AS players
+        `SELECT b.*, (SELECT COUNT(*)::int FROM users u WHERE u.branch_id = b.id AND u.parent_staff_id IS NULL AND NOT u.is_demo) AS players
            FROM branches b WHERE ${filter} ORDER BY b.id DESC LIMIT :limit OFFSET :offset`,
         replacements
       ),
@@ -138,7 +138,7 @@ class BranchesService {
   /** Every branch over one window, side by side, plus their sum. */
   async report({ from, to }) {
     const branches = await this.#query(
-      `SELECT b.*, (SELECT COUNT(*)::int FROM users u WHERE u.branch_id = b.id AND u.parent_staff_id IS NULL) AS players
+      `SELECT b.*, (SELECT COUNT(*)::int FROM users u WHERE u.branch_id = b.id AND u.parent_staff_id IS NULL AND NOT u.is_demo) AS players
          FROM branches b ORDER BY b.id`
     );
     // shortcut: one dashboard series per branch (≈10 queries each); fine for tens of branches, a GROUP BY branch_id query past that.
@@ -190,7 +190,7 @@ class BranchesService {
 
   async players({ branchId, search, limit = 20, offset = 0 }) {
     await this.#get(branchId);
-    const where = ['u.branch_id = :branchId', 'u.parent_staff_id IS NULL'];
+    const where = ['u.branch_id = :branchId', 'u.parent_staff_id IS NULL', 'NOT u.is_demo'];
     const replacements = { branchId, limit, offset };
     if (search) {
       where.push('(u.name ILIKE :term OR u.id::text LIKE :idTerm)');

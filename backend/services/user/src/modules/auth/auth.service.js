@@ -63,6 +63,9 @@ const MAX_FAILED_ATTEMPTS = 8;
 // variant of one email would get its own budget of guesses.
 const throttleKey = (identifier) => String(identifier ?? '').trim().toLowerCase().slice(0, 255);
 const SESSION_TTL_DAYS = 30;
+/** The Demo button (TENEXCH's): a throwaway direct account with ₹1500 for 30 minutes. */
+const DEMO_TTL_MS = 30 * 60_000;
+const DEMO_BALANCE = '1500';
 // Idle logout (owner flag `idle_logout` + the Super Admin's switch): checked once, this long after sign-in.
 const IDLE_LOGOUT_MS = 5 * 60_000;
 
@@ -227,6 +230,34 @@ class AuthService {
    * parties hold it — the legitimate client and someone else. The safe response
    * is to revoke the entire chain and make everyone sign in again.
    */
+  /**
+   * The site's Demo button: a new demo account (`users.is_demo`, a DIRECT user with no owner),
+   * ₹1500 INR, signed in until `demo_expires_at`. Nobody knows its password, it gets no
+   * signup or referral bonus, and the demo cleanup deletes it with everything it made.
+   */
+  async demoLogin(context = {}) {
+    // The owner panel's Demo login switch (on unless the owner turned it off).
+    if (!(await this.entitlements.isFlagEntitled('demo_login'))) throw errors.DEMO_DISABLED();
+    const { ip, userAgent } = withClientIp(context);
+    await this.region.assertAllowed(ip);
+
+    let username = null;
+    for (let tries = 0; tries < 8 && !username; tries += 1) {
+      const name = `demo${crypto.randomInt(100000, 1000000)}`;
+      if (!(await this.models.Users.findOne({ where: { name }, attributes: ['id'], raw: true }))) username = name;
+    }
+    if (!username) throw errors.DEMO_UNAVAILABLE();
+
+    const user = await this.#insertPlayer({
+      username,
+      passwordHash: await hashPassword(randomToken(24)),
+      ip,
+      demoExpiresAt: new Date(Date.now() + DEMO_TTL_MS),
+    });
+    this.logger?.info({ userId: String(user.id) }, 'Demo account created');
+    return this.#issueSession(user, { ip, userAgent, deviceLabel: 'demo' });
+  }
+
   async refresh({ refreshToken }, context = {}) {
     const tokenHash = hashToken(refreshToken);
 
@@ -302,6 +333,8 @@ class AuthService {
         'withdraw_locked',
         // read only to switch `capabilities.withdraw` off below; not sent
         'system_locked',
+        // migration 161-demo-users: sent as `demo` / `demoExpiresAt`
+        'is_demo', 'demo_expires_at',
       ],
       raw: true,
     });
@@ -310,6 +343,10 @@ class AuthService {
     user.withdraw_locked = Boolean(user.withdraw_locked);
     const systemLocked = Boolean(user.system_locked);
     delete user.system_locked;
+    user.demo = Boolean(user.is_demo);
+    user.demoExpiresAt = user.demo ? user.demo_expires_at : null;
+    delete user.is_demo;
+    delete user.demo_expires_at;
 
     /*
      * What the player site may show: `{ promotions, vault, deposit, swap, withdraw }`, false for
@@ -590,7 +627,7 @@ class AuthService {
   }
 
   /** The user row and its wallet, in one transaction — shared by password and Google sign-up. */
-  async #insertPlayer({ username, email, passwordHash, phone, country, refree, ip, googleSub = null }) {
+  async #insertPlayer({ username, email, passwordHash, phone, country, refree, ip, googleSub = null, demoExpiresAt = null }) {
     return this.db.transaction(async (transaction) => {
       const id = await this.#allocateUserId(transaction);
       const referralCode = await this.#uniqueReferralCode(username, transaction);
@@ -611,10 +648,11 @@ class AuthService {
           created: new Date(),
           last_ip: ip ?? null,
           ...(googleSub ? { google_sub: googleSub } : {}),
+          ...(demoExpiresAt ? { is_demo: true, demo_expires_at: demoExpiresAt } : {}),
         },
         { transaction }
       );
-      await this.models.Credits.create({ uid: user.id, inr: '0' }, { transaction });
+      await this.models.Credits.create({ uid: user.id, inr: demoExpiresAt ? DEMO_BALANCE : '0' }, { transaction });
       return user;
     });
   }
@@ -999,6 +1037,7 @@ class AuthService {
   }
 
   async #assertUsable(user) {
+    if (user.is_demo && !(new Date(user.demo_expires_at) > new Date())) throw errors.DEMO_EXPIRED();
     if (user.system_locked) throw errors.ACCOUNT_LOCKED({ reason: 'system' });
     if (user.is_locked) throw errors.ACCOUNT_LOCKED({ reason: 'manual' });
     if (user.status && user.status !== 'active') throw errors.ACCOUNT_INACTIVE({ status: user.status });
@@ -1078,7 +1117,9 @@ class AuthService {
     const { payload } = await this.db.transaction((transaction) =>
       this.#createSession(user, context, transaction)
     );
-    return { ...payload, idleCheckAt: (await this.#idleLogoutOn()) ? new Date(Date.now() + IDLE_LOGOUT_MS) : null };
+    // A demo account has its own 30-minute end, so no idle logout.
+    const idle = !user.is_demo && (await this.#idleLogoutOn());
+    return { ...payload, idleCheckAt: idle ? new Date(Date.now() + IDLE_LOGOUT_MS) : null };
   }
 
   /** Idle logout is in force: the owner's flag (off unless set) and the Super Admin's switch (on unless set). */
@@ -1109,7 +1150,8 @@ class AuthService {
 
   async #createSession(user, { ip, userAgent, deviceLabel }, transaction) {
     const refreshToken = randomToken(48);
-    const expiresAt = new Date(Date.now() + SESSION_TTL_DAYS * 24 * 3600 * 1000);
+    // A demo account's session (and every access token) ends with the demo.
+    const expiresAt = user.is_demo ? new Date(user.demo_expires_at) : new Date(Date.now() + SESSION_TTL_DAYS * 24 * 3600 * 1000);
 
     const session = await this.models.AuthSession.create(
       {
@@ -1130,6 +1172,7 @@ class AuthService {
       sessionId: session.id,
       role: 'player',
       status: user.status || 'active',
+      notAfter: user.is_demo ? expiresAt : null,
     });
 
     return {

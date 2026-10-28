@@ -62,6 +62,7 @@ const withdrawalStatus = (done) => `CASE
   ELSE 'other' END`;
 const FIAT_WITHDRAWAL_STATUS = withdrawalStatus(WITHDRAWAL_DONE.fiat_withdrawals);
 const CRYPTO_WITHDRAWAL_STATUS = withdrawalStatus(WITHDRAWAL_DONE.withdrawals);
+const F2PAY_WITHDRAWAL_STATUS = withdrawalStatus(WITHDRAWAL_DONE.f2paywithdrawals);
 
 /**
  * The tables behind each screen. `dimension` is what the breakdown chart
@@ -114,6 +115,10 @@ const SOURCES = Object.freeze({
           table: 'fiat_withdrawals', owner: 'uid', time: 'date', amount: 'amount',
           currency: 'currency', status: FIAT_WITHDRAWAL_STATUS,
           dimension: `CASE WHEN NULLIF(upi_id, '') IS NOT NULL AND NULLIF(account_number, '') IS NULL THEN 'UPI' ELSE 'Bank' END`,
+        },
+        {
+          table: 'f2paywithdrawals', owner: 'user_id', time: 'created_at', amount: 'amount',
+          currency: 'currency', status: F2PAY_WITHDRAWAL_STATUS, dimension: `'F2Pay'`,
         },
       ],
     },

@@ -61,6 +61,8 @@ const DEPOSIT_SUCCESS = Object.freeze({
 const WITHDRAWAL_DONE = Object.freeze({
   withdrawals: Object.freeze(['sent', 'paid', 'done', 'success', 'completed', 'complete']),
   fiat_withdrawals: Object.freeze(['approved', 'paid', 'sent', 'done', 'success', 'completed', 'complete']),
+  // F2Pay's automatic payout: Success once its callback says Completed (a Failed one is refunded).
+  f2paywithdrawals: Object.freeze(['success']),
 });
 
 /**
@@ -187,7 +189,7 @@ const MOVEMENT_SOURCES = Object.freeze([
     /** SMALLINT. `LOWER(status)` on it is a type error, not a no-op. */
     statusIsText: false,
   },
-  /** F2Pay — the site's payment gateway (INR, USDT); deposits only, it has no withdrawal table. */
+  /** F2Pay — the site's payment gateway: deposits (INR, USDT) and automatic INR payouts below. */
   {
     key: 'f2pay_deposit',
     label: 'F2Pay deposit',
@@ -225,6 +227,19 @@ const MOVEMENT_SOURCES = Object.freeze([
     amount: 'amount',
     currency: 'currency',
     statuses: WITHDRAWAL_DONE.fiat_withdrawals,
+    statusIsText: true,
+  },
+  {
+    key: 'f2pay_withdrawal',
+    label: 'F2Pay withdrawal',
+    direction: 'withdrawal',
+    model: 'F2payWithdrawals',
+    id: 'id',
+    user: 'user_id',
+    date: 'created_at',
+    amount: 'amount',
+    currency: 'currency',
+    statuses: WITHDRAWAL_DONE.f2paywithdrawals,
     statusIsText: true,
   },
   /**

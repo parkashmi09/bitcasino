@@ -186,7 +186,7 @@ test('fiat deposit and withdrawal', async (t) => {
     const created = await lodge(uid, '500');
 
     // The bank statement says 450.
-    const result = await deposits.approve({ depositId: created.depositId, creditAmount: '450' }, { id: 1 });
+    const result = await deposits.approve({ depositId: created.depositId, creditAmount: '450', comment: 'Bank statement shows 450' }, { id: 1 });
 
     assert.equal(result.claimedAmount, '500.00000000');
     assert.equal(result.creditedAmount, '450.00000000');

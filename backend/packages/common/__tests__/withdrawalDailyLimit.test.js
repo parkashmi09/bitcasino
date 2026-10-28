@@ -51,10 +51,10 @@ test('usage: the rolling 24 hours, every rail, the cap\'s withdrawn rule plus P2
   });
   assert.equal(await figures.used(7, 'inr'), '1234.50000000');
   assert.deepEqual(seen.opts.replacements, { uid: '7', uidText: '7', cur: 'INR' });
-  for (const table of ['fiat_withdrawals', 'withdrawals', 'apaywithdrawals', 'pay_out_transactions', 'p2p_orders_sell', 'tips']) {
+  for (const table of ['fiat_withdrawals', 'withdrawals', 'apaywithdrawals', 'pay_out_transactions', 'f2paywithdrawals', 'p2p_orders_sell', 'tips']) {
     assert.ok(seen.sql.includes(table), table);
   }
-  assert.equal((seen.sql.match(/interval '24 hours'/g) ?? []).length, 6, 'every rail is windowed');
+  assert.equal((seen.sql.match(/interval '24 hours'/g) ?? []).length, 7, 'every rail is windowed');
   assert.ok(!seen.sql.includes('staff_transfers'), 'an agent collection is not a player withdrawal');
 });
 

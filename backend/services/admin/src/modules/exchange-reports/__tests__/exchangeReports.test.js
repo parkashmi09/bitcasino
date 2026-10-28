@@ -75,8 +75,9 @@ test('exchange reports', async (t) => {
   const playerA = String(uidBase + 1);
   const playerB = String(uidBase + 2);
   const direct = String(uidBase + 3);
+  const demo = String(uidBase + 4); // a demo user (the Demo button): direct, but in no report
   const staffIds = [ownerId, agentA, agentB];
-  const uids = [playerA, playerB, direct];
+  const uids = [playerA, playerB, direct, demo];
 
   cleanup = async () => {
     const wallets = await sequelize.query('SELECT id FROM credits WHERE staff_id IN (:staffIds) OR uid IN (:uids)', {
@@ -121,6 +122,8 @@ test('exchange reports', async (t) => {
   await seedPlayer(playerA, `rep-playerA-${base}`, agentA);
   await seedPlayer(playerB, `rep-playerB-${base}`, agentB);
   await seedPlayer(direct, `rep-direct-${base}`, null);
+  await seedPlayer(demo, `rep-demo-${base}`, null);
+  await run('UPDATE users SET is_demo = TRUE WHERE id = :uid', { uid: demo });
 
   const walletOf = async (column, id) => (await one(`SELECT id FROM credits WHERE ${column} = :id`, { id })).id;
   const wOwner = await walletOf('staff_id', ownerId);
@@ -240,6 +243,15 @@ test('exchange reports', async (t) => {
       /not in your tree/
     );
     await assert.rejects(reports.statement({ actor: agent, clientType: 'user', clientId: direct, reportType: 'SPORTS', page: 1, limit: 25, ...range }));
+  });
+
+  await t.test('a demo user is in no report, client search or client pick — not even the owner’s', async () => {
+    // The owner's lists above (user win loss, the Direct Users tab, client search) already leave rep-demo out.
+    assert.deepStrictEqual(await reports.clients({ actor: owner, search: `rep-demo-${base}` }), []);
+    await assert.rejects(
+      reports.statement({ actor: owner, clientType: 'user', clientId: demo, reportType: 'SPORTS', page: 1, limit: 25, ...range }),
+      /not in your tree/
+    );
   });
 
   await t.test('bet detail + bet export of a game row', async () => {

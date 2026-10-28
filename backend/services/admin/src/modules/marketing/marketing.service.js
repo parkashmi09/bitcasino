@@ -49,7 +49,7 @@ class MarketingService {
 
     const [rows, estimated] = await Promise.all([
       this.models.Users.findAll({
-        where: { created: window },
+        where: { created: window, is_demo: false },
         attributes: [
           [fn('DATE', col('created')), 'date'],
           'parent_staff_id',
@@ -138,7 +138,7 @@ class MarketingService {
      * comment, and its reasoning is right.
      */
     const cohort = await this.models.Users.findAll({
-      where: { created: window },
+      where: { created: window, is_demo: false },
       attributes: ['id', 'parent_staff_id'],
       raw: true,
     });
@@ -338,7 +338,8 @@ class MarketingService {
    * every page — the rollup is bounded to the page's customers here.
    */
   async customers({ channel = 'all', depositors = false, newOnly = false, from, to, search, sort = 'recent', limit = 25, offset = 0 }) {
-    const where = {};
+    // A demo user (the Demo button's throwaway account) is not a customer.
+    const where = { is_demo: false };
 
     if (channel === 'direct') where.parent_staff_id = null;
     if (channel === 'agent') where.parent_staff_id = { [Op.ne]: null };

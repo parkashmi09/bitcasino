@@ -135,6 +135,10 @@ function requireGameEntitled({ models, config } = {}, pick, { mustExist = false 
 
   return async function gameEntitledGuard(req, _res, next) {
     try {
+      if (req.user?.id && models?.Users) {
+        const player = await models.Users.findByPk(req.user.id, { attributes: ['is_demo'], raw: true });
+        if (player?.is_demo) throw E.DEMO_NOT_ALLOWED();
+      }
       const given = pick(req) ?? {};
       const row = await lookup(models ?? {}, given.uid);
       if (mustExist && given.uid && !row && !bookUids.has(String(given.uid).toLowerCase())) throw E.NOT_FOUND({ uid: given.uid });

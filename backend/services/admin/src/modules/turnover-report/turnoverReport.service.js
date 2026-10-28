@@ -32,7 +32,7 @@ class TurnoverReportService {
   }
 
   async list({ search, limit = 25, offset = 0 }) {
-    const where = { parent_staff_id: null };
+    const where = { parent_staff_id: null, is_demo: false };
     if (search) {
       const term = `%${escapeLike(search.trim())}%`;
       where[Op.or] = [
