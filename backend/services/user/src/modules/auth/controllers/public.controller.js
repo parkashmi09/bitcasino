@@ -2,6 +2,8 @@
 
 const { response, asyncHandler } = require('@ibitplay/common');
 const google = require('../google');
+// rainbet: refresh token in an httpOnly cookie for clients that ask (../refreshCookie.js).
+const refreshCookie = require('../refreshCookie');
 
 /** Unauthenticated auth endpoints — the ones that MINT a session. */
 function createPublicController({ service }) {
@@ -12,20 +14,20 @@ function createPublicController({ service }) {
       const result = await service.registerAndSignIn(req.body, context(req));
       // 201: the account is new. The session in the body is what makes this
       // one round trip instead of two.
-      return response.created(res, result);
+      return response.created(res, refreshCookie.deliver(req, res, result));
     }),
 
     login: asyncHandler(async (req, res) => {
       const result = await service.login(req.body, context(req));
-      return response.ok(res, result);
+      return response.ok(res, refreshCookie.deliver(req, res, result));
     }),
 
     /** The Demo button: a throwaway demo account, signed in (`AuthService.demoLogin`). */
-    demoLogin: asyncHandler(async (req, res) => response.created(res, await service.demoLogin(context(req)))),
+    demoLogin: asyncHandler(async (req, res) => response.created(res, refreshCookie.deliver(req, res, await service.demoLogin(context(req))))),
 
     refresh: asyncHandler(async (req, res) => {
       const result = await service.refresh(req.body, context(req));
-      return response.ok(res, result);
+      return response.ok(res, refreshCookie.deliver(req, res, result));
     }),
 
     /** Whether the player site should draw the Google button. */
@@ -55,7 +57,7 @@ function createPublicController({ service }) {
     }),
 
     /** The one-time code → the token pair, as login answers it. */
-    googleExchange: asyncHandler(async (req, res) => response.ok(res, await service.googleExchange(req.body, context(req)))),
+    googleExchange: asyncHandler(async (req, res) => response.ok(res, refreshCookie.deliver(req, res, await service.googleExchange(req.body, context(req))))),
 
     /**
      * Create an account.

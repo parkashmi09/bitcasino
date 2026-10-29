@@ -989,8 +989,8 @@ const TEMPLATES = Object.freeze({
     // nothing). Its variants are the one layout per feature that UI has; the owner panel pins
     // every feature to them (owner-panel/src/configs/siteUi.ts).
     "hash_game": {
-      "label": "Hash Game (original)",
-      "description": "Hash Game (original): this site's own UI in its original colours, no theme applied. VIP, bonus, referral, promotions, daily contest, weekly raffle, quests, vault, swap, notifications, KYC and gift cards.",
+      "label": "Default",
+      "description": "Default: this site's own UI in its original colours, no theme applied. VIP, bonus, referral, promotions, daily contest, weekly raffle, quests, vault, swap, notifications, KYC and gift cards.",
       "variants": {
         "vip": "ring_panel",
         "promotions": "event_list",

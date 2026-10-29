@@ -284,14 +284,18 @@ class PlayerBonusService {
           continue;
         }
         /* Gradual (hash.game): what this stake can unlock is `stake × contribution × house edge ×
-           unlock rate`; the rollover rule counts the stake itself. `inBonus` is that figure, in
-           the bonus currency, and the share of the stake it used is worked out from it below. */
-        const inBonus = b.unlock_mode === UNLOCK_MODE.GRADUAL ? await this.#unlockable(converted, b, kind) : converted;
+           unlock rate`. Rollover counts `stake × contribution` — the game's ratio (site admin →
+           Bonus → Wager contribution) — or the stake itself while the Super Admin has the ratio
+           on gradual bonuses only. `inBonus` is that figure, in the bonus currency, and the share
+           of the stake it used is worked out from it below. */
+        const gradual = b.unlock_mode === UNLOCK_MODE.GRADUAL;
+        const ratio = gradual ? null : await this.#rolloverRatio(kind);
+        const inBonus = gradual ? await this.#unlockable(converted, b, kind) : money.toDecimalString(money.multiply(converted, ratio));
         if (!money.gt(inBonus, '0')) continue;
         const take = money.toDecimalString(money.min(inBonus, need));
         // What is left of the stake, in the stake's own unit.
         if (money.gte(take, inBonus)) remaining = ZERO;
-        else if (stakeCode === String(b.currency).toUpperCase() && b.unlock_mode !== UNLOCK_MODE.GRADUAL) remaining = money.toDecimalString(money.subtract(remaining, take));
+        else if (stakeCode === String(b.currency).toUpperCase() && !gradual && money.compare(ratio, '1') === 0) remaining = money.toDecimalString(money.subtract(remaining, take));
         else {
           const share = money.toDecimalString(money.divide(money.toDecimalString(money.subtract(inBonus, take)), inBonus));
           remaining = money.toDecimalString(money.multiply(remaining, share));
@@ -390,6 +394,13 @@ class PlayerBonusService {
   }
 
   /** Active bonuses of a player, oldest first, locked. */
+  /** The share of a stake a rollover bonus counts: the game's wager contribution, or 1 while the
+      Super Admin has it on gradual bonuses only (`bonus_contribution_all`). */
+  async #rolloverRatio(kind) {
+    const all = String(await this.settings.read('bonus_contribution_all', true)) !== 'false';
+    return all ? contributionFor(this.db.sequelize, kind, { logger: this.logger }) : '1';
+  }
+
   /** What `stake` (already in the bonus currency) unlocks on a gradual bonus. */
   async #unlockable(stake, b, kind) {
     const contribution = await contributionFor(this.db.sequelize, kind, { logger: this.logger });

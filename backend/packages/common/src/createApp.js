@@ -174,7 +174,7 @@ function createApp({
     },
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization', REQUEST_ID_HEADER, 'x-internal-key', 'x-internal-service', 'x-2fa-code'],
+    allowedHeaders: ['Content-Type', 'Authorization', REQUEST_ID_HEADER, 'x-internal-key', 'x-internal-service', 'x-2fa-code', 'x-refresh-cookie'],
     exposedHeaders: [REQUEST_ID_HEADER, 'RateLimit-Limit', 'RateLimit-Remaining', 'RateLimit-Reset', 'Retry-After'],
     maxAge: 86_400,
   });

@@ -25,6 +25,10 @@ module.exports = function userRoutes(deps) {
         emailNotifications: z.coerce.boolean().optional(),
         pushNotifications: z.coerce.boolean().optional(),
         hideBalance: z.coerce.boolean().optional(),
+        // rainbet: the Settings privacy switches (migration 169).
+        showBetsPublicly: z.boolean().optional(),
+        showStatistics: z.boolean().optional(),
+        tipNotifications: z.boolean().optional(),
       })
       .strict(),
   };

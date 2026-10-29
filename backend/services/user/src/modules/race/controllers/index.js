@@ -1,6 +1,7 @@
 'use strict';
 
 const { response, asyncHandler } = require('@ibitplay/common');
+const { hidePrivateNames } = require('../racePrivacy');
 
 function createControllers({ service }) {
   const page = (q) => ({ page: Math.floor(q.offset / q.limit) + 1, limit: q.limit });
@@ -23,8 +24,11 @@ function createControllers({ service }) {
      * by the gateway's token check on any request that carries a token, and a
      * signed-in player wants their own rank whether or not they are winning.
      */
-    leaderboard: asyncHandler(async (req, res) =>
-      response.ok(res, await service.leaderboard({ type: req.params.type, userId: req.user?.id ?? null }))
+    leaderboard: asyncHandler(async (req, res) => {
+      const board = await service.leaderboard({ type: req.params.type, userId: req.user?.id ?? null });
+      // rainbet: players who keep their bets private are not named on the public board.
+      return response.ok(res, await hidePrivateNames(service.models, board, req.user?.id));
+    }
     ),
 
     /** The previous window's standings (Last Champion, History). */

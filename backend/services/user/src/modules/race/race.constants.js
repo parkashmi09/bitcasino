@@ -7,7 +7,20 @@ const { RACE_BUCKETS } = require('@ibitplay/common');
  */
 
 /** The two races. `race_config.type` and `races.type` are CHECKed against this. */
-const RACE_TYPES = Object.freeze(['daily', 'weekly']);
+// rainbet: `monthly` added (migration 168).
+const RACE_TYPES = Object.freeze(['daily', 'weekly', 'monthly']);
+
+/** The `race_boats` (booked seats) columns per race type. */
+const BOAT_FIELDS = Object.freeze({
+  daily: { points: 'daily_points', rank: 'daily_rank' },
+  weekly: { points: 'weekly_points', rank: 'weekly_rank' },
+  monthly: { points: 'monthly_points', rank: 'monthly_rank' },
+});
+
+/** How long a race of each type may run, in days (a hand-made race is checked against it). */
+const MAX_RACE_DAYS = Object.freeze({ daily: 1, weekly: 7, monthly: 31 });
+
+const RACE_LABEL = Object.freeze({ daily: 'Daily', weekly: 'Weekly', monthly: 'Monthly' });
 
 /** `cancelled`: closed by staff with no prizes (migration 078). */
 const RACE_STATUS = Object.freeze({ OPEN: 'open', SETTLED: 'settled', CANCELLED: 'cancelled' });
@@ -72,6 +85,9 @@ const MIN_REWARD = '0.01';
 
 module.exports = {
   RACE_TYPES,
+  BOAT_FIELDS,
+  MAX_RACE_DAYS,
+  RACE_LABEL,
   RACE_STATUS,
   RACE_BUCKETS,
   BUCKET_COLUMN,

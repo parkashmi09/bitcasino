@@ -12,6 +12,9 @@ const { buildRankPrizes, buildCustomLadder } = require('./race.prizes');
 const { windowFor, DAY_MS } = require('./race.window');
 const {
   RACE_TYPES,
+  BOAT_FIELDS,
+  MAX_RACE_DAYS,
+  RACE_LABEL,
   RACE_STATUS,
   RACE_BUCKETS,
   BUCKET_COLUMN,
@@ -309,7 +312,7 @@ class RaceService {
    * The current standings for one race.
    *
    * @param {object} options
-   * @param {'daily'|'weekly'} options.type
+   * @param {'daily'|'weekly'|'monthly'} options.type
    * @param {number|null} [options.userId]  when present, the caller's own row is
    *   resolved even if it falls below the payout line — a player wants to know
    *   where they are, not only whether they are winning.
@@ -563,7 +566,7 @@ class RaceService {
 
     const start = new Date(startsAt);
     const end = new Date(endsAt);
-    const maxMs = (type === 'daily' ? 1 : 7) * DAY_MS;
+    const maxMs = MAX_RACE_DAYS[type] * DAY_MS;
     if (!(end > new Date())) throw errors.INVALID_WINDOW({ reason: 'endsAt must be in the future' });
     if (!(start < end)) throw errors.INVALID_WINDOW({ reason: 'startsAt must be before endsAt' });
     if (end - start > maxMs) throw errors.INVALID_WINDOW({ reason: `a ${type} race is at most ${maxMs / DAY_MS} day(s)` });
@@ -732,9 +735,7 @@ class RaceService {
       /** Decorative entries reset with the race they were placed in. */
       if (config.bookedSeatsEnabled) {
         await this.models.RaceBoat.update(
-          race.type === 'daily'
-            ? { daily_points: '0', daily_rank: null }
-            : { weekly_points: '0', weekly_rank: null },
+          { [BOAT_FIELDS[race.type].points]: '0', [BOAT_FIELDS[race.type].rank]: null },
           { where: {}, transaction }
         );
       }
@@ -773,7 +774,7 @@ class RaceService {
     const config = await this.getConfig({ type: race.type });
     if (config?.bookedSeatsEnabled) {
       await this.models.RaceBoat.update(
-        race.type === 'daily' ? { daily_points: '0', daily_rank: null } : { weekly_points: '0', weekly_rank: null },
+        { [BOAT_FIELDS[race.type].points]: '0', [BOAT_FIELDS[race.type].rank]: null },
         { where: {} }
       );
     }
@@ -904,7 +905,7 @@ class RaceService {
         idempotencyKey: `race-reward:${reward.id}`,
         refType: 'RACE_REWARD',
         refId: String(reward.id),
-        description: `${reward.type === 'weekly' ? 'Weekly' : 'Daily'} race — rank ${reward.rank}`,
+        description: `${RACE_LABEL[reward.type] ?? 'Daily'} race — rank ${reward.rank}`,
       },
       { sourceService: 'user-service' }
     );
@@ -1153,8 +1154,8 @@ class RaceService {
     if (!race) return { placed: 0 };
 
     const { entries } = await this.#standings(race, config);
-    const pointsField = type === 'daily' ? 'daily_points' : 'weekly_points';
-    const rankField = type === 'daily' ? 'daily_rank' : 'weekly_rank';
+    const pointsField = BOAT_FIELDS[type].points;
+    const rankField = BOAT_FIELDS[type].rank;
 
     const boats = await this.models.RaceBoat.findAll({
       where: { is_active: true },
@@ -1333,8 +1334,8 @@ class RaceService {
   async #applyBookedSeats(entries, config, type) {
     if (!config.bookedSeatsEnabled) return entries;
 
-    const pointsField = type === 'daily' ? 'daily_points' : 'weekly_points';
-    const rankField = type === 'daily' ? 'daily_rank' : 'weekly_rank';
+    const pointsField = BOAT_FIELDS[type].points;
+    const rankField = BOAT_FIELDS[type].rank;
 
     const placed = await this.models.RaceBoat.findAll({
       where: { is_active: true, [rankField]: { [Op.ne]: null } },

@@ -98,10 +98,35 @@ function booleans(map) {
  * clone name resolved to its key, or null. Anything else is dropped rather
  * than refusing the whole document — the plan itself still applies.
  */
-function templateOf(value) {
+function templateOf(value, palettes = []) {
   if (typeof value !== 'string' || !value) return null;
+  if (palettes.some((p) => p.key === value)) return value; // one of the owner's own themes
   const key = featureCatalogue.resolveTemplateKey(value);
   return Object.hasOwn(featureCatalogue.TEMPLATES, key) ? key : null;
+}
+
+/** The colours a theme carries (frontend/src/lib/paletteMap.js): 6-digit hex, no `#`. */
+const PALETTE_COLOURS = ['accent', 'onAccent', 'secondary', 'onSecondary', 'bg', 'card', 'border', 'input', 'fg', 'muted'];
+
+/**
+ * Colour themes the owner made (rainbet: `palettes: [{ key: 'custom_…', label, colours }]`).
+ * A theme with a bad key or any colour that is not a 6-digit hex is dropped; `[]` when absent.
+ */
+function palettesOf(list) {
+  if (!Array.isArray(list)) return [];
+  const out = [];
+  for (const p of list.slice(0, 24)) {
+    if (!p || typeof p !== 'object' || typeof p.key !== 'string' || !/^custom_[a-z0-9_]{1,40}$/.test(p.key)) continue;
+    const colours = {};
+    for (const c of PALETTE_COLOURS) {
+      const v = String(p.colours?.[c] ?? '').replace(/^#/, '').toLowerCase();
+      if (!/^[0-9a-f]{6}$/.test(v)) break;
+      colours[c] = v;
+    }
+    if (Object.keys(colours).length !== PALETTE_COLOURS.length || out.some((o) => o.key === p.key)) continue;
+    out.push({ key: p.key, label: String(p.label ?? p.key).slice(0, 40), colours });
+  }
+  return out;
 }
 
 /**
@@ -130,13 +155,16 @@ function coinsOf(list) {
 
 function normalise(data) {
   if (!data || typeof data !== 'object' || !Number.isFinite(Number(data.version))) return null;
+  const palettes = palettesOf(data.palettes);
   return {
     site: data.site ?? null,
     version: Number(data.version),
     updatedAt: data.updatedAt ?? null,
     features: booleans(data.features),
     flags: booleans(data.flags),
-    template: templateOf(data.template),
+    template: templateOf(data.template, palettes),
+    // The owner's own colour themes (rainbet); the template may name one of them.
+    palettes,
     variants: variantsOf(data.variants),
     coins: coinsOf(data.coins),
     // Owner-only feature options (featureOptions.js); unknown keys dropped, defaults applied by readers.
@@ -286,11 +314,12 @@ function createEntitlementsStore({ config, logger, db, onChange: initialOnChange
 
   /** `{ features, flags, template, variants, version, fetchedAt, source }` — never a secret. */
   function current() {
-    if (!doc) return { features: {}, flags: {}, template: null, variants: null, coins: [], options: {}, region: regionPolicy.cleanRegion(null), withdrawalCap: withdrawalCap.cleanWithdrawalCap(null), withdrawalDailyLimit: withdrawalDailyLimit.cleanWithdrawalDailyLimit(null), paymentMethods: {}, withdrawalsEnabled: true, branding: null, version: 0, fetchedAt: null, source: 'default' };
+    if (!doc) return { features: {}, flags: {}, template: null, palettes: [], variants: null, coins: [], options: {}, region: regionPolicy.cleanRegion(null), withdrawalCap: withdrawalCap.cleanWithdrawalCap(null), withdrawalDailyLimit: withdrawalDailyLimit.cleanWithdrawalDailyLimit(null), paymentMethods: {}, withdrawalsEnabled: true, branding: null, version: 0, fetchedAt: null, source: 'default' };
     return {
       features: { ...doc.features },
       flags: { ...doc.flags },
       template: doc.template ?? null,
+      palettes: (doc.palettes ?? []).map((p) => ({ ...p, colours: { ...p.colours } })),
       variants: doc.variants ? { ...doc.variants } : null,
       coins: (doc.coins ?? []).map((c) => ({ ...c })),
       options: JSON.parse(JSON.stringify(doc.options ?? {})),

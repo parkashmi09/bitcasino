@@ -9,6 +9,7 @@
  * met its amount is credited to cash in the same transaction. Withdrawals take cash only, and
  * forfeit any active bonus once the player confirms. See `playerBonus.service.js`.
  *
+ *   public GET  /api/v1/user/bonus-balance/contribution    the game ratio the player is shown
  *   user   GET  /api/v1/user/bonus-balance                 the player's bonus balance + progress
  *   admin  GET  /api/v1/admin/user/bonus-balance           report (tree-scoped)
  *          GET  /api/v1/admin/user/bonus-balance/users/:userId
@@ -20,6 +21,7 @@ module.exports = {
   basePath: '/bonus-balance',
   models: ['core', 'extended'],
   routers: {
+    public: require('./routes/public.routes'),
     user: require('./routes/user.routes'),
     admin: require('./routes/admin.routes'),
   },

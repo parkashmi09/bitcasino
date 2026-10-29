@@ -31,6 +31,9 @@ module.exports = (sequelize) => {
       weekly_points: { type: DataTypes.DECIMAL(30, 8), allowNull: false, defaultValue: '0', field: 'weekly_points' },
       daily_rank: { type: DataTypes.INTEGER, allowNull: true, field: 'daily_rank' },
       weekly_rank: { type: DataTypes.INTEGER, allowNull: true, field: 'weekly_rank' },
+      // rainbet: the monthly race (migration 168).
+      monthly_points: { type: DataTypes.DECIMAL(30, 8), allowNull: false, defaultValue: '0', field: 'monthly_points' },
+      monthly_rank: { type: DataTypes.INTEGER, allowNull: true, field: 'monthly_rank' },
       is_active: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: true, field: 'is_active' },
       created_at: { type: DataTypes.DATE, allowNull: false, field: 'created_at' },
       updated_at: { type: DataTypes.DATE, allowNull: false, field: 'updated_at' },

@@ -293,6 +293,18 @@ class WalletService {
     if (CURRENCY_COLUMN[String(input.currency ?? '').toUpperCase()] !== 'inr' && (await isRestrictedPlayer(input.userId))) {
       throw errors.AGENT_PLAYER_INR_ONLY({ userId: input.userId, currency: input.currency });
     }
+    // rainbet: every stake from every provider lands here, so this is where a player's own break
+    // or loss / wager limit is enforced (responsible-gambling). A sports stake carries its event.
+    if (input.reason === REASON.BET_STAKE) {
+      const { ResponsibleService } = require('../responsible-gambling/responsible.service');
+      this.responsible ??= new ResponsibleService(this.deps);
+      await this.responsible.assertMayStake({
+        userId: input.userId,
+        currency: input.currency,
+        amount: input.amount,
+        sports: context.sourceService === 'sports-service' || Boolean(input.sportId || input.matchId || input.marketType),
+      });
+    }
     return this.#move({ ...input, direction: OPERATION.DEBIT }, context);
   }
 

@@ -56,6 +56,8 @@ const INTERNAL_SURFACE = Object.freeze({
     '/internal/user/affiliate',
     '/internal/user/wager',
     '/internal/user/history',
+    // rainbet: a player's own breaks / limits, asked by casino-service before an in-house stake.
+    '/internal/user/responsible-gambling',
   ],
   'admin-service': [
     '/internal/admin/accounts',
@@ -197,6 +199,11 @@ const INTERNAL_ACL = Object.freeze({
     '/internal/user/wallet',
     /** Every settled stake is counted here (wager/wagerActivity.service.js), plus /reverse for refunds. */
     '/internal/user/wager',
+    /**
+     * rainbet: the in-house engine takes its stake on `credits` itself, not through the wallet's
+     * debit, so it asks user-service whether the player's own break or limit allows the stake.
+     */
+    '/internal/user/responsible-gambling',
   ],
 
   /** Pays out sports bets. Not casino's surface. */

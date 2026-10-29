@@ -25,6 +25,10 @@ const DEFAULTS = Object.freeze({
   emailNotifications: true,
   pushNotifications: true,
   hideBalance: false,
+  // rainbet: the Settings privacy switches (migration 169), on by default.
+  showBetsPublicly: true,
+  showStatistics: true,
+  tipNotifications: true,
 });
 
 /** An enum, not free text — the column is what a client renders from. */

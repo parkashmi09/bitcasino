@@ -73,6 +73,8 @@ class GameEngine {
     this.db = db;
     this.logger = logger;
     this.config = config;
+    /** rainbet: user-service, for the player's own break / limit before a stake. */
+    this.clients = clients;
     /**
      * `recordPlay` and the wager counters live with the catalogue they are
      * about. Same service, same models — a plain collaborator, not an HTTP hop.
@@ -114,6 +116,11 @@ class GameEngine {
     if (locks?.casino_locked || locks?.system_locked) throw errors.CASINO_LOCKED({ userId });
 
     const decimal = money.toDecimalString(stake);
+
+    // rainbet: the player's own break or loss / wager limit (user-service responsible-gambling). This
+    // engine debits `credits` itself rather than through the wallet's `debit`, so it asks first; a
+    // refusal is the wallet's own 403 RESPONSIBLE_* and nothing is debited.
+    await this.clients.user.post('/internal/user/responsible-gambling/check', { userId: String(userId), currency, amount: decimal, sports: false });
 
     const opened = await this.db.transaction(async (transaction) => {
       /**

@@ -12,6 +12,11 @@ const send = {
       toUsername: username,
       // The same coins the chat tip refuses (the NC test coin).
       currency: currency.refine((c) => !TIP_BLOCKED_CURRENCIES.includes(c), { message: 'this currency cannot be tipped' }),
+      // rainbet: pay from another coin — the sender is charged `amount` of `currency` converted into
+      // this coin at the platform rate (no fee); the recipient still gets `currency`.
+      fromCurrency: currency
+        .refine((c) => !TIP_BLOCKED_CURRENCIES.includes(c), { message: 'this currency cannot be tipped' })
+        .optional(),
       amount: moneyAmount,
       note: z
         .string()

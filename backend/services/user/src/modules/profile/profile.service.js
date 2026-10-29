@@ -106,6 +106,11 @@ class ProfileService {
       }
     }
 
+    // rainbet: the player's "Display Statistics on Profile" switch (userconfig, migration 169).
+    const showStats = await this.models.Userconfig.findOne({ where: { uid: userId }, attributes: ['show_statistics'], raw: true })
+      .then((c) => c?.show_statistics !== false, () => true);
+    if (!showStats) stats = null;
+
     return {
       userId: String(user.id),
       username: user.name,
@@ -118,7 +123,8 @@ class ProfileService {
       // The admin's name for the level and its card badge (VIP branding, migration 120).
       levelName: vip.name,
       badgeUrl: vip.badgeUrl ?? null,
-      gamesPlayed: user.games_played,
+      gamesPlayed: showStats ? user.games_played : null,
+      statisticsHidden: !showStats,
       bets: stats?.bets ?? null,
       wins: stats?.wins ?? null,
     };

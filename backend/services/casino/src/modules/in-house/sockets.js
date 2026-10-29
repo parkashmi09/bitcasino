@@ -3,6 +3,7 @@
 const { EVENTS, AUDIENCE, PLATFORM_EVENTS, encode } = require('@ibitplay/socket');
 
 const { GameEngine } = require('./engine/gameEngine');
+const { ChallengeService } = require('../challenges/challenges.service');
 const { CrashLoop } = require('./engine/crashLoop');
 const { KenoLoop } = require('./engine/kenoLoop');
 
@@ -126,7 +127,9 @@ const refuse = (error) => ({
  * round being taken back. So it never throws.
  * ═════════════════════════════════════════════════════════════════════════
  */
-function announceSettled({ context, game, coin, amount, settled, logger }) {
+function announceSettled({ context, game, coin, amount, settled, logger, challenges }) {
+  // rainbet: the round against the open challenges on its game; never awaited, never throws.
+  void challenges?.onSettled({ userId: context.userId, game, coin, amount, profit: settled?.profit, betId: settled?.betId });
   try {
     context.socket.nsp.emit(
       PLATFORM_EVENTS.BET_SETTLED,
@@ -147,6 +150,7 @@ function announceSettled({ context, game, coin, amount, settled, logger }) {
 
 function register({ on, deps }) {
   const engine = new GameEngine(deps);
+  const challenges = new ChallengeService(deps);
   const { logger, config } = deps;
 
   /**
@@ -239,6 +243,7 @@ function register({ on, deps }) {
             amount: bet.stake,
             settled,
             logger,
+            challenges,
           });
 
           /**
@@ -352,7 +357,7 @@ function register({ on, deps }) {
             });
 
             announceSettled({
-              context, game: game.key, coin: round.coin, amount: round.amount, settled, logger,
+              context, game: game.key, coin: round.coin, amount: round.amount, settled, logger, challenges,
             });
             return { command: 'busted', ...settled, win: settled.isWinner };
           }
@@ -365,7 +370,7 @@ function register({ on, deps }) {
               round, profit: outcome.profit, result: outcome.result, isWinner: outcome.isWinner,
             });
             announceSettled({
-              context, game: game.key, coin: round.coin, amount: round.amount, settled, logger,
+              context, game: game.key, coin: round.coin, amount: round.amount, settled, logger, challenges,
             });
             /**
              * `slot` and `path` are Plinko's, and they only exist once the ball
@@ -407,7 +412,7 @@ function register({ on, deps }) {
               status: 'lost',
             });
             announceSettled({
-              context, game: game.key, coin: round.coin, amount: round.amount, settled, logger,
+              context, game: game.key, coin: round.coin, amount: round.amount, settled, logger, challenges,
             });
             return { command: 'busted', ...settled, win: false };
           }

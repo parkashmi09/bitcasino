@@ -19,6 +19,7 @@ const errors = require('./auth.errors');
 const { sharedIpLocator, normaliseIp } = require('./geo/ipLocation');
 const { sitePolicy, withdrawBlock, manualPayments, operatorSettings, entitlements } = require('@ibitplay/common');
 const { RegionService } = require('../region/region.service');
+const { assertNotPlatformExcluded } = require('../responsible-gambling/responsible.service');
 /* Registration is where a referral becomes a team. Safe to require here —
    the affiliate module does not reach back into auth. */
 const { AffiliateService } = require('../affiliate/affiliate.service');
@@ -1041,6 +1042,8 @@ class AuthService {
     if (user.system_locked) throw errors.ACCOUNT_LOCKED({ reason: 'system' });
     if (user.is_locked) throw errors.ACCOUNT_LOCKED({ reason: 'manual' });
     if (user.status && user.status !== 'active') throw errors.ACCOUNT_INACTIVE({ status: user.status });
+    // rainbet: the player's own whole-account break (responsible-gambling) — no sign-in, no refresh.
+    await assertNotPlatformExcluded(this.models, user.id);
     await this.#assertUplineUsable(user);
   }
 

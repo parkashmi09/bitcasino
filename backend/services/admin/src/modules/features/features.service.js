@@ -170,7 +170,11 @@ class FeaturesService {
     // The owner's template also names the site's colour theme (Carbon Gold,
     // Violet Night…); front ends switch their palette from this row.
     const template = describeTemplate(rows.get(TEMPLATE_ROW)?.variant);
-    const theme = template ? [{ feature: 'theme', kind: 'theme', variant: template.key }] : [];
+    // One of the owner's own themes (rainbet) carries its colours: no front end knows it by key.
+    const custom = template && (plan.palettes ?? []).find((p) => p.key === template.key);
+    const theme = template
+      ? [{ feature: 'theme', kind: 'theme', variant: template.key, ...(custom ? { label: custom.label, palette: custom.colours } : {}) }]
+      : [];
     return [...theme, ...FEATURES.flatMap((f) => {
       const row = rows.get(f.key);
       // Not in the owner's plan reads as switched off — a closed policy is `none`.
@@ -457,9 +461,11 @@ class FeaturesService {
       // The template still names the theme (and the preset the owner panel started from).
       let template = null;
       if (doc.template) {
-        const key = resolveTemplateKey(doc.template);
+        // The owner's own theme (rainbet: `palettes`) is a template too, kept by its key.
+        const custom = (doc.palettes ?? []).some((p) => p.key === doc.template);
+        const key = custom ? doc.template : resolveTemplateKey(doc.template);
         const stored = rows.get(TEMPLATE_ROW)?.variant;
-        if (TEMPLATES[key] && (!stored || resolveTemplateKey(stored) !== key)) {
+        if ((TEMPLATES[key] || custom) && (!stored || resolveTemplateKey(stored) !== key)) {
           await this.models.SiteFeature.upsert({ feature: TEMPLATE_ROW, variant: key, enabled: true, config: {}, secrets: {}, updated_by: OWNER_WRITER });
           template = key;
         }

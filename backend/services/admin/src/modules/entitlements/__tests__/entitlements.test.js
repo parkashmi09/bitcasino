@@ -437,6 +437,47 @@ test('entitlements', async (t) => {
     assert.equal((await new FeaturesService(container).list()).template.key, 'emerald_dark');
   });
 
+  await t.test('an owner-made colour theme (rainbet) is kept, applied as the template and published with its colours', async () => {
+    const rows = new Map();
+    const models = {
+      SiteFeature: {
+        findByPk: async (key) => (rows.has(key) ? { ...rows.get(key) } : null),
+        findAll: async () => [...rows.values()].map((r) => ({ ...r })),
+        upsert: async (row) => rows.set(row.feature, { ...row }),
+      },
+      Siteconfig: { findOne: async () => ({ id: 1 }), update: async () => {} },
+    };
+    const container = { models, logger, config: {}, clients: { user: { post: async () => {} } } };
+    const panel = ownerPanel();
+    const p = poller(panel, memoryDb(), (current) => new FeaturesService(container).onEntitlementsChange(current));
+    entitlements.configureEntitlements({ read: () => p.current() });
+
+    const colours = { accent: '#FF5500', onAccent: 'ffffff', secondary: '22aa66', onSecondary: 'ffffff', bg: '101010', card: '1a1a1a', border: '262626', input: '333333', fg: 'eeeeee', muted: '888888' };
+    panel.next = signed(doc(1, {
+      variants: {},
+      template: 'custom_sunset',
+      palettes: [
+        { key: 'custom_sunset', label: 'Sunset', colours },
+        { key: 'custom_bad', label: 'Bad', colours: { ...colours, bg: 'nothex' } }, // dropped: a bad colour
+        { key: 'not_custom', label: 'Wrong key', colours }, // dropped: not a custom_ key
+      ],
+    }));
+    const current = await p.pollOnce();
+    assert.equal(current.template, 'custom_sunset');
+    assert.deepEqual(current.palettes.map((x) => x.key), ['custom_sunset']);
+    assert.equal(current.palettes[0].colours.accent, 'ff5500', 'stored lower-case, without #');
+    assert.equal(rows.get('_template').variant, 'custom_sunset');
+
+    const theme = (await new FeaturesService(container).publicList()).find((r) => r.feature === 'theme');
+    assert.equal(theme.variant, 'custom_sunset');
+    assert.equal(theme.label, 'Sunset');
+    assert.equal(theme.palette.bg, '101010');
+
+    // A template naming a custom theme the document does not carry is dropped.
+    panel.next = signed(doc(2, { variants: {}, template: 'custom_gone', palettes: [] }));
+    assert.equal((await p.pollOnce()).template, null);
+  });
+
   // ── The owner's document sets every feature (variants + on/off) ─────
 
   /** Fake site_features + siteconfig rows and a recorder for the socket pushes. */

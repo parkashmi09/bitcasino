@@ -40,6 +40,10 @@ const EXTENSIONS = {
     // ── migration 077-tips ─────────────────────────────────────────────
     // The player's own switch for receiving tips. No row = the default (on).
     tips_enabled: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: true, field: 'tips_enabled' },
+    // ── migration 169-privacy-preferences (rainbet) ────────────────────
+    show_bets_publicly: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: true, field: 'show_bets_publicly' },
+    show_statistics: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: true, field: 'show_statistics' },
+    tip_notifications: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: true, field: 'tip_notifications' },
   },
 
   // ── migration 008-wager-columns ──────────────────────────────────────

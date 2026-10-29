@@ -68,7 +68,7 @@ class TipService {
 
   // ══ Player ══════════════════════════════════════════════════════════
 
-  async send({ userId, toUsername, currency, amount, note = null, requestId = null }) {
+  async send({ userId, toUsername, currency, amount, fromCurrency = null, note = null, requestId = null }) {
     // A retry of a send that already went through (same sender, same requestId) gets that tip
     // back instead of moving the money again.
     if (requestId) {
@@ -107,9 +107,22 @@ class TipService {
     if (!(await this.#tipsEnabled(recipientId))) throw errors.DISABLED_BY_RECIPIENT({ toUsername: recipient.name });
 
     const value = money.toDecimalString(money.toMinor(amount));
+
+    // rainbet: the coin the sender pays in. Another coin than the tip's is charged the tip's worth
+    // at the platform rate, no fee (`fromCurrency`); the recipient still gets `value` of `code`.
+    const payCode = fromCurrency ? String(fromCurrency).toUpperCase() : code;
+    let payValue = value;
+    if (payCode !== code) {
+      const converted = await this.rewardMoney.convert(value, code, payCode);
+      if (converted == null) throw errors.NO_RATE({ currency: payCode });
+      payValue = money.toDecimalString(money.toMinor(converted));
+      if (!money.gt(payValue, '0')) throw errors.MIN_AMOUNT({ currency: code, minimum, amount });
+    }
+
+    // Money out of the sender: the requirements and the cap are checked on what actually leaves.
     const applied = await this.requirements.assertMet(senderId, {
-      amount: value,
-      currency: code,
+      amount: payValue,
+      currency: payCode,
       kycError: (status) => errors.KYC_REQUIRED({ kycStatus: status ?? null }),
     });
 
@@ -124,16 +137,17 @@ class TipService {
       result = await this.db.transaction(async (transaction) => {
         // ── 0. Cap / daily limit under the player lock, taken BEFORE the wallet rows (the order
         //       the withdraw rails use), so a tip and a withdrawal racing cannot deadlock.
-        await this.requirements.assertCapInTransaction(senderId, { amount: value, currency: code, transaction, applied });
+        await this.requirements.assertCapInTransaction(senderId, { amount: payValue, currency: payCode, transaction, applied });
 
         // ── 1. Both wallet rows, lowest id first ────────────────────────
         // `debit` / `credit` take these same row locks themselves; taking them
         // here first fixes the ORDER, which is what prevents the deadlock.
         for (const id of [senderId, recipientId].sort((a, b) => a - b)) {
-          const locked = await this.wallet.repo.lockBalance(id, code, transaction);
+          const lockCode = id === senderId ? payCode : code;
+          const locked = await this.wallet.repo.lockBalance(id, lockCode, transaction);
           if (locked) continue;
           if (id === senderId) {
-            throw errors.INSUFFICIENT_BALANCE({ currency: code, requested: value, available: '0' });
+            throw errors.INSUFFICIENT_BALANCE({ currency: payCode, requested: payValue, available: '0' });
           }
           await this.wallet.repo.createWallet(id, transaction);
           await this.wallet.repo.lockBalance(id, code, transaction);
@@ -166,19 +180,19 @@ class TipService {
           sent = await this.wallet.debit(
             {
               userId: senderId,
-              currency: code,
-              amount: value,
+              currency: payCode,
+              amount: payValue,
               reason: REASON.TIP_SENT,
               idempotencyKey: `tip:${tipId}:sent`,
               refType: 'TIP',
               refId: String(tipId),
-              description: `Tip to ${recipient.name}`,
+              description: payCode === code ? `Tip to ${recipient.name}` : `Tip to ${recipient.name} (${value} ${code})`,
             },
             { sourceService: 'user-service', transaction, username: sender.name }
           );
         } catch (error) {
           if (error.code === 'WALLET_INSUFFICIENT_FUNDS') {
-            throw errors.INSUFFICIENT_BALANCE({ currency: code, requested: value, available: error.details?.available });
+            throw errors.INSUFFICIENT_BALANCE({ currency: payCode, requested: payValue, available: error.details?.available });
           }
           throw error;
         }
@@ -199,7 +213,16 @@ class TipService {
 
         await tip.update({ from_ledger_id: sent.ledgerId, to_ledger_id: received.ledgerId }, { transaction });
 
-        return { tipId, toUsername: recipient.name, currency: code, amount: value, balance: sent.newBalance };
+        return {
+          tipId,
+          toUsername: recipient.name,
+          currency: code,
+          amount: value,
+          // What left the sender, and their balance in that coin afterwards.
+          paidCurrency: payCode,
+          paidAmount: payValue,
+          balance: sent.newBalance,
+        };
       });
     } catch (error) {
       // Two copies of the same request raced: the unique index let one through and rolled this
@@ -218,8 +241,11 @@ class TipService {
 
     // After COMMIT, never awaited: a failed notification never fails the tip.
     // (Both balances are pushed over the socket by the wallet itself on commit.)
+    // rainbet: the recipient's "Receive Tip Notifications" switch (userconfig, migration 169).
+    const wantsNotice = await this.models.Userconfig.findOne({ where: { uid: recipientId }, attributes: ['tip_notifications'], raw: true })
+      .then((c) => c?.tip_notifications !== false, () => true);
     try {
-      void notifyPlayer(recipientId, {
+      if (wantsNotice) void notifyPlayer(recipientId, {
         kind: 'tip_received',
         key: `tip:${result.tipId}`,
         title: 'You got a tip',

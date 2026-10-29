@@ -154,6 +154,9 @@ const OPERATOR_SETTINGS = Object.freeze({
   // Read by user-service's PlayerBonusService (user, 2026-10-28). The lock is in force only while
   // the owner's `bonus.wagering_lock` is on too; the forfeit pair is the withdraw popup's copy.
   bonus_wagering_lock: { env: 'BONUS_WAGERING_LOCK', kind: 'boolean', default: true, label: 'Keep a granted bonus locked until it is wagered' },
+  // Whether the Wager contribution ratios (Bonus → Wager contribution) count on every bonus, or on
+  // gradual ones only (the earlier behaviour: rollover counted every stake in full).
+  bonus_contribution_all: { env: 'BONUS_CONTRIBUTION_ALL', kind: 'boolean', default: true, label: 'Game ratio (wager contribution) applies to every bonus' },
   bonus_forfeit_allowed: { env: 'BONUS_FORFEIT_ALLOWED', kind: 'boolean', default: true, label: 'Let a player give up a locked bonus to withdraw' },
   bonus_forfeit_title: { env: 'BONUS_FORFEIT_TITLE', kind: 'text', maxLength: 80, default: 'You will lose your bonus', label: 'Forfeit popup title' },
   bonus_forfeit_message: {
@@ -164,15 +167,20 @@ const OPERATOR_SETTINGS = Object.freeze({
     label: 'Forfeit popup message',
   },
 
-  // Loss bonus (lossback), read by user-service's LossBonusService (user, 2026-10-28): a share of a
-  // player's net loss over the last completed period, claimed by the player. Amounts are in the
-  // site's reward currency; OFF until the Super Admin turns it on.
+  // Loss bonus (lossback), read by user-service's LossBonusService (user, 2026-10-28/29): a share
+  // of a player's net loss, claimed by the player after a confirmation. Welcome Shield mode (the
+  // default, as hash.game) covers the hours after the first deposit; otherwise the last completed
+  // period. Amounts are in the site's reward currency; OFF until the Super Admin turns it on.
   loss_bonus_enabled: { env: 'LOSS_BONUS_ENABLED', kind: 'boolean', default: false, label: 'Loss bonus on' },
-  loss_bonus_percent: { env: 'LOSS_BONUS_PERCENT', kind: 'decimal', min: 0, max: 100, default: '10', label: 'Loss bonus % of net loss' },
-  loss_bonus_period_days: { env: 'LOSS_BONUS_PERIOD_DAYS', kind: 'number', min: 1, max: 31, default: 7, label: 'Period (days; 7 = Monday to Monday, 1 = daily)' },
+  loss_bonus_welcome: { env: 'LOSS_BONUS_WELCOME', kind: 'boolean', default: true, label: 'Welcome Shield: only the hours after the first deposit (off = every period)' },
+  loss_bonus_protection_hours: { env: 'LOSS_BONUS_PROTECTION_HOURS', kind: 'number', min: 1, max: 720, default: 24, label: 'Welcome Shield: protection hours after the first deposit' },
+  loss_bonus_period_days: { env: 'LOSS_BONUS_PERIOD_DAYS', kind: 'number', min: 1, max: 31, default: 7, label: 'Period when Welcome Shield is off (days; 7 = Monday to Monday, 1 = daily)' },
+  loss_bonus_percent: { env: 'LOSS_BONUS_PERCENT', kind: 'decimal', min: 0, max: 100, default: '20', label: 'Lossback rate (% of net loss)' },
+  loss_bonus_max: { env: 'LOSS_BONUS_MAX', kind: 'decimal', min: 0, default: '0', label: 'Bonus up to (0 = no cap)' },
   loss_bonus_min_loss: { env: 'LOSS_BONUS_MIN_LOSS', kind: 'decimal', min: 0, default: '0', label: 'Minimum net loss to qualify' },
-  loss_bonus_max: { env: 'LOSS_BONUS_MAX', kind: 'decimal', min: 0, default: '0', label: 'Maximum bonus per period (0 = no cap)' },
-  loss_bonus_wager_multiplier: { env: 'LOSS_BONUS_WAGER_MULTIPLIER', kind: 'decimal', min: 0, max: 100, default: '1', label: 'Wager before the bonus becomes cash (× bonus; 0 = cash at once)' },
+  loss_bonus_max_bet: { env: 'LOSS_BONUS_MAX_BET', kind: 'decimal', min: 0, default: '0', label: 'Max bet per bet (a bigger bet\'s loss does not count; 0 = no limit)' },
+  loss_bonus_claim_hours: { env: 'LOSS_BONUS_CLAIM_HOURS', kind: 'number', min: 0, max: 720, default: 48, label: 'Hours to claim after settlement (0 = no expiry)' },
+  loss_bonus_wager_multiplier: { env: 'LOSS_BONUS_WAGER_MULTIPLIER', kind: 'decimal', min: 0, max: 100, default: '0', label: 'Wager before the bonus becomes cash (× bonus; 0 = cash at once)' },
 });
 
 /** A pair whose maximum may not sit under its minimum. */
@@ -577,13 +585,28 @@ class SiteConfigService {
 
   async wagerContribution() {
     try {
+      // A game rule carries the catalogue's name and provider (slots, JSGames, Originals) so the
+      // screen shows "Sweet Bonanza · Pragmatic Play" rather than a uuid.
       const rows = await this.models.Siteconfig.sequelize.query(
-        `SELECT category, provider, game_ref, percent FROM wager_contribution
-          ORDER BY (category IS NULL), category, (provider IS NULL), provider, game_ref`,
+        `SELECT w.category, w.provider, w.game_ref, w.percent,
+                COALESCE(o.name, g.name, j.game_name) AS game_name,
+                CASE WHEN o.code IS NOT NULL OR lower(j.vendor) IN ('in-house', 'inhouse') THEN 'Originals'
+                     ELSE COALESCE(g.provider, j.vendor) END AS game_provider
+           FROM wager_contribution w
+           LEFT JOIN LATERAL (SELECT name, provider FROM gisgamesnew WHERE uuid = w.game_ref LIMIT 1) g ON w.game_ref IS NOT NULL
+           LEFT JOIN LATERAL (SELECT game_name, vendor FROM js_games WHERE lower(game_uid) = w.game_ref LIMIT 1) j ON w.game_ref IS NOT NULL
+           LEFT JOIN LATERAL (SELECT code, name FROM og_games WHERE lower(code) = w.game_ref LIMIT 1) o ON w.game_ref IS NOT NULL
+          ORDER BY (w.category IS NULL), w.category, (w.provider IS NULL), w.provider, w.game_ref`,
         { type: this.models.Siteconfig.sequelize.QueryTypes.SELECT }
       );
       return {
-        rules: rows.map((r) => ({ category: r.category, provider: r.provider, gameRef: r.game_ref, percent: String(Number(r.percent)) })),
+        rules: rows.map((r) => ({
+          category: r.category,
+          provider: r.provider,
+          gameRef: r.game_ref,
+          percent: String(Number(r.percent)),
+          ...(r.game_ref ? { gameName: r.game_name ?? null, gameProvider: r.game_provider ?? null } : {}),
+        })),
         stored: true,
       };
     } catch (error) {

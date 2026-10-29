@@ -12,6 +12,7 @@ const { addChildGamePoints } = require('./pointLedger');
  * newest N" delete, which is exactly how two lists drift apart.
  */
 const { GamesService } = require('../games/games.service');
+const { ChallengeService } = require('../challenges/challenges.service');
 const { catalogueConditions, assertVendorEntitled } = require('../games/gameEntitlement');
 const {
   CODE,
@@ -97,6 +98,8 @@ class JsGamesService {
     this.v2 = v2;
     /* Same service, same models — a plain collaborator, not an HTTP hop. */
     this.games = new GamesService({ models, db, config, logger, clients: this.clients });
+    /** rainbet: casino challenges, checked as a winning round settles. */
+    this.challenges = new ChallengeService({ models, logger, clients: this.clients, wallet });
   }
 
   // ══════════════════════════════════════════════════════════════════════
@@ -247,6 +250,18 @@ class JsGamesService {
        * the stake, independent of whether it won, which is what a wagering
        * requirement measures.
        */
+      // rainbet: a winning round against the open challenges on its game (never awaited, never throws).
+      if (!outcome.duplicate && bet > 0n && win > 0n) {
+        void this.challenges.onSettled({
+          userId,
+          game: payload.game_uid ?? null,
+          coin: settlement,
+          amount: money.toDecimalString(bet),
+          profit: money.toDecimalString(win - bet),
+          betId: `v1:${serial}`,
+        });
+      }
+
       if (!outcome.duplicate && bet > 0n) {
         await this.games.recordActivity({
           userId,
@@ -712,6 +727,18 @@ class JsGamesService {
          answers it as a duplicate first — so the change of key cannot count
          an old round twice. */
       const wagerRef = `${userId}:${round}`;
+      // rainbet: a v2 leg carries the round's own bet_amount / win_amount, so the win leg prices the
+      // round's multiplier for the open challenges on its game (never awaited, never throws).
+      if (win > 0n && bet > 0n) {
+        void this.challenges.onSettled({
+          userId,
+          game: body.game_uid ?? null,
+          coin: settlement,
+          amount: money.toDecimalString(bet),
+          profit: money.toDecimalString(win - bet),
+          betId: `v2:${userId}:${round}`,
+        });
+      }
       if (bet > 0n) {
         // Counted in USD and rakeback accrued by user-service.
         await this.games.recordActivity({

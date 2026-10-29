@@ -80,7 +80,7 @@ class PreferencesService {
    * from here: rotating a seed is what makes a past round verifiable, and it
    * belongs to the fairness path, not to a settings screen.
    */
-  async update({ userId, theme, language, emailNotifications, pushNotifications, hideBalance }) {
+  async update({ userId, theme, language, emailNotifications, pushNotifications, hideBalance, showBetsPublicly, showStatistics, tipNotifications }) {
     if (theme !== undefined && !THEMES.includes(theme)) throw errors.UNKNOWN_THEME({ theme });
     if (language !== undefined && !LANGUAGES.includes(language)) throw errors.UNKNOWN_LANGUAGE({ language });
 
@@ -90,6 +90,10 @@ class PreferencesService {
     if (emailNotifications !== undefined) changes.email_notifications = Boolean(emailNotifications);
     if (pushNotifications !== undefined) changes.push_notifications = Boolean(pushNotifications);
     if (hideBalance !== undefined) changes.hide_balance = Boolean(hideBalance);
+    // rainbet: the Settings privacy switches (migration 169).
+    if (showBetsPublicly !== undefined) changes.show_bets_publicly = Boolean(showBetsPublicly);
+    if (showStatistics !== undefined) changes.show_statistics = Boolean(showStatistics);
+    if (tipNotifications !== undefined) changes.tip_notifications = Boolean(tipNotifications);
 
     if (!Object.keys(changes).length) throw errors.NOTHING_TO_UPDATE();
 
@@ -116,6 +120,9 @@ class PreferencesService {
       emailNotifications: row?.email_notifications ?? DEFAULTS.emailNotifications,
       pushNotifications: row?.push_notifications ?? DEFAULTS.pushNotifications,
       hideBalance: row?.hide_balance ?? DEFAULTS.hideBalance,
+      showBetsPublicly: row?.show_bets_publicly ?? DEFAULTS.showBetsPublicly,
+      showStatistics: row?.show_statistics ?? DEFAULTS.showStatistics,
+      tipNotifications: row?.tip_notifications ?? DEFAULTS.tipNotifications,
       updatedAt: row?.updatedat ?? null,
       /**
        * Deliberately absent: `fair_server_seed`, `fair_server_seed_hash`,

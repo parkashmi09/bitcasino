@@ -100,7 +100,7 @@ function localWeekdayAt(instant, timeZone) {
  * belongs to exactly one race. The reference queried `BETWEEN`, which is closed
  * at both ends, and a bet at the stroke of midnight scored in two races.
  *
- * @param {'daily'|'weekly'} type
+ * @param {'daily'|'weekly'|'monthly'} type
  * @param {Date} instant
  * @param {string} timeZone
  * @returns {{startsAt: Date, endsAt: Date}}
@@ -117,6 +117,13 @@ function windowFor(type, instant, timeZone) {
      */
     const tomorrow = localDateAt(new Date(midnight.getTime() + DAY_MS + DAY_MS / 2), timeZone);
     return { startsAt: midnight, endsAt: localMidnightUtc(tomorrow, timeZone) };
+  }
+
+  // rainbet: monthly — the local calendar month, 1st to 1st.
+  if (type === 'monthly') {
+    const first = { year: today.year, month: today.month, day: 1 };
+    const next = today.month === 12 ? { year: today.year + 1, month: 1, day: 1 } : { year: today.year, month: today.month + 1, day: 1 };
+    return { startsAt: localMidnightUtc(first, timeZone), endsAt: localMidnightUtc(next, timeZone) };
   }
 
   // Weekly: back up to this local week's Monday, forward to the next.
