@@ -492,7 +492,10 @@ const VipClub = () => {
 
   return (
   <div>
-    <PageHeader title='VIP Club' description='The VIP ladder users climb by wagering, and the clubs (leader → agents → members) that share in club turnover.' />
+    <PageHeader
+      title={clubs ? 'VIP & club' : 'VIP Club'}
+      description={clubs ? 'The VIP ladder users climb by wagering, and the clubs (leader → agents → members) that share in club turnover.' : 'The VIP ladder users climb by wagering.'}
+    />
     <Tabs key={String(clubs)} defaultValue={clubs ? 'clubs' : 'vip'}>
       <TabsList className='mb-4'>
         {clubs && <TabsTrigger value='clubs'>Clubs</TabsTrigger>}

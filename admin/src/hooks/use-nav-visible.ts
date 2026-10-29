@@ -40,3 +40,10 @@ export function useNavVisible() {
 export function useHomeHref() {
   return firstNavHref(useNavVisible())
 }
+
+/** Whether the spin wheel / lucky spin is on for this site — the same test as its menu entry. */
+export function useSpinWheelOn() {
+  const { flags, featureEntitled, flagEntitled } = useSession()
+
+  return flags.wheelspin !== false && flagEntitled('wheelspin') && featureEntitled('spin_wheel')
+}

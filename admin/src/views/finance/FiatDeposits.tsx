@@ -38,29 +38,11 @@ const INVALIDATE = [['paged', LIST], ['api', 'admin/reports/finance-stats']]
 const APPROVE = ['deposits:approve', 'withdrawals:approve']
 
 const Approve = ({ row }: { row: FiatDepositRow }) => {
-  // Prefilled with the requested amount (no trailing zeros); the admin may only lower it.
-  const requested = String(Number(row.amount))
-  const [form, setForm] = useState({ creditAmount: requested, comment: '', transactionPassword: '' })
-  const typed = form.creditAmount.trim()
+  const [transactionPassword, setTransactionPassword] = useState('')
 
-  const amountError = !typed
-    ? 'Enter the amount to credit'
-    : (check.amount(typed, 'Credit amount', { decimals: 8 }) ??
-      (Number(typed) > Number(row.amount) ? `Cannot be more than the requested ${Number(row.amount).toLocaleString('en-IN')} ${row.currency}` : undefined))
-
-  const reduced = !amountError && Number(typed) < Number(row.amount)
-
+  // The requested amount is credited as it is; staff cannot edit it (user, 2026-10-27).
   const approve = useApiMutation({
-    fn: () => {
-      const body: Record<string, string> = { transactionPassword: form.transactionPassword }
-
-      if (reduced) {
-        body.creditAmount = typed
-        body.comment = form.comment.trim()
-      }
-
-      return api.put(`${LIST}/${row.depositId}/approve`, body)
-    },
+    fn: () => api.put(`${LIST}/${row.depositId}/approve`, { transactionPassword }),
     invalidate: INVALIDATE,
     success: 'Deposit approved and credited'
   })
@@ -75,42 +57,15 @@ const Approve = ({ row }: { row: FiatDepositRow }) => {
       title={`Approve deposit #${row.depositId}`}
       description={
         <>
-          Credits user #{row.userId} with <Money value={row.amount} currency={row.currency} />. Lower the amount only when the bank statement shows less, with the
-          reason the user will see. More than the requested amount cannot be credited.
+          Credits user #{row.userId} with <Money value={row.amount} currency={row.currency} />.
         </>
       }
       submitLabel='Approve & credit'
-      submitDisabled={!!amountError}
-      validate={() => ({
-        // fiatDeposit.validators.js approve: creditAmount optional money (> 0, ≤ 8 dp); comment ≤ 500.
-        creditAmount: amountError,
-        comment: reduced && !form.comment.trim() ? 'Say why you credit less than requested (the user sees it)' : check.length(form.comment, 'Comment', { max: 500 }),
-        transactionPassword: form.transactionPassword ? undefined : 'Enter your transaction password'
-      })}
+      validate={() => ({ transactionPassword: transactionPassword ? undefined : 'Enter your transaction password' })}
       onSubmit={() => approve.mutateAsync()}
     >
-      <TextField
-        id={`ap-amt-${row.depositId}`}
-        name='creditAmount'
-        inputMode='decimal'
-        autoComplete='off'
-        label='Credit amount'
-        hint={`Requested ${Number(row.amount).toLocaleString('en-IN')} ${row.currency}. Lower it to credit less; it cannot go higher.`}
-        error={typed !== requested && amountError}
-        value={form.creditAmount}
-        onChange={e => setForm({ ...form, creditAmount: e.target.value })}
-      />
-      <TextAreaField
-        id={`ap-c-${row.depositId}`}
-        name='comment'
-        label={reduced ? 'Reason for the lower amount (the user sees it)' : 'Comment'}
-        required={reduced}
-        disabled={!reduced}
-        placeholder={reduced ? 'e.g. Bank statement shows ₹15,000 received' : 'Only needed when you credit less than requested'}
-        value={form.comment}
-        onChange={e => setForm({ ...form, comment: e.target.value })}
-      />
-      <TextField id={`ap-pw-${row.depositId}`} name='transactionPassword' label='Transaction password' type='password' autoComplete='new-password' required value={form.transactionPassword} onChange={e => setForm({ ...form, transactionPassword: e.target.value })} />
+      <TextField id={`ap-amt-${row.depositId}`} name='creditAmount' label='Credit amount' value={`${Number(row.amount).toLocaleString('en-IN')} ${row.currency}`} disabled readOnly />
+      <TextField id={`ap-pw-${row.depositId}`} name='transactionPassword' label='Transaction password' type='password' autoComplete='new-password' required value={transactionPassword} onChange={e => setTransactionPassword(e.target.value)} />
     </FormDialog>
   )
 }

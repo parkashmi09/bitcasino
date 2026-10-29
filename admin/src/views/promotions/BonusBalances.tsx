@@ -63,7 +63,7 @@ export type PlayerBonus = {
 type Report = { rows: PlayerBonus[]; total: number; totals: { status: string; currency: string; count: number; amount: string }[] }
 
 const STATUSES = ['active', 'completed', 'expired', 'forfeited'] as const
-const SOURCES: Record<string, string> = { first_deposit: 'First deposit', spin_wheel: 'Spin wheel', monthly_deposit: 'Monthly deposit' }
+const SOURCES: Record<string, string> = { first_deposit: 'First deposit', spin_wheel: 'Spin wheel', monthly_deposit: 'Monthly deposit', loss_bonus: 'Loss bonus' }
 
 
 /** `player_bonuses.end_reason` (user-service playerBonus.constants END_REASON). */

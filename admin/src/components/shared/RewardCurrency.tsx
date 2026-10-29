@@ -5,6 +5,7 @@ import { Coins } from 'lucide-react'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { useSession } from '@/contexts/SessionContext'
 import { useApi } from '@/hooks/use-api'
+import { useSpinWheelOn } from '@/hooks/use-nav-visible'
 
 /**
  * The site's reward currency — the ONE coin every reward (VIP, daily / weekly / monthly bonus,
@@ -39,6 +40,7 @@ export function useRewardCurrency() {
 /** Read-only line for screens where rewards are configured. */
 export function RewardCurrencyNotice({ className }: { className?: string }) {
   const { code, name, managedBy, loading } = useRewardCurrency()
+  const spin = useSpinWheelOn()
 
   return (
     <Alert className={className} data-reward-currency={loading ? undefined : code}>
@@ -48,7 +50,7 @@ export function RewardCurrencyNotice({ className }: { className?: string }) {
         {!loading && name !== code ? <span className='text-muted-foreground font-normal'> — {name}</span> : null}
       </AlertTitle>
       <AlertDescription>
-        All rewards — VIP, bonuses, rakeback, affiliate, spin wheel — are calculated and paid in this currency, and every reward amount on
+        All rewards — VIP, bonuses, rakeback, affiliate{spin ? ', spin wheel' : ''} — are calculated and paid in this currency, and every reward amount on
         this screen is in it.{' '}
         {managedBy === 'owner' ? null : 'Set on Site config → Features (Reward currency).'}
       </AlertDescription>

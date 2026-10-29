@@ -26,6 +26,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Input } from '@/components/ui/input'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { useApi, useApiMutation, usePagedApi } from '@/hooks/use-api'
+import { useSpinWheelOn } from '@/hooks/use-nav-visible'
 import { api } from '@/lib/api/client'
 import { formatNumber } from '@/lib/format'
 import { check, type FieldErrors } from '@/lib/validate'
@@ -283,9 +284,16 @@ const Inspect = ({ userId, onClose }: { userId: string; onClose: () => void }) =
 
 // ── Per-game counters ─────────────────────────────────────────────────
 
+/** The counters this site has: Lucky spin only while the spin wheel is on (owner plan + switch). */
+const useCounters = () => {
+  const spin = useSpinWheelOn()
+
+  return GAME_COUNTERS.filter(c => c !== 'luckyspin' || spin)
+}
+
 const CounterFields = ({ value, onChange, prefix }: { value: Record<string, string>; onChange: (v: Record<string, string>) => void; prefix: string }) => (
   <div className='grid grid-cols-2 gap-3'>
-    {GAME_COUNTERS.map(c => (
+    {useCounters().map(c => (
       <TextField key={c} id={`${prefix}-${c}`} label={COUNTER_LABEL[c]} placeholder='0.00' value={value[c] ?? ''} onChange={e => onChange({ ...value, [c]: e.target.value })} />
     ))}
   </div>
@@ -340,9 +348,11 @@ const Games = ({ userId }: { userId: string }) => {
     success: 'Counter row removed'
   })
 
+  const counters = useCounters()
+
   const columns: Column<BonusGameRow>[] = [
     { key: 'user', header: 'User', cell: r => <UserLink id={r.userId} /> },
-    ...GAME_COUNTERS.map<Column<BonusGameRow>>(c => ({ key: c, header: COUNTER_LABEL[c], align: 'right', cell: r => <Money value={r.counters?.[c]} /> })),
+    ...counters.map<Column<BonusGameRow>>(c => ({ key: c, header: COUNTER_LABEL[c], align: 'right', cell: r => <Money value={r.counters?.[c]} /> })),
     { key: 'updated', header: 'Updated', cell: r => <DateTime value={r.updatedAt ?? r.createdAt} relative /> },
     {
       key: 'actions',
@@ -571,12 +581,13 @@ const Awards = ({ userId }: { userId: string }) => {
 const BonusAdmin = () => {
   const [userId, setUserId] = useState('')
   const f = useStatsFilters({ defaultPreset: '30d' })
+  const spinOn = useSpinWheelOn()
 
   return (
     <div>
       <PageHeader
         title='Bonus'
-        description='Pending daily / weekly / monthly bonus per user, per-game counters (incl. rakeback and lucky spin), the event log and the award history. Redeem codes have their own screen.'
+        description={`Pending daily / weekly / monthly bonus per user, per-game counters (incl. rakeback${spinOn ? ' and lucky spin' : ''}), the event log and the award history. Redeem codes have their own screen.`}
         actions={
           <>
             <UserFilter value={userId} onChange={setUserId} />

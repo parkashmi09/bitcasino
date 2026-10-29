@@ -138,7 +138,7 @@ const GROUPS: Section[] = [
         {
           id: 'feature:absent',
           title: 'Not in this UI',
-          description: 'This site has no screen for these, so they stay off and the backend refuses them.',
+          description: 'The site UI has no screen for these, so they stay off and the backend refuses them.',
           bulk: false,
           rows: FEATURE_CATALOGUE.filter(f => !f.policy && uiSupport(f.key)?.status === 'absent').map(f => ({
             kind: 'feature' as const,
