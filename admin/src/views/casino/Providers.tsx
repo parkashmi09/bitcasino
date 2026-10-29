@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react'
 
-import { ImageIcon, Trash2Icon, UploadIcon } from 'lucide-react'
+import { ImageIcon, PencilIcon, Trash2Icon, UploadIcon } from 'lucide-react'
 
 import Can from '@/components/shared/Can'
 import ConfirmDialog from '@/components/shared/ConfirmDialog'
@@ -121,6 +121,47 @@ const UploadLogo = ({ provider }: { provider: ProviderSetting }) => {
   )
 }
 
+/** rainbet: the name the site shows for a provider (PATCH displayName); empty = the catalogue's name. */
+const RenameProvider = ({ provider }: { provider: ProviderSetting }) => {
+  const [open, setOpen] = useState(false)
+  const [name, setName] = useState('')
+
+  const onOpenChange = (next: boolean) => {
+    if (next) setName(provider.displayName ?? '')
+    setOpen(next)
+  }
+
+  const rename = useApiMutation({
+    fn: () => api.patch(`${LIST}/${encodeURIComponent(provider.name)}`, { displayName: name.trim() || null }),
+    invalidate: [['api', LIST], ['api', 'admin/casino/games/providers']],
+    success: name.trim() ? `${provider.name} now shows as “${name.trim()}”` : `${provider.name} shows its own name again`
+  })
+
+  return (
+    <FormDialog
+      open={open}
+      onOpenChange={onOpenChange}
+      trigger={
+        <Button variant='ghost' size='sm'>
+          <PencilIcon /> Rename
+        </Button>
+      }
+      title={`Rename ${provider.name}`}
+      description='The name players see for this provider (headings, filters, and the Providers row when it has no logo). Leave empty to use the catalogue’s name.'
+      submitLabel='Save'
+      onSubmit={() => rename.mutateAsync()}
+      validate={() => ({ 'p-name': name.trim().length > 80 ? 'At most 80 characters' : undefined })}
+    >
+      <div className='grid gap-2'>
+        <label htmlFor='p-name' className='text-sm font-medium'>
+          Display name
+        </label>
+        <Input id='p-name' maxLength={80} placeholder={provider.name} value={name} onChange={e => setName(e.target.value)} />
+      </div>
+    </FormDialog>
+  )
+}
+
 const RemoveLogo = ({ provider }: { provider: ProviderSetting }) => {
   const remove = useApiMutation({
     fn: () => api.delete(`${LIST}/${encodeURIComponent(provider.name)}/logo`),
@@ -211,6 +252,7 @@ const Providers = () => {
       cell: p => (
         <Can permission='casino:manage'>
           <span className='flex justify-end gap-1'>
+            <RenameProvider provider={p} />
             <UploadLogo provider={p} />
             {p.hasLogo && <RemoveLogo provider={p} />}
           </span>

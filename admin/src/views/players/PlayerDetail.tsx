@@ -34,6 +34,7 @@ import { PlayerBonusesTab } from '@/views/promotions/BonusBalances'
 import GeoAttribution from './GeoAttribution'
 import { RiskManagementDialog, RiskManagementPanel } from './RiskManagement'
 import PlayerStatsTab from './PlayerStatsTab'
+import ResponsibleGamblingTab from './ResponsibleGamblingTab'
 import { BalanceSheetView } from './users/BalanceSheetDialog'
 import useReportMoney, { formatIn } from '@/components/shared/ReportMoney'
 import WithdrawBlockAction, { BetLockedBadge, WithdrawBlockedBadge, type AccountLocks } from './WithdrawBlockAction'
@@ -425,7 +426,7 @@ const BalancesTab = ({ userId }: { userId: string }) => {
 }
 
 /** The tabs, in order; `?tab=` picks one, so `/users/<id>?tab=stats` links straight to it. */
-const TABS = ['wallet', 'bets', 'stats', 'logins', 'balances', 'bonuses', 'prefs', 'risk', 'sheet', 'transfers', 'notifications'] as const
+const TABS = ['wallet', 'bets', 'stats', 'logins', 'balances', 'bonuses', 'prefs', 'risk', 'responsible', 'sheet', 'transfers', 'notifications'] as const
 
 type Tab = (typeof TABS)[number]
 
@@ -657,6 +658,7 @@ const ReportDetail = ({ id }: { id: string }) => {
           {!agentPlayer && <TabsTrigger value='bonuses'>Bonuses</TabsTrigger>}
           {canPrefs && <TabsTrigger value='prefs'>Preferences</TabsTrigger>}
           <TabsTrigger value='risk'>Risk</TabsTrigger>
+          {!agentPlayer && <TabsTrigger value='responsible'>Responsible gambling</TabsTrigger>}
           <TabsTrigger value='sheet'>Balance sheet</TabsTrigger>
           {!agentPlayer && <TabsTrigger value='transfers'>Transfers</TabsTrigger>}
           {!agentPlayer && <TabsTrigger value='notifications'>Notifications</TabsTrigger>}
@@ -686,6 +688,9 @@ const ReportDetail = ({ id }: { id: string }) => {
         )}
         <TabsContent value='risk'>
           <RiskManagementPanel userId={id} />
+        </TabsContent>
+        <TabsContent value='responsible'>
+          <ResponsibleGamblingTab userId={id} />
         </TabsContent>
         <TabsContent value='sheet'>
           <BalanceSheetView userId={id} name={p?.name} client={p?.channel === 'agent'} active={tab === 'sheet'} />

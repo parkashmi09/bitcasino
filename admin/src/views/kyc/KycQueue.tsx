@@ -21,6 +21,7 @@ import { useApiMutation, useListState, usePagedApi } from '@/hooks/use-api'
 import { api } from '@/lib/api/client'
 import { formatDate } from '@/lib/format'
 import { check } from '@/lib/validate'
+import KycLevelsQueue from './KycLevelsQueue'
 import { DOCUMENT_FIELDS, KYC_STATUSES, type KycApplication, type KycStatus } from './types'
 
 const LIST = 'admin/user/kyc/applications'
@@ -216,6 +217,7 @@ const KycQueue = () => (
   <div>
     <PageHeader title='KYC review' description='Identity applications from direct users. Open one to see the documents and approve or reject it.' />
     <KycList />
+    <KycLevelsQueue />
   </div>
 )
 

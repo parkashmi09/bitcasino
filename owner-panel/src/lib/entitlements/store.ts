@@ -16,6 +16,7 @@ import { cleanRegion, regionProblem, type RegionSetting } from './region'
 import { cleanWithdrawalCap, withdrawalCapProblem, type WithdrawalCap } from './withdrawalCap'
 import { cleanWithdrawalDailyLimit, withdrawalDailyLimitProblem, type WithdrawalDailyLimit } from './withdrawalDailyLimit'
 import { cleanPaymentMethods, paymentMethodsProblem, type PaymentMethods } from './paymentMethods'
+import { cleanPalettes, type OwnerPalette } from './palettes'
 import { diffDocs, type AuditEntry, type Change, type CoinDefinition, type EditableDoc, type EntitlementsDoc, type VariantsSeed } from './types'
 
 /**
@@ -160,7 +161,10 @@ export async function readEntitlements(): Promise<EntitlementsDoc> {
     ...(stored.withdrawalsEnabled !== undefined ? { withdrawalsEnabled: stored.withdrawalsEnabled !== false } : {}),
 
     // Site name, metadata and logo files (./branding); absent = not branded, the site keeps its own.
-    ...(stored.branding !== undefined ? { branding: cleanBranding(stored.branding) } : {})
+    ...(stored.branding !== undefined ? { branding: cleanBranding(stored.branding) } : {}),
+
+    // rainbet: the owner's own colour themes (./palettes); absent = none.
+    ...(stored.palettes !== undefined ? { palettes: cleanPalettes(stored.palettes) } : {})
   }
 }
 
@@ -260,6 +264,7 @@ export function saveEntitlements(
     paymentMethods?: PaymentMethods
     withdrawalsEnabled?: boolean
     branding?: Partial<Branding>
+    palettes?: OwnerPalette[]
   },
   user: string
 ) {
@@ -272,9 +277,22 @@ export function saveEntitlements(
       throw new HttpError(409, 'VERSION_CONFLICT', `Saved as version ${current.version} since you loaded version ${input.version}. Reload and try again.`)
     }
 
-    const template = input.template === undefined ? current.template : resolveTemplateKey(input.template)
+    // rainbet: the owner's own colour themes; the template may name one of them.
+    let palettes = current.palettes
 
-    if (input.template !== undefined && !TEMPLATE_KEYS.includes(template)) throw new HttpError(400, 'VALIDATION_ERROR', `template must be one of ${TEMPLATE_KEYS.join(', ')}`)
+    if (input.palettes !== undefined) {
+      try {
+        palettes = cleanPalettes(input.palettes, true)
+      } catch (error) {
+        throw new HttpError(400, 'VALIDATION_ERROR', `palettes: ${(error as Error).message}`)
+      }
+    }
+
+    const ownTheme = (key: string) => (palettes ?? []).some(p => p.key === key)
+    const template = input.template === undefined ? current.template : ownTheme(input.template) ? input.template : resolveTemplateKey(input.template)
+
+    if (input.template !== undefined && !TEMPLATE_KEYS.includes(template) && !ownTheme(template)) throw new HttpError(400, 'VALIDATION_ERROR', `template must be one of ${TEMPLATE_KEYS.join(', ')} or one of your own themes`)
+    if (template.startsWith('custom_') && !ownTheme(template)) throw new HttpError(400, 'VALIDATION_ERROR', 'The active template is a theme you are removing — pick another template first')
 
     for (const [key, value] of Object.entries(input.variants ?? {})) {
       if (!FEATURE_KEYS.includes(key)) throw new HttpError(400, 'VALIDATION_ERROR', `variants.${key} is not a catalogue feature`)
@@ -391,7 +409,8 @@ export function saveEntitlements(
       withdrawalDailyLimit,
       paymentMethods,
       withdrawalsEnabled,
-      branding
+      branding,
+      ...(palettes !== undefined ? { palettes } : {})
     }
 
     const changes = diffDocs(current, next)

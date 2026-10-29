@@ -4,6 +4,7 @@ import { diffWithdrawalCap, type WithdrawalCap } from './withdrawalCap'
 import { diffWithdrawalDailyLimit, type WithdrawalDailyLimit } from './withdrawalDailyLimit'
 import { diffPaymentMethods, type PaymentMethods } from './paymentMethods'
 import { diffBranding, type Branding, type BrandingChange } from './branding'
+import { palettesSummary, samePalettes, type OwnerPalette } from './palettes'
 
 /** Shapes shared by the routes and the screens — contract §2. */
 export type EntitlementsDoc = {
@@ -13,6 +14,9 @@ export type EntitlementsDoc = {
 
   /** Template key (configs/templateCatalogue): theme + preset. Set by the owner only; missing in an older file = DEFAULT_TEMPLATE. */
   template: string
+
+  /** rainbet: colour themes the owner made (./palettes); the template may name one. Absent = none. */
+  palettes?: OwnerPalette[]
 
   /** Feature key → ON for the site (the client can no longer switch features, so entitled == on). */
   features: Record<string, boolean>
@@ -156,8 +160,11 @@ export type PaymentMethodsChange = { kind: 'payment_methods'; key: 'paymentMetho
 /** Player withdrawals switched on or off on every rail (audit kind `withdrawals_enabled`). */
 export type WithdrawalsEnabledChange = { kind: 'withdrawals_enabled'; key: 'withdrawalsEnabled'; from: boolean; to: boolean }
 
+/** rainbet: the owner's own colour themes added, edited or removed (audit kind `themes`). */
+export type ThemesChange = { kind: 'themes'; key: 'themes'; from: string[]; to: string[] }
+
 export type { BrandingChange }
-export type Change = ToggleChange | TemplateChange | VariantChange | CoinsChange | CoinChange | OptionChange | RegionChange | WithdrawalCapChange | WithdrawalDailyLimitChange | PaymentMethodsChange | WithdrawalsEnabledChange | BrandingChange
+export type Change = ToggleChange | TemplateChange | VariantChange | CoinsChange | CoinChange | OptionChange | RegionChange | WithdrawalCapChange | WithdrawalDailyLimitChange | PaymentMethodsChange | WithdrawalsEnabledChange | BrandingChange | ThemesChange
 
 export type AuditEntry = { at: string; user: string; version: number; changes: Change[]; seededFrom?: Exclude<VariantsSeed, null> }
 
@@ -179,6 +186,7 @@ type Diffable = Pick<EntitlementsDoc, 'features' | 'flags'> & {
   paymentMethods?: PaymentMethods
   withdrawalsEnabled?: boolean
   branding?: Branding
+  palettes?: OwnerPalette[]
 }
 
 /** The template (if it moved), every variant that moved, then every key the two maps disagree on, in catalogue order. */
@@ -249,6 +257,11 @@ export function diffDocs(before: Diffable, after: Diffable) {
 
   // Branding: one change per field; an older document (no branding) equals an empty one.
   if (after.branding) changes.push(...diffBranding(before.branding, after.branding))
+
+  // rainbet: the owner's own colour themes, as one change listing them before and after.
+  if (after.palettes && !samePalettes(before.palettes, after.palettes)) {
+    changes.push({ kind: 'themes', key: 'themes', from: palettesSummary(before.palettes), to: palettesSummary(after.palettes) })
+  }
 
   return changes
 }

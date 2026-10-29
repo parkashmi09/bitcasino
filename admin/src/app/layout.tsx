@@ -44,7 +44,8 @@ const RootLayout = ({ children }: Readonly<{ children: ReactNode }>) => {
         {/* The owner's palette from the last visit (components/layout/PaletteSync.tsx), set before paint. */}
         <script
           dangerouslySetInnerHTML={{
-            __html: "try{var p=localStorage.getItem('admin.palette');if(p)document.documentElement.dataset.palette=p}catch(e){}"
+            __html:
+              "try{var p=localStorage.getItem('admin.palette');if(p)document.documentElement.dataset.palette=p;var v=JSON.parse(localStorage.getItem('admin.palette.vars')||'null');if(v)for(var k in v)document.documentElement.style.setProperty(k,v[k])}catch(e){}"
           }}
         />
       </head>

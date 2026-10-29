@@ -10,6 +10,7 @@ import type { WithdrawalCap } from '@/lib/entitlements/withdrawalCap'
 import type { WithdrawalDailyLimit } from '@/lib/entitlements/withdrawalDailyLimit'
 import type { PaymentMethods } from '@/lib/entitlements/paymentMethods'
 import type { Branding } from '@/lib/entitlements/branding'
+import type { OwnerPalette } from '@/lib/entitlements/palettes'
 import { handler, HttpError, ok } from '@/lib/owner/guard'
 
 export const dynamic = 'force-dynamic'
@@ -85,6 +86,7 @@ export const PUT = handler(async (req: NextRequest) => {
     paymentMethods?: unknown
     withdrawalsEnabled?: unknown
     branding?: unknown
+    palettes?: unknown
   } | null
 
   if (!body || !Number.isInteger(body.version)) throw new HttpError(400, 'VALIDATION_ERROR', 'version is required')
@@ -124,7 +126,10 @@ export const PUT = handler(async (req: NextRequest) => {
       withdrawalsEnabled: body.withdrawalsEnabled as boolean | undefined,
 
       // Site name, metadata and logo files; validated strictly in the store (bad field → 422).
-      branding: body.branding === undefined ? undefined : (body.branding as Partial<Branding>)
+      branding: body.branding === undefined ? undefined : (body.branding as Partial<Branding>),
+
+      // rainbet: the owner's own colour themes; validated strictly in the store (bad colour → 400).
+      palettes: body.palettes === undefined ? undefined : (body.palettes as OwnerPalette[])
     },
     serverConfig.ownerUsername
   )

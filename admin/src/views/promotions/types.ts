@@ -189,7 +189,7 @@ export type AffiliateReward = {
 
 // ── Races (admin/user/race/*, user/race/*) ────────────────────────────
 
-export const RACE_TYPES = ['daily', 'weekly'] as const
+export const RACE_TYPES = ['daily', 'weekly', 'monthly'] as const
 export type RaceType = (typeof RACE_TYPES)[number]
 export const RACE_BUCKETS = ['sports', 'crash', 'slot', 'casino', 'other'] as const
 export type RaceBucket = (typeof RACE_BUCKETS)[number]

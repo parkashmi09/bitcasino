@@ -38,7 +38,7 @@ import { check, cleanErrors, firstError } from '@/lib/validate'
  * per product, the pool and how it splits across ranks; a race is one window of
  * that config. Settling a race pays its rewards, so it is a confirm.
  */
-type RaceType = 'daily' | 'weekly'
+type RaceType = 'daily' | 'weekly' | 'monthly'
 
 /** A booked rank (any free entry) or a rank pinned to one entry (Booked seats tab). */
 type Seat = number | { rank: number; boatId: number }
@@ -280,14 +280,14 @@ const RaceSwitch = ({ type }: { type: RaceType }) => {
   const save = useApiMutation({
     fn: (enabled: boolean) => api.put(`admin/user/race/config/${type}`, { enabled }),
     invalidate: [['api', `admin/user/race/config/${type}`], ['api', 'user/race']],
-    success: `${type === 'daily' ? 'Daily' : 'Weekly'} race ${on ? 'stopped' : 'started'}`
+    success: `${type === 'daily' ? 'Daily' : type === 'monthly' ? 'Monthly' : 'Weekly'} race ${on ? 'stopped' : 'started'}`
   })
 
   return (
     <Card className='py-4'>
       <CardContent className='flex items-center justify-between gap-3'>
         <div className='flex items-center gap-2'>
-          <span className='font-medium'>{type === 'daily' ? 'Daily race' : 'Weekly race'}</span>
+          <span className='font-medium'>{type === 'daily' ? 'Daily race' : type === 'monthly' ? 'Monthly race' : 'Weekly race'}</span>
           <Badge variant={on ? 'default' : 'outline'}>{on ? 'Running' : 'Off'}</Badge>
         </div>
         <Can permission='config:write'>
@@ -488,6 +488,7 @@ const TestRaceCard = () => {
           <SelectContent>
             <SelectItem value='daily'>Daily</SelectItem>
             <SelectItem value='weekly'>Weekly</SelectItem>
+            <SelectItem value='monthly'>Monthly</SelectItem>
           </SelectContent>
         </Select>
         <label className='grid gap-1 text-sm'>
@@ -630,6 +631,7 @@ const RacesTab = () => {
             <SelectItem value='all'>Any type</SelectItem>
             <SelectItem value='daily'>Daily</SelectItem>
             <SelectItem value='weekly'>Weekly</SelectItem>
+            <SelectItem value='monthly'>Monthly</SelectItem>
           </SelectContent>
         </Select>
       }
@@ -732,6 +734,7 @@ const BoardTab = () => {
           <TabsList>
             <TabsTrigger value='daily'>Daily</TabsTrigger>
             <TabsTrigger value='weekly'>Weekly</TabsTrigger>
+            <TabsTrigger value='monthly'>Monthly</TabsTrigger>
           </TabsList>
         </Tabs>
         {q.data ? (
@@ -786,7 +789,7 @@ const RewardsTab = () => {
       header: 'Race',
       cell: r => (
         <span className='whitespace-nowrap'>
-          #{r.raceId} · {r.type === 'weekly' ? 'Weekly' : 'Daily'} · {formatDate(r.raceStartsAt, false)}
+          #{r.raceId} · {r.type === 'monthly' ? 'Monthly' : r.type === 'weekly' ? 'Weekly' : 'Daily'} · {formatDate(r.raceStartsAt, false)}
         </span>
       )
     },
@@ -822,6 +825,7 @@ const RewardsTab = () => {
               <SelectItem value='all'>Any type</SelectItem>
               <SelectItem value='daily'>Daily</SelectItem>
               <SelectItem value='weekly'>Weekly</SelectItem>
+            <SelectItem value='monthly'>Monthly</SelectItem>
             </SelectContent>
           </Select>
           <Select value={String(state.claimed || 'all')} onValueChange={v => v && set({ claimed: v === 'all' ? '' : v })}>
@@ -993,14 +997,16 @@ const Races = () => {
           <TabsTrigger value='boats'>Booked seats</TabsTrigger>
         </TabsList>
         <TabsContent value='config'>
-          <div className='mb-4 grid gap-3 sm:grid-cols-2'>
+          <div className='mb-4 grid gap-3 sm:grid-cols-3'>
             <RaceSwitch type='daily' />
             <RaceSwitch type='weekly' />
+            <RaceSwitch type='monthly' />
           </div>
           <Tabs value={type} onValueChange={v => setType(v as RaceType)} className='mb-4'>
             <TabsList>
               <TabsTrigger value='daily'>Daily</TabsTrigger>
               <TabsTrigger value='weekly'>Weekly</TabsTrigger>
+            <TabsTrigger value='monthly'>Monthly</TabsTrigger>
             </TabsList>
           </Tabs>
           <ConfigEditor key={type} type={type} />

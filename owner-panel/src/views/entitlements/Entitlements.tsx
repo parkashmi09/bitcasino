@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react'
 
-import { CheckIcon, InfoIcon, Loader2Icon, PlusIcon, SearchIcon, XIcon } from 'lucide-react'
+import { InfoIcon, Loader2Icon, PlusIcon, SearchIcon, XIcon } from 'lucide-react'
 import { toast } from 'sonner'
 
 import ErrorState from '@/components/shared/ErrorState'
@@ -37,7 +37,7 @@ import {
   REWARD_CURRENCIES
 } from '@/configs/entitlementCatalogue'
 import { HIDDEN_OPTIONS, pinToUi, UI_LABEL, uiSupport } from '@/configs/siteUi'
-import { TEMPLATE_CATALOGUE, type TemplateEntry } from '@/configs/templateCatalogue'
+import { TEMPLATE_CATALOGUE } from '@/configs/templateCatalogue'
 import { useApi, useApiMutation } from '@/hooks/use-api'
 import { api, ApiError } from '@/lib/api/client'
 import { toastSaved, type SaveResult } from '@/lib/api/feedback'
@@ -78,6 +78,8 @@ import {
 import { isMethodCode, MAX_METHODS_PER_CURRENCY, type PaymentMethod } from '@/lib/entitlements/paymentMethods'
 import { cn } from '@/lib/utils'
 import ChangeList from './ChangeList'
+import ThemePicker from './ThemePicker'
+import type { OwnerPalette } from '@/lib/entitlements/palettes'
 
 type Kind = 'feature' | 'flag' | 'policy'
 
@@ -757,52 +759,6 @@ const WithdrawalRequirementsEditor = ({
   )
 }
 
-const TemplateCard = ({
-  template,
-  selected,
-  saved,
-  onSelect
-}: {
-  template: TemplateEntry
-  selected: boolean
-  saved: boolean
-  onSelect: () => void
-}) => (
-  <button
-    type='button'
-    aria-pressed={selected}
-    onClick={onSelect}
-    className={cn(
-      'bg-card flex flex-col gap-3 rounded-xl border p-4 text-left transition-colors',
-      selected ? 'border-primary ring-primary/30 ring-2' : 'hover:border-foreground/30'
-    )}
-  >
-    {/* Preview swatch only: accent on background. The site's real tokens live in its theme. */}
-    <div
-      className='flex h-14 items-end gap-2 rounded-md border p-2'
-      style={{ backgroundColor: template.swatch.background }}
-      aria-hidden
-    >
-      <span className='h-6 w-10 rounded-sm' style={{ backgroundColor: template.swatch.accent }} />
-      <span className='h-2 w-16 rounded-full opacity-60' style={{ backgroundColor: template.swatch.accent }} />
-    </div>
-    <div className='flex items-center justify-between gap-2'>
-      <span className='font-semibold'>{template.label}</span>
-      {selected ? (
-        <Badge className='gap-1'>
-          <CheckIcon className='size-3' /> {saved ? 'Active' : 'Selected'}
-        </Badge>
-      ) : saved ? (
-        <Badge variant='outline'>Current</Badge>
-      ) : (
-        <span className='text-muted-foreground font-mono text-xs'>{template.key}</span>
-      )}
-    </div>
-    <p className='text-xs'>
-      <span className='font-medium'>Player site:</span> {template.colours}
-    </p>
-  </button>
-)
 
 const Entitlements = () => {
   const { data: doc, error, isLoading, refetch, isRefetching } = useApi<EditableDoc & { siteMethods?: SiteMethods }>('/api/owner/entitlements')
@@ -852,6 +808,7 @@ const Entitlements = () => {
     setEdits(prev => {
       const next: Draft = {
         template: prev?.template,
+        ...(prev?.palettes ? { palettes: prev.palettes } : {}),
         features: { ...prev?.features },
         flags: { ...prev?.flags },
         variants: { ...prev?.variants },
@@ -924,11 +881,18 @@ const Entitlements = () => {
       next.template = key === doc?.template ? undefined : key
     })
 
+  /** rainbet: the owner's own colour themes (Template → Add theme / Edit / Delete). */
+  const setPalettes = (list: OwnerPalette[]) =>
+    edit(next => {
+      next.palettes = list
+    })
+
   const save = useApiMutation<void, SaveResult & { doc: EntitlementsDoc; changes: Change[] }>({
     fn: () =>
       api.put('/api/owner/entitlements', {
         version: doc!.version,
         template: draft!.template,
+        palettes: draft!.palettes,
         features: draft!.features,
         flags: draft!.flags,
         variants: draft!.variants,
@@ -1240,17 +1204,13 @@ const Entitlements = () => {
                       own colours. The site admin follows it unless Policies → Admin colour theme picks its own.
                     </p>
                   </div>
-                  <div className='grid gap-4 sm:grid-cols-2 xl:grid-cols-4'>
-                    {TEMPLATE_CATALOGUE.map(t => (
-                      <TemplateCard
-                        key={t.key}
-                        template={t}
-                        selected={draft.template === t.key}
-                        saved={doc?.template === t.key}
-                        onSelect={() => pickTemplate(t.key)}
-                      />
-                    ))}
-                  </div>
+                  <ThemePicker
+                    template={draft.template}
+                    saved={doc?.template}
+                    palettes={draft.palettes ?? []}
+                    onPick={pickTemplate}
+                    onPalettes={setPalettes}
+                  />
                 </section>
               </TabsContent>
               <TabsContent value='withdrawals' className='mt-4'>

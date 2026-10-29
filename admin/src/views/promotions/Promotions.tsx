@@ -12,6 +12,7 @@ import DataTable, { type Column } from '@/components/shared/DataTable'
 import DateTime from '@/components/shared/DateTime'
 import FormDialog from '@/components/shared/FormDialog'
 import { DateTimeField, SelectField, SwitchField, TextAreaField, TextField } from '@/components/shared/FormField'
+import { RichTextField } from '@/components/shared/RichTextField'
 import PageHeader from '@/components/shared/PageHeader'
 import StatusBadge from '@/components/shared/StatusBadge'
 import { Badge } from '@/components/ui/badge'
@@ -67,7 +68,13 @@ type PromotionDetail = Promotion & {
   qualifyingGames: GameCard[]
   sportEvents: SportEvent[]
   tags: string[]
+  tournamentPanel: TournamentPanel | null
+  leaderboard: Leaderboard | null
 }
+
+/** The article's tournament figures and leaderboard (rainbet: drawn under the article on the player site). */
+type TournamentPanel = { ends?: string; endsAt?: string; prizePool?: string; prizeSplit?: string }
+type Leaderboard = { kind?: string; columns: string[]; rows?: unknown[]; live?: { source: 'wager_leaderboard'; period: 'daily' | 'weekly' | 'monthly'; limit: number } }
 
 const PATH = 'admin/promotions'
 const LIST_KEY = ['promotions-list']
@@ -115,6 +122,12 @@ type Form = {
   isPublished: boolean
   qualifyingGames: GameCard[]
   sportEvents: SportEvent[]
+  prizePool: string
+  prizeEnds: string
+  prizeSplit: string
+  liveBoard: boolean
+  livePeriod: 'daily' | 'weekly' | 'monthly'
+  liveLimit: string
 }
 
 const toLocal = (iso: string | null | undefined) => {
@@ -139,7 +152,13 @@ const blankForm = (p?: Partial<PromotionDetail>): Form => ({
   featured: p?.featured ?? false,
   isPublished: p?.published ?? false,
   qualifyingGames: p?.qualifyingGames ?? [],
-  sportEvents: p?.sportEvents ?? []
+  sportEvents: p?.sportEvents ?? [],
+  prizePool: p?.tournamentPanel?.prizePool ?? '',
+  prizeEnds: p?.tournamentPanel?.ends ?? '',
+  prizeSplit: p?.tournamentPanel?.prizeSplit ?? '',
+  liveBoard: Boolean(p?.leaderboard?.live),
+  livePeriod: p?.leaderboard?.live?.period ?? 'weekly',
+  liveLimit: String(p?.leaderboard?.live?.limit ?? 20)
 })
 
 /** Trim every string of a row and drop empty optional keys (the schemas are `.strict()` and `min(1)`). */
@@ -165,7 +184,18 @@ const payload = (form: Form) => ({
 
   // Only the segment's own list is kept; the other is cleared so a switched segment leaves nothing stale.
   qualifyingGames: form.segment === 'casino' ? form.qualifyingGames.map(clean) : [],
-  sportEvents: form.segment === 'sports' ? form.sportEvents.map(clean) : []
+  sportEvents: form.segment === 'sports' ? form.sportEvents.map(clean) : [],
+  tournamentPanel:
+    form.prizePool.trim() || form.prizeEnds.trim() || form.prizeSplit.trim()
+      ? clean({ prizePool: form.prizePool, ends: form.prizeEnds, prizeSplit: form.prizeSplit, endsAt: fromLocal(form.endsAt) ?? '' })
+      : null,
+  leaderboard: form.liveBoard
+    ? {
+        kind: 'wager',
+        columns: ['Rank', 'User', 'Wagered', 'Prize'],
+        live: { source: 'wager_leaderboard' as const, period: form.livePeriod, limit: Number(form.liveLimit) || 20 }
+      }
+    : null
 })
 
 /**
@@ -184,7 +214,7 @@ const toFormData = (body: ReturnType<typeof payload>, file: File) => {
       continue
     }
 
-    fd.set(k, Array.isArray(v) ? JSON.stringify(v) : String(v))
+    fd.set(k, typeof v === 'object' ? JSON.stringify(v) : String(v))
   }
 
   fd.set('image', file)
@@ -720,26 +750,23 @@ const PromotionDialog = ({ existing }: { existing?: Promotion }) => {
       </div>
       <TextField id='pr-title' name='title' label='Title' required maxLength={512} value={form.title} onChange={e => set('title', e.target.value)} />
       <TextAreaField id='pr-summary' name='summary' label='Summary' rows={2} maxLength={2000} hint='The short line on the promotion card.' value={form.summary} onChange={e => set('summary', e.target.value)} />
-      <TextAreaField
+      <RichTextField
         id='pr-desc'
         name='description'
         label='Description'
         required
-        rows={10}
-        className='font-mono text-xs'
-        hint={existing && full.isLoading ? 'Loading the current description…' : 'HTML is allowed (<p>, <ul>, <strong>, links…) — it is rendered as the promotion’s body.'}
+        hint={existing && full.isLoading ? 'Loading the current description…' : 'The promotion’s body. Use the toolbar, or </> to edit the HTML.'}
         value={form.description}
-        onChange={e => set('description', e.target.value)}
+        onChange={html => set('description', html)}
       />
-      <TextAreaField
+      <RichTextField
         id='pr-terms'
         name='termsHtml'
         label='Terms & conditions'
-        rows={5}
-        className='font-mono text-xs'
-        hint='Optional. HTML allowed. Leave empty for none.'
+        minHeight={140}
+        hint='Optional. Leave empty for none.'
         value={form.termsHtml}
-        onChange={e => set('termsHtml', e.target.value)}
+        onChange={html => set('termsHtml', html)}
       />
       <div className='grid gap-2'>
         <label htmlFor='pr-image' className='text-sm font-medium'>
@@ -761,6 +788,28 @@ const PromotionDialog = ({ existing }: { existing?: Promotion }) => {
         <SwitchField id='pr-featured' label='Featured' hint='Listed first.' checked={form.featured} onChange={v => set('featured', v)} />
         <SwitchField id='pr-published' label='Published' hint='Off: hidden from players.' checked={form.isPublished} onChange={v => set('isPublished', v)} />
       </div>
+      <div className='grid gap-2 sm:grid-cols-3'>
+        <TextField id='pr-pool' label='Prize pool' placeholder='$10,000' hint='Optional; shown in a panel under the article.' value={form.prizePool} onChange={e => set('prizePool', e.target.value)} />
+        <TextField id='pr-pends' label='Ends (text)' placeholder='Sep 14, 9:30 AM' hint='Optional; the panel’s end time as written.' value={form.prizeEnds} onChange={e => set('prizeEnds', e.target.value)} />
+        <TextField id='pr-split' label='Prize split' placeholder='50' hint='Optional; “Top 50”.' value={form.prizeSplit} onChange={e => set('prizeSplit', e.target.value)} />
+      </div>
+      <SwitchField id='pr-board' label='Live wager leaderboard' hint='Shows the platform’s wager leaderboard under the article.' checked={form.liveBoard} onChange={v => set('liveBoard', v)} />
+      {form.liveBoard && (
+        <div className='grid gap-2 sm:grid-cols-2'>
+          <SelectField
+            id='pr-board-period'
+            label='Period'
+            value={form.livePeriod}
+            onChange={v => set('livePeriod', v as Form['livePeriod'])}
+            options={[
+              { value: 'daily', label: 'Daily' },
+              { value: 'weekly', label: 'Weekly' },
+              { value: 'monthly', label: 'Monthly' }
+            ]}
+          />
+          <TextField id='pr-board-limit' label='Rows' inputMode='numeric' value={form.liveLimit} onChange={e => set('liveLimit', e.target.value.replace(/\D/g, ''))} />
+        </div>
+      )}
       {form.segment === 'casino' ? (
         <GamesPicker value={form.qualifyingGames} onChange={v => set('qualifyingGames', v)} error={listErrors.games} />
       ) : (

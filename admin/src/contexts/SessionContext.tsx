@@ -171,8 +171,22 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     queryKey: ['api', 'admin/features/public', null],
     queryFn: () =>
       api
-        .get<Array<{ feature: string; variant?: string }>>('admin/features/public')
-        .then(list => (Array.isArray(list) ? new Map(list.map(f => [f.feature, f.variant])) : null))
+        .get<Array<{ feature: string; variant?: string; palette?: Record<string, string> }>>('admin/features/public')
+        // rainbet: an owner-made theme's colours ride along as `<feature>_palette` (JSON) for PaletteSync.
+        .then(list =>
+          Array.isArray(list)
+            ? new Map(
+                list.flatMap(f =>
+                  f.palette
+                    ? [
+                        [f.feature, f.variant],
+                        [`${f.feature}_palette`, JSON.stringify(f.palette)]
+                      ]
+                    : [[f.feature, f.variant]]
+                )
+              )
+            : null
+        )
         .catch(() => null),
     enabled: !!me.data,
     staleTime: ENTITLEMENTS_POLL_MS - 1_000,

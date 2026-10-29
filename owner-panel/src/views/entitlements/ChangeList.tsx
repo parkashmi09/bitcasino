@@ -137,6 +137,14 @@ const ChangeList = ({ changes, labelOf }: { changes: Change[]; labelOf: (c: Togg
             {c.from.join(', ') || '—'} → {c.to.join(', ') || '—'}
           </span>
         </li>
+      ) : c.kind === 'themes' ? (
+        <li key='themes' className='flex flex-wrap items-center gap-2 text-sm'>
+          <span className='text-muted-foreground w-14 text-xs uppercase'>theme</span>
+          <span className='font-medium'>Your themes</span>
+          <span className='text-muted-foreground font-mono text-xs break-all'>
+            {c.from.join(', ') || '—'} → {c.to.join(', ') || '—'}
+          </span>
+        </li>
       ) : (
         <li key={`${c.kind}:${c.key}`} className='flex flex-wrap items-center gap-2 text-sm'>
           <span className='text-muted-foreground w-14 text-xs uppercase'>{c.kind}</span>

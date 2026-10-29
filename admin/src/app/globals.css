@@ -296,6 +296,35 @@ input[type='number']::-webkit-outer-spin-button {
   html {
     @apply font-sans;
   }
+
+  /* rainbet: a file input reads as an upload box with a real button, not plain text (Banners,
+     Blogs, Avatars, Providers, VIP badges…). Base layer: a view's own classes still win. */
+  input[type='file'] {
+    width: 100%;
+    padding: 0.5rem;
+    border: 1px dashed var(--border);
+    border-radius: var(--radius);
+    background: color-mix(in srgb, var(--muted-foreground) 6%, transparent);
+    color: var(--muted-foreground);
+    font-size: 0.875rem;
+    cursor: pointer;
+  }
+  input[type='file']:hover {
+    border-color: var(--primary);
+  }
+  input[type='file']::file-selector-button {
+    margin-right: 0.75rem;
+    padding: 0.4rem 0.9rem;
+    border: 0;
+    border-radius: calc(var(--radius) - 2px);
+    background: var(--primary);
+    color: var(--primary-foreground);
+    font-weight: 500;
+    cursor: pointer;
+  }
+  input[type='file']::file-selector-button:hover {
+    opacity: 0.9;
+  }
 }
 
 @theme inline {

@@ -82,7 +82,7 @@ export const useFormErrors = () => {
 }
 
 /** The message for a field and a way to clear it once the user edits that field. */
-const useFieldError = (id: string, name?: string, explicit?: string | false | null) => {
+export const useFieldError = (id: string, name?: string, explicit?: string | false | null) => {
   const ctx = useContext(FormErrorsContext)
   const fromCtx = ctx ? (name ? ctx.errors[name] : undefined) ?? ctx.errors[id] : undefined
   const message = explicit || fromCtx || undefined
@@ -96,7 +96,7 @@ const useFieldError = (id: string, name?: string, explicit?: string | false | nu
   return { message, clear }
 }
 
-const Message = ({ id, message }: { id: string; message?: string }) => (message ? <FieldError id={`${id}-error`}>{message}</FieldError> : null)
+export const Message = ({ id, message }: { id: string; message?: string }) => (message ? <FieldError id={`${id}-error`}>{message}</FieldError> : null)
 
 export const TextField = ({ id, label, hint, required, error, onChange, ...input }: Base & Omit<React.ComponentProps<typeof Input>, 'id'>) => {
   const { message, clear } = useFieldError(id, typeof input.name === 'string' ? input.name : undefined, error)

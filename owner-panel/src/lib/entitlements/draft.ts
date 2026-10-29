@@ -6,6 +6,7 @@ import type { RegionSetting } from './region'
 import type { WithdrawalCap } from './withdrawalCap'
 import type { WithdrawalDailyLimit } from './withdrawalDailyLimit'
 import type { PaymentMethods } from './paymentMethods'
+import type { OwnerPalette } from './palettes'
 
 export type Draft = {
   region?: RegionSetting
@@ -14,6 +15,9 @@ export type Draft = {
   paymentMethods?: PaymentMethods
   withdrawalsEnabled?: boolean
   template?: string
+
+  /** rainbet: the owner's own colour themes (./palettes). */
+  palettes?: OwnerPalette[]
   features: Record<string, boolean>
   flags: Record<string, boolean>
   variants: Record<string, string>
@@ -27,6 +31,7 @@ type Loaded = {
   paymentMethods?: PaymentMethods
   withdrawalsEnabled?: boolean
   template: string
+  palettes?: OwnerPalette[]
   features: Record<string, boolean>
   flags: Record<string, boolean>
   variants: Record<string, string>
@@ -36,6 +41,7 @@ type Loaded = {
 export function buildDraft(doc: Loaded, edits: Partial<Draft> | null): Draft {
   return {
     template: edits?.template ?? doc.template,
+    ...(edits?.palettes ?? doc.palettes ? { palettes: edits?.palettes ?? doc.palettes } : {}),
     features: { ...doc.features, ...edits?.features },
     flags: { ...doc.flags, ...edits?.flags },
     variants: { ...doc.variants, ...edits?.variants },

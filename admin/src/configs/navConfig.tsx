@@ -429,7 +429,10 @@ export const navItems: NavItem[] = [
       { icon: 'Disc3', label: 'Spin wheel', href: '/spin-wheel', permission: 'reports:read', promotions: true, direct: true, flag: 'wheelspin', feature: 'spin_wheel' },
       { icon: 'Crown', label: 'VIP Club', href: '/vip', permission: 'reports:read', promotions: true, direct: true, flag: 'vipclub', feature: 'vip' },
       { icon: 'Link', label: 'Affiliate', href: '/affiliate', permission: 'reports:read', promotions: true, direct: true, flag: 'affiliate', feature: 'affiliate' },
-      { icon: 'Flag', label: 'Races', href: '/races', permission: 'reports:read', promotions: true, direct: true, feature: 'races' }
+      { icon: 'Flag', label: 'Races', href: '/races', permission: 'reports:read', promotions: true, direct: true, feature: 'races' },
+      { icon: 'Ticket', label: 'Raffle', href: '/raffle', permission: 'reports:read', promotions: true, direct: true, feature: 'raffles' },
+      { icon: 'Trophy', label: 'Challenges', href: '/challenges', permission: 'reports:read', promotions: true, direct: true, feature: 'challenges' },
+      { icon: 'RotateCw', label: 'Reload bonuses', href: '/reload-bonuses', permission: 'reports:read', promotions: true, direct: true, flag: 'bonus', feature: 'bonus' }
     ]
   },
   {
@@ -550,6 +553,9 @@ export const PROMOTION_ROUTES = [
   '/vip',
   '/affiliate',
   '/races',
+  '/raffle',
+  '/reload-bonuses',
+  '/challenges',
   '/vault',
   '/swap',
   '/site-config/affiliate',
