@@ -3,6 +3,8 @@
 import { useMemo } from 'react'
 
 
+import { ArrowDownIcon, ArrowUpIcon, RefreshCwIcon } from 'lucide-react'
+
 import {
   BarChart,
   ChartCard,
@@ -17,6 +19,8 @@ import {
   toApiRange,
   useStatsFilters
 } from '@/components/shared/charts'
+
+import Can from '@/components/shared/Can'
 import ChannelTabs, { type Channel } from '@/components/shared/ChannelTabs'
 import DataTable, { type Column } from '@/components/shared/DataTable'
 import DateTime from '@/components/shared/DateTime'
@@ -27,11 +31,14 @@ import PageHeader from '@/components/shared/PageHeader'
 import StatusBadge from '@/components/shared/StatusBadge'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { DateRangePicker } from '@/components/ui/date-picker'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Skeleton } from '@/components/ui/skeleton'
-import { useApi, useListState } from '@/hooks/use-api'
+import { Switch } from '@/components/ui/switch'
+import { useApi, useApiMutation, useListState } from '@/hooks/use-api'
+import { api } from '@/lib/api/client'
 import { formatNumber } from '@/lib/format'
 import { usePageList } from './usePageList'
 
@@ -408,19 +415,41 @@ const BetsTab = ({ channel }: { channel: Channel }) => {
 
 // ── Games (what the provider offers, and its status) ─────────────────────
 
-const GameCard = ({ game }: { game: Game }) => (
+/** rainbet: the casino-service routes that change the catalogue (on/off, order, sync). */
+const CASINO = 'admin/casino/original-games/games'
+
+const GameCard = ({ game, onToggle, onMove, busy, first, last }: { game: Game; onToggle: (on: boolean) => void; onMove: (by: -1 | 1) => void; busy: boolean; first: boolean; last: boolean }) => (
   <Card className='shadow-none'>
     <CardHeader className='pb-2'>
       <div className='flex items-start justify-between gap-2'>
-        <div>
-          <CardTitle className='text-base'>{game.name}</CardTitle>
-          <div className='text-muted-foreground font-mono text-xs'>{game.code}</div>
+        <div className='flex items-start gap-3'>
+          {game.image && <img src={game.image} alt='' className='bg-muted size-12 rounded object-cover' />}
+          <div>
+            <CardTitle className='text-base'>{game.name}</CardTitle>
+            <div className='text-muted-foreground font-mono text-xs'>{game.code}</div>
+          </div>
         </div>
         <div className='flex flex-col items-end gap-1'>
           <StatusBadge value={game.status ?? 'unknown'} />
           {!game.enabled && <StatusBadge value='disabled' />}
         </div>
       </div>
+      <Can permission='config:write'>
+        <div className='flex items-center justify-between gap-2 pt-2'>
+          <label className='flex items-center gap-2 text-sm'>
+            <Switch checked={game.enabled} disabled={busy} onCheckedChange={onToggle} />
+            On the site
+          </label>
+          <div className='flex gap-1'>
+            <Button variant='ghost' size='icon' aria-label='Move up' disabled={busy || first} onClick={() => onMove(-1)}>
+              <ArrowUpIcon />
+            </Button>
+            <Button variant='ghost' size='icon' aria-label='Move down' disabled={busy || last} onClick={() => onMove(1)}>
+              <ArrowDownIcon />
+            </Button>
+          </div>
+        </div>
+      </Can>
     </CardHeader>
     <CardContent className='grid gap-3 text-sm'>
       <div className='grid grid-cols-3 gap-2'>
@@ -460,14 +489,42 @@ const GameCard = ({ game }: { game: Game }) => (
 const GamesTab = () => {
   const q = useApi<Games>(`${BASE}/games`)
 
+  // rainbet: the player site's Originals follow this list — on/off, order (top first) and a sync.
+  const invalidate = [['api', `${BASE}/games`]]
+
+  const toggle = useApiMutation({
+    fn: (v: { code: string; enabled: boolean }) => api.put(`${CASINO}/${encodeURIComponent(v.code)}`, { enabled: v.enabled }),
+    invalidate,
+    success: (_r, v) => (v.enabled ? 'Shown on the site' : 'Hidden from the site')
+  })
+
+  const order = useApiMutation({ fn: (codes: string[]) => api.put(`${CASINO}/order`, { codes }), invalidate, success: 'Order saved' })
+  const sync = useApiMutation({ fn: () => api.post(`${CASINO}/sync`), invalidate, success: 'Games synced from the provider' })
+  const busy = toggle.isPending || order.isPending || sync.isPending
+
   if (q.error) return <ErrorState error={q.error} />
   const games = q.data?.games ?? []
   const live = games.filter(g => g.enabled && g.status === 'live').length
 
+  const move = (at: number, by: -1 | 1) => {
+    const codes = games.map(g => g.code)
+
+    ;[codes[at], codes[at + by]] = [codes[at + by], codes[at]]
+    order.mutate(codes)
+  }
+
   return (
     <div className='grid gap-4'>
-      <div className='text-muted-foreground text-sm'>
-        {formatNumber(games.length)} games from the provider · {formatNumber(live)} live. Play counts are for all players, all time.
+      <div className='flex flex-wrap items-center justify-between gap-2'>
+        <div className='text-muted-foreground text-sm'>
+          {formatNumber(games.length)} games from the provider · {formatNumber(live)} live. Play counts are for all players, all time. The site shows the
+          games that are on, in this order.
+        </div>
+        <Can permission='config:write'>
+          <Button variant='outline' size='sm' disabled={busy} onClick={() => sync.mutate()}>
+            <RefreshCwIcon /> {sync.isPending ? 'Syncing…' : 'Sync games'}
+          </Button>
+        </Can>
       </div>
       {q.isLoading ? (
         <div className='grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3'>
@@ -477,13 +534,21 @@ const GamesTab = () => {
         </div>
       ) : games.length ? (
         <div className='grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3'>
-          {games.map(g => (
-            <GameCard key={g.code} game={g} />
+          {games.map((g, i) => (
+            <GameCard
+              key={g.code}
+              game={g}
+              busy={busy}
+              first={i === 0}
+              last={i === games.length - 1}
+              onToggle={enabled => toggle.mutate({ code: g.code, enabled })}
+              onMove={by => move(i, by)}
+            />
           ))}
         </div>
       ) : (
         <Alert>
-          <AlertDescription>No games synced yet. Run `node scripts/sync-original-games.js` on the server.</AlertDescription>
+          <AlertDescription>No games synced yet. Press Sync games (needs the provider keys on the backend).</AlertDescription>
         </Alert>
       )}
     </div>

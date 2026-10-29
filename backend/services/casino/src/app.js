@@ -9,6 +9,7 @@ const {
   mountModules,
   internalAuth,
   PROVIDER_CALLBACK_PREFIXES,
+  createContentNotifier,
 } = require('@ibitplay/common');
 
 /** Assemble the casino-service HTTP app. Every route comes from a module under src/modules. */
@@ -31,6 +32,11 @@ function buildApp(container) {
       modules,
       deps: container,
       logger,
+      // rainbet: staff content writes → user-service → player sockets (contentPush.js).
+      onAdminWrite: createContentNotifier({
+        logger,
+        send: (content) => container.clients.user.post('/internal/user/preferences/site-config', { content }),
+      }),
       guards: {
         public: [],
         user: [auth.authenticate(), auth.requireActive()],

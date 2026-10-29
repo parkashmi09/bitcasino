@@ -573,6 +573,12 @@ export const FLAG_GROUPS: FlagGroup[] = [
     keys: ['casino', 'sports', 'sportsexchange', 'sportsbook', 'lotto', 'vipclub', 'clubmembership', 'bonus', 'affiliate', 'giftcards', 'welcomepack', 'wheelspin', 'provablyfair']
   },
   {
+    // rainbet: KYC shape (siteconfig.kyclevels, migration 170).
+    title: 'Verification',
+    description: 'On: the site admin may run KYC in levels (1–2 identity, 3 proof of address, 4 source of income). Off: one identity check with no levels, and the admin switch is hidden.',
+    keys: ['kyclevels']
+  },
+  {
     title: 'Game categories',
     description: 'Casino lobby tabs.',
     keys: ['crash', 'originals', 'livegames', 'slotsgames', 'alllivegames', 'allslotsgames', 'lotterygames', 'cards', 'instantgames']
@@ -612,6 +618,12 @@ export const FLAG_GROUPS: FlagGroup[] = [
     title: 'Demo login',
     description: 'ON: a Demo Login button in the agent site\'s Sign In popup gives anyone a throwaway account — ₹1500, sports exchange bets only, no bonus or promotions, hidden from the admin — deleted after 30 minutes. OFF: no button, and new demos are refused.',
     keys: ['demo_login']
+  },
+  {
+    // rainbet: Google sign-in (user-service auth/google).
+    title: 'Sign-in',
+    description: 'ON: the player site shows "Sign in with Google" (until the Google keys are set, a click says it is not available yet). OFF: no button, and Google sign-in is refused.',
+    keys: ['google_login']
   },
   {
     title: 'Home page sections',
@@ -658,6 +670,7 @@ export const FLAG_LABELS: Record<string, string> = {
   welcomepack: 'Welcome pack',
   wheelspin: 'Spin wheel',
   provablyfair: 'Provably fair',
+  kyclevels: 'KYC in levels',
   crash: 'Crash games',
   originals: 'Originals (in-house)',
   livegames: 'Live games',
@@ -682,6 +695,7 @@ export const FLAG_LABELS: Record<string, string> = {
   f2pay_usdt: 'Crypto (USDT, TRC20)',
   idle_logout: 'Idle logout (no bet in the first 5 minutes after sign-in)',
   demo_login: 'Demo login (agent Sign In: ₹1500, sports only, 30 minutes)',
+  google_login: 'Sign in with Google',
   idr: 'IDR',
   home_heroSection: 'Hero carousel',
   home_welcomebanner: 'Welcome banner',

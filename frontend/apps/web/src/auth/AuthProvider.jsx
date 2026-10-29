@@ -1,6 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { ApiError, api, refreshSession } from '@/lib/api';
 import { ENDPOINTS } from '@/lib/endpoints';
+import { closeSportsbookSession } from '@/lib/sportsbookLaunch';
 import { tokenStore } from './tokenStore';
 import { bindSession } from '@/lib/socket';
 import { toast } from '@/lib/toast';
@@ -178,6 +179,8 @@ export function AuthProvider({ children }) {
 
   const logout = useCallback(async (allSessions = false) => {
     const refreshToken = tokenStore.getRefresh();
+    // While the token still works: the open sportsbook session is closed upstream too.
+    await closeSportsbookSession();
     try {
       await api(ENDPOINTS.logout, {
         method: 'POST',

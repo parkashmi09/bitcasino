@@ -218,7 +218,13 @@ export const CategoriesTab = () => {
   const games = useApi<GisGame[]>(path, { limit: 5000, page: 1 })
   const items = useMemo(() => games.data?.map(gisItem), [games.data])
 
-  const save = useApiMutation({ fn: (uuids: string[]) => api.patch(path as string, { uuids }), invalidate: [['api', BASE]], success: 'Category saved' })
+  // Re-read this category's games too (its own query key), or the list falls back to the pre-save rows.
+  const save = useApiMutation({
+    fn: (uuids: string[]) => api.patch(path as string, { uuids }),
+    invalidate: [['api', BASE], ['api', path as string]],
+    success: 'Category saved'
+  })
+
   const toggle = useApiMutation({ fn: (active: boolean) => api.patch(path as string, { active }), invalidate: [['api', BASE]], success: (_, on) => (on ? 'Shown on the site' : 'Hidden from the site') })
   const remove = useApiMutation({ fn: () => api.delete(path as string), invalidate: [['api', BASE]], success: 'Category deleted' })
   const reorder = useApiMutation({ fn: (slugs: string[]) => api.put(`${BASE}/order`, { slugs }), invalidate: [['api', BASE]] })

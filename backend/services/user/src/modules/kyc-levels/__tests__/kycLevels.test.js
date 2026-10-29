@@ -39,3 +39,16 @@ test('a rejected level shows its reason', async () => {
   const s = await service({ levels: [{ level: 3, status: 'Rejected', rejection_reason: 'Blurry' }] }).status(1);
   assert.equal(s.levels[0].rejectionReason, 'Blurry');
 });
+
+test('with levels switched off (siteconfig.kyclevels) nothing past the identity KYC is offered', async () => {
+  const off = new KycLevelService({
+    models: { UserKyc: { findOne: async () => ({ status: 'Verified' }) }, UserKycLevel: { findAll: async () => [] } },
+    db: { sequelize: { query: async () => [{ kyclevels: false }], QueryTypes: { SELECT: 'SELECT' } } },
+    logger: null,
+    config: { KYC_STORAGE_DIR: 'unused' },
+  });
+  const s = await off.status(1);
+  assert.equal(s.levelsOn, false);
+  assert.deepEqual(s.levels, []);
+  await assert.rejects(off.submit(1, 3, { size: 10, buffer: Buffer.alloc(5) }), (e) => e.code === 'KYC_LEVEL_LEVELS_OFF');
+});

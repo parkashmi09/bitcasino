@@ -41,7 +41,7 @@ const LINK_COLUMNS = [
       { label: 'Video Poker', to: '/categories/table-games' },
       { label: 'Live Poker', to: '/categories/live-casino' },
       { label: 'Live Game Shows', to: '/categories/game-shows' },
-      // `/sports` is gated (lib/gates.js): this site has no sportsbook, so the link hides itself.
+      // `/sports` is gated (lib/gates.js): hidden unless the owner has the sportsbook on.
       { label: 'Sportsbook', to: '/sports' },
       { label: 'All providers', to: '/providers' },
     ],

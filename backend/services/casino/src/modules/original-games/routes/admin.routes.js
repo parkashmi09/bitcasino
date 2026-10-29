@@ -17,6 +17,16 @@ module.exports = function adminRoutes(deps) {
   const router = Router();
   const houseOnly = denyAgentTree();
 
+  // rainbet: fill the catalogue from the aggregator (was a server script only), and the lobby order.
+  router.post('/games/sync', houseOnly, deps.auth.requirePermission(PERMISSIONS.CONFIG_WRITE), asyncHandler(async (_req, res) => response.ok(res, await service.syncGames())));
+  router.put(
+    '/games/order',
+    houseOnly,
+    deps.auth.requirePermission(PERMISSIONS.CONFIG_WRITE),
+    validate({ body: z.object({ codes: z.array(z.string().trim().min(1).max(64)).max(500) }).strict() }),
+    asyncHandler(async (req, res) => response.ok(res, await service.setOrder(req.body.codes)))
+  );
+
   router.get('/games', houseOnly, deps.auth.requirePermission(PERMISSIONS.CONFIG_READ), asyncHandler(async (_req, res) => response.ok(res, await service.adminGames())));
 
   router.put(

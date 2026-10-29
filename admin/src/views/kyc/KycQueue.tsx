@@ -21,16 +21,29 @@ import { useApiMutation, useListState, usePagedApi } from '@/hooks/use-api'
 import { api } from '@/lib/api/client'
 import { formatDate } from '@/lib/format'
 import { check } from '@/lib/validate'
-import KycLevelsQueue from './KycLevelsQueue'
+import { DocumentPreview, LevelDetail, useLevelRows, type LevelRow } from './KycLevelsQueue'
 import { DOCUMENT_FIELDS, KYC_STATUSES, type KycApplication, type KycStatus } from './types'
 
 const LIST = 'admin/user/kyc/applications'
 
-const columns: Column<KycApplication>[] = [
+/** rainbet: a Level 3–4 submission drawn as a row of the same table (`KycLevelsQueue.tsx`). */
+type LevelItem = LevelRow & { kind: 'level' }
+type Row = KycApplication | LevelItem
+const isLevel = (r: Row): r is LevelItem => (r as LevelItem).kind === 'level'
+
+const columns: Column<Row>[] = [
   {
     key: 'name',
     header: 'Applicant',
-    cell: r => (
+    cell: r =>
+      isLevel(r) ? (
+        <div className='flex flex-col'>
+          <span className='font-medium'>{r.player ?? '—'}</span>
+          <Link href={`/users/${r.userId}`} className='text-muted-foreground font-mono text-xs hover:underline' onClick={e => e.stopPropagation()}>
+            user #{r.userId}
+          </Link>
+        </div>
+      ) : (
       <div className='flex flex-col'>
         <span className='font-medium'>
           {r.firstName} {r.lastName}
@@ -39,15 +52,22 @@ const columns: Column<KycApplication>[] = [
           user #{r.userId}
         </Link>
       </div>
-    )
+      )
   },
   { key: 'status', header: 'Status', cell: r => <StatusBadge value={r.status} /> },
-  { key: 'doc', header: 'Document', cell: r => <Badge variant='outline'>{r.documentType?.replace(/_/g, ' ')}</Badge> },
-  { key: 'country', header: 'Country', cell: r => r.country ?? '—' },
+  {
+    key: 'doc',
+    header: 'Document',
+    cell: r => <Badge variant='outline'>{isLevel(r) ? `Level ${r.level} — ${r.label}` : r.documentType?.replace(/_/g, ' ')}</Badge>
+  },
+  { key: 'country', header: 'Country', cell: r => (isLevel(r) ? '—' : (r.country ?? '—')) },
   {
     key: 'files',
     header: 'Files',
-    cell: r => (
+    cell: r =>
+      isLevel(r) ? (
+        <DocumentPreview row={r} />
+      ) : (
       <span className='flex gap-1'>
         {DOCUMENT_FIELDS.filter(d => r.documents?.[d.field]).map(d => (
           <Badge key={d.field} variant='secondary' className='font-normal'>
@@ -164,11 +184,15 @@ const KycDetail = ({ app, onClose }: { app: KycApplication | null; onClose: () =
 const StatusChip = ({ status, active, onClick }: { status: string; active: boolean; onClick: () => void }) => {
   const count = usePagedApi<KycApplication>(LIST, { limit: 1, page: 1, status: status || undefined })
 
+  // rainbet: Levels 3–4 submissions count in the same tab.
+  const levels = useLevelRows(status || undefined).data?.length
+  const total = count.data ? count.data.pagination.total + (levels ?? 0) : undefined
+
   return (
     <Button size='sm' variant={active ? 'default' : 'outline'} onClick={onClick}>
       {status || 'All'}
       <Badge variant='secondary' className='ml-1'>
-        {count.error ? '–' : (count.data?.pagination.total ?? '…')}
+        {count.error ? '–' : (total ?? '…')}
       </Badge>
     </Button>
   )
@@ -181,13 +205,21 @@ const KycList = () => {
   const status = state.status === 'all' ? undefined : query.status
   const list = usePagedApi<KycApplication>(LIST, { limit: query.limit, page: query.page, search: query.search, status })
   const [selected, setSelected] = useState<KycApplication | null>(null)
+  const [level, setLevel] = useState<LevelRow | null>(null)
+
+  // Levels 3–4 under the same tab, on the first page above Levels 1–2 (paging counts Levels 1–2).
+  const levelRows = useLevelRows(status ? String(status) : undefined).data
+
+  const rows: Row[] | undefined = list.data
+    ? [...(Number(query.page ?? 1) > 1 ? [] : (levelRows ?? []).map(r => ({ ...r, kind: 'level' as const }))), ...list.data.rows]
+    : undefined
 
   return (
     <>
       <DataTable
         columns={columns}
-        rows={list.data?.rows}
-        rowKey={r => r.id}
+        rows={rows}
+        rowKey={r => (isLevel(r) ? `level-${r.id}` : r.id)}
         loading={list.isLoading}
         fetching={list.isFetching}
         error={list.error}
@@ -197,7 +229,7 @@ const KycList = () => {
         search={String(state.search ?? '')}
         onSearchChange={search => set({ search })}
         searchPlaceholder='Name…'
-        onRowClick={setSelected}
+        onRowClick={r => (isLevel(r) ? setLevel(r) : setSelected(r))}
         toolbar={
           <div className='flex flex-wrap gap-1'>
             <StatusChip status='' active={state.status === 'all'} onClick={() => set({ status: 'all' })} />
@@ -208,6 +240,7 @@ const KycList = () => {
         }
       />
       <KycDetail app={selected} onClose={() => setSelected(null)} />
+      <LevelDetail row={level} onClose={() => setLevel(null)} />
     </>
   )
 }
@@ -217,7 +250,6 @@ const KycQueue = () => (
   <div>
     <PageHeader title='KYC review' description='Identity applications from direct users. Open one to see the documents and approve or reject it.' />
     <KycList />
-    <KycLevelsQueue />
   </div>
 )
 

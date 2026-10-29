@@ -71,6 +71,8 @@ const { withChannel, assertPlayerVisible } = require('../directory/playerScope')
 class FiatDepositService {
   constructor(deps) {
     const { models, db, config, logger } = deps;
+    // rainbet: the staff tree checks (playerScope) need `clients` — the whole deps, not this service.
+    this.deps = deps;
     this.models = models;
     this.db = db;
     this.config = config;
@@ -413,7 +415,7 @@ class FiatDepositService {
       // A staff reader opens only their own tree's receipts (as KYC documents); out of tree reads
       // exactly like missing.
       try {
-        await assertPlayerVisible(this, requesterId, row.user_id);
+        await assertPlayerVisible(this.deps, requesterId, row.user_id);
       } catch (error) {
         if (error?.status === 404) throw errors.SCREENSHOT_NOT_FOUND({ depositId });
         throw error;

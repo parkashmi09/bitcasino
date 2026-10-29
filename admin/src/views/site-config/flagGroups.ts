@@ -34,6 +34,12 @@ export const FLAG_GROUPS: { title: string; description: string; keys: string[] }
     keys: ['casino', 'lotto', 'vipclub', 'clubmembership', 'bonus', 'affiliate', 'giftcards', 'welcomepack', 'wheelspin', 'provablyfair']
   },
   {
+    // rainbet: KYC shape (migration 170).
+    title: 'Verification',
+    description: 'On: KYC in levels (1–2 identity, 3 proof of address, 4 source of income). Off: one identity check with no levels.',
+    keys: ['kyclevels']
+  },
+  {
     title: 'Fiat currencies',
     description: 'Wallet currencies a user may hold.',
     keys: ['inr', 'mvr', 'aed', 'pkr', 'bdt', 'npr', 'eur']
@@ -81,6 +87,7 @@ export const FLAG_LABELS: Record<string, string> = {
   welcomepack: 'Welcome pack',
   wheelspin: 'Spin wheel',
   provablyfair: 'Provably fair',
+  kyclevels: 'KYC in levels',
   crash: 'Crash games',
   originals: 'Originals',
   livegames: 'Live games',

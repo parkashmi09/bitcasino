@@ -6,6 +6,7 @@ const crypto = require('node:crypto');
 
 const errors = require('./kycLevels.errors');
 const { MAGIC_BYTES, MAX_FILE_BYTES } = require('../kyc/kyc.constants');
+const { entitlements } = require('@ibitplay/common');
 const { ownerWhere, assertPlayerVisible } = require('../directory/playerScope');
 
 const STATUS = Object.freeze({ PENDING: 'Pending', VERIFIED: 'Verified', REJECTED: 'Rejected' });
@@ -26,12 +27,25 @@ class KycLevelService {
     this.storageDir = deps.config.KYC_STORAGE_DIR;
   }
 
+  /**
+   * The KYC shape (`kyclevels`, migration 170): levels when both the owner's plan and the site
+   * admin's switch are on (default), one identity step otherwise — then Levels 3–4 are not offered.
+   */
+  async #levelsOn() {
+    if (!(await entitlements.isFlagEntitled('kyclevels'))) return false;
+    if (!this.deps.db?.sequelize) return true;
+    const [row] = await this.deps.db.sequelize.query('SELECT kyclevels FROM siteconfig LIMIT 1', { type: this.deps.db.sequelize.QueryTypes.SELECT });
+    return row?.kyclevels !== false;
+  }
+
   /** Where the player stands: the identity KYC and each level, with whether it can be sent. */
   async status(userId) {
-    const [identity, rows] = await Promise.all([
+    const [identity, rows, levelsOn] = await Promise.all([
       this.models.UserKyc.findOne({ where: { user_id: String(userId) }, attributes: ['status'], raw: true }),
       this.models.UserKycLevel.findAll({ where: { user_id: userId }, raw: true }),
+      this.#levelsOn(),
     ]);
+    if (!levelsOn) return { identity: identity?.status ?? null, levelsOn: false, levels: [] };
     const byLevel = new Map(rows.map((r) => [Number(r.level), r]));
     const shape = (level, unlocked) => {
       const row = byLevel.get(level);
@@ -45,7 +59,7 @@ class KycLevelService {
       };
     };
     const three = shape(3, identity?.status === STATUS.VERIFIED);
-    return { identity: identity?.status ?? null, levels: [three, shape(4, three.status === STATUS.VERIFIED)] };
+    return { identity: identity?.status ?? null, levelsOn: true, levels: [three, shape(4, three.status === STATUS.VERIFIED)] };
   }
 
   /** Send (or, after a rejection, send again) the document for `level`. */
@@ -53,6 +67,7 @@ class KycLevelService {
     if (!file) throw errors.DOCUMENT_REQUIRED({ level });
     const { levels } = await this.status(userId);
     const current = levels.find((l) => l.level === level);
+    if (!current) throw errors.LEVELS_OFF({ level });
     if (!current.unlocked) throw errors.LOCKED({ level });
     if (current.status === STATUS.PENDING) throw errors.ALREADY_PENDING({ level });
     if (current.status === STATUS.VERIFIED) throw errors.ALREADY_VERIFIED({ level });

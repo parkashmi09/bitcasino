@@ -138,6 +138,24 @@ class OriginalGamesService {
     return { gameCode, enabled };
   }
 
+  /**
+   * rainbet: the lobby order, set in the admin — `codes` first to last. A code the catalogue does
+   * not hold is ignored; games left out keep their place after the listed ones.
+   */
+  async setOrder(codes) {
+    await this.db.transaction(async (transaction) => {
+      for (const [position, code] of codes.entries()) {
+        await this.#query('UPDATE og_games SET position = :position WHERE code = :code', { position, code }, transaction);
+      }
+      await this.#query(
+        `UPDATE og_games SET position = :offset + position WHERE NOT (code = ANY(ARRAY[:codes]::text[]))`,
+        { offset: codes.length, codes: codes.length ? codes : [''] },
+        transaction
+      );
+    });
+    return this.adminGames();
+  }
+
   /** Replace `og_games` with the aggregator's `GET /v1/games` (scripts/sync-original-games.js). */
   async syncGames() {
     if (!this.provider?.configured) throw E.NOT_CONFIGURED();
@@ -157,11 +175,13 @@ class OriginalGamesService {
     await this.db.transaction(async (transaction) => {
       // A game the aggregator no longer offers leaves the lobby.
       await this.#query('DELETE FROM og_games WHERE NOT (code = ANY(ARRAY[:codes]::text[]))', { codes: games.map((g) => g.code) }, transaction);
-      for (const [position, game] of games.entries()) {
+      // rainbet: a game already listed keeps the admin's position; a new one goes to the end.
+      for (const game of games) {
         await this.#query(
-          `INSERT INTO og_games (code, name, position, data, synced_at) VALUES (:code, :name, :position, CAST(:data AS jsonb), NOW())
-           ON CONFLICT (code) DO UPDATE SET name = EXCLUDED.name, position = EXCLUDED.position, data = EXCLUDED.data, synced_at = NOW()`,
-          { code: game.code, name: game.name || game.code, position, data: JSON.stringify(game.data) },
+          `INSERT INTO og_games (code, name, position, data, synced_at)
+           VALUES (:code, :name, (SELECT COALESCE(MAX(position), -1) + 1 FROM og_games), CAST(:data AS jsonb), NOW())
+           ON CONFLICT (code) DO UPDATE SET name = EXCLUDED.name, data = EXCLUDED.data, synced_at = NOW()`,
+          { code: game.code, name: game.name || game.code, data: JSON.stringify(game.data) },
           transaction
         );
       }

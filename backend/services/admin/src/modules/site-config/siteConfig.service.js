@@ -206,6 +206,8 @@ const PUBLIC_FLAGS = Object.freeze([
   // top-level features
   'casino', 'lotto', 'vipclub', 'clubmembership', 'bonus', 'affiliate',
   'giftcards', 'welcomepack', 'wheelspin', 'provablyfair',
+  // rainbet: KYC in levels or in one step (migration 170)
+  'kyclevels',
   // game categories
   'crash', 'originals', 'livegames', 'slotsgames', 'alllivegames', 'allslotsgames',
   'lotterygames', 'cards', 'instantgames',

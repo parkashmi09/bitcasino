@@ -90,6 +90,7 @@ function harness({ linked = null, emailHolder = null, businessModel = 'hybrid' }
   };
   const service = new AuthService({ models, db, config: CONFIG, logger: null });
   service.region = { assertAllowed: async () => {} };
+  service.entitlements = { isFlagEntitled: async () => true };
   return { service, codes };
 }
 
@@ -156,4 +157,20 @@ test('off without keys: start refuses with GOOGLE_NOT_CONFIGURED', () => {
   const service = new AuthService({ models: {}, db: {}, config: { ...CONFIG, GOOGLE_CLIENT_ID: undefined }, logger: null });
   assert.equal(service.googleEnabled(), false);
   assert.throws(() => service.googleStart(), (e) => e.code === 'AUTH_GOOGLE_NOT_CONFIGURED' && e.status === 503);
+});
+
+test('owner switch off: no start, the callback goes back with AUTH_GOOGLE_DISABLED, exchange refused', async () => {
+  const { service } = harness();
+  service.entitlements = { isFlagEntitled: async (key) => key !== 'google_login' };
+  assert.equal(await service.googleAllowed(), false);
+  assert.equal(await service.googleUnavailable(), 'AUTH_GOOGLE_DISABLED');
+  assert.match(await callback(service, {}), /\/login\/google\?error=AUTH_GOOGLE_DISABLED$/);
+  await assert.rejects(service.googleExchange({ code: 'c', nonce: NONCE }), (e) => e.code === 'AUTH_GOOGLE_DISABLED' && e.status === 403);
+});
+
+test('owner switch on without keys: allowed, but start goes back with AUTH_GOOGLE_NOT_CONFIGURED', async () => {
+  const service = new AuthService({ models: {}, db: {}, config: { ...CONFIG, GOOGLE_CLIENT_ID: undefined }, logger: null });
+  service.entitlements = { isFlagEntitled: async () => true };
+  assert.equal(await service.googleAllowed(), true);
+  assert.equal(await service.googleUnavailable(), 'AUTH_GOOGLE_NOT_CONFIGURED');
 });

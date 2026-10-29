@@ -384,6 +384,12 @@ export const ENDPOINTS = {
   // answers `{gameLaunchUrl, via}` (casino `games/gameLauncher.js`).
   gameLaunch: `${CASINO}/games/launch`,
   gisLaunchDemo: `${CASINO}/gis/launch-demo`,
+  // The Slotegrator sportsbook (`lib/sportsbookLaunch.js`): list the books, open / reopen a
+  // session, close it on sign-out. 503 SPORTSBOOK_NOT_CONFIGURED while the provider is unset.
+  sportsbooks: `${CASINO}/sportsbook`,
+  sportsbookInit: `${CASINO}/sportsbook/init`,
+  sportsbookRefresh: `${CASINO}/sportsbook/refresh`,
+  sportsbookLogout: `${CASINO}/sportsbook/logout`,
 
   // ── Site configuration ──────────────────────────────────────────────
   // Public and rate-limited. The feature flags, the currencies the site

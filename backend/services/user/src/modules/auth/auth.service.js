@@ -30,6 +30,7 @@ const { resolveReferrerOwner } = require('../affiliate/referrerResolver');
  */
 const { PLAYER_ROLE_ID, WALLET_SEED } = require('./registration.constants');
 const google = require('./google');
+const { renderGeneral, escape } = require('../email/templates');
 
 /**
  * One spelling per client address. Node reports an IPv4 client on a dual-stack
@@ -664,6 +665,22 @@ class AuthService {
     return google.configured(this.config);
   }
 
+  /** rainbet: the owner's `google_login` switch — the player site draws the button on it, keys or not. */
+  googleAllowed() {
+    return this.entitlements.isFlagEntitled('google_login');
+  }
+
+  /** Why a Google start cannot go ahead (an error code for `/login/google?error=`), or null. */
+  async googleUnavailable() {
+    if (!(await this.googleAllowed())) return 'AUTH_GOOGLE_DISABLED';
+    return this.googleEnabled() ? null : 'AUTH_GOOGLE_NOT_CONFIGURED';
+  }
+
+  /** The player site's `/login/google` with these query params. */
+  googleReturnUrl(params) {
+    return `${String(this.config.PUBLIC_SITE_URL).replace(/\/+$/, '')}/login/google?${new URLSearchParams(params)}`;
+  }
+
   /** `{ url, cookie }`: where to send the browser, and the signed state cookie to set first. */
   googleStart({ nonce } = {}) {
     if (!this.googleEnabled()) throw errors.GOOGLE_NOT_CONFIGURED();
@@ -682,8 +699,9 @@ class AuthService {
    * and locks apply exactly as at password login.
    */
   async googleCallback({ code, state, cookie }, rawContext = {}, { fetchImpl } = {}) {
-    const back = (params) => `${String(this.config.PUBLIC_SITE_URL).replace(/\/+$/, '')}/login/google?${new URLSearchParams(params)}`;
-    if (!this.googleEnabled()) return back({ error: 'AUTH_GOOGLE_NOT_CONFIGURED' });
+    const back = (params) => this.googleReturnUrl(params);
+    const unavailable = await this.googleUnavailable();
+    if (unavailable) return back({ error: unavailable });
     const context = withClientIp(rawContext);
     try {
       const { verifier, nonce } = google.verifierFor(cookie, state, this.config) ?? {};
@@ -731,6 +749,7 @@ class AuthService {
 
   /** The one-time code + the starting tab's nonce → the usual token pair. Single use, two minutes. */
   async googleExchange({ code, nonce }, rawContext = {}) {
+    if (!(await this.googleAllowed())) throw errors.GOOGLE_DISABLED();
     const context = withClientIp(rawContext);
     const [rows] = await this.db.sequelize.query(
       `UPDATE oauth_login_codes SET used_at = NOW()
@@ -859,11 +878,18 @@ class AuthService {
      * The token goes to the mailer, never to the caller — returning it here
      * would make the endpoint a password reset for anyone who knows an email.
      */
+    // NOT the password. Legacy sent the password itself. rainbet: the mailer takes subject/html,
+    // not a template name — `{ template, data }` went out as an empty message.
+    const link = `${String(this.config?.PUBLIC_SITE_URL ?? '').replace(/\/+$/, '')}/reset-password?${new URLSearchParams({ token })}`;
     await this.mailer?.send({
       to: user.email,
-      template: 'password-reset',
-      // NOT the password. Legacy sent the password itself.
-      data: { name: user.name, token, expiresInMinutes: RESET_TTL_MS / 60_000 },
+      ...renderGeneral({
+        subject: 'Reset your password',
+        title: 'Reset your password',
+        content: `<p>Hi ${escape(user.name)},</p><p>Someone asked to reset the password on your account. The link works once and expires in ${RESET_TTL_MS / 60_000} minutes.</p><p>If it was not you, ignore this email: your password stays the same.</p>`,
+        ctaLink: link,
+        ctaText: 'Reset password',
+      }),
     });
 
     this.logger?.info(

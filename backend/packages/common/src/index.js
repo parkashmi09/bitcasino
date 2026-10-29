@@ -62,6 +62,8 @@ const withdrawBlock = require('./withdrawBlock');
 const manualPayments = require('./manualPayments');
 /** What the platform owner allows this site — see entitlements.js. */
 const entitlements = require('./entitlements');
+// rainbet: admin content changed → player sockets (contentPush.js).
+const { CONTENT_SCOPES, createContentNotifier } = require('./contentPush');
 /** Owner-only ON/OFF options of a feature (e.g. when the spin wheel grants a spin). */
 const featureOptions = require('./featureOptions');
 /** Region restriction: the owner's mode, list type and countries (regionPolicy.js). */
@@ -131,6 +133,8 @@ module.exports = {
   withdrawBlock,
   manualPayments,
   entitlements,
+  CONTENT_SCOPES,
+  createContentNotifier,
   featureOptions,
   regionPolicy,
   withdrawalCap,

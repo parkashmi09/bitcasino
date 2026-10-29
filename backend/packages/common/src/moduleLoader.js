@@ -218,6 +218,8 @@ function mountModules({
   internalPrefix = '/internal',
   adminSegment = 'admin',
   logger,
+  // rainbet: `(scope) => void` after a successful staff write, `<service>:<module>` (contentPush.js).
+  onAdminWrite,
 } = {}) {
   const root = express.Router();
   const mounted = [];
@@ -281,7 +283,22 @@ function mountModules({
         }
       }
 
-      root.use(mountPath, ...guardList, router);
+      // rainbet: tell the player site that this module's data changed (contentPush.js).
+      const notify =
+        audience === 'admin' && typeof onAdminWrite === 'function'
+          ? [
+              (req, res, next) => {
+                if (!['GET', 'HEAD', 'OPTIONS'].includes(req.method)) {
+                  res.on('finish', () => {
+                    if (res.statusCode < 400) onAdminWrite(`${service}:${name}`);
+                  });
+                }
+                next();
+              },
+            ]
+          : [];
+
+      root.use(mountPath, ...guardList, ...notify, router);
       mounted.push({
         module: name,
         audience,

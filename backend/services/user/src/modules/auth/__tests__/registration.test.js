@@ -21,6 +21,8 @@ const TEST_DB = process.env.TEST_DB_NAME || 'ibitplay_test';
 
 let connection;
 let sent = [];
+/** The reset token, read off the link in the mail (`/reset-password?token=...`). */
+const tokenOf = (message) => new URL(message.html.match(/href="([^"]+)"/)[1].replace(/&amp;/g, '&')).searchParams.get('token');
 
 test('registration and password reset', async (t) => {
   const logger = createLogger({ name: 'registration-test', level: 'silent' });
@@ -240,17 +242,17 @@ test('registration and password reset', async (t) => {
     await service.requestPasswordReset({ email: `${unique}f@test.invalid` });
 
     assert.equal(sent.length, 1);
-    assert.equal(sent[0].template, 'password-reset');
-    assert.ok(sent[0].data.token, 'a token was sent');
-    assert.equal('password' in sent[0].data, false, 'and the password was not');
+    assert.equal(sent[0].subject, 'Reset your password');
+    assert.match(sent[0].html, /\/reset-password\?token=/, 'a reset link was sent');
+    assert.ok(tokenOf(sent[0]), 'carrying a token');
 
     // The token is stored HASHED — a database read is not a working link.
     const stored = await models.AuthVerificationToken.findOne({
       where: { user_id: account.id, purpose: 'password_reset' },
       raw: true,
     });
-    assert.equal(stored.token_hash, hashToken(sent[0].data.token));
-    assert.notEqual(stored.token_hash, sent[0].data.token);
+    assert.equal(stored.token_hash, hashToken(tokenOf(sent[0])));
+    assert.notEqual(stored.token_hash, tokenOf(sent[0]));
   });
 
   await t.test('AN UNKNOWN ADDRESS ANSWERS IDENTICALLY', async () => {
@@ -273,7 +275,7 @@ test('registration and password reset', async (t) => {
 
     sent = [];
     await service.requestPasswordReset({ email: `${unique}g@test.invalid` });
-    const { token } = sent[0].data;
+    const token = tokenOf(sent[0]);
 
     await service.completePasswordReset({ token, newPassword: 'a-completely-different-one' });
 
@@ -286,7 +288,7 @@ test('registration and password reset', async (t) => {
     const account = await signUp('h');
     sent = [];
     await service.requestPasswordReset({ email: `${unique}h@test.invalid` });
-    const { token } = sent[0].data;
+    const token = tokenOf(sent[0]);
 
     await service.completePasswordReset({ token, newPassword: 'first-new-password' });
 
@@ -308,10 +310,10 @@ test('registration and password reset', async (t) => {
     sent = [];
 
     await service.requestPasswordReset({ email: `${unique}i@test.invalid` });
-    const firstToken = sent[0].data.token;
+    const firstToken = tokenOf(sent[0]);
 
     await service.requestPasswordReset({ email: `${unique}i@test.invalid` });
-    const secondToken = sent[1].data.token;
+    const secondToken = tokenOf(sent[1]);
 
     await assert.rejects(
       () => service.completePasswordReset({ token: firstToken, newPassword: 'x-new-password' }),
@@ -327,7 +329,7 @@ test('registration and password reset', async (t) => {
     const account = await signUp('j');
     sent = [];
     await service.requestPasswordReset({ email: `${unique}j@test.invalid` });
-    const { token } = sent[0].data;
+    const token = tokenOf(sent[0]);
 
     await models.AuthVerificationToken.update(
       { expires_at: new Date(Date.now() - 1000) },
@@ -364,7 +366,7 @@ test('registration and password reset', async (t) => {
 
     sent = [];
     await service.requestPasswordReset({ email: `${unique}k@test.invalid` });
-    await service.completePasswordReset({ token: sent[0].data.token, newPassword: 'brand-new-password' });
+    await service.completePasswordReset({ token: tokenOf(sent[0]), newPassword: 'brand-new-password' });
 
     assert.equal(
       await models.AuthSession.count({ where: { user_id: account.id, revoked_at: null } }),
@@ -379,7 +381,7 @@ test('registration and password reset', async (t) => {
     await service.requestPasswordReset({ email: `${unique}l@test.invalid` });
 
     await assert.rejects(
-      () => service.completePasswordReset({ token: sent[0].data.token, newPassword: 'correct-horse-battery' }),
+      () => service.completePasswordReset({ token: tokenOf(sent[0]), newPassword: 'correct-horse-battery' }),
       (err) => err.code === 'AUTH_PASSWORD_REUSED'
     );
   });

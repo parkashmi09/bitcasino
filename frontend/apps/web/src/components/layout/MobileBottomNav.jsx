@@ -7,6 +7,8 @@ const NAV_ITEMS = [
   { label: 'Slots', to: '/categories/video-slots', icon: 'slots' },
   { label: 'Live', to: '/categories/live-casino', icon: 'live' },
   { label: 'Originals', to: '/categories/originals', icon: 'originals' },
+  // Gated: drawn only while the owner has the sportsbook on (lib/gates.js).
+  { label: 'Sports', to: '/sports', icon: 'trophy' },
 ];
 
 function NavItem({ item, onNavigate }) {

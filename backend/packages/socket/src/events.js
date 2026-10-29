@@ -325,6 +325,12 @@ const PLATFORM_EVENTS = Object.freeze({
    */
   FEATURES_UPDATED: 'featuresUpdated',
   /**
+   * rainbet: staff changed player-visible content (`{ scopes: ['casino:games', …] }`, names only).
+   * Emitted by user-service from `POST /internal/user/preferences/site-config` `{ content }`; the
+   * player site re-reads what it shows. See packages/common/src/contentPush.js.
+   */
+  CONTENT_UPDATED: 'contentUpdated',
+  /**
    * The site's coin registry changed (a coin renamed, re-imaged, switched, a
    * network renamed or switched) — pushed to every client on the USER socket
    * the same way as `featuresUpdated`: admin-service owns `currencies` and

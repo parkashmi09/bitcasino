@@ -192,6 +192,11 @@ const config = loadEnv(
     SMTP_PASSWORD: coercers.optionalStr(),
     SMTP_MAX_CONNECTIONS: coercers.int(5),
     MAIL_FROM: coercers.optionalStr(),
+    /**
+     * rainbet: with no SMTP, log what WOULD have been sent (subject, text, links) so a developer
+     * can follow reset links and codes locally. Ignored in production.
+     */
+    MAIL_DRY_RUN: coercers.bool(false),
 
     /**
      * Where club banner images are written.

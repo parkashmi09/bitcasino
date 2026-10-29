@@ -19,7 +19,8 @@ const { isProviderDisabled } = require('./providerSwitch');
  *
  * ── WHICH FLAGS A GAME NEEDS ─────────────────────────────────────────────
  *
- *   a sports or esports BOOK   `sports` only. The sportsbook and esports are
+ *   a sports or esports BOOK   `sports` AND `sportsbook` (the owner's sportsbook
+ *                              mode, off by default). The sportsbook and esports are
  *                              catalogue games launched like any slot, so
  *                              without this the `sports` flag closed the
  *                              in-house feed and left the real book open.

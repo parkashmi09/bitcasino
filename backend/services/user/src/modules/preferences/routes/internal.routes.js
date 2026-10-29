@@ -41,7 +41,7 @@ module.exports = function internalRoutes(deps) {
   router.post(
     '/site-config',
     asyncHandler(async (req, res) => {
-      const { flags, features, currencies } = req.body ?? {};
+      const { flags, features, currencies, content } = req.body ?? {};
       // A push follows every owner entitlement change too: re-read the plan on
       // the next player request instead of serving the cached copy for its TTL.
       entitlements.invalidateEntitlements();
@@ -64,6 +64,13 @@ module.exports = function internalRoutes(deps) {
       if (Array.isArray(currencies)) {
         io.emit(PLATFORM_EVENTS.CURRENCIES_UPDATED, encode(currencies));
         pushed.push(PLATFORM_EVENTS.CURRENCIES_UPDATED);
+      }
+
+      // rainbet: content scopes (names only, allow-listed by the sender; see contentPush.js).
+      if (Array.isArray(content) && content.length) {
+        const scopes = content.filter((s) => typeof s === 'string' && s.length <= 60).slice(0, 50);
+        io.emit(PLATFORM_EVENTS.CONTENT_UPDATED, encode({ scopes }));
+        pushed.push(PLATFORM_EVENTS.CONTENT_UPDATED);
       }
 
       deps.logger?.info({ pushed, caller: req.internalCaller ?? null, clients: io.engine?.clientsCount ?? null }, 'Site config pushed to every socket');

@@ -14,9 +14,11 @@ describe('gates', () => {
     expect(gateOf('/promotions/spin-the-wheel?x=1')).toBe('wheel');
     expect(gateOf('/promotions')).toBe('promotions');
     expect(gateOf('/profile/transactions')).toBe(null);
-    // hash-shaped admin links: VIP follows vip, sports never exists here.
+    // hash-shaped admin links: VIP follows vip; sports only once `sportsbook` is explicitly on.
     expect(makeGates({ flags: { vipclub: false } }).routeOn('/vip-detail')).toBe(false);
     expect(ALL_ON.routeOn('/sports')).toBe(false);
+    expect(makeGates({ flags: { sportsbook: false } }).routeOn('/sports')).toBe(false);
+    expect(makeGates({ flags: { sportsbook: true } }).routeOn('/sports/live')).toBe(true);
   });
 
   it('closes a section on a site flag, an owner feature or a capability', () => {

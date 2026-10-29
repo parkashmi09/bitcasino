@@ -8,7 +8,9 @@ const {
   loadModules,
   mountModules,
   internalAuth,
+  createContentNotifier,
 } = require('@ibitplay/common');
+const { PLATFORM_EVENTS, encode } = require('@ibitplay/socket');
 
 /** Assemble the user-service HTTP app. Every route comes from a module under src/modules. */
 function buildApp(container) {
@@ -30,6 +32,11 @@ function buildApp(container) {
       modules,
       deps: container,
       logger,
+      // rainbet: staff content writes → the player sockets on this service (contentPush.js).
+      onAdminWrite: createContentNotifier({
+        logger,
+        send: async (scopes) => container.io?.emit(PLATFORM_EVENTS.CONTENT_UPDATED, encode({ scopes })),
+      }),
       guards: {
         public: [],
         user: [auth.authenticate(), auth.requireActive()],

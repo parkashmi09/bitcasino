@@ -943,6 +943,9 @@ const EXACT = {
   // Both callback paths are configured on the PROVIDERS' side.
   'POST /jsGames/game/bet-callback': '/api/v1/casino/js-games/v1/bet-callback',
   'POST /jsGamesv2/bet-callback': '/api/v1/casino/js-games/v2/bet-callback',
+  // The same callback as playbro's provider account has it (`/jsGamesv2/v2/bet-callback`): without
+  // this alias a book's rounds settle against a 404 when the account points at the /v2/ path.
+  'POST /jsGamesv2/v2/bet-callback': '/api/v1/casino/js-games/v2/bet-callback',
 
   'GET /jsGames/games': '/api/v1/casino/js-games/v1/games',
   'GET /jsGames/games/search': '/api/v1/casino/js-games/v1/games/search',

@@ -58,6 +58,8 @@ export const queryKeys = {
   play: {
     all: ['play'],
     bets: (filters) => ['play', 'bets', compact(filters)],
+    /** The launched sportsbook URL, one per signed-in player (`pages/Sports.jsx`). */
+    sportsbook: (userId) => ['play', 'sportsbook', userId],
   },
 
   /**

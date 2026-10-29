@@ -204,6 +204,8 @@ const INTERNAL_ACL = Object.freeze({
      * debit, so it asks user-service whether the player's own break or limit allows the stake.
      */
     '/internal/user/responsible-gambling',
+     /** rainbet: lobby content changed (categories, collections, providers) → player sockets (contentPush.js). */
+    '/internal/user/preferences',
   ],
 
   /** Pays out sports bets. Not casino's surface. */

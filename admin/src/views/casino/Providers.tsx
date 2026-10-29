@@ -185,6 +185,27 @@ const RemoveLogo = ({ provider }: { provider: ProviderSetting }) => {
   )
 }
 
+/**
+ * rainbet: fetch the second feed's catalogue (`POST admin/casino/gis/sync/games`). The lobby holds
+ * the owner's chosen feed only (`casino_aggregator`); syncing while the other is chosen parks the
+ * rows, ready for the switch. Needs the feed's merchant keys on the backend.
+ */
+const SyncFeed = () => {
+  const sync = useApiMutation({
+    fn: () => api.post('admin/casino/gis/sync/games'),
+    invalidate: [['api', LIST], ['api', 'admin/casino/games/providers']],
+    success: 'Casino feed 1 catalogue synced'
+  })
+
+  return (
+    <Can permission='casino:manage'>
+      <Button variant='outline' size='sm' disabled={sync.isPending} onClick={() => sync.mutate()}>
+        {sync.isPending ? 'Syncing…' : 'Sync Casino feed 1'}
+      </Button>
+    </Can>
+  )
+}
+
 const Providers = () => {
   const list = useApi<ProviderSetting[]>(LIST, undefined, { retry: false })
   const [filter, setFilter] = useState('')
@@ -275,6 +296,7 @@ const Providers = () => {
               </label>
             )}
             <Input placeholder='Filter…' className='w-48' value={filter} onChange={e => setFilter(e.target.value)} />
+            <SyncFeed />
           </div>
         }
       />

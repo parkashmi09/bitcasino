@@ -129,6 +129,8 @@ module.exports = defineErrors('AUTH', {
 
   /** Google sign-in is switched off: its keys are not set. */
   GOOGLE_NOT_CONFIGURED: { status: 503, message: 'Sign in with Google is not available' },
+  /** rainbet: the owner's `google_login` switch is off (owner panel → Sign-in). */
+  GOOGLE_DISABLED: { status: 403, message: 'Sign in with Google is switched off' },
   /** Google proved the email, but a password account already holds it. Never linked automatically:
    *  this platform does not verify emails, so the existing account may not belong to this person. */
   GOOGLE_EMAIL_IN_USE: { status: 409, message: 'An account with this email already exists. Sign in with your password.' },

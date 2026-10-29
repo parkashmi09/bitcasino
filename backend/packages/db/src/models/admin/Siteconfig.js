@@ -382,6 +382,13 @@ module.exports = (sequelize) => {
       defaultValue: true,
       field: "provablyfair",
     },
+    // rainbet: KYC in levels (1–4) when on, one step with no levels when off (migration 170).
+    kyclevels: {
+      type: DataTypes.BOOLEAN,
+      allowNull: true,
+      defaultValue: true,
+      field: "kyclevels",
+    },
     id: {
       type: DataTypes.INTEGER,
       autoIncrement: true,

@@ -33,6 +33,8 @@ import { useGates } from '@/hooks/useGates';
 
 const PRIMARY = [
   { label: 'Originals', to: '/categories/originals', icon: 'originals' },
+  // Gated (lib/gates.js): only while the owner has the sportsbook on. shortcut: trophy art, no sports icon in the set yet.
+  { label: 'Sports', to: '/sports', icon: 'tournaments' },
   { label: 'New Releases', to: '/games/new', icon: 'new-releases' },
   { label: 'Promotions', to: '/promotions', icon: 'promotions' },
   { label: 'Tournaments', to: '/tournaments', icon: 'tournaments' },
