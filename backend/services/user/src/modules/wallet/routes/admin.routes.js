@@ -19,7 +19,7 @@ const { createAdminController } = require('../controllers/admin.controller');
 module.exports = function adminRoutes(deps) {
   const { auth, clients, logger, config } = deps;
   const service = new WalletService(deps);
-  const ctrl = createAdminController({ service });
+  const ctrl = createAdminController({ service, config });
 
   const withActivity = createActivityRecorder({
     client: clients.admin,

@@ -71,7 +71,7 @@ class TokenService {
   }
 
   /** Staff token. Permissions are embedded so routine checks need no DB round trip. */
-  signAdminToken({ staffId, roleId, roleName, level, executiveId = null, permissions = null, tokenVersion = 0, executiveTokenVersion = 0 }) {
+  signAdminToken({ staffId, roleId, roleName, level, executiveId = null, permissions = null, tokenVersion = 0, executiveTokenVersion = 0, readOnly = false }) {
     return jwt.sign(
       {
         sub: String(staffId),
@@ -84,6 +84,8 @@ class TokenService {
         // `executives.token_version`: the executive's logout bumps it without signing the parent out.
         ...(executiveId ? { executiveId, etv: Number(executiveTokenVersion) || 0 } : {}),
         ...(permissions ? { permissions } : {}),
+        // Whitelabel preview (admin modules/whitelabel-link): every write is refused — middleware.js.
+        ...(readOnly ? { ro: true } : {}),
       },
       this.adminSecret,
       { expiresIn: this.adminTtl, issuer: this.issuer, audience: this.audience, jwtid: crypto.randomUUID() }

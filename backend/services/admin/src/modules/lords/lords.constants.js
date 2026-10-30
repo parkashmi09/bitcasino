@@ -30,6 +30,10 @@ const PASSWORD_ROUNDS = 12;
  *               owner's Agent System balance (`credits`)
  *   owner_topup — the owner adding to their Agent System balance (`credits`, from 'system')
  *   owner_direct_topup — the owner adding to their Direct User balance (`staff_balances`, from 'system')
+ *   whitelabel_topup — the parent site's transfer into a whitelabel company's Direct User balance
+ *   direct_to_agent — a whitelabel company moving its Direct User balance to its Agent System balance
+ *   to_whitelabel — the parent Super Admin's Direct User balance sent to a whitelabel company
+ *   whitelabel_refund — that transfer given back, when the copy refused it
  *   points_settle — zip ka points settlement: parent ↔ direct child ka P/L cash me barabar
  *   gt/casino — historical settlement rows; P&L, never money handed over
  */
@@ -41,6 +45,10 @@ const TRANSFER_TYPE = Object.freeze({
   DIRECT: 'direct',
   OWNER_TOPUP: 'owner_topup',
   OWNER_DIRECT_TOPUP: 'owner_direct_topup',
+  WHITELABEL_TOPUP: 'whitelabel_topup',
+  DIRECT_TO_AGENT: 'direct_to_agent',
+  TO_WHITELABEL: 'to_whitelabel',
+  WHITELABEL_REFUND: 'whitelabel_refund',
   POINTS_SETTLE: 'points_settle',
 });
 

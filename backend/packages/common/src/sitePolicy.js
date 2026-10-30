@@ -54,6 +54,8 @@ const POLICY_DEFAULTS = Object.freeze({
   rate_limit: 'on',
   // Not a channel switch: whether branches exist (admin modules/branches).
   branch_management: 'off',
+  // Not a channel switch: whether the Super Admin manages whitelabel copies (admin modules/whitelabels).
+  whitelabel: 'on',
 });
 
 /** For each policy, which stored variants allow each channel. */

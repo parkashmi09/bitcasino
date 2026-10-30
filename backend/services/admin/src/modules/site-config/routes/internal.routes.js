@@ -75,7 +75,12 @@ module.exports = function internalRoutes(deps) {
     asyncHandler(async (_req, res) => {
       const rows = await service.operatorSettings();
       // + the Super Admin's payment-gateway switch, for user-service's deposit / withdrawal guard.
-      return response.ok(res, { ...Object.fromEntries(rows.map((r) => [r.key, r.value])), payment_gateways_off: await service.paymentGatewaysOff() });
+      // + the Super Admin's sports switch, for casino-service's sportsbook launch guard.
+      return response.ok(res, {
+        ...Object.fromEntries(rows.map((r) => [r.key, r.value])),
+        payment_gateways_off: await service.paymentGatewaysOff(),
+        sports_off: !(await service.sportsEnabled()).enabled,
+      });
     })
   );
 

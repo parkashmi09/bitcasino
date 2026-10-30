@@ -76,4 +76,7 @@ const directLedger = {
     .refine((q) => !q.from || !q.to || q.from <= q.to, { message: 'from must be before to', path: ['from'] }),
 };
 
-module.exports = { ownerAddBalance, ownerAddDirectBalance, accounts, settle, creditHistory, directLedger };
+/** POST /exchange/owner/move-to-agent-system — whitelabel company, Direct → Agent System. */
+const ownerMoveToAgentSystem = ownerAddBalance;
+
+module.exports = { ownerAddBalance, ownerAddDirectBalance, ownerMoveToAgentSystem, accounts, settle, creditHistory, directLedger };

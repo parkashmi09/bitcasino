@@ -11,10 +11,20 @@ const COOKIE = process.env.SESSION_COOKIE_NAME ?? 'site_admin_token'
 // The branch panel (/branch, owner policy `branch_management`) runs on its own cookie (configs/site.ts).
 const BRANCH_COOKIE = `${COOKIE}_branch`
 const BRANCH_API = '/api/gw/api/v1/admin/branches/portal/'
-const PUBLIC = ['/login', '/api/auth/session', '/api/auth/logout']
+const PUBLIC = ['/login', '/preview', '/api/auth/session', '/api/auth/logout']
 
-// Gateway calls a signed-out page needs (the login screen's site config, brand mark and sign-in).
-const PUBLIC_API = ['/site-config/public', '/branding/public', '/branding/asset/', '/admin/auth/login', '/admin/auth/executive/login']
+// Gateway calls a signed-out page needs (the login screen's site config, brand mark and sign-in,
+// the whitelabel preview's one-time code, and a whitelabel's colours: its palette and template).
+const PUBLIC_API = [
+  '/site-config/public',
+  '/branding/public',
+  '/branding/asset/',
+  '/admin/auth/login',
+  '/admin/auth/executive/login',
+  '/admin/whitelabel-link/preview/redeem',
+  '/admin/whitelabel-link/theme',
+  '/admin/features/public'
+]
 
 function tokenLooksValid(token: string | undefined) {
   if (!token) return false

@@ -6,7 +6,7 @@ const { canIssueFunds, assertPlayerCapability, hasPermission } = require('@ibitp
 const { PERMISSION } = require('../wallet.constants');
 
 /** Staff wallet operations. */
-function createAdminController({ service }) {
+function createAdminController({ service, config = {} }) {
   return {
     /**
      * @legacy POST /updatebalance
@@ -52,6 +52,13 @@ function createAdminController({ service }) {
        */
       if (String(req.body.currency).toUpperCase() === 'INR') {
         return response.ok(res, await service.agentAdjust(req.body, { staffId: req.staff.id }));
+      }
+
+      // Whitelabel company: doosre coin ka credit kisi balance se nahi katta — company khud paisa nahi bana sakti.
+      if (config.WHITELABEL_MODE && req.body.operation === 'credit') {
+        const error = new ForbiddenError('A whitelabel company cannot credit players without a deduction; use INR deposit');
+        error.code = 'WHITELABEL_NO_SELF_FUNDING';
+        throw error;
       }
 
       // Child user (koi parent) ka paisa sirf Sports Exchange INR (D/W) se — doosre coin me

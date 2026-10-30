@@ -301,7 +301,7 @@ class StaffService {
    *   that endpoint is readable by anyone with SELECT on the table. Only the
    *   hash is written here.
    */
-  async changePassword({ actor, targetId, oldPassword, newPassword }) {
+  async changePassword({ actor, targetId, oldPassword, newPassword, transactionPassword: chosenTransactionPassword }) {
     const self = !targetId || Number(targetId) === Number(actor.id);
     const target = self ? actor.id : Number(targetId);
     let transactionPassword = null;
@@ -326,7 +326,7 @@ class StaffService {
       // issues a fresh 6-digit transaction password, returned once; the old one stops working.
       // Never to an executive: it acts for this account but does not own its secrets.
       if (row.must_change_password && !actor.executiveId && !isLoginPasswordMode()) {
-        transactionPassword = String(randomInt(100000, 1000000));
+        transactionPassword = chosenTransactionPassword ?? String(randomInt(100000, 1000000));
       }
     }
 
@@ -346,7 +346,9 @@ class StaffService {
     );
 
     this.logger?.warn({ actorStaffId: actor.id, targetStaffId: target, self, transactionPasswordIssued: Boolean(transactionPassword) }, 'Staff password changed');
-    return { staffId: target, changed: true, ...(transactionPassword ? { transactionPassword } : {}) };
+    // A chosen one is not echoed back: its owner just typed it.
+    const issued = transactionPassword && !chosenTransactionPassword;
+    return { staffId: target, changed: true, ...(issued ? { transactionPassword } : {}), ...(transactionPassword && chosenTransactionPassword ? { transactionPasswordSet: true } : {}) };
   }
 
   // ══════════════════════════════════════════════════════════════════════

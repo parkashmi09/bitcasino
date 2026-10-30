@@ -27,6 +27,9 @@ export type Actor = {
 
   /** May this session see anything about DIRECT users? Only the Super Admin and its executives (`/api/auth/me`). */
   direct: boolean
+
+  /** The parent site's whitelabel preview: everything visible, every write refused. */
+  readOnly?: boolean
   permissions: string[]
   expiresAt: string
   name?: string

@@ -90,7 +90,7 @@ const OriginalGames = ({ canWrite }: { canWrite: boolean }) => {
 /** How often the features read is refreshed so what the platform changes shows up live. */
 
 /** Not shown to the site admin: the owner's commercial setup (incl. which games provider), and features this backend does not have. */
-const OWNER_ONLY_FEATURES = new Set(['business_model', 'raffles', 'casino_aggregator', 'slotegrator_inr_as_pkr', 'api_encryption', 'rate_limit', 'branch_management'])
+const OWNER_ONLY_FEATURES = new Set(['business_model', 'raffles', 'casino_aggregator', 'slotegrator_inr_as_pkr', 'api_encryption', 'rate_limit', 'branch_management', 'whitelabel'])
 const FEATURES_POLL_MS = 15_000
 
 /** The variant's label as staff see it (read-only: the platform picks the variant). */

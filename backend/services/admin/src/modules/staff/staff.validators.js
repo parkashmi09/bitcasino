@@ -53,6 +53,9 @@ const changePassword = {
       targetId: id.optional(),
       oldPassword: z.string().min(1).max(200).optional(),
       newPassword: password,
+      // A forced change may CHOOSE its transaction password (whitelabel company's first login)
+      // instead of being issued a random one. 6 digits, like the issued ones.
+      transactionPassword: z.string().regex(/^\d{6}$/, 'must be 6 digits').optional(),
     })
     .strict()
     .refine((v) => v.targetId !== undefined || v.oldPassword !== undefined, {

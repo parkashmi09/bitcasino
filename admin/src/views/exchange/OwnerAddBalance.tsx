@@ -5,6 +5,7 @@ import { useState } from 'react'
 import FormDialog from '@/components/shared/FormDialog'
 import { formatIn, useReportMoney } from '@/components/shared/ReportMoney'
 import { SelectField, TextAreaField, TextField } from '@/components/shared/FormField'
+import { siteConfig } from '@/configs/site'
 import { useApi, useApiMutation } from '@/hooks/use-api'
 import { api } from '@/lib/api/client'
 import { check } from '@/lib/validate'
@@ -12,7 +13,7 @@ import { TxnPasswordLabel } from '@/views/finance/StaffFloat'
 import type { OwnerWallet } from './types'
 
 /** Owner ke do balance: Agent System (`credits`) aur Direct Users (`staff_balances`). */
-type Target = 'client' | 'direct'
+type Target = 'client' | 'direct' | 'move'
 
 const TARGETS: Record<Target, { label: string; path: string; note: string }> = {
   client: {
@@ -24,8 +25,17 @@ const TARGETS: Record<Target, { label: string; path: string; note: string }> = {
     label: 'Direct Users balance',
     path: 'admin/exchange/owner/add-direct-balance',
     note: 'Used only for direct users (signed up on the site, no parent).'
+  },
+  move: {
+    label: 'Agent System balance',
+    path: 'admin/exchange/owner/move-to-agent-system',
+    note: 'Moves money from your Direct Users balance (what the parent site sent you) to your Agent System balance, which pays your agents.'
   }
 }
+
+// Whitelabel company: khud add nahi kar sakti — sirf Direct (parent ka bheja) se Agent System me le jaati hai.
+const SHOWN: Target[] = siteConfig.whitelabel ? ['move'] : ['client', 'direct']
+const TITLE = siteConfig.whitelabel ? 'Move to Agent System' : 'Add Balance'
 
 /**
  * "Add Balance" — zip (tenexch bundle) ka OwnerAddBalanceModal: Current Balance, Amount,
@@ -34,7 +44,7 @@ const TARGETS: Record<Target, { label: string; path: string; note: string }> = {
  * Header ke profile menu se khulta hai (alag page nahi).
  */
 const OwnerAddBalance = ({ open, onOpenChange }: { open: boolean; onOpenChange: (open: boolean) => void }) => {
-  const [target, setTarget] = useState<Target>('client')
+  const [target, setTarget] = useState<Target>(SHOWN[0])
   const [form, setForm] = useState({ amount: '', note: '', transactionPassword: '' })
 
   // Current Balance — dialog khula ho tabhi mangwao
@@ -56,7 +66,7 @@ const OwnerAddBalance = ({ open, onOpenChange }: { open: boolean; onOpenChange: 
         transactionPassword: form.transactionPassword
       }),
     invalidate: [['api', 'admin/exchange/owner/wallet'], ['api', 'admin/exchange/dashboard'], ['api', 'admin/exchange/user-reports/home'], ['api', 'admin/accounts/float'], ['api', 'admin/exchange/accounts'], ['paged', 'admin/exchange/owner/direct-ledger']],
-    success: () => `${coin === 'INR' ? Number(form.amount).toLocaleString() : formatIn(Number(form.amount), coin)} added to your ${TARGETS[target].label}`,
+    success: () => `${coin === 'INR' ? Number(form.amount).toLocaleString() : formatIn(Number(form.amount), coin)} ${target === 'move' ? 'moved' : 'added'} to your ${TARGETS[target].label}`,
     onSuccess: () => setForm({ amount: '', note: '', transactionPassword: '' })
   })
 
@@ -65,9 +75,13 @@ const OwnerAddBalance = ({ open, onOpenChange }: { open: boolean; onOpenChange: 
       open={open}
       onOpenChange={onOpenChange}
       trigger={null}
-      title='Add Balance'
-      description='You have two balances. Agent System pays your staff, agents and their players. Direct Users pays direct users only.'
-      submitLabel='Add Balance'
+      title={TITLE}
+      description={
+        siteConfig.whitelabel
+          ? 'Your Direct Users balance is what the parent site sent you. Move part of it to Agent System to give balance to your agents.'
+          : 'You have two balances. Agent System pays your staff, agents and their players. Direct Users pays direct users only.'
+      }
+      submitLabel={TITLE}
 
       // Server (`ownerAddBalance`): amount > 0 with ≤ 2 decimals, note ≤ 200, transaction password required.
       validate={() => ({
@@ -77,15 +91,19 @@ const OwnerAddBalance = ({ open, onOpenChange }: { open: boolean; onOpenChange: 
       })}
       onSubmit={() => add.mutateAsync()}
     >
-      <SelectField
-        id='ob-target'
-        label='Add to'
-        value={target}
-        onChange={v => setTarget(v as Target)}
-        options={(Object.keys(TARGETS) as Target[]).map(k => ({ value: k, label: TARGETS[k].label }))}
-        hint={TARGETS[target].note}
-      />
-      <TextField id='ob-current' label='Current Balance' readOnly disabled value={shownCurrent ?? (error ? 'Could not load' : '…')} />
+      {SHOWN.length > 1 ? (
+        <SelectField
+          id='ob-target'
+          label='Add to'
+          value={target}
+          onChange={v => setTarget(v as Target)}
+          options={SHOWN.map(k => ({ value: k, label: TARGETS[k].label }))}
+          hint={TARGETS[target].note}
+        />
+      ) : (
+        <p className='text-muted-foreground text-sm'>{TARGETS[target].note}</p>
+      )}
+      <TextField id='ob-current' label={target === 'move' ? 'Direct Users balance' : 'Current Balance'} readOnly disabled value={shownCurrent ?? (error ? 'Could not load' : '…')} />
       <TextField
         id='ob-amount'
         label={coin === 'INR' ? 'Amount' : `Amount (${coin})`}

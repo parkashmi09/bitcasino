@@ -15,7 +15,11 @@ const TYPE_LABEL: Record<string, string> = {
   add: 'Added by you',
   user_deposit: 'Given to user',
   user_withdraw: 'Taken from user',
-  points_settle: 'Points settle'
+  points_settle: 'Points settle',
+  whitelabel_topup: 'From parent site',
+  to_agent_system: 'Moved to Agent System',
+  to_whitelabel: 'Sent to whitelabel',
+  whitelabel_refund: 'Whitelabel refund'
 }
 
 const columns: Column<DirectLedgerRow>[] = [

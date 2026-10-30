@@ -183,6 +183,17 @@ const httpEnvShape = {
   RATE_LIMIT_WINDOW_MS: coercers.int(60_000),
   RATE_LIMIT_MAX: coercers.int(300),
   INTERNAL_API_KEY: coercers.secret(16),
+
+  /**
+   * A whitelabel copy of this stack (made by the parent site's Whitelabel panel). Its level-1
+   * account is the COMPANY: it cannot fund itself, its money comes from the parent's transfers.
+   * Off on the parent site, so nothing there changes.
+   *
+   *   WHITELABEL_LINK_KEY  the key the parent sends (`x-whitelabel-key`) on admin modules/whitelabel-link.
+   *                        Unset = every keyed link route answers 401.
+   */
+  WHITELABEL_MODE: coercers.bool(false),
+  WHITELABEL_LINK_KEY: coercers.optionalStr(),
 };
 
 /**

@@ -944,7 +944,25 @@ const BRANCH_MANAGEMENT_POLICY = {
   ],
 };
 
-const FEATURES = Object.freeze([...POLICIES, REWARD_CURRENCY_POLICY, DEFAULT_CURRENCY_POLICY, REGION_RESTRICTION_POLICY, WITHDRAWAL_REQUIREMENTS_POLICY, CASINO_AGGREGATOR_POLICY, THEME_MODE_POLICY, ADMIN_THEME_POLICY, SLOTEGRATOR_INR_AS_PKR_POLICY, API_ENCRYPTION_POLICY, RATE_LIMIT_POLICY, BRANCH_MANAGEMENT_POLICY, ...GENERATED, TIPS, P2P, PUSH_NOTIFICATIONS, ANALYTICS]);
+/**
+ * Whitelabel — a policy (owner-only). `on` (the default, the behaviour before the switch): the
+ * Super Admin gets the Whitelabel panel; `off`: the admin menu hides and the whitelabel APIs
+ * answer 403 (admin-service modules/whitelabels). Live copies keep running either way.
+ */
+const WHITELABEL_POLICY = {
+  key: 'whitelabel',
+  label: 'Whitelabel',
+  category: 'business',
+  kind: 'policy',
+  flag: null,
+  defaultVariant: 'on',
+  variants: [
+    { key: 'on', label: 'On', description: 'The Super Admin creates and manages whitelabel copies of this site. The default.' },
+    { key: 'off', label: 'Off', description: 'The Whitelabel panel hides and its APIs refuse; copies already live keep running.' },
+  ],
+};
+
+const FEATURES = Object.freeze([...POLICIES, REWARD_CURRENCY_POLICY, DEFAULT_CURRENCY_POLICY, REGION_RESTRICTION_POLICY, WITHDRAWAL_REQUIREMENTS_POLICY, CASINO_AGGREGATOR_POLICY, THEME_MODE_POLICY, ADMIN_THEME_POLICY, SLOTEGRATOR_INR_AS_PKR_POLICY, API_ENCRYPTION_POLICY, RATE_LIMIT_POLICY, BRANCH_MANAGEMENT_POLICY, WHITELABEL_POLICY, ...GENERATED, TIPS, P2P, PUSH_NOTIFICATIONS, ANALYTICS]);
 
 /**
  * Site templates — the bundles the OWNER picks for a site (docs/OWNER-PANEL.md

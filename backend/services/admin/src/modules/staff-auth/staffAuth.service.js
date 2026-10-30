@@ -442,7 +442,18 @@ class StaffAuthService {
 
   // ══════════════════════════════════════════════════════════════════════
 
-  async #issue({ staff, executive, ip, userAgent }) {
+  /**
+   * A read-only session as `staffId` with no password — the parent site's Whitelabel preview
+   * (modules/whitelabel-link redeems a one-time code it handed out). The token carries `ro`, so
+   * every write anywhere answers 403 READ_ONLY_PREVIEW (packages/auth middleware.js).
+   */
+  async previewSession(staffId) {
+    const staff = await this.models.Staff.findByPk(staffId, { raw: true });
+    if (!staff) throw errors.INVALID_CREDENTIALS();
+    return this.#issue({ staff, executive: null, readOnly: true });
+  }
+
+  async #issue({ staff, executive, ip, userAgent, readOnly = false }) {
     const role = await this.models.Roles.findByPk(staff.role_id, { raw: true });
 
     // A staff row whose role is EXECUTIVE acts with its parent's level.
@@ -479,11 +490,12 @@ class StaffAuthService {
       permissions,
       tokenVersion: staff.token_version,
       executiveTokenVersion: executive?.token_version,
+      readOnly,
     });
 
     this.logger?.info(
       { staffId: staff.id, executiveId: executive?.id ?? null, ip, userAgent },
-      'Staff signed in'
+      readOnly ? 'Staff preview session issued' : 'Staff signed in'
     );
 
     return {
@@ -496,7 +508,8 @@ class StaffAuthService {
        * PASSWORD_CHANGE_REQUIRED until it is replaced — send the user to the
        * change-password screen. Never set for an executive sub-login.
        */
-      mustChangePassword: !executive && staff.must_change_password === true,
+      mustChangePassword: !readOnly && !executive && staff.must_change_password === true,
+      readOnly,
       // Always true in TXN_PASSWORD_MODE=login: the login password is the transaction password.
       hasTransactionPassword: isLoginPasswordMode() || Boolean(staff.transaction_password),
       transactionPasswordMode: transactionPasswordMode(),

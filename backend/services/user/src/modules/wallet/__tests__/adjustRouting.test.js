@@ -192,3 +192,21 @@ test('wallet adjust routing', async (t) => {
     assert.equal(v.adminAdjust.body.safeParse({ ...body, idempotencyKey: 'bad key with spaces' }).success, false);
   });
 });
+
+test('a whitelabel company cannot credit another coin with no deduction; it can still debit', async () => {
+  const service = fakeService();
+  const ctrl = createAdminController({ service, config: { WHITELABEL_MODE: true } });
+  const owner = { id: 1, level: STAFF_LEVELS.SUPER_ADMIN, permissions: ['*'] };
+
+  await assert.rejects(
+    () => call(ctrl.adjust, { body: { ...body, currency: 'USDT' }, staff: owner }),
+    (err) => err.code === 'WHITELABEL_NO_SELF_FUNDING' && err.status === 403
+  );
+  assert.equal(service.calls.some((c) => c[0] === 'adminAdjust'), false, 'nothing credited');
+
+  await call(ctrl.adjust, { body: { ...body, currency: 'USDT', operation: 'debit' }, staff: owner });
+  assert.equal(service.calls.at(-1)[0], 'adminAdjust');
+
+  await call(ctrl.adjust, { body, staff: owner });
+  assert.equal(service.calls.at(-1)[0], 'agentAdjust', 'INR still goes to admin-service, which debits the company');
+});

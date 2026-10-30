@@ -23,6 +23,9 @@ import {
   DropdownMenuTrigger
 } from '@/components/ui/dropdown-menu'
 
+// Config Imports
+import { siteConfig } from '@/configs/site'
+
 // Context Imports
 import { useSession } from '@/contexts/SessionContext'
 
@@ -86,7 +89,7 @@ const ProfileDropdown = () => {
             {isOwner && (
               <DropdownMenuItem onClick={() => setAddOpen(true)}>
                 <PlusCircleIcon />
-                <span>Add Balance</span>
+                <span>{siteConfig.whitelabel ? 'Move to Agent System' : 'Add Balance'}</span>
               </DropdownMenuItem>
             )}
           </DropdownMenuGroup>

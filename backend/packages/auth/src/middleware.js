@@ -79,6 +79,10 @@ const PASSWORD_CHANGE_ALLOWED = Object.freeze([
   { method: 'POST', path: /\/admin\/auth\/logout\/?$/ },
 ]);
 
+/** The code every write answers on a read-only (whitelabel preview) session. */
+const READ_ONLY_PREVIEW = 'READ_ONLY_PREVIEW';
+const READ_METHODS = new Set(['GET', 'HEAD', 'OPTIONS']);
+
 function passwordChangeAllows(req) {
   const path = String(req.originalUrl || req.url || '').split('?')[0];
   const method = String(req.method || 'GET').toUpperCase();
@@ -291,6 +295,18 @@ function createAuthMiddleware({ config, loadUser, loadStaff, cache = null }) {
         }
 
         /**
+         * A whitelabel preview (the parent site's Super Admin looking at this site as the company):
+         * it may read, and sign out, and nothing else. It skips the password gate below — the parent views a
+         * company that has not set its own password yet without changing anything.
+         */
+        const readOnly = payload.ro === true;
+        if (readOnly && !READ_METHODS.has(String(req.method || 'GET').toUpperCase()) && !/\/admin\/auth\/logout\/?$/.test(String(req.originalUrl || req.url || '').split('?')[0])) {
+          const error = new ForbiddenError('Preview is read-only');
+          error.code = READ_ONLY_PREVIEW;
+          throw error;
+        }
+
+        /**
          * A password somebody else chose (account created or reset by a
          * superior). Until its owner replaces it the session can do nothing
          * but read who it is, change its own password, and sign out. Read from
@@ -298,7 +314,7 @@ function createAuthMiddleware({ config, loadUser, loadStaff, cache = null }) {
          * change. An executive sub-login has its own password; the staff row's
          * flag does not gate it.
          */
-        const mustChangePassword = !payload.executiveId && staff.must_change_password === true;
+        const mustChangePassword = !readOnly && !payload.executiveId && staff.must_change_password === true;
         if (mustChangePassword && !passwordChangeAllows(req)) {
           const error = new ForbiddenError('Set a new password before doing anything else');
           error.code = PASSWORD_CHANGE_REQUIRED;
@@ -317,6 +333,7 @@ function createAuthMiddleware({ config, loadUser, loadStaff, cache = null }) {
           executiveId: payload.executiveId || null,
           permissions: staff.permissions || [],
           mustChangePassword,
+          readOnly,
           record: staff,
         };
         req.token = { raw: token, payload };

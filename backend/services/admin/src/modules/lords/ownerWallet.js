@@ -51,6 +51,10 @@ const LEDGER_TYPE = Object.freeze({
   USER_DEPOSIT: 'user_deposit', // direct user ko diya
   USER_WITHDRAW: 'user_withdraw', // direct user se liya
   POINTS_SETTLE: 'points_settle', // direct user ke saath points settle
+  WHITELABEL_TOPUP: 'whitelabel_topup', // whitelabel company: parent site ne bheja
+  TO_AGENT_SYSTEM: 'to_agent_system', // whitelabel company: Agent System balance me le gaya
+  TO_WHITELABEL: 'to_whitelabel', // parent: whitelabel company ko bheja
+  WHITELABEL_REFUND: 'whitelabel_refund', // parent: copy ne mana kiya, wapas aaya
 });
 
 /**
@@ -221,20 +225,77 @@ async function isDirectUser(models, userId, { transaction } = {}) {
  * pata rahe owner ne kab kitna paisa system me daala.
  */
 async function addOwnerBalance(models, { ownerId, amount, note }, { transaction }) {
+  return creditOwnerAgentSystem(
+    models,
+    { ownerId, amount, note: note ?? 'Super Admin added balance', remark: note || 'Super Admin add balance', from: { type: 'system', id: 0 }, transferType: TRANSFER_TYPE.OWNER_TOPUP },
+    { transaction }
+  );
+}
+
+/**
+ * Whitelabel company: Direct User balance se Agent System balance me. Pehle Direct se kaato
+ * (guard UPDATE ke andar), kam pada to kuch nahi likha; phir Agent System me jodo — same transaction.
+ * `staff_transfers` me 'direct_to_agent' (from the owner itself).
+ */
+async function moveOwnerDirectToAgentSystem(models, { ownerId, amount, note }, { transaction }) {
+  const decimal = toDecimal(amount);
+  const label = note ?? 'Moved from Direct balance to Agent System';
+  const debited = await debitOwnerDirectBalance(models, ownerId, decimal, {
+    transaction,
+    entry: { type: LEDGER_TYPE.TO_AGENT_SYSTEM, note: label },
+  });
+  if (!debited) throw insufficientDirectBalance({ required: decimal });
+
+  const result = await creditOwnerAgentSystem(
+    models,
+    { ownerId, amount: decimal, note: label, remark: label, from: { type: 'staff', id: ownerId }, transferType: TRANSFER_TYPE.DIRECT_TO_AGENT },
+    { transaction }
+  );
+  return { ...result, directBalance: money.fromStored(await readOwnerDirectBalance(models, ownerId, { transaction })) };
+}
+
+/**
+ * Whitelabel company: parent site ka transfer Direct User balance me. `whitelabel_topup` row
+ * (from 'whitelabel'). Idempotency caller (whitelabel-link) ke paas hai — ye har call pe jodta hai.
+ */
+async function addWhitelabelTopup(models, { ownerId, amount, note }, { transaction }) {
+  const decimal = toDecimal(amount);
+  const label = note ?? 'Balance from the parent site';
+  await creditOwnerDirectBalance(models, ownerId, decimal, { transaction, entry: { type: LEDGER_TYPE.WHITELABEL_TOPUP, note: label } });
+
+  const row = await models.StaffTransfers.create(
+    {
+      from_type: 'whitelabel',
+      from_id: 0,
+      to_type: 'staff',
+      to_id: ownerId,
+      amount: decimal,
+      direction: 'deposit',
+      transfer_type: TRANSFER_TYPE.WHITELABEL_TOPUP,
+      note: label,
+      created_at: new Date(),
+    },
+    { transaction }
+  );
+  return { transferId: String(row.id), amount: decimal, balance: money.fromStored(await readOwnerDirectBalance(models, ownerId, { transaction })) };
+}
+
+/** Owner ke Agent System balance (`credits`) me jodo + `staff_transfers` row + point ledger 'Credit'. */
+async function creditOwnerAgentSystem(models, { ownerId, amount, note, remark, from, transferType }, { transaction }) {
   const decimal = money.toDecimalString(money.toMinor(amount));
 
   await creditStaffFloat(models, ownerId, decimal, { transaction });
 
   const row = await models.StaffTransfers.create(
     {
-      from_type: 'system',
-      from_id: 0,
+      from_type: from.type,
+      from_id: from.id,
       to_type: 'staff',
       to_id: ownerId,
       amount: decimal,
       direction: 'deposit',
-      transfer_type: TRANSFER_TYPE.OWNER_TOPUP,
-      note: note ?? 'Super Admin added balance',
+      transfer_type: transferType,
+      note,
       created_at: new Date(),
     },
     { transaction }
@@ -264,7 +325,7 @@ async function addOwnerBalance(models, { ownerId, amount, note }, { transaction 
         amount: decimal,
         allPoint: wallet.all_point,
         inr: wallet.inr,
-        remark: `${note || 'Super Admin add balance'}#${username}`.slice(0, 255),
+        remark: `${remark}#${username}`.slice(0, 255),
       },
       transaction,
     }
@@ -278,6 +339,8 @@ module.exports = {
   isDirectUser,
   addOwnerBalance,
   addOwnerDirectBalance,
+  moveOwnerDirectToAgentSystem,
+  addWhitelabelTopup,
   readOwnerDirectBalance,
   debitOwnerDirectBalance,
   creditOwnerDirectBalance,

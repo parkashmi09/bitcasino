@@ -22,6 +22,7 @@ const actorFrom = (req) => ({
  *   GET  /admin/exchange/owner/wallet       owner ka wallet (Add Balance popup ka Current Balance)
  *   POST /admin/exchange/owner/add-balance  owner apne Agent System balance (credits) me add kare
  *   POST /admin/exchange/owner/add-direct-balance  owner apne Direct User balance (staff_balances) me add kare
+ *   POST /admin/exchange/owner/move-to-agent-system whitelabel company: Direct User balance → Agent System balance
  *   GET  /admin/exchange/owner/direct-ledger       us Direct User wallet ka ledger (har badlav, pehle / baad ka balance)
  *   GET  /admin/exchange/accounts           direct children (Account List / Active Users / Bank)
  *   POST /admin/exchange/points/settle      points settlement (D / W, Bank submit)
@@ -75,6 +76,20 @@ module.exports = function adminRoutes(deps) {
     }),
     asyncHandler(async (req, res) =>
       response.created(res, await service.ownerAddDirectBalance({ ...req.body, actor: actorFrom(req) }))
+    )
+  );
+
+  // Whitelabel company (WHITELABEL_MODE): parent ka bheja Direct balance agents ke liye Agent System me.
+  router.post(
+    '/owner/move-to-agent-system',
+    auth.requirePermission(PERMISSIONS.WALLET_ADJUST),
+    validate(v.ownerMoveToAgentSystem),
+    withActivity({
+      action: 'exchange.owner.move-to-agent-system',
+      describe: (req) => ({ targetType: 'STAFF', targetId: req.staff.id, details: { amount: req.body.amount, note: req.body.note } }),
+    }),
+    asyncHandler(async (req, res) =>
+      response.created(res, await service.ownerMoveToAgentSystem({ ...req.body, actor: actorFrom(req) }))
     )
   );
 

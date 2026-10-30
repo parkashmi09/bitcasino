@@ -305,6 +305,20 @@ const CATALOGUE: FeatureEntry[] = [
     ]
   },
   {
+    // Whitelabel: a policy (always on, owner-only). Mirrors backend featureCatalogue.js.
+    key: 'whitelabel',
+    label: 'Whitelabel',
+    category: 'business',
+    flag: null,
+    policy: true,
+    defaultVariant: 'on',
+    note: 'On: the Super Admin gets the Whitelabel menu (create copies of this site, send balance, switch them on / off, delete). Off: the menu hides and its APIs refuse; copies already live keep running. Takes effect within about 15 seconds.',
+    variants: [
+      { key: 'on', label: 'On', description: 'The Super Admin creates and manages whitelabel copies of this site. The default.' },
+      { key: 'off', label: 'Off', description: 'The Whitelabel panel hides and its APIs refuse; copies already live keep running.' }
+    ]
+  },
+  {
     key: 'vip',
     label: 'VIP club',
     category: 'engagement',

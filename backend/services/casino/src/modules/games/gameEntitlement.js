@@ -1,7 +1,7 @@
 'use strict';
 
 const { Op, fn, col, where: sqlWhere } = require('sequelize');
-const { entitlements } = require('@ibitplay/common');
+const { entitlements, operatorSettings, AppError } = require('@ibitplay/common');
 
 const E = require('./games.errors');
 const { isProviderDisabled } = require('./providerSwitch');
@@ -120,6 +120,18 @@ async function lookup(models, uid) {
 }
 
 /**
+ * The site admin's Sports switch (`siteconfig.sports`), after the owner's plan: the public
+ * config already hides a book with it off, so a launch refuses too — with the exchange's own
+ * error (sports-service `sportsEnabled`). Read through the shared operator-settings cache
+ * (15 s); an unreachable admin-service leaves it open, as the exchange does.
+ */
+async function assertSportsSwitchOn(deps) {
+  if (await operatorSettings(deps).read('sports_off', false)) {
+    throw new AppError('Sports betting is currently unavailable', 503, 'FEED_SPORTS_DISABLED');
+  }
+}
+
+/**
  * Express guard for a launch route.
  *
  * @param {object}   deps   the container (`models`, `config`)
@@ -127,7 +139,8 @@ async function lookup(models, uid) {
  * @param {boolean}  [opts.mustExist]  the uid must be a live catalogue row (gisgamesnew / js_games):
  *   a parked or unknown uid would otherwise pass on the `casino` flag alone and open upstream
  */
-function requireGameEntitled({ models, config } = {}, pick, { mustExist = false } = {}) {
+function requireGameEntitled(deps = {}, pick, { mustExist = false } = {}) {
+  const { models, config } = deps;
   const bookUids = new Set(
     [...KNOWN_BOOK_UIDS, ...String(config?.SPORTS_BOOK_GAME_UIDS ?? '').split(',')]
       .map((uid) => uid.trim().toLowerCase())
@@ -144,7 +157,9 @@ function requireGameEntitled({ models, config } = {}, pick, { mustExist = false 
       const row = await lookup(models ?? {}, given.uid);
       if (mustExist && given.uid && !row && !bookUids.has(String(given.uid).toLowerCase())) throw E.NOT_FOUND({ uid: given.uid });
       const game = { uid: given.uid, provider: row?.provider ?? given.provider, type: row?.type ?? given.type };
-      for (const flag of flagsFor(game, bookUids)) await entitlements.assertFlagEntitled(flag);
+      const flags = flagsFor(game, bookUids);
+      for (const flag of flags) await entitlements.assertFlagEntitled(flag);
+      if (flags.includes('sportsbook')) await assertSportsSwitchOn(deps);
       /**
        * The site admin's own switch (Casino → Providers, migration 067), after
        * the owner's plan: the plan says what the site MAY offer, the switch
@@ -250,6 +265,7 @@ async function assertInHouseEntitled(gameKey) {
 
 module.exports = {
   requireGameEntitled,
+  assertSportsSwitchOn,
   flagsFor,
   KNOWN_BOOK_UIDS,
   isRowEntitledIn,

@@ -12,6 +12,7 @@ const {
 const v = require('../sportsbook.validators');
 const { buildSportsbookService } = require('../sportsbook.factory');
 const { createControllers } = require('../controllers');
+const { assertSportsSwitchOn } = require('../../games/gameEntitlement');
 
 /**
  * Opening, resuming and ending a real-money sportsbook session.
@@ -52,7 +53,12 @@ module.exports = function userRoutes(deps) {
    * `logout` and `sessions` stay open so a player can still end one.
    */
   // The owner's sports switch AND sportsbook mode (off by default; on, it replaces the exchange).
-  const sports = [entitlements.requireFlag('sports'), entitlements.requireFlag('sportsbook')];
+  // + the site admin's Sports switch, as the public config reads it.
+  const sports = [
+    entitlements.requireFlag('sports'),
+    entitlements.requireFlag('sportsbook'),
+    (_req, _res, next) => assertSportsSwitchOn(deps).then(() => next(), next),
+  ];
 
   /** @legacy POST /sportsbooks/init */
   router.post('/init', sports, limiter, validate(v.init), ctrl.init);

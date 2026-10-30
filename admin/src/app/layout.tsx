@@ -11,6 +11,7 @@ import { NuqsAdapter } from 'nuqs/adapters/next/app'
 // Component Imports
 import Providers from '@/components/Providers'
 import ScrollToTop from '@/components/layout/ScrollToTop'
+import WhitelabelTheme from '@/components/shared/WhitelabelTheme'
 
 // Config Imports
 import { siteConfig } from '@/configs/site'
@@ -51,7 +52,10 @@ const RootLayout = ({ children }: Readonly<{ children: ReactNode }>) => {
       </head>
       <body className='flex min-h-full w-full flex-auto flex-col'>
         <NuqsAdapter>
-          <Providers sidebarDefaultOpen={true}>{children}</Providers>
+          <Providers sidebarDefaultOpen={true}>
+            {siteConfig.whitelabel && <WhitelabelTheme />}
+            {children}
+          </Providers>
         </NuqsAdapter>
         <ScrollToTop />
       </body>

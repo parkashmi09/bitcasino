@@ -15,6 +15,9 @@ export type StaffTokenPayload = {
   executiveId?: number | null
   iat: number
   exp: number
+
+  /** Whitelabel preview: a read-only session (backend refuses every write). */
+  ro?: boolean
 }
 
 export function decodeToken(token: string): StaffTokenPayload | null {

@@ -91,7 +91,8 @@ export async function GET() {
       ...live,
       marketing,
       promotions,
-      direct
+      direct,
+      readOnly: claims.ro === true
     }
   })
 }

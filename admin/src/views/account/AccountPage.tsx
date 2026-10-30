@@ -6,6 +6,7 @@ import { PlusIcon } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
+import { siteConfig } from '@/configs/site'
 import { useSession } from '@/contexts/SessionContext'
 import { formatIn, useReportMoney } from '@/components/shared/ReportMoney'
 import { useApi } from '@/hooks/use-api'
@@ -36,7 +37,7 @@ const OwnerWalletCard = () => {
           {money.code !== 'INR' && inrLine(data?.directBalance)}
         </div>
         <Button className='ml-auto' onClick={() => setOpen(true)}>
-          <PlusIcon /> Add Balance
+          <PlusIcon /> {siteConfig.whitelabel ? 'Move to Agent System' : 'Add Balance'}
         </Button>
         <OwnerAddBalance open={open} onOpenChange={setOpen} />
       </CardContent>

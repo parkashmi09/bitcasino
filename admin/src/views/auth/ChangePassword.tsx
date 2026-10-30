@@ -14,6 +14,9 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Field, FieldGroup, FieldLabel } from '@/components/ui/field'
 import { Input } from '@/components/ui/input'
 
+// Config Imports
+import { siteConfig } from '@/configs/site'
+
 // Context Imports
 import { useSession } from '@/contexts/SessionContext'
 
@@ -36,6 +39,10 @@ const ChangePassword = () => {
   const [current, setCurrent] = useState('')
   const [next, setNext] = useState('')
   const [confirm, setConfirm] = useState('')
+
+  // Whitelabel company: chooses its own 6-digit transaction code on this screen (no issued one).
+  const [code, setCode] = useState('')
+  const [codeAgain, setCodeAgain] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -46,11 +53,16 @@ const ChangePassword = () => {
     if (next.length < 8) return setError('The new password must be at least 8 characters.')
     if (next !== confirm) return setError('The two new passwords do not match.')
     if (next === current) return setError('Choose a password different from the one you were given.')
+    if (siteConfig.whitelabel && !/^\d{6}$/.test(code)) return setError('The transaction code must be 6 digits.')
+    if (siteConfig.whitelabel && code !== codeAgain) return setError('The two transaction codes do not match.')
 
     setBusy(true)
 
     try {
-      const { data } = await request<{ transactionPassword?: string }>('admin/staff/password', { method: 'PATCH', body: { oldPassword: current, newPassword: next } })
+      const { data } = await request<{ transactionPassword?: string }>('admin/staff/password', {
+        method: 'PATCH',
+        body: { oldPassword: current, newPassword: next, ...(siteConfig.whitelabel ? { transactionPassword: code } : {}) }
+      })
 
       // A first sign-in is issued its transaction password; the login screen shows it once.
       if (data?.transactionPassword) keepIssuedTransactionPassword(data.transactionPassword)
@@ -76,7 +88,7 @@ const ChangePassword = () => {
           <div>
             <CardTitle className='mb-2 text-2xl font-semibold'>Set your own password</CardTitle>
             <CardDescription className='text-base'>
-              {actor?.name ? `${actor.name}, your` : 'Your'} account was given a temporary password. Choose a new one to continue.
+              {actor?.name ? `${actor.name}, your` : 'Your'} account was given a temporary password. Choose a new one{siteConfig.whitelabel ? ' and your transaction code' : ''} to continue.
             </CardDescription>
           </div>
         </CardHeader>
@@ -96,6 +108,18 @@ const ChangePassword = () => {
                 <FieldLabel htmlFor='confirm'>Repeat new password</FieldLabel>
                 <Input id='confirm' type='password' autoComplete='new-password' required minLength={8} value={confirm} onChange={e => setConfirm(e.target.value)} />
               </Field>
+              {siteConfig.whitelabel && (
+                <>
+                  <Field className='gap-2'>
+                    <FieldLabel htmlFor='code'>Transaction code (6 digits)</FieldLabel>
+                    <Input id='code' type='password' inputMode='numeric' autoComplete='off' required maxLength={6} value={code} onChange={e => setCode(e.target.value.replace(/\D/g, ''))} />
+                  </Field>
+                  <Field className='gap-2'>
+                    <FieldLabel htmlFor='code-again'>Repeat transaction code</FieldLabel>
+                    <Input id='code-again' type='password' inputMode='numeric' autoComplete='off' required maxLength={6} value={codeAgain} onChange={e => setCodeAgain(e.target.value.replace(/\D/g, ''))} />
+                  </Field>
+                </>
+              )}
 
               {error && (
                 <Alert variant='destructive'>

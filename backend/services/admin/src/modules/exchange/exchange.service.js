@@ -9,6 +9,7 @@ const { assertTransactionPassword } = require('../staff-auth/transactionPassword
 const {
   addOwnerBalance,
   addOwnerDirectBalance,
+  moveOwnerDirectToAgentSystem,
   readOwnerDirectBalance,
   listOwnerDirectLedger,
 } = require('../lords/ownerWallet');
@@ -35,6 +36,11 @@ const { settlePoints } = require('./pointsSettle');
 const onlyOwner = () =>
   new AppError('Only the Super Admin can add balance to their own wallet', 403, 'EXCHANGE_OWNER_ONLY');
 const notInTree = () => new AppError('This account is not in your tree', 404, 'EXCHANGE_NOT_IN_YOUR_TREE');
+// Whitelabel company (WHITELABEL_MODE): paisa sirf parent site ke transfer se aata hai.
+const companyNoSelfFunding = () =>
+  new AppError('A whitelabel company cannot add balance to itself; balance comes from the parent site', 403, 'WHITELABEL_NO_SELF_FUNDING');
+const onlyWhitelabel = () =>
+  new AppError('Moving Direct balance to Agent System is only for a whitelabel company', 403, 'WHITELABEL_ONLY');
 
 /** NUMERIC → "123.45" (2 decimals) — dashboard ke liye. */
 const show = (value) => money.fromStored(value ?? '0', { field: 'balance' });
@@ -115,6 +121,7 @@ class ExchangeService {
    */
   async ownerAddDirectBalance({ actor, amount, currency = 'INR', note, transactionPassword }) {
     if (!actor.canIssueFunds) throw onlyOwner();
+    if (this.config?.WHITELABEL_MODE) throw companyNoSelfFunding();
 
     await assertTransactionPassword(this.models, actor.id, transactionPassword, { required: true });
 
@@ -139,6 +146,7 @@ class ExchangeService {
    */
   async ownerAddBalance({ actor, amount, note, transactionPassword }) {
     if (!actor.canIssueFunds) throw onlyOwner();
+    if (this.config?.WHITELABEL_MODE) throw companyNoSelfFunding();
 
     await assertTransactionPassword(this.models, actor.id, transactionPassword, { required: true });
 
@@ -147,6 +155,25 @@ class ExchangeService {
     );
 
     this.logger?.warn({ actorStaffId: actor.id, amount: result.amount }, 'Owner added balance to own wallet');
+    return result;
+  }
+
+  /**
+   * Whitelabel company apne Direct User balance se Agent System balance me paisa le jaata hai
+   * (parent site ka transfer Direct me aata hai; agents ko dena Agent System se hota hai).
+   * Ek hi taraf, ek hi transaction me: Direct se kata tabhi Agent System me juda.
+   */
+  async ownerMoveToAgentSystem({ actor, amount, note, transactionPassword }) {
+    if (!actor.canIssueFunds) throw onlyOwner();
+    if (!this.config?.WHITELABEL_MODE) throw onlyWhitelabel();
+
+    await assertTransactionPassword(this.models, actor.id, transactionPassword, { required: true });
+
+    const result = await this.db.transaction((transaction) =>
+      moveOwnerDirectToAgentSystem(this.models, { ownerId: actor.id, amount, note }, { transaction })
+    );
+
+    this.logger?.warn({ actorStaffId: actor.id, amount: result.amount }, 'Company moved Direct balance to Agent System');
     return result;
   }
 

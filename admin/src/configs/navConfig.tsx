@@ -1,5 +1,7 @@
 import type { ComponentType, SVGProps } from 'react'
 
+import { siteConfig } from '@/configs/site'
+
 import {
   LunoActivity,
   LunoArrowBigUp,
@@ -342,6 +344,18 @@ export const navItems: NavItem[] = [
       { icon: 'ChartColumn', label: 'Branch Report', href: '/branch-report', permission: 'reports:read', direct: true, policy: 'branch_management' }
     ]
   },
+
+  // Whitelabel copies of this site (admin modules/whitelabels), Super Admin only — never on a copy itself.
+  ...(siteConfig.whitelabel
+    ? []
+    : [
+        {
+          groupLabel: 'Whitelabel',
+          groupIcon: 'Globe',
+          collapsible: true,
+          items: [{ icon: 'Globe', label: 'Whitelabels', href: '/whitelabels', activePath: '/whitelabels', permission: 'reports:read', direct: true, policy: 'whitelabel' } as MenuItem]
+        } as NavItem
+      ]),
   {
     /*
      * Sports Exchange — zip (msadmin) ke admin panel ke saare screens, usi order me jaise zip ke

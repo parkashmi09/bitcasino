@@ -10,6 +10,7 @@ const { verifyToken } = require('./middleware/verifyToken');
 const { buildLegacyRewriter } = require('./legacyRoutes');
 const { createHealthAggregator } = require('./health');
 const { createApiEncryption } = require('./apiEncryption');
+const { createMaintenanceGate } = require('./middleware/maintenance');
 
 /**
  * The single public entry point.
@@ -100,6 +101,9 @@ function buildApp() {
 
   // ── 3. Legacy compatibility ─────────────────────────────────────────
   routes.use(buildLegacyRewriter({ logger }));
+
+  // ── 3b. Whitelabel copy switched off by its parent site ─────────────
+  if (config.WHITELABEL_MODE) routes.use(createMaintenanceGate({ config, logger }));
 
   // ── 4. Endpoint index ───────────────────────────────────────────────
   routes.get('/api/v1', (_req, res) => {

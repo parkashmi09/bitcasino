@@ -247,4 +247,4 @@ function brandingStore({ logger, models }) {
   return shared;
 }
 
-module.exports = { createBrandingStore, brandingStore, PUBLIC_PREFIX, SITE_SLOTS };
+module.exports = { createBrandingStore, brandingStore, PUBLIC_PREFIX, SITE_SLOTS, META_KEYS, metaOf };
