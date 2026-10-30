@@ -15,9 +15,9 @@ const adminRoutes = require('../routes/admin.routes');
 const v = require('../whitelabels.validators');
 const { readOwnerDirectBalance } = require('../../lords/ownerWallet');
 const { schemas: linkSchemas } = require('../../whitelabel-link/routes/public.routes');
-const migration = require('../../../../../../packages/db/migrations/164-whitelabels');
-const iconMigration = require('../../../../../../packages/db/migrations/165-whitelabel-icon');
-const posterMigration = require('../../../../../../packages/db/migrations/166-whitelabel-posters');
+const migration = require('../../../../../../packages/db/migrations/172-whitelabels');
+const iconMigration = require('../../../../../../packages/db/migrations/173-whitelabel-icon');
+const posterMigration = require('../../../../../../packages/db/migrations/174-whitelabel-posters');
 
 // A real 1×1 PNG: the branding checks read its magic bytes.
 const PNG = { type: 'image/png', data: 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=' };

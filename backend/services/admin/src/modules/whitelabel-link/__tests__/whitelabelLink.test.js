@@ -16,7 +16,7 @@ const publicRoutes = require('../routes/public.routes');
 const { ExchangeService } = require('../../exchange/exchange.service');
 const { StaffService } = require('../../staff/staff.service');
 const { readOwnerDirectBalance, moveOwnerDirectToAgentSystem } = require('../../lords/ownerWallet');
-const migration = require('../../../../../../packages/db/migrations/163-whitelabel-link');
+const migration = require('../../../../../../packages/db/migrations/171-whitelabel-link');
 
 /**
  * A whitelabel copy and its parent: the company cannot fund itself, the parent's transfer lands
