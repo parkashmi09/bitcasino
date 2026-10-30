@@ -22,7 +22,7 @@ class HouseService {
   /**
    * The player ids an agent-tree caller may see, or `null` for everyone.
    *
-   * House staff (levels 1–3) see every row. A SUPER_MASTER / MASTER / AGENT
+   * The Super Admin (and its executives) sees every row. Every level below it
    * (or an executive under one) sees only the players owned by their own
    * subtree, resolved by admin-service (which owns `staff`) from the verified
    * token's staff id. A failed lookup throws: a listing that cannot resolve

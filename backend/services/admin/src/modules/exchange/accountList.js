@@ -32,7 +32,7 @@ const CHILDREN_SQL = `
          (EXISTS (SELECT 1 FROM staff k WHERE k.parent_id = s.id)
            OR EXISTS (SELECT 1 FROM users p WHERE p.parent_staff_id = s.id)) AS has_children,
          false AS is_direct_user,
-         s.phone, s.country AS city, s.created_at, c.sports_pts, c.upper_point, c.down_point, c.thirdparty_pts, c.original_game_pts
+         s.phone, s.email, s.country AS city, s.created_at, c.sports_pts, c.upper_point, c.down_point, c.thirdparty_pts, c.original_game_pts
     FROM staff s
     JOIN roles r ON r.id = s.role_id
     LEFT JOIN credits c ON c.staff_id = s.id
@@ -43,7 +43,7 @@ const CHILDREN_SQL = `
          c.id, c.inr, c.credit, c.all_point,
          COALESCE((SELECT ABS(SUM(e.total_exposure)) FROM mssports.total_exposures e WHERE e.user_id = u.id), 0),
          false, u.parent_staff_id IS NULL,
-         u.phone, u.last_city, u.created, c.sports_pts, c.upper_point, c.down_point, c.thirdparty_pts, c.original_game_pts
+         u.phone, u.email, u.last_city, u.created, c.sports_pts, c.upper_point, c.down_point, c.thirdparty_pts, c.original_game_pts
     FROM users u
     LEFT JOIN credits c ON c.uid = u.id
    WHERE u.parent_staff_id = :parentId OR (:withDirectUsers AND u.parent_staff_id IS NULL AND NOT u.is_demo)`;
@@ -71,6 +71,7 @@ function toRow(r) {
 
     // More modal ke Profile tab ke liye (zip "Additional Information")
     phone: r.phone ?? null,
+    email: r.email ?? null,
     city: r.city ?? null,
     createdAt: r.created_at ?? null,
     sportsPts: show(r.sports_pts),

@@ -3,7 +3,9 @@ import { getUserTotalExposure } from "../services/ExposureService.mjs";
 import { verifyToken } from "../../../lib/utils/jwt.mjs";
 import { walletService_default } from "../../../lib/services/walletService.mjs";
 
-var BALANCE_INTERVAL_MS = 3e3;
+// Safety read only (TENEXCH): every money write pushes balance + exposure itself the moment it
+// commits (lib/helper/pushBalance.mjs; the settlement worker over Redis), so this only catches a missed push.
+var BALANCE_INTERVAL_MS = 3e4;
 var setupSocketHandlers = (io) => {
   io.on("connection", (socket) => {
     // The room comes from the verified token, never the payload's userId: user_<id> carries that

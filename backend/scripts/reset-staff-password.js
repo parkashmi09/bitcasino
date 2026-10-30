@@ -28,8 +28,8 @@ function parseArgs(argv) {
 
 async function main() {
   const args = parseArgs(process.argv);
-  if (!args.password || args.password.length < 10) {
-    console.error('Password must be at least 10 characters (platform rule).');
+  if (!args.password || args.password.length < 8) {
+    console.error('Password must be at least 8 characters (platform rule).');
     process.exit(1);
   }
 

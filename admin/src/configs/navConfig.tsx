@@ -205,6 +205,9 @@ export type MenuLeafSubItem = {
   /** A direct-user screen: only the Super Admin and its executives (`actor.direct`). */
   direct?: boolean
 
+  /** A downline screen: only staff below the Super Admin side (hidden where `actor.direct`). */
+  tree?: boolean
+
   /** Hidden unless this owner on/off policy (`branch_management`, …) is on. */
   policy?: string
 }
@@ -238,6 +241,9 @@ export type MenuItem = {
 
   /** A direct-user screen: only the Super Admin and its executives (`actor.direct`). */
   direct?: boolean
+
+  /** A downline screen: only staff below the Super Admin side (hidden where `actor.direct`). */
+  tree?: boolean
 
   /** Staff's own logins only — an executive session never sees it. */
   notExecutive?: boolean
@@ -461,7 +467,10 @@ export const navItems: NavItem[] = [
       { icon: 'LayoutDashboard', label: 'Dashboard', href: '/casino/original-games', permission: 'originals:read', direct: true },
       { icon: 'TrendingUp', label: 'Turnover', href: '/casino/original-games/turnover', permission: 'originals:read', direct: true },
       { icon: 'History', label: 'Bet history', href: '/casino/original-games/bets', permission: 'originals:read', direct: true },
-      { icon: 'Dices', label: 'Games', href: '/casino/original-games/games', permission: 'originals:read', direct: true }
+      { icon: 'Dices', label: 'Games', href: '/casino/original-games/games', permission: 'originals:read', direct: true },
+
+      // Every staff below the Super Admin: its downline's bets and stats only, like Casino → Bet history (user, 2026-10-29).
+      { icon: 'History', label: 'Bet history', href: '/casino/original-games/history', permission: 'reports:read', tree: true }
     ]
   },
   {
@@ -654,6 +663,9 @@ export type NavMarks = {
 
   /** A direct-user screen: only the Super Admin and its executives (`actor.direct`). */
   direct?: boolean
+
+  /** A downline screen: only staff below the Super Admin side (hidden where `actor.direct`). */
+  tree?: boolean
 
   /** Staff's own logins only — an executive session never sees it (e.g. managing executives). */
   notExecutive?: boolean

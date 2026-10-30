@@ -27,6 +27,7 @@ import { OWNER_UPLINE_NO, uplineNo } from "../../../lib/helper/uplineLevelNo.mjs
 import { isCricketTestFormat } from "../../../lib/helper/cricketFormat.mjs";
 import { leagueNameForBet } from "../../../lib/services/SportsLeagueResolver.mjs";
 import { TOTAL_EXPOSURE_SQL } from "../../../lib/helper/totalExposure.mjs";
+import { pushBalance } from "../../../lib/helper/pushBalance.mjs";
 import { checkBetLive } from "../buffer/betBuffer.mjs";
 import { StaffMarketLocks_default } from "../../../models/admin/StaffMarketLocks.mjs";
 const { directLedgerContext } = createRequire(import.meta.url)("@ibitplay/common");
@@ -2124,7 +2125,10 @@ var placeBet = async (req, res, opts) => {
       { transaction }
     );
     console.log(`\u2705 TotalExposure upserted for user ${user_id}: ${totalUserExposure}`);
-    if (!externalTx) await transaction.commit();
+    if (!externalTx) {
+      await transaction.commit();
+      pushBalance(user_id);
+    }
     const newBalance = balanceChange !== 0 ? currentInr - balanceChange : currentInr;
     console.log("Transaction completed successfully");
     console.log("Old balance:", currentInr);
@@ -2257,6 +2261,7 @@ var placeCombinedBet = async (req, res) => {
     }
     await transaction.commit();
     transaction = null;
+    pushBalance(user_id);
     const last = legResults[legResults.length - 1];
     return res.json({
       success: true,
@@ -2411,6 +2416,7 @@ var cancelBet = async (req, res) => {
     const totalUserExposure = parseFloat(exposureResults[0]?.total_exposure) || 0;
     await TotalExposure_default.upsert({ user_id, total_exposure: totalUserExposure }, { transaction });
     await transaction.commit();
+    pushBalance(user_id);
     console.log(`[cancelBet] \u2705 bet=${bet_id} refund=${refund} newBalance=${newBalance} totalExposure=${totalUserExposure}`);
     return res.json({
       success: true,

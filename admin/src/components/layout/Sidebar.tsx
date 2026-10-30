@@ -59,7 +59,6 @@ import {
 
 // Config Imports
 import themeConfig from '@/configs/themeConfig'
-import { siteConfig } from '@/configs/site'
 import { useSession } from '@/contexts/SessionContext'
 import { useNavVisible } from '@/hooks/use-nav-visible'
 
@@ -644,11 +643,8 @@ const SidebarLayout = () => {
         <div className='flex items-center gap-2'>
           <Link href={homeHref} className='flex min-w-0 flex-1 items-center gap-2.5 rounded-md'>
             <BrandMark className='size-9' />
-            <span className='flex min-w-0 flex-col group-data-[collapsible=icon]:hidden'>
-              <span className='text-heading truncate text-[18px] leading-tight font-semibold'>
-                {themeConfig.templateName}
-              </span>
-              <span className='text-muted-foreground truncate text-xs'>{siteConfig.tagline}</span>
+            <span className='text-heading truncate text-[18px] leading-tight font-semibold group-data-[collapsible=icon]:hidden'>
+              {themeConfig.templateName}
             </span>
           </Link>
         </div>

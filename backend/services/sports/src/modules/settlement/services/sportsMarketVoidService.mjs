@@ -10,6 +10,7 @@ import { exposureIdentity } from "../../../lib/helper/lineMarket.mjs";
 import { BADLO_EXPOSURE_GAME_TYPE } from "../../../lib/helper/badloMarket.mjs";
 import { CreditsLedger_default } from "../../../models/user/CreditsLedger.mjs";
 import { recalcTotalExposure } from "../../../lib/helper/totalExposure.mjs";
+import { pushBalance } from "../../../lib/helper/pushBalance.mjs";
 import { isPerSelectionMarket, selectionExposureRows, releasableLiability, additiveBucketLiability } from "../../../lib/helper/exposureBucket.mjs";
 import { VOID_TYPES } from "../../../models/admin/BetVoidAudit.mjs";
 import { newVoidGroupId, recordVoidAudit } from "./voidAuditService.mjs";
@@ -306,6 +307,7 @@ var voidOpenMarket = async ({
       auditedBets += a.userBets.length;
     }
     await t.commit();
+    userIds.forEach((uid) => pushBalance(uid));
     return { userIds, betsVoided: auditedBets, voidGroupId };
   } catch (error) {
     await t.rollback();

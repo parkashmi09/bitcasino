@@ -20,9 +20,9 @@ const {
 /**
  * Promotions are house business — the agent tree has none.
  *
- * Product rule: SUPER_MASTER (4), MASTER (5) and AGENT (6) get no bonus,
- * codes, gift cards, spin wheel, VIP/club, affiliate, races or rakeback admin.
- * House staff (1–3) keep it. An executive acts with its parent's level: an
+ * Product rule (user, 2026-10-29): every level below the Super Admin — ADMIN (2)
+ * to AGENT (6) — gets no bonus, codes, gift cards, spin wheel, VIP/club,
+ * affiliate, races or rakeback admin. Only the Super Admin keeps it. An executive acts with its parent's level: an
  * executive SESSION already carries the parent's level on `req.staff.level`;
  * a staff ROW whose role is EXECUTIVE (7) carries it as `parentLevel`.
  *
@@ -66,16 +66,18 @@ const CALLERS = {
   master: { level: 5 },
   agent: { level: 6 },
   // Executive login: the token's subject IS the parent, so the level is theirs.
+  executiveOfSuperAdmin: { level: 1, executiveId: 76 },
   executiveOfAdmin: { level: 2, executiveId: 77 },
   executiveOfAgent: { level: 6, executiveId: 78 },
   // A staff row whose own role is EXECUTIVE.
+  executiveRowUnderSuperAdmin: { level: 7, parentLevel: 1 },
   executiveRowUnderAdmin: { level: 7, parentLevel: 2 },
   executiveRowUnderMaster: { level: 7, parentLevel: 5 },
   executiveRowNoParent: { level: 7, parentLevel: null },
 };
 
-const ALLOWED = ['superAdmin', 'admin', 'subAdmin', 'executiveOfAdmin', 'executiveRowUnderAdmin'];
-const DENIED = ['superMaster', 'master', 'agent', 'executiveOfAgent', 'executiveRowUnderMaster', 'executiveRowNoParent'];
+const ALLOWED = ['superAdmin', 'executiveOfSuperAdmin', 'executiveRowUnderSuperAdmin'];
+const DENIED = ['admin', 'subAdmin', 'executiveOfAdmin', 'executiveRowUnderAdmin', 'superMaster', 'master', 'agent', 'executiveOfAgent', 'executiveRowUnderMaster', 'executiveRowNoParent'];
 
 test('denyAgentTree — the decision', async (t) => {
   const run = (staff) =>
@@ -209,16 +211,16 @@ test('every user-service promotion admin router refuses the agent tree', async (
   for (const [name, route, refusal] of MODULES) {
     const path = `/${name}${route === '/' ? '' : route}`;
 
-    await t.test(`${path}: SUPER_MASTER / MASTER / AGENT get 403`, async () => {
-      for (const caller of ['superMaster', 'master', 'agent', 'executiveOfAgent', 'executiveRowUnderMaster']) {
+    await t.test(`${path}: ADMIN … AGENT get 403`, async () => {
+      for (const caller of ['admin', 'subAdmin', 'executiveOfAdmin', 'superMaster', 'master', 'agent', 'executiveOfAgent', 'executiveRowUnderMaster']) {
         const { status, body } = await call(path, caller);
         assert.equal(status, 403, `${caller} on ${path}`);
         assert.equal(body?.error?.code ?? body?.code, refusal, `${caller} on ${path}`);
       }
     });
 
-    await t.test(`${path}: house staff (1–3) and an admin's executive get 200`, async () => {
-      for (const caller of ['superAdmin', 'admin', 'subAdmin', 'executiveOfAdmin', 'executiveRowUnderAdmin']) {
+    await t.test(`${path}: the Super Admin and its executives get 200`, async () => {
+      for (const caller of ALLOWED) {
         const { status, body } = await call(path, caller);
         assert.equal(status, 200, `${caller} on ${path}: ${JSON.stringify(body)}`);
       }

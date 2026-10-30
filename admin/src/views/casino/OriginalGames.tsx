@@ -37,6 +37,7 @@ import { DateRangePicker } from '@/components/ui/date-picker'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Switch } from '@/components/ui/switch'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { useApi, useApiMutation, useListState } from '@/hooks/use-api'
 import { api } from '@/lib/api/client'
 import { formatNumber } from '@/lib/format'
@@ -555,14 +556,31 @@ const GamesTab = () => {
   )
 }
 
+/** The downline's one screen (staff below the Super Admin), like Casino → Bet history: rounds, then stats. */
+const HistoryTab = ({ channel }: { channel: Channel }) => (
+  <Tabs defaultValue='bets'>
+    <TabsList className='mb-4 flex-wrap'>
+      <TabsTrigger value='bets'>Bets</TabsTrigger>
+      <TabsTrigger value='stats'>Stats</TabsTrigger>
+    </TabsList>
+    <TabsContent value='bets'>
+      <BetsTab channel={channel} />
+    </TabsContent>
+    <TabsContent value='stats'>
+      <DashboardTab channel={channel} />
+    </TabsContent>
+  </Tabs>
+)
+
 const SECTIONS = {
   dashboard: { title: 'Original Games · Dashboard', description: 'Payouts and GGR (wagered − won) of the Original Games Aggregator. Refunded (rolled back) bets are kept out of the figures.', Tab: DashboardTab },
   turnover: { title: 'Original Games · Turnover', description: 'What was wagered: by game, and by coin as it really turned over. Refunded (rolled back) bets are kept out.', Tab: ({ channel }: { channel: Channel }) => <DashboardTab channel={channel} turnover /> },
   bets: { title: 'Original Games · Bet history', description: 'Every Original Games round: bet, payout, result and balance after.', Tab: BetsTab },
-  games: { title: 'Original Games · Games', description: 'The games the provider offers, their limits and status.', Tab: GamesTab }
+  games: { title: 'Original Games · Games', description: 'The games the provider offers, their limits and status.', Tab: GamesTab },
+  history: { title: 'Original Games · Bet history', description: 'Every Original Games round and its stats, scoped to the users under your staff tree.', Tab: HistoryTab }
 }
 
-/** Admin → Original Games → Dashboard / Bet history / Games. Super Admin and its executives with `originals:read`. */
+/** Admin → Original Games → Dashboard / Bet history / Games (Super Admin side, `originals:read`), and History for the staff below it (`reports:read`). */
 const OriginalGames = ({ section = 'dashboard' }: { section?: keyof typeof SECTIONS }) => {
   const { title, description, Tab } = SECTIONS[section]
 

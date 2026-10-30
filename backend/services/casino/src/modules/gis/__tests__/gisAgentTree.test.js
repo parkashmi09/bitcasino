@@ -34,7 +34,7 @@ test('gis freespins and vouchers refuse the agent tree', async (t) => {
     auth: { requirePermission: passthroughAuthz },
   };
 
-  const levels = { superMaster: 4, master: 5, agent: 6, admin: 2 };
+  const levels = { superMaster: 4, master: 5, agent: 6, admin: 2, superAdmin: 1 };
   const app = express();
   app.use(express.json());
   app.use((req, _res, next) => {
@@ -69,13 +69,14 @@ test('gis freespins and vouchers refuse the agent tree', async (t) => {
     ['POST', '/gis/vouchers/cancel'],
   ]) {
     await t.test(`${method} ${path}`, async () => {
-      for (const caller of ['superMaster', 'master', 'agent']) {
+      // Every level below the Super Admin is refused (user, 2026-10-29).
+      for (const caller of ['admin', 'superMaster', 'master', 'agent']) {
         const { status, code } = await call(method, path, caller);
         assert.equal(status, 403, caller);
         assert.equal(code, PROMOTIONS_NOT_FOR_AGENTS, caller);
       }
-      // An admin passes the guard and reaches validation / the handler.
-      const { code } = await call(method, path, 'admin');
+      // The Super Admin passes the guard and reaches validation / the handler.
+      const { code } = await call(method, path, 'superAdmin');
       assert.notEqual(code, PROMOTIONS_NOT_FOR_AGENTS);
     });
   }
@@ -114,6 +115,7 @@ test('gis self-validate is a house-only integration check on casino:manage', asy
     agentWithManage: { level: 6, permissions: ['casino:read', 'casino:manage'] },
     subAdmin: { level: 3, permissions: ['casino:read'] },
     admin: { level: 2, permissions: ['casino:read', 'casino:manage'] },
+    superAdmin: { level: 1, permissions: ['*'] },
   };
   const app = express();
   app.use((req, _res, next) => {
@@ -134,7 +136,7 @@ test('gis self-validate is a house-only integration check on casino:manage', asy
     return { status: res.status, code: body?.error?.code ?? body?.code ?? null };
   };
 
-  for (const caller of ['superMaster', 'agentWithManage']) {
+  for (const caller of ['superMaster', 'agentWithManage', 'admin']) {
     const { status, code } = await get(caller);
     assert.equal(status, 403, caller);
     assert.equal(code, 'INTEGRATION_CHECK_HOUSE_ONLY', caller);
@@ -142,7 +144,7 @@ test('gis self-validate is a house-only integration check on casino:manage', asy
   assert.equal((await get('subAdmin')).status, 403);
   assert.equal(providerCalls, 0, 'no refused caller reaches the provider');
 
-  // An admin reaches the handler (which then calls the provider).
-  const { status } = await get('admin');
+  // The Super Admin reaches the handler (which then calls the provider).
+  const { status } = await get('superAdmin');
   assert.notEqual(status, 403);
 });

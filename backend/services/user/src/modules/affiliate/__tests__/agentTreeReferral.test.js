@@ -48,7 +48,7 @@ test('cleanup script selection', () => {
     { id: 4, level: 4 }, // super master
     { id: 6, level: 6 }, // agent
     { id: 70, level: 7, parentLevel: 6 }, // executive under an agent
-    { id: 71, level: 7, parentLevel: 2 }, // executive under house
+    { id: 71, level: 7, parentLevel: 2 }, // executive under an admin — agent tree too (user, 2026-10-29)
   ];
   const players = [
     { id: 10, name: 'house_p', referalcode: 'HOUSE10', parent_staff_id: 1 },
@@ -76,8 +76,8 @@ test('cleanup script selection', () => {
 
   const { agentPlayers, teamRows, refreeUsers } = selectAgentTreeReferrals({ staff, players, teams, referred });
 
-  assert.deepEqual(agentPlayers.map((p) => p.id).sort(), [11, 12, 13, 15]);
-  assert.deepEqual(teamRows.map((r) => r.membername).sort(), ['m2', 'm3', 'm4', 'm6']);
+  assert.deepEqual(agentPlayers.map((p) => p.id).sort(), [11, 12, 13, 14, 15]);
+  assert.deepEqual(teamRows.map((r) => r.membername).sort(), ['m2', 'm3', 'm4', 'm5', 'm6']);
   assert.deepEqual(refreeUsers.map((u) => u.id).sort(), [100, 102]);
 
   // Idempotent: once removed, nothing is selected again.

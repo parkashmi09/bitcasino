@@ -52,8 +52,8 @@ function build({ descendants = [6, 7] } = {}) {
   return { service: new HouseService({ models, clients, logger: null }), calls };
 }
 
-test('house staff (levels 1-3) see every row without a tree lookup', async () => {
-  for (const level of [1, 2, 3]) {
+test('the Super Admin sees every row without a tree lookup', async () => {
+  for (const level of [1]) {
     const { service, calls } = build();
     const out = await service.list({ limit: 100, offset: 0, staff: { id: 1, level } });
     assert.equal(out.total, 3, `level ${level}`);
@@ -61,8 +61,9 @@ test('house staff (levels 1-3) see every row without a tree lookup', async () =>
   }
 });
 
-test('agent tree (levels 4-6) sees only its own players', async () => {
-  for (const level of [4, 5, 6]) {
+// Every level below the Super Admin is the agent tree (user, 2026-10-29).
+test('agent tree (levels 2-6) sees only its own players', async () => {
+  for (const level of [2, 3, 4, 5, 6]) {
     const { service, calls } = build();
     const out = await service.list({ limit: 100, offset: 0, staff: { id: 6, level } });
     assert.equal(out.total, 2, `level ${level}`);

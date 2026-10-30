@@ -13,8 +13,8 @@ const BRANCH_COOKIE = `${COOKIE}_branch`
 const BRANCH_API = '/api/gw/api/v1/admin/branches/portal/'
 const PUBLIC = ['/login', '/api/auth/session', '/api/auth/logout']
 
-// Gateway reads a signed-out page needs (the login screen's site config and brand mark).
-const PUBLIC_API = ['/site-config/public', '/branding/public', '/branding/asset/']
+// Gateway calls a signed-out page needs (the login screen's site config, brand mark and sign-in).
+const PUBLIC_API = ['/site-config/public', '/branding/public', '/branding/asset/', '/admin/auth/login', '/admin/auth/executive/login']
 
 function tokenLooksValid(token: string | undefined) {
   if (!token) return false

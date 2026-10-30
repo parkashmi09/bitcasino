@@ -407,6 +407,19 @@ test('admin account controls', async (t) => {
     assert.equal(row.password2, null, 'password2 must stay NULL');
   });
 
+  await t.test('a staff password reset forces a change at the next sign-in', async () => {
+    const staff = await seedStaff(newStaffId());
+    const child = await seedStaff(newStaffId(), { parentId: staff });
+
+    await service.setPassword({
+      actor: actorFor(staff), accountType: 'staff', accountId: child,
+      newPassword: 'a brand new long password', transactionPassword: TXN_PASSWORD,
+    });
+
+    const row = await connection.models.Staff.findByPk(child, { attributes: ['must_change_password'], raw: true });
+    assert.equal(row.must_change_password, true);
+  });
+
   await t.test('locks can be set together, and not on yourself', async () => {
     const staff = await seedStaff(newStaffId());
     const player = await seedPlayer(newUid(), staff, '0');

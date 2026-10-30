@@ -9,6 +9,7 @@ const assert = require('node:assert');
 
 const db = require('@ibitplay/db');
 const { createLogger, money } = require('@ibitplay/common');
+const { verifyPassword } = require('@ibitplay/auth');
 
 const { StaffService } = require('../staff.service');
 const v = require('../staff.validators');
@@ -473,7 +474,6 @@ test('admin staff', async (t) => {
     );
   const cleanup = (...ids) => connection.models.Staff.destroy({ where: { id: ids } });
   const refusedLevel = (err) => err.code === 'STAFF_LEVEL_NOT_BELOW' && err.status === 403;
-  const refusedSkip = (err) => err.code === 'STAFF_LEVEL_NOT_DIRECT_CHILD' && err.status === 403 && /directly below your own/.test(err.message);
 
   await t.test('an Admin cannot create a Super Admin, nor another Admin', async () => {
     const admin = await seedStaff(newStaffId(), { level: 2 });
@@ -486,20 +486,25 @@ test('admin staff', async (t) => {
     await cleanup(sub.id);
   });
 
-  await t.test('each level creates ONLY the level directly below it (CHILD_LEVELS)', async () => {
+  await t.test('each level creates any level below it, under itself (TENEXCH rule)', async () => {
     const admin = await seedStaff(newStaffId(), { level: 2 });
-    await assert.rejects(() => make(actorFor(admin), 4), refusedSkip, 'an Admin does not skip to Super Master');
+    const smOfAdmin = await make(actorFor(admin), 4);
+    assert.equal(Number(smOfAdmin.parentId), admin);
 
     const sub = await seedStaff(newStaffId(), { parentId: admin, level: 3 });
     await assert.rejects(() => make(actorFor(sub), 3), refusedLevel, 'not a peer');
-    await assert.rejects(() => make(actorFor(sub), 5), refusedSkip, 'a Sub Admin does not skip to Master');
+    await assert.rejects(() => make(actorFor(sub), 2), refusedLevel, 'not upwards');
     const smMade = await make(actorFor(sub), 4);
     assert.equal(Number(smMade.parentId), sub);
+    const masterOfSub = await make(actorFor(sub), 5);
+    const agentOfSub = await make(actorFor(sub), 6);
+    assert.equal(Number(agentOfSub.parentId), sub);
 
     const sm = await seedStaff(newStaffId(), { level: 4 });
     await assert.rejects(() => make(actorFor(sm), 4), refusedLevel, 'not a peer');
     await assert.rejects(() => make(actorFor(sm), 3), refusedLevel, 'not upwards');
-    await assert.rejects(() => make(actorFor(sm), 6), refusedSkip, 'a Super Master does not skip to Agent');
+    const agentOfSm = await make(actorFor(sm), 6);
+    assert.equal(Number(agentOfSm.parentId), sm);
 
     const master = await make(actorFor(sm), 5);
     levels.set(Number(master.id), 5);
@@ -514,7 +519,7 @@ test('admin staff', async (t) => {
     await assert.rejects(() => make(actorFor(agentOfMaster.id), 7));
     await assert.rejects(() => make(actorFor(agentOfMaster.id), 6), refusedLevel);
 
-    await cleanup(agentOfMaster.id, master.id, smMade.id);
+    await cleanup(agentOfMaster.id, master.id, smMade.id, agentOfSub.id, masterOfSub.id, agentOfSm.id, smOfAdmin.id);
   });
 
   await t.test('the Super Admin creates any level, under itself or a descendant', async () => {
@@ -535,13 +540,14 @@ test('admin staff', async (t) => {
     await cleanup(agent.id, agentDirect.id, admin.id);
   });
 
-  await t.test('below the Super Admin, a create under a descendant must be that parent\'s direct child level', async () => {
+  await t.test('below the Super Admin, a create under a descendant must sit below that parent', async () => {
     const sm = await seedStaff(newStaffId(), { level: 4 });
     const master = await seedStaff(newStaffId(), { parentId: sm, level: 5 });
     const stranger = await seedStaff(newStaffId(), { level: 5 });
 
-    // A Super Master's child level is Master; Agent under its master is refused.
-    await assert.rejects(() => make(actorFor(sm), 6, { parentId: master }), refusedSkip);
+    const agent = await make(actorFor(sm), 6, { parentId: master });
+    assert.equal(Number(agent.parentId), master);
+    await cleanup(agent.id);
     await assert.rejects(() => make(actorFor(sm), 5, { parentId: master }), refusedLevel);
     await assert.rejects(
       () => make(actorFor(sm), 5, { parentId: stranger }),
@@ -574,21 +580,46 @@ test('admin staff', async (t) => {
     (await connection.models.Staff.findByPk(id, { attributes: ['must_change_password'], raw: true }))
       .must_change_password;
 
-  await t.test("a created account keeps its creator's password; a superior's reset forces a change", async () => {
+  await t.test('a created account must change its password first; that change issues the transaction password', async (st) => {
+    const prevMode = process.env.TXN_PASSWORD_MODE;
+    process.env.TXN_PASSWORD_MODE = 'separate';
+    st.after(() => { if (prevMode === undefined) delete process.env.TXN_PASSWORD_MODE; else process.env.TXN_PASSWORD_MODE = prevMode; });
+
     const boss = await seedStaff(newStaffId(), { level: 3 });
     const created = await make(actorFor(boss), 4);
-    assert.equal(await mustChange(created.id), false);
+    assert.equal(await mustChange(created.id), true);
 
-    await service.changePassword({
+    const first = await service.changePassword({
       actor: { id: created.id, level: 4 }, oldPassword: PASSWORD, newPassword: 'another long password',
     });
     assert.equal(await mustChange(created.id), false);
+    assert.match(first.transactionPassword, /^\d{6}$/);
+    const stored = await connection.models.Staff.findByPk(created.id, { attributes: ['transaction_password', 'first_login'], raw: true });
+    assert.equal(await verifyPassword(first.transactionPassword, stored.transaction_password), true);
+    assert.equal(stored.first_login, false);
+
+    // Issued once: a later own change leaves it alone.
+    const again = await service.changePassword({
+      actor: { id: created.id, level: 4 }, oldPassword: 'another long password', newPassword: 'a third long password',
+    });
+    assert.equal(again.transactionPassword, undefined);
 
     // A superior's reset sets it again — they know the password now.
     await service.changePassword({
       actor: actorFor(boss, { canResetOthers: true }), targetId: created.id, newPassword: 'reset by the boss!!',
     });
     assert.equal(await mustChange(created.id), true);
+
+    // …and the forced change after it issues a NEW transaction password; the old one stops working.
+    const rotated = await service.changePassword({
+      actor: { id: created.id, level: 4 }, oldPassword: 'reset by the boss!!', newPassword: 'a fourth long password',
+    });
+    assert.match(rotated.transactionPassword, /^\d{6}$/);
+    const after = await connection.models.Staff.findByPk(created.id, { attributes: ['transaction_password'], raw: true });
+    assert.equal(await verifyPassword(rotated.transactionPassword, after.transaction_password), true);
+    if (rotated.transactionPassword !== first.transactionPassword) {
+      assert.equal(await verifyPassword(first.transactionPassword, after.transaction_password), false);
+    }
 
     // Neither the create, the own change nor the reset left a cleartext copy.
     const row = await connection.models.Staff.findByPk(created.id, { attributes: ['password', 'password2'], raw: true });

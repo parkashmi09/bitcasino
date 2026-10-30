@@ -4,14 +4,15 @@ const { money, entitlements } = require('@ibitplay/common');
 
 const S = require('../reports/stats.shared');
 const { reportingCurrency } = require('../reports/reportingCurrency');
+const { playerScope } = require('../reports/audienceStats.helpers');
 
 /**
  * Admin → Casino → Original Games, read from casino-service's `og_transactions` / `og_games`.
  *
  * One round = one `bet` + its `win` (same `round_id`); a loss is a win of 0. A bet or win that was
  * rolled back is a refund and is left out of wagered and won. GGR = wagered − won (the house side).
- * Only the Super Admin (and its executives) reaches these routes, so every player is in scope;
- * `channel` picks Direct Users (no parent) or Agent Users.
+ * Every read covers the caller's own players (`playerScope`): the Super Admin side sees every
+ * player, a staff below it only its downline. `channel` picks Direct Users (no parent) or Agent Users.
  */
 
 /** Minor units per major for the provider's limits — the same table as casino-service originalGames.constants. */
@@ -24,8 +25,14 @@ const OFFERED = (column) => `${column} IN (SELECT code FROM og_games)`;
 const ROLLED_BACK = `EXISTS (SELECT 1 FROM og_transactions r
                               WHERE r.kind = 'rollback' AND r.status = 'applied' AND r.reference_transaction_id = t.transaction_id)`;
 
-const channelSql = (column, channel) =>
-  channel ? ` AND ${column} IN (SELECT u.id FROM users u WHERE u.parent_staff_id IS ${channel === 'direct' ? '' : 'NOT '}NULL)` : '';
+/** The caller's players on `channel` → ` AND <column> IN (…)` plus its replacements. */
+async function scopeFor(models, staff, channel) {
+  const scope = await playerScope(models, staff, { channel: channel ?? 'all', alias: 'p' });
+  return {
+    where: (column) => ` AND ${column} IN (SELECT p.id FROM users p WHERE ${scope.sql})`,
+    replacements: scope.replacements,
+  };
+}
 
 /** count / sum columns every stats query shares, over the inner `o` rows (t + `rb` flag). */
 const FIGURES = `
@@ -50,15 +57,16 @@ class OriginalGamesAdminService {
 
   async stats({ staff, channel, currency, ...query }) {
     const window = S.resolveWindow(query);
-    const [buckets, rates, convertTo] = await Promise.all([
+    const [buckets, rates, convertTo, scope] = await Promise.all([
       S.bucketsFor(this.models, window),
       currency ? null : S.loadRates(this.models),
       currency ? null : reportingCurrency(this.models, staff),
+      scopeFor(this.models, staff, channel),
     ]);
-    const replacements = { ...S.replacementsFor(window, null), ...(currency ? { currency } : {}) };
+    const replacements = { ...S.replacementsFor(window, null), ...scope.replacements, ...(currency ? { currency } : {}) };
     const rows = `(SELECT t.*, ${ROLLED_BACK} AS rb FROM og_transactions t
                     WHERE t.kind IN ('bet', 'win') AND t.status = 'applied' AND ${OFFERED('t.game_code')} AND ${S.windowSql('t.created_at')}
-                      ${channelSql('t.user_id', channel)}${currency ? ' AND t.currency = :currency' : ''}) o`;
+                      ${scope.where('t.user_id')}${currency ? ' AND t.currency = :currency' : ''}) o`;
 
     const [series, games, currencies, [players]] = await Promise.all([
       S.select(this.models, `SELECT ${S.bucketSql('o.created_at')} AS bucket, o.currency, ${FIGURES} FROM ${rows} GROUP BY 1, 2`, replacements),
@@ -121,9 +129,10 @@ class OriginalGamesAdminService {
 
   // ── Bet history ──────────────────────────────────────────────────────
 
-  async bets({ channel, from, to, game, currency, status, search, page, limit }) {
+  async bets({ staff, channel, from, to, game, currency, status, search, page, limit }) {
     const where = [`b.kind = 'bet'`, `b.status = 'applied'`, OFFERED('b.game_code')];
-    const replacements = { limit, offset: (page - 1) * limit };
+    const scope = await scopeFor(this.models, staff, channel);
+    const replacements = { limit, offset: (page - 1) * limit, ...scope.replacements };
     if (from) {
       where.push('b.created_at >= CAST(:from AS timestamptz)');
       replacements.from = from;
@@ -146,7 +155,7 @@ class OriginalGamesAdminService {
       replacements.search = search;
       replacements.like = `%${search.replace(/[\\%_]/g, '\\$&')}%`;
     }
-    const channelFilter = channel ? ` AND u.parent_staff_id IS ${channel === 'direct' ? '' : 'NOT '}NULL` : '';
+    const channelFilter = scope.where('b.user_id');
     if (status) replacements.status = status;
 
     const rows = await S.select(
@@ -207,7 +216,8 @@ class OriginalGamesAdminService {
 
   // ── Games ────────────────────────────────────────────────────────────
 
-  async games({ channel }) {
+  async games({ staff, channel }) {
+    const scope = await scopeFor(this.models, staff, channel);
     const [rows, [site], owner] = await Promise.all([
       S.select(
         this.models,
@@ -215,9 +225,9 @@ class OriginalGamesAdminService {
                 COUNT(t.id)::int AS bets, COUNT(DISTINCT t.user_id)::int AS players, MAX(t.created_at) AS "lastBetAt"
            FROM og_games g
            LEFT JOIN og_transactions t
-             ON t.game_code = g.code AND t.kind = 'bet' AND t.status = 'applied'${channelSql('t.user_id', channel)}
+             ON t.game_code = g.code AND t.kind = 'bet' AND t.status = 'applied'${scope.where('t.user_id')}
           GROUP BY g.code ORDER BY g.position, g.code`,
-        {}
+        scope.replacements
       ),
       S.select(this.models, 'SELECT originals FROM siteconfig LIMIT 1', {}).catch(() => []),
       entitlements.isFlagEntitled('originals').catch(() => true),

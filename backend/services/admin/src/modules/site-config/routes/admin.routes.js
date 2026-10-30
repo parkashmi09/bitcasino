@@ -242,10 +242,13 @@ module.exports = function adminRoutes(deps) {
     )
   );
 
-  /** Settings → Payment Methods: the owner's enabled gateways, each with the Super Admin's ON / OFF switch (the only change here). */
+  /**
+   * Settings → Payment Methods: the owner's enabled gateways, each with the Super Admin's ON / OFF switch (the only change here).
+   * Deposits → Provider probe reads it too, to offer only the active gateways.
+   */
   router.get(
     '/payment-gateways',
-    auth.requirePermission(PERMISSIONS.CONFIG_READ),
+    auth.requireAnyPermission(PERMISSIONS.CONFIG_READ, PERMISSIONS.DEPOSITS_READ),
     asyncHandler(async (_req, res) => response.ok(res, await service.paymentGateways()))
   );
 

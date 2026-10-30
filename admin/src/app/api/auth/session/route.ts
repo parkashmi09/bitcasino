@@ -6,8 +6,8 @@ import { writeSessionToken } from '@/lib/auth/session'
 export const dynamic = 'force-dynamic'
 
 /**
- * Keeps a staff token in the httpOnly cookie. The browser signs in at the platform itself
- * (`<NEXT_PUBLIC_API_URL>/api/v1/admin/auth/login`, views/auth/Login.tsx) and hands the token
+ * Keeps a staff token in the httpOnly cookie. The browser signs in through the gateway proxy
+ * (`/api/gw/api/v1/admin/auth/login`, views/auth/Login.tsx) and hands the token
  * here; it is stored only after the platform accepts it, so this cannot plant an arbitrary cookie.
  */
 export async function POST(req: NextRequest) {

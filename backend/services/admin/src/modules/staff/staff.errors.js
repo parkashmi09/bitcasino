@@ -27,12 +27,6 @@ module.exports = defineErrors('STAFF', {
    */
   LEVEL_NOT_BELOW: { status: 403, message: 'You can only manage accounts below your own level' },
 
-  /**
-   * Below the caller, but not the ONE level directly below it (the ladder):
-   * an Admin asking for a Super Master, a Sub Admin for a Master.
-   */
-  LEVEL_NOT_DIRECT_CHILD: { status: 403, message: 'You can only create the level directly below your own' },
-
   UNKNOWN_ROLE: { status: 422, message: 'No such role' },
 
   PASSWORD_CHANGE_REQUIRED: {

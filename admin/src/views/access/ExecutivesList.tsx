@@ -88,7 +88,7 @@ export const CreateSubLogin = ({ kind }: { kind: Kind }) => {
         </Button>
       }
       title={kind === 'marketing' ? 'Create a marketing user' : 'Create an executive'}
-      description='A sub-login under your account. Username: letters, digits and . _ - only. Password at least 12 characters.'
+      description='A sub-login under your account. Username: letters, digits and . _ - only. Password at least 8 characters.'
       submitLabel='Create'
       wide
       validate={() => ({
@@ -96,7 +96,7 @@ export const CreateSubLogin = ({ kind }: { kind: Kind }) => {
           check.required(form.username, 'Username') ||
           check.length(form.username, 'Username', { min: 3, max: 100 }) ||
           (!/^[A-Za-z0-9._-]+$/.test(form.username.trim()) && 'Username may contain letters, digits and . _ - only'),
-        password: !form.password ? 'Password is required' : check.length(form.password, 'Password', { min: 12, max: 200 }),
+        password: !form.password ? 'Password is required' : check.length(form.password, 'Password', { min: 8, max: 200 }),
         confirm: !form.confirm ? 'Confirm the password' : check.match(form.password, form.confirm, 'Passwords do not match'),
         permissions: permissions.length === 0 && 'Give at least one permission'
       })}
@@ -104,8 +104,8 @@ export const CreateSubLogin = ({ kind }: { kind: Kind }) => {
     >
       <TextField id='x-user' name='username' label='Username' required minLength={3} maxLength={100} value={form.username} onChange={e => setForm({ ...form, username: e.target.value })} />
       <div className='grid grid-cols-2 gap-4'>
-        <TextField id='x-pw' name='password' label='Password' type='password' required minLength={12} value={form.password} onChange={e => setForm({ ...form, password: e.target.value })} />
-        <TextField id='x-pw2' name='confirm' label='Confirm password' type='password' required minLength={12} value={form.confirm} onChange={e => setForm({ ...form, confirm: e.target.value })} />
+        <TextField id='x-pw' name='password' label='Password' type='password' required minLength={8} value={form.password} onChange={e => setForm({ ...form, password: e.target.value })} />
+        <TextField id='x-pw2' name='confirm' label='Confirm password' type='password' required minLength={8} value={form.confirm} onChange={e => setForm({ ...form, confirm: e.target.value })} />
       </div>
       <PermissionPicker value={permissions} onChange={setPermissions} />
     </FormDialog>
@@ -167,10 +167,10 @@ const RowActions = ({ row, kind }: { row: ExecutiveRow; kind: Kind }) => {
           title={`Reset password for ${row.username}`}
           description='At least 12 characters.'
           submitLabel='Reset'
-          validate={() => ({ password: !password ? 'New password is required' : check.length(password, 'New password', { min: 12, max: 200 }) })}
+          validate={() => ({ password: !password ? 'New password is required' : check.length(password, 'New password', { min: 8, max: 200 }) })}
           onSubmit={() => resetPw.mutateAsync()}
         >
-          <TextField id={`pw-${row.id}`} name='password' label='New password' type='password' required minLength={12} value={password} onChange={e => setPassword(e.target.value)} />
+          <TextField id={`pw-${row.id}`} name='password' label='New password' type='password' required minLength={8} value={password} onChange={e => setPassword(e.target.value)} />
         </FormDialog>
         <ConfirmDialog
           trigger={

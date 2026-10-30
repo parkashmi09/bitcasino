@@ -79,6 +79,10 @@ test('tip limit settings', async (t) => {
       if (permissions.includes(perm)) return next();
       return next(new ForbiddenError(`missing ${perm}`));
     },
+    requireAnyPermission: (...perms) => (req, _res, next) => {
+      if (perms.some((perm) => permissions.includes(perm))) return next();
+      return next(new ForbiddenError(`missing ${perms.join(' or ')}`));
+    },
   };
   const app = express();
   app.use(express.json());

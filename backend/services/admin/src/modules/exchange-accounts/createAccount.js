@@ -112,8 +112,8 @@ class CreateAccountService {
     const isPlayer = userType === 'USER';
     const rate = isPlayer ? undefined : parsePercentage(percentage);
     const roleId = isPlayer ? null : await staffRoleIdFor(this.models, userType);
-    // Hamare platform pe staff password kam se kam 12 ka (staff module ka rule).
-    if (!isPlayer && String(password).length < 12) throw badRequest('The Password field must be at least 12 characters');
+    // Hamare platform pe staff password kam se kam 8 ka (staff module ka rule).
+    if (!isPlayer && String(password).length < 8) throw badRequest('The Password field must be at least 8 characters');
     // Staff ki email form se aati hai (pehle username se banti thi). Zaroori aur unique.
     if (!isPlayer) {
       if (!email) throw badRequest('The Email field is required', 'EXCHANGE_ACCOUNTS_EMAIL_REQUIRED');

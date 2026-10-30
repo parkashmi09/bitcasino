@@ -20,6 +20,8 @@ import { useSession } from '@/contexts/SessionContext'
 // Lib Imports
 import { errorMessage, request } from '@/lib/api/client'
 
+import { keepIssuedTransactionPassword } from './IssuedTransactionPassword'
+
 // SVG Import
 import AuthBackgroundShape from '@/assets/svg/auth-background-shape'
 
@@ -41,14 +43,17 @@ const ChangePassword = () => {
     e.preventDefault()
     setError(null)
 
-    if (next.length < 12) return setError('The new password must be at least 12 characters.')
+    if (next.length < 8) return setError('The new password must be at least 8 characters.')
     if (next !== confirm) return setError('The two new passwords do not match.')
     if (next === current) return setError('Choose a password different from the one you were given.')
 
     setBusy(true)
 
     try {
-      await request('admin/staff/password', { method: 'PATCH', body: { oldPassword: current, newPassword: next } })
+      const { data } = await request<{ transactionPassword?: string }>('admin/staff/password', { method: 'PATCH', body: { oldPassword: current, newPassword: next } })
+
+      // A first sign-in is issued its transaction password; the login screen shows it once.
+      if (data?.transactionPassword) keepIssuedTransactionPassword(data.transactionPassword)
 
       // The change ends every session of this account (staff.token_version), this one too: sign in
       // again with the new password. signOut clears the cookie and the query cache.
@@ -80,16 +85,16 @@ const ChangePassword = () => {
           <form onSubmit={submit}>
             <FieldGroup className='gap-4'>
               <Field className='gap-2'>
-                <FieldLabel htmlFor='current'>Temporary password</FieldLabel>
+                <FieldLabel htmlFor='current'>Current password</FieldLabel>
                 <Input id='current' type='password' autoComplete='current-password' required value={current} onChange={e => setCurrent(e.target.value)} />
               </Field>
               <Field className='gap-2'>
                 <FieldLabel htmlFor='next'>New password</FieldLabel>
-                <Input id='next' type='password' autoComplete='new-password' required minLength={12} value={next} onChange={e => setNext(e.target.value)} />
+                <Input id='next' type='password' autoComplete='new-password' required minLength={8} value={next} onChange={e => setNext(e.target.value)} />
               </Field>
               <Field className='gap-2'>
                 <FieldLabel htmlFor='confirm'>Repeat new password</FieldLabel>
-                <Input id='confirm' type='password' autoComplete='new-password' required minLength={12} value={confirm} onChange={e => setConfirm(e.target.value)} />
+                <Input id='confirm' type='password' autoComplete='new-password' required minLength={8} value={confirm} onChange={e => setConfirm(e.target.value)} />
               </Field>
 
               {error && (

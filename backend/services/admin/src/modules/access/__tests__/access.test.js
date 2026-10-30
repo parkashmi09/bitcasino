@@ -55,16 +55,16 @@ test('admin access', async (t) => {
     assert.equal(parse([]).success, false, 'a grant of nothing is not a grant');
   });
 
-  await t.test('a six-character password is refused', async () => {
-    // Legacy's minimum, on a login that carries staff authority.
+  await t.test('a seven-character password is refused', async () => {
+    // Under the 8-character floor, on a login that carries staff authority.
     const body = (password) =>
       v.createExecutive.body.safeParse({
         username: 'someone', password, permissions: [PERMISSIONS.REPORTS_READ],
       });
 
     assert.equal(body('abc123').success, false);
-    assert.equal(body('a'.repeat(11)).success, false);
-    assert.equal(body('a'.repeat(12)).success, true);
+    assert.equal(body('a'.repeat(7)).success, false);
+    assert.equal(body('a'.repeat(8)).success, true);
   });
 
   await t.test('lock and status are one shape, not two', async () => {

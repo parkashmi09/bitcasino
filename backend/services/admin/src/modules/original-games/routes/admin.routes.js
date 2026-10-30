@@ -1,8 +1,8 @@
 'use strict';
 
 const { Router } = require('express');
-const { validate, response, asyncHandler, z, ForbiddenError } = require('@ibitplay/common');
-const { PERMISSIONS, STAFF_LEVELS, effectiveStaffLevel } = require('@ibitplay/auth');
+const { validate, response, asyncHandler, z, UnauthorizedError } = require('@ibitplay/common');
+const { PERMISSIONS, STAFF_LEVELS, effectiveStaffLevel, markAuthorization } = require('@ibitplay/auth');
 
 const { OriginalGamesAdminService } = require('../originalGames.service');
 const { GRANULARITIES, MAX_SPAN_DAYS, MAX_COARSE_SPAN_DAYS, MAX_HOURLY_SPAN_DAYS } = require('../../reports/stats.shared');
@@ -62,17 +62,23 @@ const v = {
 };
 
 /**
- * Admin → Casino → Original Games. `originals:read` AND the Super Admin's own tree — the Super
- * Admin, or one of its executives (an executive's token carries its parent's level).
+ * Admin → Original Games. The Super Admin side (the Super Admin or one of its executives — an
+ * executive's token carries its parent's level) on `originals:read`; every staff below it on
+ * `reports:read`, like casino bet history. The service scopes every read to the caller's players.
  */
 module.exports = function adminRoutes(deps) {
   const { auth } = deps;
   const service = new OriginalGamesAdminService(deps);
   const router = Router();
 
-  const superAdminOnly = (req, _res, next) =>
-    effectiveStaffLevel(req.staff) === STAFF_LEVELS.SUPER_ADMIN ? next() : next(new ForbiddenError('Original Games is for the Super Admin only'));
-  router.use(auth.requirePermission(PERMISSIONS.ORIGINALS_READ), superAdminOnly);
+  const houseRead = auth.requirePermission(PERMISSIONS.ORIGINALS_READ);
+  const treeRead = auth.requirePermission(PERMISSIONS.REPORTS_READ);
+  router.use(
+    markAuthorization(function originalsReadMiddleware(req, res, next) {
+      if (!req.staff) return next(new UnauthorizedError('Staff authentication required'));
+      return (effectiveStaffLevel(req.staff) === STAFF_LEVELS.SUPER_ADMIN ? houseRead : treeRead)(req, res, next);
+    })
+  );
 
   router.get('/stats', validate(v.stats), asyncHandler(async (req, res) => response.ok(res, await service.stats({ staff: req.staff, ...req.query }))));
 
@@ -80,12 +86,12 @@ module.exports = function adminRoutes(deps) {
     '/bets',
     validate(v.bets),
     asyncHandler(async (req, res) => {
-      const { rows, total } = await service.bets(req.query);
+      const { rows, total } = await service.bets({ staff: req.staff, ...req.query });
       return response.paginated(res, rows, { page: req.query.page, limit: req.query.limit, total });
     })
   );
 
-  router.get('/games', validate(v.games), asyncHandler(async (req, res) => response.ok(res, await service.games(req.query))));
+  router.get('/games', validate(v.games), asyncHandler(async (req, res) => response.ok(res, await service.games({ staff: req.staff, ...req.query }))));
 
   return router;
 };

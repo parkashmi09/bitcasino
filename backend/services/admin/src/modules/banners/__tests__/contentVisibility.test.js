@@ -52,9 +52,9 @@ test('banners: inactive only for staff with config:read', async () => {
     [staffAt(6), false],     // AGENT
     [staffAt(5), false],     // MASTER
     [staffAt(4), false],     // SUPER_MASTER
-    [staffAt(3), true],      // SUB_ADMIN holds config:read
-    [staffAt(2), true],
-    [staffAt(1), true],
+    [staffAt(3), false],     // SUB_ADMIN — the Agent's grants (user, 2026-10-29)
+    [staffAt(2), false],     // ADMIN — same
+    [staffAt(1), true],      // SUPER_ADMIN holds config:read
   ];
   for (const [staff, expected] of cases) {
     calls.length = 0;
@@ -78,7 +78,7 @@ test('blogs: drafts only for staff with config:read', async () => {
   };
   const ctrl = blogControllers({ service });
 
-  for (const [staff, expected] of [[undefined, false], [staffAt(6), false], [staffAt(4), false], [staffAt(3), true], [staffAt(1), true]]) {
+  for (const [staff, expected] of [[undefined, false], [staffAt(6), false], [staffAt(4), false], [staffAt(3), false], [staffAt(1), true]]) {
     calls.length = 0;
     await run(ctrl.list, { staff, query: { page: 1, limit: 10 }, params: {} });
     await run(ctrl.bySlug, { staff, query: {}, params: { slug: 'x' } });

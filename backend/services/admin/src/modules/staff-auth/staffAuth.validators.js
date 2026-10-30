@@ -29,7 +29,7 @@ const staffLoginId = z
 const submitted = z.string().min(1).max(200);
 
 /** A NEW password. Length only — composition rules push people towards `Passw0rd!`. */
-const chosen = z.string().min(12, 'must be at least 12 characters').max(200);
+const chosen = z.string().min(8, 'must be at least 8 characters').max(200);
 
 /**
  * A TOTP code.

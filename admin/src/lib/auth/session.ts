@@ -1,6 +1,6 @@
 import 'server-only'
 
-import { cookies } from 'next/headers'
+import { cookies, headers } from 'next/headers'
 
 import { serverConfig } from '@/configs/site'
 
@@ -45,10 +45,13 @@ export async function readSessionToken(name = serverConfig.cookieName): Promise<
 export async function writeSessionToken(token: string, name = serverConfig.cookieName) {
   const jar = await cookies()
 
+  // Secure over https only (Apache sends X-Forwarded-Proto), so a plain-http local run can sign in.
+  const secure = (await headers()).get('x-forwarded-proto') === 'https'
+
   jar.set(name, token, {
     httpOnly: true,
     sameSite: 'lax',
-    secure: process.env.NODE_ENV === 'production',
+    secure,
     path: '/',
     maxAge: serverConfig.cookieMaxAgeSeconds
   })

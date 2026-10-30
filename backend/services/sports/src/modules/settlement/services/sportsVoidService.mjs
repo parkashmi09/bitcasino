@@ -9,7 +9,7 @@ import { CreditsLedger_default } from "../../../models/user/CreditsLedger.mjs";
 import { recalcTotalExposure } from "../../../lib/helper/totalExposure.mjs";
 import { walletService_default } from "../../../lib/services/walletService.mjs";
 import { POINT_CATEGORY, pointEntryRef } from "../../../lib/constants/pointLedger.mjs";
-import { emitBalanceUpdate } from "../../../lib/utils/socketUtils.mjs";
+import { pushBalance } from "../../../lib/helper/pushBalance.mjs";
 import { withVoidSuffix } from "../../../lib/helper/voidLabel.mjs";
 import { isPerSelectionMarket, SETTLED_RESULT_STATUSES } from "../../../lib/helper/exposureBucket.mjs";
 import { VOID_TYPES } from "../../../models/admin/BetVoidAudit.mjs";
@@ -432,14 +432,7 @@ var reversePointsAndEmit = async (summary) => {
       if (!cdel.success) console.error("[sportsVoid] commission point delete failed:", summary.betId, cdel.error);
       del.commission = cdel;
     }
-    try {
-      // OLD: const fresh = await Wallet_default.findOne({ where: { user_id: String(summary.userId) }, raw: true });
-      // OLD: emitBalanceUpdate(summary.userId, { inr_balance: fresh?.inr_balance, cash: fresh?.cash });
-      const fresh = await Credits_default.findOne({ where: { uid: summary.userId }, raw: true });
-      emitBalanceUpdate(summary.userId, { inr_balance: fresh?.inr, cash: fresh?.inr });
-    } catch (err) {
-      console.error("[sportsVoid] balance emit failed:", summary.userId, err.message);
-    }
+    pushBalance(summary.userId);
     return del;
   }
   const res = await walletService_default.reverseAllPointHierarchy(summary.betId, POINT_CATEGORY.SPORTS);
@@ -456,14 +449,7 @@ var reversePointsAndEmit = async (summary) => {
     if (!cres.success) console.error("[sportsVoid] commission point reversal failed:", summary.betId, cres.error);
     res.commission = cres;
   }
-  try {
-    // OLD: const fresh = await Wallet_default.findOne({ where: { user_id: String(summary.userId) }, raw: true });
-    // OLD: emitBalanceUpdate(summary.userId, { inr_balance: fresh?.inr_balance, cash: fresh?.cash });
-    const fresh = await Credits_default.findOne({ where: { uid: summary.userId }, raw: true });
-    emitBalanceUpdate(summary.userId, { inr_balance: fresh?.inr, cash: fresh?.inr });
-  } catch (err) {
-    console.error("[sportsVoid] balance emit failed:", summary.userId, err.message);
-  }
+  pushBalance(summary.userId);
   return res;
 };
 var voidSettledMarket = async ({ matchId, marketType, writeStatement = true }) => {

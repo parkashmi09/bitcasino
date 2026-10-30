@@ -82,4 +82,13 @@ test('transaction password modes', async (t) => {
     assert.deepEqual(await txn.assertTransactionPassword(models, staff.id, SEPARATE), { set: true, verified: true });
     await assert.rejects(() => txn.assertTransactionPassword(models, staff.id, LOGIN), (e) => e.code === 'TXN_PASSWORD_INVALID');
   });
+
+  await t.test('separate mode: a set transaction password cannot be changed', async () => {
+    process.env.TXN_PASSWORD_MODE = 'separate';
+    await assert.rejects(
+      () => txn.setTransactionPassword(models, { staffId: staff.id, currentPassword: LOGIN, transactionPassword: 'another one' }),
+      (e) => e.code === 'TXN_PASSWORD_ALREADY_SET' && e.status === 409
+    );
+    assert.deepEqual(await txn.assertTransactionPassword(models, staff.id, SEPARATE), { set: true, verified: true });
+  });
 });

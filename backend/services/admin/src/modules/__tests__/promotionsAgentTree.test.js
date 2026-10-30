@@ -39,13 +39,16 @@ const CALLERS = {
   superMaster: { level: 4 },
   master: { level: 5 },
   agent: { level: 6 },
+  executiveOfSuperAdmin: { level: 1, executiveId: 76 },
   executiveOfAdmin: { level: 2, executiveId: 77 },
   executiveOfAgent: { level: 6, executiveId: 78 },
+  executiveRowUnderSuperAdmin: { level: 7, parentLevel: 1 },
   executiveRowUnderAdmin: { level: 7, parentLevel: 2 },
   executiveRowUnderMaster: { level: 7, parentLevel: 5 },
 };
-const HOUSE = ['superAdmin', 'admin', 'subAdmin', 'executiveOfAdmin', 'executiveRowUnderAdmin'];
-const AGENT_TREE = ['superMaster', 'master', 'agent', 'executiveOfAgent', 'executiveRowUnderMaster'];
+// Only the Super Admin (and its executives) is house: every level below sees the Agent's admin (user, 2026-10-29).
+const HOUSE = ['superAdmin', 'executiveOfSuperAdmin', 'executiveRowUnderSuperAdmin'];
+const AGENT_TREE = ['admin', 'subAdmin', 'executiveOfAdmin', 'executiveRowUnderAdmin', 'superMaster', 'master', 'agent', 'executiveOfAgent', 'executiveRowUnderMaster'];
 
 test('admin-service promotion routes refuse the agent tree', async (t) => {
   const logger = createLogger({ name: 'promo-agent-tree-admin', level: 'silent' });
@@ -194,10 +197,10 @@ test('admin-service promotion routes refuse the agent tree', async (t) => {
       const access = new AccessService({ models, db: connection, logger, config: {} });
       const me = async (id, executiveId = null) => access.myPermissions({ actor: { id, executiveId } });
 
-      assert.deepEqual((await me(ids.admin)).capabilities, { promotions: true, vault: true, swap: true });
+      assert.deepEqual((await me(ids.admin)).capabilities, { promotions: false, vault: false, swap: false });
       assert.deepEqual((await me(ids.superMaster)).capabilities, { promotions: false, vault: false, swap: false });
       assert.equal((await me(ids.superMaster)).effectiveLevel, 4);
-      assert.deepEqual((await me(ids.execUnderAdmin)).capabilities, { promotions: true, vault: true, swap: true });
+      assert.deepEqual((await me(ids.execUnderAdmin)).capabilities, { promotions: false, vault: false, swap: false });
       assert.equal((await me(ids.execUnderAdmin)).effectiveLevel, 2);
       assert.deepEqual((await me(ids.execUnderSm)).capabilities, { promotions: false, vault: false, swap: false });
     } finally {

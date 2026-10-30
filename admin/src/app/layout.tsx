@@ -27,7 +27,7 @@ const geistMono = Geist_Mono({ variable: '--font-geist-mono', subsets: ['latin']
 
 export const metadata: Metadata = {
   title: { default: siteConfig.name, template: `%s · ${siteConfig.name}` },
-  description: `${siteConfig.name} operator panel`,
+  description: siteConfig.name,
   robots: { index: false, follow: false },
   icons: { icon: { url: '/brand-mark.svg', type: 'image/svg+xml' }, apple: '/brand-mark.svg' }
 }

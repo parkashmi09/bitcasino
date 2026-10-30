@@ -10,6 +10,7 @@ import { UserExposure_default } from "../../../models/user/UserExposure.mjs";
 import { isLineMarket, exposureIdentity } from "../../../lib/helper/lineMarket.mjs";
 import { isBadloBet } from "../../../lib/helper/badloMarket.mjs";
 import { recalcTotalExposure } from "../../../lib/helper/totalExposure.mjs";
+import { pushBalance } from "../../../lib/helper/pushBalance.mjs";
 import { isPerSelectionMarket, selectionExposureRows, releasableLiability } from "../../../lib/helper/exposureBucket.mjs";
 import { enqueueManualBets } from "../services/settlementQueue.mjs";
 import { VOID_TYPES } from "../../../models/admin/BetVoidAudit.mjs";
@@ -603,6 +604,7 @@ var voidSingleOpenBet = async (req, res) => {
       }
     }, t);
     await t.commit();
+    pushBalance(uid);
     return res.json({
       success: true,
       message: "Bet voided successfully",

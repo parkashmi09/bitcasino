@@ -33,7 +33,7 @@ const limitAmount = z
  */
 const transactionPassword = z.string().min(1).max(200);
 
-const newPassword = z.string().min(12, 'must be at least 12 characters').max(200);
+const newPassword = z.string().min(8, 'must be at least 8 characters').max(200);
 
 const setPassword = {
   body: z.object({ accountType, accountId: id, newPassword, transactionPassword }).strict(),

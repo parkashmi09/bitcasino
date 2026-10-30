@@ -183,7 +183,11 @@ export const AllRails = ({ kind }: { kind: 'deposits' | 'withdrawals' }) => {
 
 /** `admin/user/psp/:provider/status/:reference` — asks the provider directly. */
 const PspProbe = () => {
-  const [form, setForm] = useState({ provider: PSP_PROVIDERS[0] as string, reference: '' })
+  // Only the gateways that are on: owner panel on AND the Super Admin's switch (Settings → Payment Methods).
+  const gateways = useApi<{ name: string; enabled: boolean }[]>('admin/site-config/payment-gateways')
+  const active = PSP_PROVIDERS.filter(p => gateways.data?.some(g => g.name === p && g.enabled))
+  const [form, setForm] = useState({ provider: '', reference: '' })
+  const provider = active.includes(form.provider as (typeof active)[number]) ? form.provider : (active[0] ?? '')
   const [probe, setProbe] = useState<{ provider: string; reference: string } | null>(null)
   const q = useApi<unknown>(probe ? `admin/user/psp/${probe.provider}/status/${encodeURIComponent(probe.reference)}` : null)
 
@@ -198,21 +202,27 @@ const PspProbe = () => {
           onSubmit={e => {
             e.preventDefault()
 
+            if (!provider) {
+              toast.error('No payment gateway is active')
+
+              return
+            }
+
             if (!form.reference.trim()) {
               toast.error('Enter the order reference to probe')
 
               return
             }
 
-            setProbe({ provider: form.provider, reference: form.reference.trim() })
+            setProbe({ provider, reference: form.reference.trim() })
           }}
         >
-          <Select value={form.provider} onValueChange={v => v && setForm({ ...form, provider: v })}>
+          <Select value={provider} onValueChange={v => v && setForm({ ...form, provider: v })} disabled={!active.length}>
             <SelectTrigger className='w-36'>
-              <SelectValue />
+              <SelectValue placeholder={gateways.isLoading ? 'Loading…' : 'No active gateway'} />
             </SelectTrigger>
             <SelectContent>
-              {PSP_PROVIDERS.map(p => (
+              {active.map(p => (
                 <SelectItem key={p} value={p}>
                   {p}
                 </SelectItem>

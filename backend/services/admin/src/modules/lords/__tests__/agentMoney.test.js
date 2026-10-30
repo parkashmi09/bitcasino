@@ -517,7 +517,12 @@ test('agent-tree money', async (t) => {
       staffId: agent, currentPassword: LOGIN_PASSWORD, transactionPassword: 'second secret',
     });
     assert.equal(result.set, true);
-    assert.equal(result.changed, false);
+
+    // Set once: a second set is refused (user, 2026-10-29).
+    await assert.rejects(
+      () => txn.setTransactionPassword(models, { staffId: agent, currentPassword: LOGIN_PASSWORD, transactionPassword: 'third secret' }),
+      (err) => err.code === 'TXN_PASSWORD_ALREADY_SET'
+    );
 
     const row = await models.Staff.findByPk(agent, { raw: true });
     assert.match(row.transaction_password, /^\$2[aby]\$/);

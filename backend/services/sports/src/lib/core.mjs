@@ -6,7 +6,7 @@ import { maxDateRange } from "./middleware/dateRangeMiddleware.mjs";
 import { requireOwner, requireBackoffice } from "./middleware/permissionMiddleware.mjs";
 import { MESSAGES } from "./constants/messages.mjs";
 import { verifyTransactionPasswordAs, transactionPasswordMiddleware_default } from "./middleware/transactionPasswordMiddleware.mjs";
-import { cricketController_default } from "../modules/odds-events/controllers/cricketController.mjs";
+import { cricketController_default, matchPrivateDataReply } from "../modules/odds-events/controllers/cricketController.mjs";
 import { virtualEventController_default } from "../modules/odds-events/controllers/virtualEventController.mjs";
 import { bettingConfigController_default } from "../modules/odds-events/controllers/bettingConfigController.mjs";
 import { StakeButtonValueController_default } from "../modules/odds-events/controllers/StakeButtonValueController.mjs";
@@ -17,6 +17,7 @@ import { placeBetBuffered, getBetResult } from "../modules/bets/buffer/betBuffer
 import { userExposureController_default } from "../modules/bets/controllers/userExposureController.mjs";
 import { setIO, BALANCE_UPDATES_CHANNEL } from "./utils/socketUtils.mjs";
 import { setupSocketHandlers } from "../modules/bets/sockets/socketHandler.mjs";
+import { setupOddsPush } from "../modules/odds-events/sockets/oddsPush.mjs";
 import { UserStatementController_default } from "../modules/statement/controllers/UserStatementController.mjs";
 import { controller_default } from "../modules/settlement/controllers/manualSettleController.mjs";
 import { getMarketLockChildren, toggleMarketLock, bulkToggleMarketLock } from "../modules/sports-config/controllers/betLockController.mjs";
@@ -42,6 +43,7 @@ export {
   bulkToggleMarketLock,
   getBetResult,
   getMarketLockChildren,
+  matchPrivateDataReply,
   maxDateRange,
   placeBetBuffered,
   redisClient_default as redisClient,
@@ -49,6 +51,7 @@ export {
   requireOwner,
   db_default as sequelize,
   setIO,
+  setupOddsPush,
   setupSocketHandlers,
   toggleMarketLock,
   transactionPasswordMiddleware_default as verifyTransactionPassword,

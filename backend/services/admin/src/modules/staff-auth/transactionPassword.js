@@ -18,7 +18,9 @@ const { verifyTransactionPassword } = require('../staff-directory/staffDirectory
  * refuses an unset one — so those routes were unusable for every new staff
  * member, and the wallet adjust route simply skipped the check.
  *
- * `POST /admin/auth/transaction-password` sets or changes it. It requires the
+ * `POST /admin/auth/transaction-password` sets it, once: a set one is never
+ * changed by its owner (user, 2026-10-29). Only a superior's password reset
+ * replaces it, at the forced change that follows (StaffService#changePassword). It requires the
  * caller's LOGIN password (a stolen session alone cannot set the second
  * factor), it is stored as a bcrypt hash exactly like the login password, and
  * it may not equal the login password — a second factor that is the first
@@ -52,6 +54,7 @@ const errors = defineErrors('TXN_PASSWORD', {
     message: 'An executive session cannot change the account transaction password',
   },
   NOT_FOUND: { status: 404, message: 'Staff account not found' },
+  ALREADY_SET: { status: 409, message: 'The transaction password is already set and cannot be changed' },
   LOGIN_MODE: {
     status: 409,
     message: 'Your transaction password is your login password; there is nothing separate to set',
@@ -102,13 +105,14 @@ async function assertTransactionPassword(models, staffId, candidate, { required 
   return { set: true, verified: true };
 }
 
-/** Set or change the caller's own transaction password. */
+/** Set the caller's own transaction password, once — an account that has one keeps it. */
 async function setTransactionPassword(models, { staffId, executiveId, currentPassword, transactionPassword, logger }) {
   if (isLoginPasswordMode()) throw errors.LOGIN_MODE();
   if (executiveId) throw errors.EXECUTIVE_CANNOT_SET();
 
   const row = await models.Staff.findByPk(staffId, { attributes: ['id', 'password', 'transaction_password'], raw: true });
   if (!row) throw errors.NOT_FOUND();
+  if (row.transaction_password) throw errors.ALREADY_SET();
 
   if (!(await verifyPassword(currentPassword, row.password ?? ''))) throw errors.LOGIN_PASSWORD_WRONG();
   if (await verifyPassword(transactionPassword, row.password ?? '')) throw errors.SAME_AS_LOGIN();
@@ -118,8 +122,8 @@ async function setTransactionPassword(models, { staffId, executiveId, currentPas
     { where: { id: staffId } }
   );
 
-  logger?.warn({ staffId, replaced: Boolean(row.transaction_password) }, 'Staff transaction password set');
-  return { staffId: Number(staffId), set: true, changed: Boolean(row.transaction_password) };
+  logger?.warn({ staffId }, 'Staff transaction password set');
+  return { staffId: Number(staffId), set: true };
 }
 
 module.exports = {

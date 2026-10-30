@@ -74,16 +74,15 @@ test('the B2B tree: who may build staff and players', () => {
   }
 });
 
-test('the Addaplay ladder: each level creates only the level directly below (CHILD_LEVELS)', () => {
+test('TENEXCH rule: each level creates every staff level below it (CHILD_LEVELS)', () => {
   const L = STAFF_LEVELS;
   assert.deepEqual([...CHILD_LEVELS[L.SUPER_ADMIN]], [L.ADMIN, L.SUB_ADMIN, L.SUPER_MASTER, L.MASTER, L.AGENT]);
-  assert.ok(canCreateLevel(L.ADMIN, L.SUB_ADMIN));
-  assert.ok(!canCreateLevel(L.ADMIN, L.SUPER_MASTER));
-  assert.ok(canCreateLevel(L.SUB_ADMIN, L.SUPER_MASTER));
-  assert.ok(!canCreateLevel(L.SUB_ADMIN, L.MASTER));
-  assert.ok(canCreateLevel(L.SUPER_MASTER, L.MASTER));
-  assert.ok(!canCreateLevel(L.SUPER_MASTER, L.AGENT));
-  assert.ok(canCreateLevel(L.MASTER, L.AGENT));
+  assert.deepEqual([...CHILD_LEVELS[L.ADMIN]], [L.SUB_ADMIN, L.SUPER_MASTER, L.MASTER, L.AGENT]);
+  assert.deepEqual([...CHILD_LEVELS[L.SUB_ADMIN]], [L.SUPER_MASTER, L.MASTER, L.AGENT]);
+  assert.deepEqual([...CHILD_LEVELS[L.SUPER_MASTER]], [L.MASTER, L.AGENT]);
+  assert.deepEqual([...CHILD_LEVELS[L.MASTER]], [L.AGENT]);
+  assert.ok(!canCreateLevel(L.SUB_ADMIN, L.SUB_ADMIN), 'not a peer');
+  assert.ok(!canCreateLevel(L.MASTER, L.SUPER_MASTER), 'not upwards');
   for (const level of Object.values(L)) {
     assert.ok(!canCreateLevel(L.AGENT, level), 'an agent creates players only');
     assert.ok(!canCreateLevel(level, L.EXECUTIVE), 'an executive is never a created staff row');

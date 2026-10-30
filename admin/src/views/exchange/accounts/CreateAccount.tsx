@@ -139,9 +139,9 @@ const CreateAccount = () => {
   // idle | checking | available | taken
   const [nameCheck, setNameCheck] = useState<'idle' | 'checking' | 'available' | 'taken'>('idle')
 
-  // Owner sab level bana sakta hai; baaki sirf apne theek neeche wala (staff module ka rule). Player sab.
+  // TENEXCH jaisa: har koi apne se neeche ka har level bana sakta hai (backend CHILD_LEVELS). Player sab.
   const myLevel = Number(actor?.level ?? 99)
-  const staffTypes = STAFF_TYPES.filter(r => (myLevel === 1 ? r.level > 1 : r.level === myLevel + 1))
+  const staffTypes = STAFF_TYPES.filter(r => r.level > myLevel)
   const isUser = form.newlvlno === 'USER'
 
   // Live username check — 3+ akshar, 350ms debounce, purana request abort.

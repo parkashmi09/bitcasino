@@ -18,6 +18,17 @@ var safeInt = (val, fallback = 1) => {
   const n = parseInt(val, 10);
   return isNaN(n) ? fallback : Math.max(1, n);
 };
+/* The get-match-private-data answer as { status, body }: the REST route and the odds push
+   (sockets/oddsPush.mjs) both send exactly this, so the page reads either with the same code. */
+async function matchPrivateDataReply(gmid, sid) {
+  if (isHiddenSport(sid)) return { status: 404, body: { success: false, error: "This sport is not available" } };
+  try {
+    return { status: 200, body: { success: true, data: await CricketService_default.GetMatchPrivateData(gmid, sid) } };
+  } catch (error) {
+    console.error("\u274C Error:", error.message);
+    return { status: 500, body: { success: false, error: error.message } };
+  }
+}
 var CricketController = {
   // fetch sports data by ID it will show all the data related to games id , ex : if 4 is cricket then it will show all the data [matches or events]related to cricket
   fetchCricketData: async (req, res) => {
@@ -112,28 +123,14 @@ var CricketController = {
   },
   GetMatchPrivateData: async (req, res) => {
     const { gmid, sid } = req.body;
-    if (isHiddenSport(sid)) {
-      return res.status(404).json({ success: false, error: "This sport is not available" });
-    }
-    if (!gmid || !sid) {
+    if (!isHiddenSport(sid) && (!gmid || !sid)) {
       return res.status(400).json({
         success: false,
         error: "Game ID || sid is required to fetch match private data"
       });
     }
-    try {
-      const matchPrivateData = await CricketService_default.GetMatchPrivateData(gmid, sid);
-      return res.status(200).json({
-        success: true,
-        data: matchPrivateData
-      });
-    } catch (error) {
-      console.error("\u274C Error:", error.message);
-      return res.status(500).json({
-        success: false,
-        error: error.message
-      });
-    }
+    const { status, body } = await matchPrivateDataReply(gmid, sid);
+    return res.status(status).json(body);
   },
   fetchLiveStream: async (req, res) => {
     const { gmid } = req.body;
@@ -837,13 +834,9 @@ var CricketController = {
       });
     }
     try {
-      const result = await axios3.get(`${AVRKHUB_SPORTS_BASE_URL2}/gamedetailPrivate`, {
-        params: { key: AVRKHUB_SPORTS_KEY2, gmid, etid },
-        timeout: 3e4
-      });
       return res.status(200).json({
         success: true,
-        data: result?.data?.data
+        data: await CricketService_default.GetGameDetailPrivate(gmid, etid)
       });
     } catch (error) {
       console.error("Error in getGameDetailPrivate:", error);
@@ -856,4 +849,4 @@ var CricketController = {
 };
 var cricketController_default = CricketController;
 
-export { cricketController_default };
+export { cricketController_default, matchPrivateDataReply };

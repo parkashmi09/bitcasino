@@ -181,7 +181,7 @@ const MyAccount = () => {
                 const ok = passes(
                   {
                     oldPassword: check.required(pw.oldPassword, 'Current password'),
-                    newPassword: !pw.newPassword ? 'New password is required' : check.length(pw.newPassword, 'New password', { min: 12, max: 200 }) || (pw.newPassword === pw.oldPassword && 'Choose a password different from the current one'),
+                    newPassword: !pw.newPassword ? 'New password is required' : check.length(pw.newPassword, 'New password', { min: 8, max: 200 }) || (pw.newPassword === pw.oldPassword && 'Choose a password different from the current one'),
                     confirm: !pw.confirm ? 'Repeat the new password' : check.match(pw.newPassword, pw.confirm, 'The two new passwords do not match')
                   },
                   setPwErrors
@@ -191,8 +191,8 @@ const MyAccount = () => {
               }}
             >
               <TextField id='p-old' label='Current password' type='password' required error={pwErrors.oldPassword} value={pw.oldPassword} onChange={e => setPw({ ...pw, oldPassword: e.target.value })} />
-              <TextField id='p-new' label='New password' type='password' required minLength={12} hint='At least 12 characters' error={pwErrors.newPassword} value={pw.newPassword} onChange={e => setPw({ ...pw, newPassword: e.target.value })} />
-              <TextField id='p-confirm' label='Repeat new password' type='password' required minLength={12} error={pwErrors.confirm} value={pw.confirm} onChange={e => setPw({ ...pw, confirm: e.target.value })} />
+              <TextField id='p-new' label='New password' type='password' required minLength={8} hint='At least 8 characters' error={pwErrors.newPassword} value={pw.newPassword} onChange={e => setPw({ ...pw, newPassword: e.target.value })} />
+              <TextField id='p-confirm' label='Repeat new password' type='password' required minLength={8} error={pwErrors.confirm} value={pw.confirm} onChange={e => setPw({ ...pw, confirm: e.target.value })} />
               <Button type='submit' disabled={changePassword.isPending} className='justify-self-start'>
                 {changePassword.isPending && <Loader2Icon className='animate-spin' />}
                 Change password
@@ -201,17 +201,18 @@ const MyAccount = () => {
           </CardContent>
         </Card>
 
-        {/* TXN_PASSWORD_MODE=login (the backend default): money moves take the login password, so there is nothing to set. */}
-        {txnStatus.data && txnStatus.data.mode === 'separate' && (
+        {/* TXN_PASSWORD_MODE=login (the backend default): money moves take the login password, so there is nothing to set.
+            A set transaction password is never changed, so the card is only for an account that has none yet. */}
+        {txnStatus.data && txnStatus.data.mode === 'separate' && !txnStatus.data.set && (
         <Card className='shadow-none'>
           <CardHeader>
             <CardTitle className='flex items-center gap-2 text-base'>
               <LockKeyholeIcon /> Transaction password
-              {txnStatus.data && <Badge variant={txnStatus.data.set ? 'outline' : 'destructive'}>{txnStatus.data.set ? 'Set' : 'Not set'}</Badge>}
+              <Badge variant='destructive'>Not set</Badge>
             </CardTitle>
             <CardDescription>
-              A second password every money move asks for: balance adjustments, transfers and refills. Must differ from your login password. At least 6 characters.
-              {actor?.executiveId ? ' An executive session cannot change it.' : ''}
+              A second password every money move asks for: balance adjustments, transfers and refills. Must differ from your login password. At least 6 characters. Once set it cannot be changed.
+              {actor?.executiveId ? ' An executive session cannot set it.' : ''}
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -233,11 +234,11 @@ const MyAccount = () => {
               }}
             >
               <TextField id='t-cur' label='Current login password' type='password' required error={txnErrors.currentPassword} value={txn.currentPassword} onChange={e => setTxn({ ...txn, currentPassword: e.target.value })} />
-              <TextField id='t-new' label={txnStatus.data?.set ? 'New transaction password' : 'Transaction password'} type='password' required minLength={6} error={txnErrors.transactionPassword} value={txn.transactionPassword} onChange={e => setTxn({ ...txn, transactionPassword: e.target.value })} />
+              <TextField id='t-new' label='Transaction password' type='password' required minLength={6} error={txnErrors.transactionPassword} value={txn.transactionPassword} onChange={e => setTxn({ ...txn, transactionPassword: e.target.value })} />
               <TextField id='t-confirm' label='Repeat it' type='password' required minLength={6} error={txnErrors.confirm} value={txn.confirm} onChange={e => setTxn({ ...txn, confirm: e.target.value })} />
               <Button type='submit' disabled={setTxnPassword.isPending || Boolean(actor?.executiveId)} className='justify-self-start'>
                 {setTxnPassword.isPending && <Loader2Icon className='animate-spin' />}
-                {txnStatus.data?.set ? 'Change transaction password' : 'Set transaction password'}
+                Set transaction password
               </Button>
             </form>
           </CardContent>

@@ -4,7 +4,7 @@ import { clearSessionToken, decodeToken, readSessionToken } from '@/lib/auth/ses
 export const dynamic = 'force-dynamic'
 
 /** Staff levels 4–6 (SUPER_MASTER, MASTER, AGENT) — the agent tree under the operator. */
-const isAgentTreeLevel = (level: number) => level >= 4 && level <= 6
+const isAgentTreeLevel = (level: number) => level >= 2 && level <= 6
 
 /**
  * Who is signed in. The token's claims plus the platform's CURRENT permission
@@ -64,8 +64,8 @@ export async function GET() {
   }
 
   // Promotions (bonus, codes, gift cards, wheel, VIP & club, affiliate, races, rakeback) are an
-  // operator matter: agent-tree logins — SUPER_MASTER (4), MASTER (5), AGENT (6), and any
-  // executive of one, whose token already carries the PARENT's level — see none of it. A backend
+  // operator matter: every login below the Super Admin — ADMIN (2) … AGENT (6), and any
+  // executive of one, whose token already carries the PARENT's level — sees none of it. A backend
   // that sends its own `promotions` / `capabilities.promotions` can only narrow this further.
   const level = Number((live.level as number | null | undefined) ?? claims.level)
   const capabilities = (live.capabilities ?? null) as { promotions?: unknown } | null

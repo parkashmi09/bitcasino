@@ -23,7 +23,10 @@ const HOP_BY_HOP = new Set([
   'content-length',
   'host',
   'cookie',
-  'authorization'
+  'authorization',
+
+  // Server-to-server call: the browser's origin (localhost, a bare IP) must not trip the gateway's CORS list.
+  'origin'
 ])
 
 async function forward(req: NextRequest, ctx: { params: Promise<{ path: string[] }> }) {

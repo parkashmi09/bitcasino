@@ -89,23 +89,37 @@ async function fetchPrivateDataV2(gmid, sid) {
   }
   return { success: true, data: innerData };
 }
-async function sharedPrivateDataV2(gmid, sid) {
-  const key = `${gmid}:${sid}`;
-  const hit = privateDataCache.get(key);
-  if (hit && Date.now() - hit.at < PRIVATE_DATA_TTL_MS) return structuredClone(hit.value);
-  let pending = privateDataInFlight.get(key);
+/* A viewer-identical read: callers inside `ttlMs` share one upstream answer, and callers that arrive
+   while it is in flight share that request. A failure is not kept. Each caller gets its own copy. */
+async function sharedRead(cache, inFlight, key, ttlMs, load) {
+  const hit = cache.get(key);
+  if (hit && Date.now() - hit.at < ttlMs) return structuredClone(hit.value);
+  let pending = inFlight.get(key);
   if (!pending) {
-    pending = fetchPrivateDataV2(gmid, sid).then((value) => {
-      privateDataCache.set(key, { at: Date.now(), value });
+    pending = load().then((value) => {
+      cache.set(key, { at: Date.now(), value });
       return value;
-    }).finally(() => privateDataInFlight.delete(key));
-    privateDataInFlight.set(key, pending);
+    }).finally(() => inFlight.delete(key));
+    inFlight.set(key, pending);
   }
   return structuredClone(await pending);
 }
+var sharedPrivateDataV2 = (gmid, sid) => sharedRead(privateDataCache, privateDataInFlight, `${gmid}:${sid}`, PRIVATE_DATA_TTL_MS, () => fetchPrivateDataV2(gmid, sid));
+/* The sport board (all-data) is the same for every viewer and each polls it every 5 s, so one
+   provider call per sport per BOARD_TTL_MS serves them all (TENEXCH: one shared board query). */
+var BOARD_TTL_MS = 2e3;
+var boardCache = /* @__PURE__ */ new Map();
+var boardInFlight = /* @__PURE__ */ new Map();
+/* The match header (gamedetailPrivate), polled every 5 s by every viewer of a match page: one
+   provider call per match per GAME_DETAIL_TTL_MS (TENEXCH gameDetailCache, same 5 s). */
+var GAME_DETAIL_TTL_MS = 5e3;
+var gameDetailCache = /* @__PURE__ */ new Map();
+var gameDetailInFlight = /* @__PURE__ */ new Map();
 setInterval(() => {
   const cutoff = Date.now() - 60 * 1e3;
-  for (const [key, entry] of privateDataCache) if (entry.at < cutoff) privateDataCache.delete(key);
+  for (const cache of [privateDataCache, boardCache, gameDetailCache]) {
+    for (const [key, entry] of cache) if (entry.at < cutoff) cache.delete(key);
+  }
 }, 60 * 1e3).unref();
 var CricketService = {
   // fetchCricketData: async (id) => {
@@ -123,10 +137,18 @@ var CricketService = {
   //     return response.data;
   //   });
   // },
+  /** The match header: the provider's gamedetailPrivate `data`, shared across viewers (GAME_DETAIL_TTL_MS). */
+  GetGameDetailPrivate: (gmid, etid) => sharedRead(gameDetailCache, gameDetailInFlight, `${gmid}:${etid}`, GAME_DETAIL_TTL_MS, async () => {
+    const result = await axios.get(`${AVRKHUB_SPORTS_BASE_URL}/gamedetailPrivate`, {
+      params: { key: AVRKHUB_SPORTS_KEY, gmid, etid },
+      timeout: 3e4
+    });
+    return result?.data?.data;
+  }),
   /** One sport's events with the sports and leagues the site does not offer taken out (constants/hiddenSports.mjs). */
   fetchCricketData: async (id) => {
     if (isHiddenSport(id)) return { success: true, data: { t1: [], t2: [] } };
-    const result = await CricketService.fetchCricketDataRaw(id);
+    const result = await sharedRead(boardCache, boardInFlight, String(id), BOARD_TTL_MS, () => CricketService.fetchCricketDataRaw(id));
     if (!result?.data) return result;
     return { ...result, data: { ...result.data, t1: cleanEventRows(result.data.t1), t2: cleanEventRows(result.data.t2) } };
   },

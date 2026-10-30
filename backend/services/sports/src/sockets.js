@@ -3,9 +3,11 @@
 const { Server } = require('socket.io');
 
 const { setupBetsSocket } = require('./modules/bets/sockets');
+const { setupOddsSocket } = require('./modules/odds-events/sockets');
 
 /**
- * sports-service's socket transport: the mssports balance room (`modules/bets/sockets.js`).
+ * sports-service's socket transport: the mssports balance room (`modules/bets/sockets.js`) and
+ * the match pages' live odds (`modules/odds-events/sockets.js`).
  *
  * The handlers are mssports' own, so the protocol is TENEXCH's: the client joins `user_<id>` with
  * 'authenticate', asks with 'getBalance' / 'subscribeBalance', and receives 'balanceUpdate' —
@@ -25,7 +27,8 @@ function attachSockets({ server, container }) {
   });
 
   const relay = setupBetsSocket(io);
-  logger.info('Sports socket transport attached (mssports balance room)');
+  setupOddsSocket(io);
+  logger.info('Sports socket transport attached (mssports balance room + odds push)');
 
   return {
     io,

@@ -91,8 +91,8 @@ const DEFAULT_OFF_FLAGS = new Set(['sportsbook', 'idle_logout'])
 /** How often the operator's own feature flags are re-read for the sidebar. */
 const FLAGS_POLL_MS = 15_000
 
-/** Staff levels 4–6 (SUPER_MASTER, MASTER, AGENT): the agent tree, which sees no promotions. */
-export const isAgentTreeLevel = (level?: number | null) => typeof level === 'number' && level >= 4 && level <= 6
+/** Staff levels 2–6 (ADMIN … AGENT): everyone below the Super Admin sees the Agent's admin, no promotions (user, 2026-10-29). */
+export const isAgentTreeLevel = (level?: number | null) => typeof level === 'number' && level >= 2 && level <= 6
 
 export function hasPermission(granted: string[] | undefined, required: string): boolean {
   if (!granted?.length) return false

@@ -94,6 +94,7 @@ export type AccountRow = {
 
   /** More modal (zip "Additional Information") */
   phone: string | null
+  email: string | null
   city: string | null
   createdAt: string | null
   sportsPts: string

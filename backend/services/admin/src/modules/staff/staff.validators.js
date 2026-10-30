@@ -23,7 +23,7 @@ const amount = z
  * rules push people towards `Password1!` and away from length. Legacy enforced
  * nothing at all, and then stored the result in cleartext beside the hash.
  */
-const password = z.string().min(12, 'must be at least 12 characters').max(200);
+const password = z.string().min(8, 'must be at least 8 characters').max(200);
 
 /**
  * A transfer.

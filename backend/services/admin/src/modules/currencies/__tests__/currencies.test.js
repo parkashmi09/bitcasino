@@ -254,13 +254,14 @@ test('coin registry (currencies)', async (t) => {
   });
 
   await t.test('the agent tree is refused (403), reads included', async () => {
-    for (const caller of ['master', 'agent']) {
+    // Every level below the Super Admin is refused (user, 2026-10-29).
+    for (const caller of ['admin', 'master', 'agent']) {
       const get = await call('GET', '/currencies', { caller });
       assert.strictEqual(get.status, 403);
       assert.strictEqual(get.body.error.code, 'CURRENCIES_HOUSE_ONLY');
       assert.strictEqual((await call('PUT', '/currencies/USDT', { caller, body: { name: 'X' } })).status, 403);
     }
-    assert.strictEqual((await call('GET', '/currencies', { caller: 'admin' })).status, 200);
+    assert.strictEqual((await call('GET', '/currencies', { caller: 'superAdmin' })).status, 200);
   });
 
   await t.test('image upload: PNG / clean SVG accepted, served inert; the rest refused', async () => {

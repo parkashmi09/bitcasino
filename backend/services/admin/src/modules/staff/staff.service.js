@@ -1,11 +1,13 @@
 'use strict';
 
+const { randomInt } = require('crypto');
 const { Op, QueryTypes, literal } = require('sequelize');
 const {
   hashPassword,
   verifyPassword,
   canActOn,
   canCreateLevel,
+  isLoginPasswordMode,
   STAFF_LEVELS,
 } = require('@ibitplay/auth');
 const { money, withdrawBlock } = require('@ibitplay/common');
@@ -223,7 +225,6 @@ class StaffService {
       // account too, or the tree would hold a master beneath an agent.
       const parentLevel = await this.#staffLevel(parent);
       this.#assertLevelBelow(parentLevel, level, 'below the account it reports to');
-      this.#assertChildOfParent(actor, parentLevel, level);
     }
 
     const existing = await this.models.Staff.findOne({ where: { email }, raw: true, transaction: outer });
@@ -243,9 +244,10 @@ class StaffService {
           parent_id: parent,
           percentage: percentage ?? null,
           status: 'active',
-          // The creator's password is final: no forced change on first sign-in.
-          must_change_password: false,
-          first_login: false,
+          // The creator knows this password: the first sign-in must replace it,
+          // and that change issues the transaction password (`changePassword`).
+          must_change_password: true,
+          first_login: true,
         },
         { transaction }
       );
@@ -302,6 +304,7 @@ class StaffService {
   async changePassword({ actor, targetId, oldPassword, newPassword }) {
     const self = !targetId || Number(targetId) === Number(actor.id);
     const target = self ? actor.id : Number(targetId);
+    let transactionPassword = null;
 
     if (!self) {
       // A session still on a password somebody else chose may only change its own.
@@ -311,10 +314,19 @@ class StaffService {
       // in the controller. It is a permission on the route here.
       if (!actor.canResetOthers) throw errors.NOT_PERMITTED({ reason: 'you may not reset another account' });
     } else {
-      const row = await this.models.Staff.findByPk(target, { attributes: ['password'], raw: true });
+      const row = await this.models.Staff.findByPk(target, {
+        attributes: ['password', 'must_change_password'],
+        raw: true,
+      });
       if (!row) throw errors.NOT_FOUND({ staffId: target });
       if (!(await verifyPassword(oldPassword ?? '', row.password ?? ''))) {
         throw errors.OLD_PASSWORD_WRONG();
+      }
+      // A forced change — first sign-in, or the next one after a superior's reset (TENEXCH flow) —
+      // issues a fresh 6-digit transaction password, returned once; the old one stops working.
+      // Never to an executive: it acts for this account but does not own its secrets.
+      if (row.must_change_password && !actor.executiveId && !isLoginPasswordMode()) {
+        transactionPassword = String(randomInt(100000, 1000000));
       }
     }
 
@@ -325,6 +337,7 @@ class StaffService {
         // it: they know the password now, so you must replace it.
         must_change_password: !self,
         ...(self ? { first_login: false } : {}),
+        ...(transactionPassword ? { transaction_password: await hashPassword(transactionPassword, PASSWORD_ROUNDS) } : {}),
         // Ends every session of the target — the caller's own too on a self change — so a
         // token stolen before the change stops working now, not in 8 h.
         token_version: literal('token_version + 1'),
@@ -332,8 +345,8 @@ class StaffService {
       { where: { id: target } }
     );
 
-    this.logger?.warn({ actorStaffId: actor.id, targetStaffId: target, self }, 'Staff password changed');
-    return { staffId: target, changed: true };
+    this.logger?.warn({ actorStaffId: actor.id, targetStaffId: target, self, transactionPasswordIssued: Boolean(transactionPassword) }, 'Staff password changed');
+    return { staffId: target, changed: true, ...(transactionPassword ? { transactionPassword } : {}) };
   }
 
   // ══════════════════════════════════════════════════════════════════════
@@ -485,10 +498,9 @@ class StaffService {
   }
 
   /**
-   * The Addaplay ladder (`CHILD_LEVELS` in `@ibitplay/auth`): a creator makes
-   * ONLY the level directly below its own — Admin → Sub Admin, Sub Admin →
-   * Super Master, Super Master → Master, Master → Agent; an Agent makes
-   * players only. The Super Admin makes any level strictly below it.
+   * TENEXCH's rule (`CHILD_LEVELS` in `@ibitplay/auth`): a creator makes any
+   * staff level below its own — a Sub Admin a Super Master, a Master or an
+   * Agent; an Agent makes players only.
    *
    * EXECUTIVE (7) is never a staff row made here, by anyone: executives are
    * sub-logins and are made through `/admin/access/executives`.
@@ -498,20 +510,9 @@ class StaffService {
       throw errors.NOT_PERMITTED({ reason: 'executives are created from the executives screen, not as staff' });
     }
     this.#assertLevelBelow(actor.level, level);
-    if (Number(actor.level) === STAFF_LEVELS.SUPER_ADMIN) return;
+    // Below the caller but no staff level at all (an odd role level): fails closed.
     if (!canCreateLevel(actor.level, level)) {
-      throw errors.LEVEL_NOT_DIRECT_CHILD({
-        level,
-        reason: 'you can only create the level directly below your own',
-      });
-    }
-  }
-
-  /** Under a descendant, the new level must also be that parent's direct child level. */
-  #assertChildOfParent(actor, parentLevel, level) {
-    if (Number(actor.level) === STAFF_LEVELS.SUPER_ADMIN) return;
-    if (!canCreateLevel(parentLevel, level)) {
-      throw errors.LEVEL_NOT_DIRECT_CHILD({ level, reason: 'the new account must be the level directly below its parent' });
+      throw errors.LEVEL_NOT_BELOW({ level, reason: 'not a staff level you can create' });
     }
   }
 

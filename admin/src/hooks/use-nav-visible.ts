@@ -23,6 +23,7 @@ export function useNavVisible() {
       (entry.account !== 'marketing' || isMarketing) &&
       (!entry.promotions || promotionsAllowed) &&
       (!entry.direct || directAllowed) &&
+      (!entry.tree || !directAllowed) &&
       (!entry.notExecutive || !actor?.executiveId) &&
       can(entry.permission) &&
 

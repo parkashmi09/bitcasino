@@ -98,8 +98,9 @@ class LordsService {
     const [affected] = await model.update(
       {
         password: await hashPassword(newPassword, PASSWORD_ROUNDS),
-        // A reset ends the staff account's open sessions, like the other password paths.
-        ...(accountType === ACCOUNT_TYPE.STAFF ? { token_version: literal('token_version + 1') } : {}),
+        // A reset ends the staff account's open sessions, like the other password paths, and the
+        // next sign-in must replace the password (that change issues a new transaction password).
+        ...(accountType === ACCOUNT_TYPE.STAFF ? { token_version: literal('token_version + 1'), must_change_password: true } : {}),
       },
       { where: { id: accountId } }
     );
