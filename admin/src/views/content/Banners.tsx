@@ -47,6 +47,12 @@ const PLACEMENTS: { value: string; label: string; hint: string; mode: BannerMode
     label: `Agent mode slider · slide ${n}`,
     hint: 'Shown to agent players after sign-in (/agent), on home and casino. A game banner, never a promotion: link it to /casino or /sports. Art on the right of a dark card, about 840×420. With none uploaded the site shows its four built-in game banners.'
   })),
+  ...[1, 2, 3, 4, 5, 6].map(n => ({
+    mode: 'direct' as const,
+    value: `partner-${n}`,
+    label: `Home · partner ${n}`,
+    hint: 'One tile of the home Partners strip. The title is the partner name ("Official Partner of …"), the image a transparent photo, about 400×320. The strip is hidden until one is added.'
+  })),
   { mode: 'direct', value: 'casino', label: 'Casino · wide promo banner', hint: 'A finished banner across the casino lobby, about 1280×260.' }
 ]
 
