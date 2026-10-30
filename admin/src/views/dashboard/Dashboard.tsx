@@ -645,14 +645,14 @@ type Tab = 'direct' | 'agent'
  * refresh / link pe wahi tab khule. Jis tab ki permission nahi, wo tab nahi dikhta.
  */
 const Dashboard = () => {
-  const { actor, can, flagEntitled } = useSession()
+  const { actor, can } = useSession()
 
   const tabs = (
     [
       { value: 'direct', label: 'Direct Users', allowed: actor?.direct === true && can('reports:read') },
 
-      // The agent system runs on the exchange's ledger: gone while the owner runs the sportsbook.
-      { value: 'agent', label: 'Agent System', allowed: can(WALLET_ANY) && flagEntitled('sportsexchange') }
+      // In both sports modes: sportsbook bets of agents' players land in the same point ledger.
+      { value: 'agent', label: 'Agent System', allowed: can(WALLET_ANY) }
     ] as const
   ).filter(t => t.allowed)
 

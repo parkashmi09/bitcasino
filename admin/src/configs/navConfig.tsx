@@ -304,25 +304,26 @@ export const navItems: NavItem[] = [
   },
   {
     // Sports Exchange ka agent system — sidebar me alag section. Create Account Account List ke button se.
-    // Its screens run on the exchange's ledger: they hide when the owner runs the sportsbook instead.
+    // Not tied to a sports mode: agents' players bet on the exchange or on the sportsbook (JSGames books
+    // their bets into the same point ledger, category CASINO), so the agent system works in both.
     groupLabel: 'Agent Management',
     groupIcon: 'Network',
     collapsible: true,
     items: [
-      { icon: 'LayoutDashboard', label: 'Dashboard', href: '/exchange/dashboard', ownerFlag: 'sportsexchange', permission: WALLET_ANY },
-      { icon: 'BookUser', label: 'Account List', href: '/exchange/users', ownerFlag: 'sportsexchange', activePath: '/exchange/users', permission: ['users:read', 'staff:read'] } as MenuItem,
-      { icon: 'Landmark', label: 'Bank', href: '/exchange/bank', ownerFlag: 'sportsexchange', permission: WALLET_ANY },
+      { icon: 'LayoutDashboard', label: 'Dashboard', href: '/exchange/dashboard', permission: WALLET_ANY },
+      { icon: 'BookUser', label: 'Account List', href: '/exchange/users', activePath: '/exchange/users', permission: ['users:read', 'staff:read'] } as MenuItem,
+      { icon: 'Landmark', label: 'Bank', href: '/exchange/bank', permission: WALLET_ANY },
 
       // Every staff login (Super Admin down to Agent) makes its own executives (user, 2026-10-17).
       { icon: 'KeyRound', label: 'Executives', href: '/access/executives', notExecutive: true },
       { icon: 'ScrollText', label: 'Activity log', href: '/audit', permission: 'audit:read' },
 
       // Agent ke reports.
-      { icon: 'ReceiptText', label: 'Account Statement', href: '/exchange/reports/account-statement', ownerFlag: 'sportsexchange', permission: 'reports:read' },
-      { icon: 'Scale', label: 'Party Win Loss', href: '/exchange/reports/party-win-loss', ownerFlag: 'sportsexchange', permission: 'reports:read' },
-      { icon: 'TrendingUp', label: 'Total Profit Loss', href: '/exchange/reports/total-profit-loss', ownerFlag: 'sportsexchange', permission: 'reports:read' },
-      { icon: 'UserRoundCheck', label: 'User Win Loss', href: '/exchange/reports/user-win-loss', ownerFlag: 'sportsexchange', permission: 'reports:read' },
-      { icon: 'Lock', label: 'General Lock', href: '/exchange/reports/general-lock', ownerFlag: 'sportsexchange', permission: 'reports:read' }
+      { icon: 'ReceiptText', label: 'Account Statement', href: '/exchange/reports/account-statement', permission: 'reports:read' },
+      { icon: 'Scale', label: 'Party Win Loss', href: '/exchange/reports/party-win-loss', permission: 'reports:read' },
+      { icon: 'TrendingUp', label: 'Total Profit Loss', href: '/exchange/reports/total-profit-loss', permission: 'reports:read' },
+      { icon: 'UserRoundCheck', label: 'User Win Loss', href: '/exchange/reports/user-win-loss', permission: 'reports:read' },
+      { icon: 'Lock', label: 'General Lock', href: '/exchange/reports/general-lock', permission: 'reports:read' }
     ]
   },
   {
