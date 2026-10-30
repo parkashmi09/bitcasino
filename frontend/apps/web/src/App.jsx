@@ -195,7 +195,7 @@ function AppRoutes() {
                 on the reference — the detail view is a filterable game list. */}
             <Route path="providers/:slug" element={<Provider />} />
             <Route path="play/:category/:slug" element={<Play />} />
-            {/* The provider's sportsbook; gated on the owner's `sportsbook` flag (lib/gates.js). */}
+            {/* The provider's sportsbook or the native exchange — whichever the owner has on (lib/gates.js, pages/Sports.jsx). */}
             <Route path="sports/*" element={<Sports />} />
 
             {/* The Loyalty Club sheet, reached from the account menu's

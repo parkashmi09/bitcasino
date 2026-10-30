@@ -41,9 +41,10 @@ export const GATES = {
   kyc: { feature: 'kyc', notAgentPlayer: true },
   originals: { flag: 'originals' },
   blog: { feature: 'blog', notAgentPlayer: true },
-  // The provider's sportsbook (`pages/Sports.jsx`). `sportsbook` is public only as owner `sports` AND
-  // `sportsbook`; `onlyIf` = explicitly true, so it stays hidden until the flags answer (backend default off).
-  sports: { onlyIf: 'sportsbook' },
+  // `/sports` (`pages/Sports.jsx`): the provider's sportsbook OR the native exchange. Each flag is public
+  // only as owner `sports` AND it (the owner keeps them exclusive); `onlyIf` = any one explicitly true,
+  // so it stays hidden until the flags answer (backend default off). The page picks the mode.
+  sports: { onlyIf: ['sportsbook', 'sportsexchange'] },
 };
 
 /** Path prefix → gate, most specific first. History routes stay readable for everyone. */
@@ -109,7 +110,7 @@ export function makeGates({ flags, features, capabilities, ready = true } = {}) 
     if (!g) return null;
     if (g.off) return 'site';
     if (g.flag && flagMap?.[g.flag] === false) return 'site';
-    if (g.onlyIf && flagMap?.[g.onlyIf] !== true) return 'site';
+    if (g.onlyIf && ![].concat(g.onlyIf).some((key) => flagMap?.[key] === true)) return 'site';
     if (g.feature && list && !byKey.has(g.feature)) return 'site';
     if (g.rail && !railOpen(policy(g.rail[0]), g.rail[1]) && !(g.orManual && manualOpen())) return 'site';
     if (PROMO_GATES.has(gate) && policy('business_model') === 'b2b') return 'site';

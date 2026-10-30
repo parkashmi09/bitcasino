@@ -19,6 +19,9 @@ describe('gates', () => {
     expect(ALL_ON.routeOn('/sports')).toBe(false);
     expect(makeGates({ flags: { sportsbook: false } }).routeOn('/sports')).toBe(false);
     expect(makeGates({ flags: { sportsbook: true } }).routeOn('/sports/live')).toBe(true);
+    // …or the native exchange.
+    expect(makeGates({ flags: { sportsbook: false, sportsexchange: true } }).routeOn('/sports/my-bets')).toBe(true);
+    expect(makeGates({ flags: { sportsbook: false, sportsexchange: false } }).routeOn('/sports')).toBe(false);
   });
 
   it('closes a section on a site flag, an owner feature or a capability', () => {

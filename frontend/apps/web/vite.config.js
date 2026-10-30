@@ -54,6 +54,13 @@ export default defineConfig({
           proxy.on('proxyReqWs', (req) => req.removeHeader('origin'));
         },
       },
+      // The sports exchange's socket (odds + balance push) on the gateway: `/ws/sports/socket.io`, websocket only.
+      '/ws': {
+        target: API_TARGET || 'http://127.0.0.1:4000',
+        changeOrigin: true,
+        ws: true,
+        configure: (proxy) => proxy.on('proxyReqWs', (req) => req.removeHeader('origin')),
+      },
       '/casino-socket': {
         target: 'http://127.0.0.1:4003',
         changeOrigin: true,
