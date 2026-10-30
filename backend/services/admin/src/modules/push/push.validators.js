@@ -123,11 +123,16 @@ const putSettings = {
         .optional(),
       allSegment: z.string().trim().min(1).max(100).optional(),
       defaultIconUrl: z.union([z.literal(''), mediaUrl]).optional(),
+      // An https URL, or the path an upload gave back; '' = the site's default chime.
+      soundUrl: z
+        .union([z.literal(''), mediaUrl.refine((s) => /^https:\/\//i.test(s), 'an https URL'), z.string().regex(/^\/api\/v1\/admin\/push\/sound\/[0-9a-f]{12}\.(mp3|wav|ogg)$/)])
+        .optional(),
     })
     .strict(),
 };
 
 const imageParam = { params: z.object({ file: z.string().regex(/^\d{1,18}-[0-9a-f]{12}\.(png|jpg|webp|gif)$/) }) };
+const soundParam = { params: z.object({ file: z.string().regex(/^[0-9a-f]{12}\.(mp3|wav|ogg)$/) }) };
 
 module.exports = {
   audience,
@@ -144,4 +149,5 @@ module.exports = {
   putTemplate,
   putSettings,
   imageParam,
+  soundParam,
 };

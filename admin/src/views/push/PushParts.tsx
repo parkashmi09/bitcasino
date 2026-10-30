@@ -18,7 +18,7 @@ import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { useApi, useApiMutation } from '@/hooks/use-api'
 import { api } from '@/lib/api/client'
 import { cn } from '@/lib/utils'
-import { imageSrc, type PushButton, type PushStatus, type UploadedImage } from './types'
+import { imageSrc, soundSrc, type PushButton, type PushSettings, type PushStatus, type UploadedImage } from './types'
 
 // ── Status card ─────────────────────────────────────────────────────────
 
@@ -93,6 +93,76 @@ export const Warnings = ({ items, title = 'Check before sending' }: { items?: st
       </AlertDescription>
     </Alert>
   ) : null
+
+// ── Sound picker: upload or URL ─────────────────────────────────────────
+
+const SOUND_ACCEPT = 'audio/mpeg,audio/mp3,audio/wav,audio/x-wav,audio/wave,audio/ogg'
+
+/** The notification sound. An upload is stored at once (the server points soundUrl at it); a typed
+ *  URL is saved with the rest of the settings. Empty = the player site's own default chime. */
+export const SoundInput = ({ value, onChange, error }: { value: string; onChange: (url: string) => void; error?: string | false | null }) => {
+  const file = useRef<HTMLInputElement>(null)
+
+  const upload = useApiMutation({
+    fn: (f: File) => {
+      const fd = new FormData()
+
+      fd.append('sound', f)
+
+      return api.upload<PushSettings>('admin/push/sound', fd)
+    },
+    success: 'Sound uploaded and saved',
+    onSuccess: r => onChange(r.soundUrl)
+  })
+
+  const src = soundSrc(value)
+
+  return (
+    <div className='grid gap-2'>
+      <label htmlFor='ps-sound' className='text-sm font-medium'>
+        Notification sound
+      </label>
+      <div className='flex gap-2'>
+        <Input id='ps-sound' placeholder='https://… or upload' aria-invalid={error ? true : undefined} value={value} onChange={e => onChange(e.target.value)} />
+        <input
+          ref={file}
+          type='file'
+          accept={SOUND_ACCEPT}
+          className='hidden'
+          onChange={e => {
+            const f = e.target.files?.[0]
+
+            e.target.value = ''
+            if (!f) return
+
+            // push sound route: MP3/WAV/OGG, at most 300 KB — say so before the upload, not after.
+            if (!/\.(mp3|wav|ogg)$/i.test(f.name)) return void toast.error('The sound must be MP3, WAV or OGG')
+            if (f.size > 300 * 1024) return void toast.error(`The sound is ${Math.round(f.size / 1024)} KB — the limit is 300 KB`)
+            upload.mutate(f)
+          }}
+        />
+        <Button type='button' variant='outline' onClick={() => file.current?.click()} disabled={upload.isPending}>
+          {upload.isPending ? <Loader2Icon className='animate-spin' /> : <UploadIcon />}
+          Upload
+        </Button>
+        {value && (
+          <Button type='button' variant='ghost' onClick={() => onChange('')}>
+            Use default
+          </Button>
+        )}
+      </div>
+      {error && (
+        <p role='alert' className='text-destructive text-sm'>
+          {error}
+        </p>
+      )}
+      <p className='text-muted-foreground text-xs'>
+        Plays on the player site when a push arrives while the site is open (a closed site plays the phone’s own sound). MP3, WAV or OGG, at most 300 KB, a second or two. A URL must be https. Empty = the site’s default chime.
+      </p>
+      {src ? <audio controls src={src} className='h-9 w-full max-w-sm' /> : <p className='text-muted-foreground text-xs'>Using the default chime.</p>}
+    </div>
+  )
+}
 
 // ── Image picker: upload or URL ─────────────────────────────────────────
 

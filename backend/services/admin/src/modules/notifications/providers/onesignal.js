@@ -143,7 +143,12 @@ function buildPayload(appId, message, target) {
     payload.web_push_topic = String(message.topic);
     payload.collapse_id = String(message.topic).slice(0, 64);
   }
-  if (message.idempotencyKey) payload.idempotency_key = message.idempotencyKey;
+  // OneSignal refuses any idempotency_key that is not a UUID (400), so a readable key like
+  // `push-campaign-2` is hashed into one here — segment and filter sends included.
+  if (message.idempotencyKey) {
+    const key = String(message.idempotencyKey);
+    payload.idempotency_key = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(key) ? key : batchKey(key, 0);
+  }
 
   return { ...payload, ...targetFields(target) };
 }

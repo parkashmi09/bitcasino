@@ -64,6 +64,14 @@ const config = loadEnv(
      */
     PUBLIC_ASSET_ORIGIN: coercers.optionalStr(),
     PUBLIC_SITE_URL: coercers.optionalStr(),
+
+    /**
+     * OneSignal keys from the env, used when the site admin's Features → Push
+     * notifications fields are blank (a value saved there wins). The owner
+     * panel must still switch push_notifications on with the OneSignal variant.
+     */
+    ONESIGNAL_APP_ID: coercers.optionalStr(),
+    ONESIGNAL_API_KEY: coercers.optionalStr(),
   },
   { serviceDir: path.resolve(__dirname, '..') }
 );

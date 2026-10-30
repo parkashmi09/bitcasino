@@ -36,6 +36,23 @@ module.exports = function publicRoutes(deps) {
   );
 
   router.get(
+    '/sound/:file',
+    validate(v.soundParam),
+    asyncHandler(async (req, res) => {
+      const sound = await service.soundBytes({ file: req.params.file });
+      res.set({
+        'Content-Type': sound.contentType,
+        'Content-Length': String(sound.byteSize),
+        // Immutable: the URL carries a content hash.
+        'Cache-Control': 'public, max-age=31536000, immutable',
+        'X-Content-Type-Options': 'nosniff',
+        'Cross-Origin-Resource-Policy': 'cross-origin',
+      });
+      return res.status(200).end(sound.data);
+    })
+  );
+
+  router.get(
     '/prompt',
     asyncHandler(async (_req, res) => {
       res.set('Cache-Control', 'public, max-age=60');

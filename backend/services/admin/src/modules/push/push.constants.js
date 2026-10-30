@@ -67,7 +67,13 @@ const SETTINGS_DEFAULTS = Object.freeze({
   allSegment: 'Total Subscriptions',
   /** Default icon for every push (https). Empty = the icon set in the OneSignal dashboard. */
   defaultIconUrl: '',
+  /** The chime the player site plays when a push arrives while it is open: an upload (served at
+   *  /api/v1/admin/push/sound/…) or an https URL. Empty = the site's own /sounds/notify.mp3. */
+  soundUrl: '',
 });
+
+/** A notification sound is a second or two; 300 KB is far more than an MP3 chime needs. */
+const MAX_SOUND_BYTES = 300 * 1024;
 
 module.exports = {
   MAX_IMAGE_BYTES,
@@ -78,4 +84,5 @@ module.exports = {
   TEMPLATE_BY_KIND,
   PROMPT_DEFAULTS,
   SETTINGS_DEFAULTS,
+  MAX_SOUND_BYTES,
 };

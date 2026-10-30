@@ -118,6 +118,9 @@ export type PushSettings = {
   publicOrigin: string
   allSegment: string
   defaultIconUrl: string
+
+  /** The chime the player site plays on a push: an upload path or an https URL; '' = the site's default. */
+  soundUrl: string
 }
 
 /** OneSignal's tag relations (backend TAG_RELATIONS). */
@@ -130,6 +133,14 @@ export const KNOWN_TAGS = ['vip_level', 'language', 'currency', 'country'] as co
 export const imageSrc = (url: string | null | undefined): string | null => {
   if (!url) return null
   const m = /\/api\/v1\/(admin\/push\/images\/[^?#]+)/.exec(url)
+
+  return m ? `/api/gw/api/v1/${m[1]}` : url
+}
+
+/** An uploaded sound plays through the admin's gateway proxy, like an uploaded image. */
+export const soundSrc = (url: string | null | undefined): string | null => {
+  if (!url) return null
+  const m = /\/api\/v1\/(admin\/push\/sound\/[^?#]+)/.exec(url)
 
   return m ? `/api/gw/api/v1/${m[1]}` : url
 }

@@ -187,6 +187,7 @@ class FeaturesService {
       const spec = variantOf(f.key, variant);
       const publicFields = spec?.publicFields ?? [];
       const config = Object.fromEntries(publicFields.filter((k) => row.config?.[k]).map((k) => [k, row.config[k]]));
+      if (f.key === 'push_notifications' && !config.appId && this.config?.ONESIGNAL_APP_ID) config.appId = this.config.ONESIGNAL_APP_ID;
       // The owner's options for this feature (e.g. when the spin wheel grants a spin), defaults filled in.
       const options = featureOptions.FEATURE_OPTIONS[f.key] ? featureOptions.resolveOptions(plan, f.key) : null;
       return [{ feature: f.key, variant, ...(publicFields.length ? { config } : {}), ...(options ? { options } : {}) }];
@@ -553,10 +554,12 @@ class FeaturesService {
   async pushProvider() {
     const row = await this.resolved('push_notifications');
     if (!row?.enabled || row.variant !== 'onesignal') return null;
-    if (!row.config?.appId || !row.secrets?.apiKey) return null;
+    const appId = row.config?.appId || this.config?.ONESIGNAL_APP_ID;
+    const apiKey = row.secrets?.apiKey || this.config?.ONESIGNAL_API_KEY;
+    if (!appId || !apiKey) return null;
     return new OneSignalProvider({
-      appId: row.config.appId,
-      apiKey: row.secrets.apiKey,
+      appId,
+      apiKey,
       segment: row.config.segment,
       logger: this.logger,
       fetchImpl: this.fetchImpl,

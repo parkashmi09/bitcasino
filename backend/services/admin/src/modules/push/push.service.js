@@ -14,6 +14,16 @@ const {
   RECOMMENDED_IMAGE,
   MAX_IMAGE_BYTES,
 } = require('./push.constants');
+const crypto = require('crypto');
+
+/** What a sound upload really is, by its first bytes (the browser's declared type is not trusted). */
+function sniffSound(b) {
+  if (b.length < 12) return null;
+  if (b.toString('latin1', 0, 3) === 'ID3' || (b[0] === 0xff && (b[1] & 0xe0) === 0xe0)) return { contentType: 'audio/mpeg', ext: 'mp3' };
+  if (b.toString('latin1', 0, 4) === 'RIFF' && b.toString('latin1', 8, 12) === 'WAVE') return { contentType: 'audio/wav', ext: 'wav' };
+  if (b.toString('latin1', 0, 4) === 'OggS') return { contentType: 'audio/ogg', ext: 'ogg' };
+  return null;
+}
 const { render, placeholdersIn } = require('./push.templates');
 const { inspectUpload, sizeHints, checkMediaUrl, absoluteUrl, isLocalOrigin, probeImage } = require('./pushImage');
 const { buildPayload, MAX_ALIASES } = require('../notifications/providers/onesignal');
@@ -100,10 +110,27 @@ class PushService {
     return this.settings();
   }
 
-  /** What a player's browser reads: only the popup copy and timing. */
+  /** What a player's browser reads: the popup copy and timing, and the chime to play. */
   async publicPrompt() {
-    const { prompt } = await this.settings();
-    return prompt;
+    const { prompt, soundUrl } = await this.settings();
+    return { ...prompt, soundUrl };
+  }
+
+  /** Store an uploaded chime (one per site; a new upload replaces it) and point soundUrl at it. */
+  async uploadSound({ staff, file }) {
+    if (!file?.buffer?.length) throw errors.SOUND_NO_FILE();
+    const kind = sniffSound(file.buffer);
+    if (!kind) throw errors.NOT_A_SOUND();
+    const tag = crypto.createHash('sha256').update(file.buffer).digest('hex').slice(0, 12);
+    await this.#putSetting('sound', { tag, contentType: kind.contentType, data: file.buffer.toString('base64') }, staff?.id);
+    return this.saveSettings({ staff, soundUrl: `/api/v1/admin/push/sound/${tag}.${kind.ext}` });
+  }
+
+  async soundBytes({ file }) {
+    const stored = await this.#setting('sound');
+    if (!stored || !file.startsWith(`${stored.tag}.`)) throw errors.SOUND_NOT_FOUND();
+    const data = Buffer.from(stored.data, 'base64');
+    return { data, contentType: stored.contentType, byteSize: data.length };
   }
 
   /** Where uploaded images are served from and site paths point: the player site's public origin. */
@@ -124,8 +151,8 @@ class PushService {
     const entitled = await entitlements.isFeatureEntitled('push_notifications').catch(() => true);
     const origin = await this.origin(settings);
     const enabled = Boolean(row?.enabled) && row?.variant === 'onesignal';
-    const appId = row?.config?.appId || null;
-    const apiKeySet = Boolean(row?.secrets?.apiKey);
+    const appId = row?.config?.appId || this.config?.ONESIGNAL_APP_ID || null;
+    const apiKeySet = Boolean(row?.secrets?.apiKey || this.config?.ONESIGNAL_API_KEY);
     return {
       entitled,
       enabled,
@@ -164,7 +191,7 @@ class PushService {
 
   async #appId() {
     const row = this.models.SiteFeature ? await this.models.SiteFeature.findByPk('push_notifications', { raw: true }) : null;
-    return row?.config?.appId || null;
+    return row?.config?.appId || this.config?.ONESIGNAL_APP_ID || null;
   }
 
   // ══════════════════════════════════════════════════════════════════════

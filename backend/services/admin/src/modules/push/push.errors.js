@@ -29,4 +29,9 @@ module.exports = defineErrors('PUSH', {
   TOO_SMALL: { status: 422, message: 'That file is too small to be an image' },
   FORMAT_REFUSED: { status: 415, message: 'That image format is not accepted' },
   NOT_AN_IMAGE: { status: 415, message: 'Only PNG, JPEG, WebP or GIF images are accepted' },
+  // The notification sound upload.
+  SOUND_NO_FILE: { status: 422, message: 'No sound was uploaded (field "sound")' },
+  SOUND_TOO_LARGE: { status: 413, message: 'A notification sound may be at most 300 KB' },
+  NOT_A_SOUND: { status: 415, message: 'Only MP3, WAV or OGG sounds are accepted' },
+  SOUND_NOT_FOUND: { status: 404, message: 'Sound not found' },
 });

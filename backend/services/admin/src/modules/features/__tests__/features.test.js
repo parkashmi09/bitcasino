@@ -395,6 +395,16 @@ test('features', async (t) => {
     assert.equal(await service.pushProvider(), null);
   });
 
+  await t.test('blank keys fall back to ONESIGNAL_APP_ID / ONESIGNAL_API_KEY from the env', async () => {
+    // As the owner panel leaves it: switched on, nothing keyed in.
+    await connection.models.SiteFeature.update({ variant: 'onesignal', enabled: true, config: {}, secrets: {} }, { where: { feature: 'push_notifications' } });
+    assert.equal(await service.pushProvider(), null);
+    const fromEnv = new FeaturesService({ models: connection.models, logger, config: { ...config, ONESIGNAL_APP_ID: APP_ID, ONESIGNAL_API_KEY: API_KEY }, fetchImpl });
+    assert.equal((await fromEnv.pushProvider())?.appId, APP_ID);
+    const pub = await fromEnv.publicList();
+    assert.equal(pub.find((f) => f.feature === 'push_notifications')?.config?.appId, APP_ID);
+  });
+
   await t.test('switching to Off and wiping the keys is one call, and leaves nothing sealed', async () => {
     await service.update({
       feature: 'push_notifications',

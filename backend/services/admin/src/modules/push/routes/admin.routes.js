@@ -13,7 +13,7 @@ const { PERMISSIONS } = require('@ibitplay/auth');
 
 const v = require('../push.validators');
 const errors = require('../push.errors');
-const { MAX_IMAGE_BYTES } = require('../push.constants');
+const { MAX_IMAGE_BYTES, MAX_SOUND_BYTES } = require('../push.constants');
 const { PushService } = require('../push.service');
 
 /**
@@ -61,6 +61,17 @@ module.exports = function adminRoutes(deps) {
     noBody(), // after multer: the form carries the file and nothing else
     audit('push.image.upload', (req) => ({ bytes: req.file?.size ?? null, declaredType: req.file?.mimetype ?? null })),
     h((req) => service.uploadImage({ file: req.file, staff: req.staff }), response.created)
+  );
+
+  // ── Notification sound ──
+  router.post(
+    '/sound',
+    canWrite,
+    imageUpload.createUploader({ maxBytes: MAX_SOUND_BYTES }).single('sound'),
+    imageUpload.createUploadErrorHandler({ TOO_LARGE: errors.SOUND_TOO_LARGE, NO_FILE: errors.SOUND_NO_FILE }, MAX_SOUND_BYTES),
+    noBody(),
+    audit('push.sound.upload', (req) => ({ bytes: req.file?.size ?? null, declaredType: req.file?.mimetype ?? null })),
+    h((req) => service.uploadSound({ file: req.file, staff: req.staff }), response.created)
   );
 
   // ── Templates ──

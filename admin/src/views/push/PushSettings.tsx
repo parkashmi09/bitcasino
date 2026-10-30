@@ -13,7 +13,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { useApi, useApiMutation } from '@/hooks/use-api'
 import { api } from '@/lib/api/client'
 import { check } from '@/lib/validate'
-import { ImageInput, PushStatusCard } from './PushParts'
+import { ImageInput, PushStatusCard, SoundInput } from './PushParts'
 import type { PromptSettings, PushSettings as Settings } from './types'
 
 /** Roughly what the player site's soft-ask sheet looks like (it draws it in the site's own theme). */
@@ -60,7 +60,8 @@ const PushSettings = () => {
         prompt: { ...s!.prompt, title: s!.prompt.title.trim(), text: s!.prompt.text.trim() },
         publicOrigin: s!.publicOrigin.trim().replace(/\/+$/, ''),
         allSegment: s!.allSegment.trim(),
-        defaultIconUrl: s!.defaultIconUrl.trim()
+        defaultIconUrl: s!.defaultIconUrl.trim(),
+        soundUrl: s!.soundUrl.trim()
       }),
     success: 'Push settings saved',
     invalidate: [['api', 'admin/push/settings'], ['api', 'admin/push/status']]
@@ -84,7 +85,11 @@ const PushSettings = () => {
       'prompt.cooldownDays': check.number(p.cooldownDays, 'Ask-again days', { integer: true, min: 1, max: 365 }),
       publicOrigin: origin && !/^https?:\/\/[^/\s]+$/i.test(origin) ? 'Public origin must be an origin like https://example.com (no path)' : check.length(origin, 'Public origin', { max: 200 }),
       allSegment: text(s.allSegment, '“Everyone” segment', 100),
-      defaultIconUrl: check.url(s.defaultIconUrl, 'Default icon', true) || check.length(s.defaultIconUrl, 'Default icon', { max: 2000 })
+      defaultIconUrl: check.url(s.defaultIconUrl, 'Default icon', true) || check.length(s.defaultIconUrl, 'Default icon', { max: 2000 }),
+      soundUrl:
+        s.soundUrl.trim() && !/^https:\/\//i.test(s.soundUrl.trim()) && !/^\/api\/v1\/admin\/push\/sound\//.test(s.soundUrl.trim())
+          ? 'The sound URL must be https (or upload a file)'
+          : check.length(s.soundUrl, 'Sound URL', { max: 2000 })
     })
 
     if (ok) save.mutate(undefined, { onError: f.fromServer })
@@ -178,6 +183,14 @@ const PushSettings = () => {
                     setS({ ...s, defaultIconUrl: v })
                   }}
                   hint='Square PNG, 256×256 recommended, https. Empty = the default icon set in the OneSignal dashboard.'
+                />
+                <SoundInput
+                  value={s.soundUrl}
+                  error={f.errors.soundUrl}
+                  onChange={v => {
+                    f.clear('soundUrl')
+                    setS({ ...s, soundUrl: v })
+                  }}
                 />
               </CardContent>
             </Card>

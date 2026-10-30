@@ -175,6 +175,9 @@ test('push notifications (OneSignal)', async (t) => {
     assert.equal(bodies.length, 2);
     assert.notEqual(bodies[0].idempotency_key, bodies[1].idempotency_key);
     assert.match(bodies[0].idempotency_key, /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-a[0-9a-f]{3}-[0-9a-f]{12}$/);
+    // A segment send carries a readable key too (push-campaign-N): it must reach OneSignal as a UUID.
+    const seg = buildPayload(APP_ID, { title: 'x', idempotencyKey: 'push-campaign-7' }, { segments: ['Total Subscriptions'] });
+    assert.match(seg.idempotency_key, /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-a[0-9a-f]{3}-[0-9a-f]{12}$/);
     assert.equal(batchKey('k', 0), batchKey('k', 0), 'deterministic, so a retry is de-duplicated');
   });
 
@@ -515,5 +518,21 @@ test('push notifications (OneSignal)', async (t) => {
       assert.ok(list.find((t2) => t2.kind === kind), kind);
     }
     assert.ok(list.every((t2) => t2.enabled && !t2.customised));
+  });
+
+  await t.test('notification sound: format by bytes, served back, and handed to the player site', async () => {
+    const svc = build(null);
+    const mp3 = Buffer.concat([Buffer.from('ID3'), Buffer.alloc(64, 1)]);
+    const saved = await svc.uploadSound({ file: { buffer: mp3 } });
+    assert.match(saved.soundUrl, /^\/api\/v1\/admin\/push\/sound\/[0-9a-f]{12}\.mp3$/);
+    const file = saved.soundUrl.split('/').pop();
+    const back = await svc.soundBytes({ file });
+    assert.equal(back.contentType, 'audio/mpeg');
+    assert.ok(back.data.equals(mp3));
+    assert.equal((await svc.publicPrompt()).soundUrl, saved.soundUrl);
+    // A PNG declared as audio is refused by its bytes; an unknown file name is not served.
+    const png = Buffer.concat([Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]), Buffer.alloc(32)]);
+    await assert.rejects(svc.uploadSound({ file: { buffer: png } }), (e) => e.code === 'PUSH_NOT_A_SOUND');
+    await assert.rejects(svc.soundBytes({ file: '000000000000.mp3' }), (e) => e.code === 'PUSH_SOUND_NOT_FOUND');
   });
 });
