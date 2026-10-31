@@ -55,6 +55,7 @@ import { AuthProvider } from '@/auth/AuthProvider';
 import { RedirectIfAuthenticated, RequireAuth } from '@/auth/guards';
 import { GatesProvider } from '@/hooks/useGates';
 import { Toaster } from '@/components/ui/Toaster';
+import { IdleLogout } from '@/components/layout/IdleLogout';
 import CookieConsent from '@/components/cookieConsent/CookieConsent';
 
 /**
@@ -336,6 +337,7 @@ export default function App() {
         <ScrollToTop />
         <Toaster />
         <CookieConsent />
+        <IdleLogout />
         <GatesProvider>
           <AppRoutes />
         </GatesProvider>

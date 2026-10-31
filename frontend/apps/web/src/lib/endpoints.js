@@ -28,6 +28,9 @@ export const ENDPOINTS = {
   logout: `${USER}/auth/logout`,
   me: `${USER}/auth/me`,
   sessions: `${USER}/auth/sessions`,
+  // Idle logout (lib/idleTracker.js): the interaction heartbeat, and the check after N idle minutes.
+  authActivity: `${USER}/auth/activity`,
+  idleCheck: `${USER}/auth/idle-check`,
   changePassword: `${USER}/auth/change-password`,
   // Sign in with Google (`lib/googleAuth.js`). `googleStatus` is `{ enabled }` — the owner's
   // `google_login` switch; `googleStart` is a browser navigation, not a fetch.

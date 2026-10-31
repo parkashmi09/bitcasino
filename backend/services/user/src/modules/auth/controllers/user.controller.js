@@ -24,6 +24,10 @@ function createUserController({ service }) {
       });
     }),
 
+    activity: asyncHandler(async (req, res) => {
+      return response.ok(res, await service.recordActivity(req.user));
+    }),
+
     idleCheck: asyncHandler(async (req, res) => {
       return response.ok(res, await service.idleCheck(req.user));
     }),

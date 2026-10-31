@@ -68,8 +68,14 @@ const SESSION_TTL_DAYS = 30;
 /** The Demo button (TENEXCH's): a throwaway direct account with ₹1500 for 30 minutes. */
 const DEMO_TTL_MS = 30 * 60_000;
 const DEMO_BALANCE = '1500';
-// Idle logout (owner flag `idle_logout` + the Super Admin's switch): checked once, this long after sign-in.
-const IDLE_LOGOUT_MS = 5 * 60_000;
+// Idle logout (owner flag `idle_logout` + the Super Admin's switch): a session with no activity
+// (heartbeat or bet) for `idle_logout_minutes` (site config, 1–120, default 5) is signed out.
+const IDLE_LOGOUT_MINUTES = 5;
+/** A bet by `user` (an SQL expression) since `:since`: sports, Originals, Slotegrator, JSGames. */
+const BET_SINCE_SQL = (user) => `EXISTS (SELECT 1 FROM mssports."SportsBet" WHERE user_id = ${user} AND created_at >= :since)
+           OR EXISTS (SELECT 1 FROM og_transactions WHERE user_id = ${user} AND kind = 'bet' AND created_at >= :since)
+           OR EXISTS (SELECT 1 FROM gis_transactions WHERE user_id = ${user} AND action = 'bet' AND created_at >= :since)
+           OR EXISTS (SELECT 1 FROM js_game_transactions WHERE user_id = ${user} AND transaction_type = 'bet' AND "timestamp" >= :since)`;
 
 /**
  * How long withdrawals are frozen after a self-service password change.
@@ -285,7 +291,8 @@ class AuthService {
     return this.db.transaction(async (transaction) => {
       const next = await this.#createSession(
         user,
-        { ip: context.ip, userAgent: context.userAgent, deviceLabel: session.device_label },
+        // A refresh is the client's own timer, not the player: the activity time carries over.
+        { ip: context.ip, userAgent: context.userAgent, deviceLabel: session.device_label, lastActivityAt: session.last_activity_at ?? session.created_at },
         transaction
       );
 
@@ -1179,43 +1186,102 @@ class AuthService {
   }
 
   /* A sign-in (password, Google, sign-up). With idle logout on, `idleCheckAt` is when the player
-     site calls `POST /idle-check` once; a refresh answers no `idleCheckAt`, so the time stays. */
+     site first calls `POST /idle-check` (hash's frontend still reads it); a refresh answers none. */
   async #issueSession(user, context) {
     const { payload } = await this.db.transaction((transaction) =>
       this.#createSession(user, context, transaction)
     );
     // A demo account has its own 30-minute end, so no idle logout.
-    const idle = !user.is_demo && (await this.#idleLogoutOn());
-    return { ...payload, idleCheckAt: idle ? new Date(Date.now() + IDLE_LOGOUT_MS) : null };
-  }
-
-  /** Idle logout is in force: the owner's flag (off unless set) and the Super Admin's switch (on unless set). */
-  async #idleLogoutOn() {
-    return (await this.entitlements.isFlagEntitled('idle_logout')) && String(await this.settings.read('idle_logout', true)) !== 'false';
+    const idleMs = !user.is_demo && (await this.#idleWindowMs());
+    return { ...payload, idleCheckAt: idleMs ? new Date(Date.now() + idleMs) : null };
   }
 
   /**
-   * The one check idle logout makes, 5 minutes after sign-in: no sports bet, Originals bet or casino
-   * bet (Slotegrator / JSGames) in the last 5 minutes signs this session out. Off → nothing happens.
+   * The idle window in ms while idle logout is in force, else 0: the owner's flag (off unless set)
+   * AND the Super Admin's switch (on unless set); the length is `idle_logout_minutes`.
    */
-  async idleCheck({ id: userId, sessionId }) {
-    if (!sessionId || !(await this.#idleLogoutOn())) return { signedOut: false };
+  async #idleWindowMs() {
+    if (!(await this.entitlements.isFlagEntitled('idle_logout'))) return 0;
+    if (String(await this.settings.read('idle_logout', true)) === 'false') return 0;
+    const minutes = Number(await this.settings.read('idle_logout_minutes', IDLE_LOGOUT_MINUTES));
+    return (Number.isInteger(minutes) && minutes >= 1 && minutes <= 120 ? minutes : IDLE_LOGOUT_MINUTES) * 60_000;
+  }
 
-    const since = new Date(Date.now() - IDLE_LOGOUT_MS);
+  /** The newest row of the chain a session id belongs to (an access token may name an older one). */
+  async #chainHead(userId, sessionId) {
+    const seen = new Set();
+    let row = await this.models.AuthSession.findOne({ where: { id: sessionId, user_id: userId }, attributes: ['id', 'replaced_by', 'revoked_at', 'last_activity_at', 'created_at'] });
+    while (row?.replaced_by && !seen.has(row.id)) {
+      seen.add(row.id);
+      row = await this.models.AuthSession.findByPk(row.replaced_by, { attributes: ['id', 'replaced_by', 'revoked_at', 'last_activity_at', 'created_at'] });
+    }
+    return row;
+  }
+
+  /** Whether the player placed a sports, Originals or casino (Slotegrator / JSGames) bet since `since`. */
+  async #betSince(userId, since) {
     const [[{ bet }]] = await this.db.sequelize.query(
-      `SELECT EXISTS (SELECT 1 FROM mssports."SportsBet" WHERE user_id = :userId AND created_at >= :since)
-           OR EXISTS (SELECT 1 FROM og_transactions WHERE user_id = :userId AND kind = 'bet' AND created_at >= :since)
-           OR EXISTS (SELECT 1 FROM gis_transactions WHERE user_id = :userId AND action = 'bet' AND created_at >= :since)
-           OR EXISTS (SELECT 1 FROM js_game_transactions WHERE user_id = :userId AND transaction_type = 'bet' AND "timestamp" >= :since) AS bet`,
+      `SELECT ${BET_SINCE_SQL('CAST(:userId AS BIGINT)')} AS bet`,
       { replacements: { userId, since } }
     );
-    if (bet) return { signedOut: false };
+    return Boolean(bet);
+  }
+
+  /** `POST /activity`: the player site's heartbeat while the player interacts (≤ 1 a minute). */
+  async recordActivity({ id: userId, sessionId }) {
+    if (!sessionId) return { recorded: false };
+    const head = await this.#chainHead(userId, sessionId);
+    if (!head || head.revoked_at) return { recorded: false };
+    await this.models.AuthSession.update({ last_activity_at: new Date() }, { where: { id: head.id, revoked_at: null } });
+    return { recorded: true };
+  }
+
+  /**
+   * Idle logout's check: idle = no heartbeat AND no bet within the window → this session is signed
+   * out. Otherwise `nextCheckAt` is when it could next be idle. Off → nothing happens.
+   */
+  async idleCheck({ id: userId, sessionId }) {
+    const windowMs = sessionId ? await this.#idleWindowMs() : 0;
+    if (!windowMs) return { signedOut: false };
+
+    const head = await this.#chainHead(userId, sessionId);
+    const last = new Date(head?.last_activity_at ?? head?.created_at ?? 0).getTime();
+    if (last + windowMs > Date.now()) return { signedOut: false, nextCheckAt: new Date(last + windowMs) };
+    if (await this.#betSince(userId, new Date(Date.now() - windowMs))) return { signedOut: false, nextCheckAt: new Date(Date.now() + windowMs) };
 
     await this.revokeSession(userId, sessionId, 'idle_logout');
     return { signedOut: true };
   }
 
-  async #createSession(user, { ip, userAgent, deviceLabel }, transaction) {
+  /**
+   * The user-worker's sweep (job `auth:idle-logout-sweep`): the same rule for a closed tab or a
+   * client that never calls `/idle-check`. Each idle live chain head is revoked with the rows it
+   * was rotated from (an access token may still name one of them).
+   */
+  async sweepIdleSessions() {
+    const windowMs = await this.#idleWindowMs();
+    if (!windowMs) return { revoked: 0 };
+    const [rows] = await this.db.sequelize.query(
+      `WITH RECURSIVE idle AS (
+         SELECT s.id FROM auth_sessions s JOIN users u ON u.id = s.user_id
+          WHERE s.revoked_at IS NULL AND s.replaced_by IS NULL AND s.expires_at > NOW()
+            AND COALESCE(s.last_activity_at, s.created_at) < :since
+            AND NOT COALESCE(u.is_demo, false)
+            AND NOT (${BET_SINCE_SQL('s.user_id')})
+       ), chain AS (
+         SELECT id FROM idle
+         UNION SELECT p.id FROM auth_sessions p JOIN chain c ON p.replaced_by = c.id
+       )
+       UPDATE auth_sessions SET revoked_at = NOW(), revoked_reason = 'idle_logout', updated_at = NOW()
+        WHERE id IN (SELECT id FROM chain) AND revoked_at IS NULL
+       RETURNING id`,
+      { replacements: { since: new Date(Date.now() - windowMs) } }
+    );
+    if (rows.length) this.logger?.info({ revoked: rows.length }, 'Idle sessions signed out');
+    return { revoked: rows.length };
+  }
+
+  async #createSession(user, { ip, userAgent, deviceLabel, lastActivityAt }, transaction) {
     const refreshToken = randomToken(48);
     // A demo account's session (and every access token) ends with the demo.
     const expiresAt = user.is_demo ? new Date(user.demo_expires_at) : new Date(Date.now() + SESSION_TTL_DAYS * 24 * 3600 * 1000);
@@ -1230,6 +1296,7 @@ class AuthService {
         device_label: deviceLabel || null,
         expires_at: expiresAt,
         last_used_at: new Date(),
+        last_activity_at: lastActivityAt ?? new Date(),
       },
       { transaction }
     );

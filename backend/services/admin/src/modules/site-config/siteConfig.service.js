@@ -146,9 +146,11 @@ const OPERATOR_SETTINGS = Object.freeze({
   login_max_attempts: { env: 'LOGIN_MAX_ATTEMPTS', kind: 'number', min: 1, max: 50, label: 'Failed logins before a lock' },
   login_lock_minutes: { env: 'LOGIN_LOCK_MINUTES', kind: 'number', min: 1, max: 1440, label: 'Lock lasts (minutes)' },
   max_active_sessions: { env: 'MAX_ACTIVE_SESSIONS', kind: 'number', min: 1, max: 100, label: 'Sessions per player' },
-  // Read by user-service's AuthService, with the owner's `idle_logout` flag (both on = in force): 5
-  // minutes after sign-in a player with no sports / Originals / casino bet in them is signed out.
-  idle_logout: { env: 'IDLE_LOGOUT', kind: 'boolean', default: true, label: 'Sign a player out who places no bet in the first 5 minutes' },
+  // Read by user-service's AuthService, with the owner's `idle_logout` flag (both on = in force): a
+  // session with no activity (the player site's heartbeat) and no sports / Originals / casino bet
+  // for `idle_logout_minutes` is signed out.
+  idle_logout: { env: 'IDLE_LOGOUT', kind: 'boolean', default: true, label: 'Sign a player out after N minutes with no activity' },
+  idle_logout_minutes: { env: 'IDLE_LOGOUT_MINUTES', kind: 'number', min: 1, max: 120, default: 5, label: 'Minutes with no activity before the sign-out (N)' },
 
   // Read by user-service's PlayerBonusService (user, 2026-10-28). The lock is in force only while
   // the owner's `bonus.wagering_lock` is on too; the forfeit pair is the withdraw popup's copy.
@@ -1098,6 +1100,13 @@ class SiteConfigService {
     flags.demo_login = entitlements.flagOnIn(planDoc, 'demo_login');
     // The owner's Languages switches: the player site offers only these.
     const languages = SITE_LANGUAGES.filter((code) => entitlements.flagOnIn(planDoc, `lang_${code}`));
+    // Idle logout in force (owner flag AND Super Admin switch): its minutes, for the player site's
+    // activity tracker; null = off, so the site sends no heartbeat.
+    const ops = Object.fromEntries((await this.operatorSettings()).map((s) => [s.key, s.value]));
+    const idleMinutes = Number(ops.idle_logout_minutes);
+    const idleLogoutMinutes = entitlements.flagOnIn(planDoc, 'idle_logout') && String(ops.idle_logout) !== 'false'
+      ? (Number.isInteger(idleMinutes) && idleMinutes >= 1 && idleMinutes <= 120 ? idleMinutes : 5)
+      : null;
 
     const amounts = Object.fromEntries(
       PUBLIC_AMOUNTS.map((name) => [name, this.#amount(row?.[name])])
@@ -1125,6 +1134,7 @@ class SiteConfigService {
       ...flags,
       ...amounts,
       languages,
+      idleLogoutMinutes,
       registerBonusEnabled,
       // A browser can say "your friend must deposit" next to the joining bonus.
       affiliateBonusRequiresDeposit: row ? row.affiliate_bonus_requires_deposit !== false : true,

@@ -37,6 +37,8 @@ module.exports = (sequelize) => {
       revoked_at: { type: DataTypes.DATE, allowNull: true, field: 'revoked_at' },
       revoked_reason: { type: DataTypes.STRING(64), allowNull: true, field: 'revoked_reason' },
       last_used_at: { type: DataTypes.DATE, allowNull: true, field: 'last_used_at' },
+      // Migration 181: the player's last interaction on this session (idle logout).
+      last_activity_at: { type: DataTypes.DATE, allowNull: true, field: 'last_activity_at' },
     },
     {
       sequelize,

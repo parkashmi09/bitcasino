@@ -59,8 +59,8 @@ const GROUPS: { title: string; hint: string; keys: string[] }[] = [
   },
   {
     title: 'User accounts',
-    hint: 'How a sign-in locks, how many sessions a user keeps, whether a player with no bet is signed out 5 minutes after sign-in, and whether an email must be verified before money moves.',
-    keys: ['login_max_attempts', 'login_lock_minutes', 'max_active_sessions', 'idle_logout']
+    hint: 'How a sign-in locks, how many sessions a user keeps, whether a player with no activity on the site (no interaction and no bet) for N minutes is signed out, and whether an email must be verified before money moves.',
+    keys: ['login_max_attempts', 'login_lock_minutes', 'max_active_sessions', 'idle_logout', 'idle_logout_minutes']
   },
   {
     title: 'Bonus',
@@ -86,7 +86,7 @@ const GROUPS: { title: string; hint: string; keys: string[] }[] = [
 ]
 
 /** A setting that is the Super Admin's only while the owner has its flag on (owner panel → Player sessions). */
-const OWNER_FLAG: Record<string, string> = { idle_logout: 'idle_logout' }
+const OWNER_FLAG: Record<string, string> = { idle_logout: 'idle_logout', idle_logout_minutes: 'idle_logout' }
 
 const OperatorSettings = () => {
   const { can, flagEntitled } = useSession()
