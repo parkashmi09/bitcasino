@@ -35,13 +35,22 @@ const PURPOSE = Object.freeze({
    * player is moving TO, which by definition has no account on it.
    */
   CHANGE_EMAIL: 'change-email',
+  /**
+   * Proving the address already on the account (sets `users.email_verified_at`). Only through the
+   * signed-in `POST /user/email/verify/*` routes, never the public `/otp` ones: the code goes to
+   * the account's own address, not one from the request.
+   */
+  VERIFY_EMAIL: 'verify-email',
 });
 
 const PURPOSES = Object.freeze(Object.values(PURPOSE));
 
+/** What the public `/email/otp` routes accept: `verify-email` is signed-in only. */
+const PUBLIC_PURPOSES = Object.freeze(PURPOSES.filter((p) => p !== PURPOSE.VERIFY_EMAIL));
+
 /** Purposes that require an existing account. `register` is the exception. */
 const REQUIRES_ACCOUNT = Object.freeze(
-  new Set([PURPOSE.LOGIN, PURPOSE.RESET_PASSWORD, PURPOSE.RESET_2FA])
+  new Set([PURPOSE.LOGIN, PURPOSE.RESET_PASSWORD, PURPOSE.RESET_2FA, PURPOSE.VERIFY_EMAIL])
 );
 
 /**
@@ -92,6 +101,7 @@ const OTP_PROOF_TTL_SECONDS = 300;
 module.exports = {
   PURPOSE,
   PURPOSES,
+  PUBLIC_PURPOSES,
   REQUIRES_ACCOUNT,
   OTP_TTL_SECONDS,
   OTP_MAX_ATTEMPTS,

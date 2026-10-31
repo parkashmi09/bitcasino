@@ -6,6 +6,7 @@ const { verifyPassword, assertPlayerCapability } = require('@ibitplay/auth');
 
 const errors = require('./cryptoWithdraw.errors');
 const { COIN_COLUMNS } = require('./cryptoWithdraw.constants');
+const { assertDepositEmailVerified } = require('../email/depositGate');
 const { CryptoWithdrawService } = require('./cryptoWithdraw.service');
 const { networksFor } = require('../crypto/crypto.networks');
 const { SwapService } = require('../swap/swap.service');
@@ -221,6 +222,8 @@ function register({ on, deps }) {
         // Agent-tree players are funded by their agent only — no deposit rail.
         await assertPlayerCapability(context.userId, 'deposit');
         await sitePolicy.assertAllowed(models, 'deposit_mode', 'automatic', logger);
+        // The owner's deposit_email_verification: EMAIL_NOT_VERIFIED until the email is verified.
+        await assertDepositEmailVerified(models, context.userId);
         // An owner-created coin has no deposit address: CURRENCY_NOT_SUPPORTED_FOR_DEPOSIT.
         assertCurrencySupportedFor('DEPOSIT', currency);
       } catch (error) {

@@ -171,7 +171,7 @@ class ProfileService {
         attributes: [
           'id', 'name', 'email', 'phone', 'country', 'avatar', 'level',
           'referalcode', 'referral_link', 'status', 'two_fa_status',
-          'games_played', 'last_login_at', 'created', 'created_estimated',
+          'games_played', 'last_login_at', 'created', 'created_estimated', 'email_verified_at',
         ],
         raw: true,
       }),
@@ -183,6 +183,8 @@ class ProfileService {
       id: user.id,
       username: user.name,
       email: user.email,
+      /** Migration 180: the player proved this address (the owner's deposit_email_verification reads it). */
+      emailVerified: Boolean(user.email_verified_at),
       phone: user.phone,
       country: user.country,
       avatar: user.avatar,
@@ -306,7 +308,8 @@ class ProfileService {
     const proved = await proveEmail({ email: address });
     if (!proved) throw errors.EMAIL_NOT_VERIFIED({ email: address });
 
-    await user.update({ email: address });
+    // The spent `change-email` code proved the new address, so it counts as verified.
+    await user.update({ email: address, email_verified_at: new Date() });
 
     this.logger?.warn({ userId, email: address }, 'Account email changed');
     return this.get(userId);

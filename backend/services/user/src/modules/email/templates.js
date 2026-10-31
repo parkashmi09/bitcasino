@@ -49,6 +49,7 @@ const SHELL = ({ heading, body, footer }) => `<!DOCTYPE html>
 
 const PURPOSE_COPY = {
   register: { heading: 'Confirm your email', message: 'Use this code to finish creating your account.' },
+  'verify-email': { heading: 'Verify your email', message: 'Use this code to verify the email address on your account.' },
   login: { heading: 'Sign-in code', message: 'Use this code to sign in.' },
   'reset-password': { heading: 'Reset your password', message: 'Use this code to set a new password.' },
   'reset-2fa': {

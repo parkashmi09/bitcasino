@@ -353,12 +353,16 @@ class AuthService {
         // migration 161-demo-users: sent as `demo` / `demoExpiresAt`
         'is_demo', 'demo_expires_at',
         'must_change_password',
+        // migration 180: sent as `emailVerified`
+        'email_verified_at',
       ],
       raw: true,
     });
 
     if (!user) throw errors.SESSION_NOT_FOUND();
     user.mustChangePassword = Boolean(user.must_change_password);
+    user.emailVerified = Boolean(user.email_verified_at);
+    delete user.email_verified_at;
     delete user.must_change_password;
     user.withdraw_locked = Boolean(user.withdraw_locked);
     const systemLocked = Boolean(user.system_locked);
@@ -671,7 +675,8 @@ class AuthService {
           status: 'active',
           created: new Date(),
           last_ip: ip ?? null,
-          ...(googleSub ? { google_sub: googleSub } : {}),
+          // Google only signs in a verified address (google.js), so that address counts as verified.
+          ...(googleSub ? { google_sub: googleSub, email_verified_at: new Date() } : {}),
           ...(demoExpiresAt ? { is_demo: true, demo_expires_at: demoExpiresAt } : {}),
         },
         { transaction }
@@ -756,7 +761,10 @@ class AuthService {
 
   async #googleUser({ sub, email }, context) {
     const linked = await this.models.Users.findOne({ where: { google_sub: sub } });
-    if (linked) return linked;
+    if (linked) {
+      if (!linked.email_verified_at && String(linked.email ?? '').toLowerCase() === String(email).toLowerCase()) await linked.update({ email_verified_at: new Date() });
+      return linked;
+    }
     const holder = await this.models.Users.findOne({ where: { email }, attributes: ['id'], raw: true });
     if (holder) throw errors.GOOGLE_EMAIL_IN_USE();
     await sitePolicy.assertAllowed(this.models, 'business_model', 'public_signup', this.logger);

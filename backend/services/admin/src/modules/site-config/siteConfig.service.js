@@ -149,7 +149,6 @@ const OPERATOR_SETTINGS = Object.freeze({
   // Read by user-service's AuthService, with the owner's `idle_logout` flag (both on = in force): 5
   // minutes after sign-in a player with no sports / Originals / casino bet in them is signed out.
   idle_logout: { env: 'IDLE_LOGOUT', kind: 'boolean', default: true, label: 'Sign a player out who places no bet in the first 5 minutes' },
-  require_email_verification: { env: 'REQUIRE_EMAIL_VERIFICATION', kind: 'boolean', label: 'Verify email before transacting' },
 
   // Read by user-service's PlayerBonusService (user, 2026-10-28). The lock is in force only while
   // the owner's `bonus.wagering_lock` is on too; the forfeit pair is the withdraw popup's copy.

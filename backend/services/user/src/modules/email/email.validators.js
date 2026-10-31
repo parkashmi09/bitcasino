@@ -2,19 +2,19 @@
 
 const { z } = require('@ibitplay/common');
 
-const { PURPOSES, OTP_LENGTH } = require('./email.constants');
+const { PUBLIC_PURPOSES, OTP_LENGTH } = require('./email.constants');
 
 const email = z.string().trim().toLowerCase().email().max(190);
 
 const requestOtp = {
-  body: z.object({ email, purpose: z.enum(PURPOSES) }).strict(),
+  body: z.object({ email, purpose: z.enum(PUBLIC_PURPOSES) }).strict(),
 };
 
 const verifyOtp = {
   body: z
     .object({
       email,
-      purpose: z.enum(PURPOSES),
+      purpose: z.enum(PUBLIC_PURPOSES),
       // Exactly the code, not a prefix of one. Legacy compared whatever arrived.
       code: z.string().trim().regex(new RegExp(`^\\d{${OTP_LENGTH}}$`), `code must be ${OTP_LENGTH} digits`),
     })
@@ -56,4 +56,11 @@ const sendBulk = {
     .strict(),
 };
 
-module.exports = { requestOtp, verifyOtp, resetTwoFactor, confirmTwoFactor, sendToPlayer, sendBulk };
+/** `POST /user/email/verify/confirm`: the code only — the address is the account's own. */
+const confirmVerifyEmail = {
+  body: z
+    .object({ code: z.string().trim().regex(new RegExp(`^\\d{${OTP_LENGTH}}$`), `code must be ${OTP_LENGTH} digits`) })
+    .strict(),
+};
+
+module.exports = { confirmVerifyEmail, requestOtp, verifyOtp, resetTwoFactor, confirmTwoFactor, sendToPlayer, sendBulk };

@@ -155,7 +155,8 @@ class EmailService {
 
     const result = await this.mailer.send({ to: address, ...renderOtp({ code, purpose, ttlSeconds: OTP_TTL_SECONDS }) });
 
-    if (!result.sent) {
+    // MAIL_DRY_RUN (never production): the mailer logged the message, code included, instead of sending.
+    if (!result.sent && !result.dryRun) {
       // The code exists but nobody can read it. Reported, because "we sent it"
       // when we did not is what makes a player wait for an email that is not
       // coming.
@@ -243,6 +244,30 @@ class EmailService {
    */
   async spendProof({ email, purpose }) {
     return this.#consumeProof(this.#normaliseEmail(email), purpose);
+  }
+
+  // ══════════════════════════════════════════════════════════════════════
+  //  Verifying the account's own address (`users.email_verified_at`)
+  // ══════════════════════════════════════════════════════════════════════
+
+  /** `POST /user/email/verify/request` — a `verify-email` code to the address on the account. */
+  async requestEmailVerification({ userId, ip }) {
+    const user = await this.models.Users.findByPk(userId, { attributes: ['email', 'email_verified_at'], raw: true });
+    if (user?.email_verified_at) return { requested: false, emailVerified: true };
+    if (!user?.email) throw E.NO_ADDRESS();
+    return this.requestOtp({ email: user.email, purpose: PURPOSE.VERIFY_EMAIL, ip });
+  }
+
+  /** `POST /user/email/verify/confirm` — the code, then the proof spent once, then the stamp. */
+  async confirmEmailVerification({ userId, code }) {
+    const user = await this.models.Users.findByPk(userId, { attributes: ['id', 'email', 'email_verified_at'] });
+    if (user?.email_verified_at) return { emailVerified: true };
+    if (!user?.email) throw E.NO_ADDRESS();
+    await this.verifyOtp({ email: user.email, code, purpose: PURPOSE.VERIFY_EMAIL });
+    if (!(await this.#consumeProof(this.#normaliseEmail(user.email), PURPOSE.VERIFY_EMAIL))) throw E.OTP_INVALID();
+    await user.update({ email_verified_at: new Date() });
+    this.logger?.info({ userId: String(userId) }, 'Player email verified');
+    return { emailVerified: true };
   }
 
   // ══════════════════════════════════════════════════════════════════════

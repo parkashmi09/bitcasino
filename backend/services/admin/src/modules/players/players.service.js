@@ -165,6 +165,8 @@ class PlayersService {
     const changes = {};
     if (username !== undefined) changes.name = username;
     if (email !== undefined) changes.email = email;
+    // A new address is unproven: the player verifies it again (migration 180).
+    if (email !== undefined && String(email ?? '').toLowerCase() !== String(player.email ?? '').toLowerCase()) changes.email_verified_at = null;
     if (phone !== undefined) changes.phone = phone;
     if (country !== undefined) changes.country = country;
 
@@ -484,7 +486,7 @@ class PlayersService {
           ? { [Op.or]: [{ parent_staff_id: tree }, { parent_staff_id: null, is_demo: false }] }
           : { parent_staff_id: tree }),
       },
-      attributes: ['id', 'name', 'status', 'parent_staff_id'],
+      attributes: ['id', 'name', 'status', 'parent_staff_id', 'email'],
       raw: true,
     });
 

@@ -56,6 +56,8 @@ const EXTENSIONS = {
   // Legacy created these with an ALTER TABLE run on every request that touched
   // the targetX endpoints, so they never reached the baseline schema.
   Users: {
+    // ── migration 180-user-email-verified: when the player proved `email` (deposit_email_verification).
+    email_verified_at: { type: DataTypes.DATE, allowNull: true, field: 'email_verified_at' },
     // ── migration 178-player-must-change-password: a password an upline chose.
     must_change_password: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: false, field: 'must_change_password' },
     // ── migration 119-google-login: the Google account (`sub`) this player signs in with.

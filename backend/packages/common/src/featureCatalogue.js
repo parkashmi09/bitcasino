@@ -962,7 +962,26 @@ const WHITELABEL_POLICY = {
   ],
 };
 
-const FEATURES = Object.freeze([...POLICIES, REWARD_CURRENCY_POLICY, DEFAULT_CURRENCY_POLICY, REGION_RESTRICTION_POLICY, WITHDRAWAL_REQUIREMENTS_POLICY, CASINO_AGGREGATOR_POLICY, THEME_MODE_POLICY, ADMIN_THEME_POLICY, SLOTEGRATOR_INR_AS_PKR_POLICY, API_ENCRYPTION_POLICY, RATE_LIMIT_POLICY, BRANCH_MANAGEMENT_POLICY, WHITELABEL_POLICY, ...GENERATED, TIPS, P2P, PUSH_NOTIFICATIONS, ANALYTICS]);
+/**
+ * Deposit email verification — a policy (owner-only). `none` (the default): deposits open as
+ * before; `required`: every deposit entry point (fiat, payment orders, crypto address, P2P buy)
+ * answers 403 EMAIL_NOT_VERIFIED until the player confirms a `verify-email` code sent to the
+ * account's own address (user-service modules/email/depositGate.js, migration 180).
+ */
+const DEPOSIT_EMAIL_VERIFICATION_POLICY = {
+  key: 'deposit_email_verification',
+  label: 'Deposit: email must be verified first',
+  category: 'business',
+  kind: 'policy',
+  flag: null,
+  defaultVariant: 'none',
+  variants: [
+    { key: 'none', label: 'Off', description: 'Players deposit without verifying their email. The default.' },
+    { key: 'required', label: 'Required', description: 'A player must verify their email (a code sent to the account\'s address) before any deposit is accepted.' },
+  ],
+};
+
+const FEATURES = Object.freeze([...POLICIES, REWARD_CURRENCY_POLICY, DEFAULT_CURRENCY_POLICY, REGION_RESTRICTION_POLICY, WITHDRAWAL_REQUIREMENTS_POLICY, CASINO_AGGREGATOR_POLICY, THEME_MODE_POLICY, ADMIN_THEME_POLICY, SLOTEGRATOR_INR_AS_PKR_POLICY, API_ENCRYPTION_POLICY, RATE_LIMIT_POLICY, BRANCH_MANAGEMENT_POLICY, WHITELABEL_POLICY, DEPOSIT_EMAIL_VERIFICATION_POLICY, ...GENERATED, TIPS, P2P, PUSH_NOTIFICATIONS, ANALYTICS]);
 
 /**
  * Site templates — the bundles the OWNER picks for a site (docs/OWNER-PANEL.md
