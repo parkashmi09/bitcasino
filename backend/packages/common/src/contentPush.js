@@ -21,6 +21,7 @@ const CONTENT_SCOPES = Object.freeze(
     'admin:promotions',
     'admin:branding',
     'admin:vip-branding',
+    'admin:site-content',
     'admin:original-games',
     // casino-service: catalogue, lobby categories / collections, providers, images, challenges
     'casino:games',

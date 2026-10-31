@@ -547,6 +547,7 @@ export const navItems: NavItem[] = [
     items: [
       { icon: 'ToggleRight', label: 'Features', href: '/site-config/features', permission: 'config:read' },
       { icon: 'Palette', label: 'Branding', href: '/site-config/branding', permission: 'config:read' },
+      { icon: 'Newspaper', label: 'Content', href: '/site-config/content', permission: 'config:read' },
       { icon: 'Flag', label: 'Feature flags', href: '/site-config/flags', permission: 'config:read' },
       { icon: 'Gauge', label: 'Limits and policy', href: '/site-config/limits', permission: 'config:read' },
     ]
