@@ -639,7 +639,7 @@ export const FLAG_GROUPS: FlagGroup[] = [
   },
   {
     title: 'Player sessions',
-    description: 'ON: 5 minutes after a player signs in, the site checks once for a sports, Originals or casino bet in those 5 minutes; none signs the player out. The site admin can switch it off.',
+    description: 'ON: a signed-in player with no activity on the site (no interaction and no sports, Originals or casino bet) for N minutes is signed out. The site admin sets N (default 5) and can switch it off.',
     keys: ['idle_logout']
   },
   {
@@ -727,7 +727,7 @@ export const FLAG_LABELS: Record<string, string> = {
   gateway_f2pay: 'F2Pay (deposits)',
   f2pay_inr: 'INR (UPI)',
   f2pay_usdt: 'Crypto (USDT, TRC20)',
-  idle_logout: 'Idle logout (no bet in the first 5 minutes after sign-in)',
+  idle_logout: 'Idle logout (signed out after N minutes with no activity)',
   demo_login: 'Demo login (agent Sign In: ₹1500, sports only, 30 minutes)',
   google_login: 'Sign in with Google',
   lang_en: 'English',
