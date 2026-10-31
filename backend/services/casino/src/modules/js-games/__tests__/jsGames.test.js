@@ -646,6 +646,20 @@ test('jsGames', async (t) => {
     assert.equal(result.code, CODE.SUCCESS);
     assert.equal(balances.get(String(uid)), '115.00000000', 'net +15');
 
+    const refused = await service.betCallbackV1(
+      v1Callback({
+        member_account: `h24e9e_USDT_${uid}`,
+        currency_code: 'USDT',
+        bet_amount: '0',
+        win_amount: '500',
+        serial_number: newSerial(),
+        game_round: `no-bet-${serial}`,
+        game_uid: 'g1',
+      })
+    );
+    assert.notEqual(refused.code, CODE.SUCCESS, 'a win alone in a round with no stake pays nothing');
+    assert.equal(balances.get(String(uid)), '115.00000000');
+
     const row = await models.JsGameTransactions.findOne({ where: { serial_number: serial }, raw: true });
     assert.ok(row, 'and it left a record — legacy left none');
     assert.equal(row.transaction_type, 'settle');

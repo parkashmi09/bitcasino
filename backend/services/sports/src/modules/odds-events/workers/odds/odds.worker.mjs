@@ -17,7 +17,9 @@ var runAllEventsCron = async () => {
       try {
         const cachedMatches = await redisClient_default.get(`alleventss:${sportId}`);
         if (!cachedMatches) return { sportId, matches: [] };
-        const matches = JSON.parse(cachedMatches);
+        const cached = JSON.parse(cachedMatches);
+        // The events worker (and CricketService) store { t1, t2, t3 }, not a bare array.
+        const matches = Array.isArray(cached) ? cached : [...cached?.t1 ?? [], ...cached?.t2 ?? [], ...cached?.t3 ?? []];
         const gmids = [
           ...new Set(
             matches.filter((match) => match && match.gmid).map((match) => match.gmid)
@@ -38,7 +40,8 @@ var runAllEventsCron = async () => {
           const endpoint = `/gamedataPrivate?etid=${sportId}&gmid=${gmid}`;
           try {
             const response = await fetchSportsData(endpoint);
-            const oddsData = response?.data || {};
+            // The old mirror answered { data: [...] }; AVRKHUB answers { data: { data: [...] } }.
+            const oddsData = Array.isArray(response?.data) ? response.data : response?.data?.data || {};
             if (Array.isArray(oddsData) && oddsData.length > 0) {
               await redisClient_default.setex(
                 `oddss:${gmid}`,

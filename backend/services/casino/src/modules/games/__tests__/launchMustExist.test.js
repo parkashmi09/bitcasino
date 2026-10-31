@@ -3,6 +3,8 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 
+const { entitlements } = require('@ibitplay/common');
+
 const { requireGameEntitled } = require('../gameEntitlement');
 
 const none = { findOne: async () => null };
@@ -29,4 +31,13 @@ test("book launch: refused while the site admin's Sports switch is off, even wit
   assert.equal(off?.code, 'FEED_SPORTS_DISABLED');
   assert.equal(off?.status, 503);
   assert.equal(await run(guardWith(false), luckySports), null);
+});
+
+test('launch guard: the site admin casino switch stops casino games, not the books', async () => {
+  entitlements.configureEntitlements({ read: () => ({ features: {}, flags: { casino: true, sports: true, sportsbook: true }, version: 1, fetchedAt: null, source: 'test' }) });
+  const off = { findOne: async () => ({ casino: false }) };
+  const models = { Gisgamesnew: none, JsGames: none, Siteconfig: off };
+  const guard = requireGameEntitled({ models, config: { SPORTS_BOOK_GAME_UIDS: 'book-uid' } }, (req) => ({ uid: req.body.gameUuid }));
+  assert.equal((await run(guard, 'some-slot'))?.code, 'GAMES_PROVIDER_DISABLED');
+  assert.equal(await run(guard, 'book-uid'), null);
 });

@@ -29,6 +29,12 @@ module.exports = function userRoutes(deps) {
         showBetsPublicly: z.boolean().optional(),
         showStatistics: z.boolean().optional(),
         tipNotifications: z.boolean().optional(),
+        // Plain booleans: z.coerce would read the string "false" as true.
+        hideGamingData: z.boolean().optional(),
+        hideUsername: z.boolean().optional(),
+        maxProfitAlert: z.boolean().optional(),
+        depositEmail: z.boolean().optional(),
+        withdrawEmail: z.boolean().optional(),
       })
       .strict(),
   };

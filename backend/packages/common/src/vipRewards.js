@@ -165,9 +165,10 @@ function periodicAmount(card, type) {
   return '0';
 }
 
-/** `card` matters only on the Loyalty Club ladder, whose level numbers are not the platform's. */
+/** `card` decides on the Loyalty Club ladder, whose level numbers are not the platform's, and for a level the admin added. */
 function levelUpAmount(level, card) {
-  return (LOYALTY_CARDS[card] ? rewardsForCard(card) : rewardsForLevel(level)).levelUp;
+  const byCard = LOYALTY_CARDS[card] || !VIP_LEVELS.some((b) => b.level === level);
+  return (byCard ? rewardsForCard(card) : rewardsForLevel(level)).levelUp;
 }
 
 function rankUpAmount(card) {

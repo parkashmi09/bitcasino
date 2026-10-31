@@ -6,7 +6,9 @@ import http from "http";
 import https from "https";
 import dns from "dns";
 import pLimit from "p-limit";
-var SPORTS_BASE_URL = "http://167.71.224.37:9000";
+// The AVRKHUB feed (keyed) when configured; else the IP-allowlisted mirror the export shipped with.
+var AVRKHUB_KEY = process.env.AVRKHUB_SPORTS_BASE_URL ? process.env.AVRKHUB_SPORTS_KEY : "";
+var SPORTS_BASE_URL = (process.env.AVRKHUB_SPORTS_BASE_URL || "http://167.71.224.37:9000").replace(/\/+$/, "");
 var SPORTS_API_KEY = env_default.SPORTS_API_KEY;
 var agent = {
   http: new http.Agent({
@@ -98,7 +100,7 @@ var requestConfig = {
 var fetchSportsData = async (endpoint) => {
   const cached = getCache(endpoint);
   if (cached) return cached;
-  const url = SPORTS_BASE_URL + endpoint;
+  const url = SPORTS_BASE_URL + endpoint + (AVRKHUB_KEY ? `${endpoint.includes("?") ? "&" : "?"}key=${encodeURIComponent(AVRKHUB_KEY)}` : "");
   const res = await got(url, {
     ...requestConfig,
     timeout: { ...requestConfig.timeout, request: 3200 }

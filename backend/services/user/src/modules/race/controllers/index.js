@@ -91,7 +91,7 @@ function createControllers({ service }) {
     startTestRace: asyncHandler(async (req, res) => response.created(res, await service.startTestRace(req.body))),
 
     /** Staff view of the open board: the same standings players see, real ids included. */
-    adminLeaderboard: asyncHandler(async (req, res) => response.ok(res, await service.leaderboard({ type: req.params.type }))),
+    adminLeaderboard: asyncHandler(async (req, res) => response.ok(res, await service.leaderboard({ type: req.params.type, staff: true }))),
 
     listBoats: asyncHandler(async (_req, res) => response.ok(res, await service.listBoats())),
     addBoat: asyncHandler(async (req, res) => response.created(res, await service.addBoat(req.body))),

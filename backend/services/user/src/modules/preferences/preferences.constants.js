@@ -29,6 +29,12 @@ const DEFAULTS = Object.freeze({
   showBetsPublicly: true,
   showStatistics: true,
   tipNotifications: true,
+  // Settings → Preferences (migration 177; hash numbers it 167): privacy off, the alert and both emails on.
+  hideGamingData: false,
+  hideUsername: false,
+  maxProfitAlert: true,
+  depositEmail: true,
+  withdrawEmail: true,
 });
 
 /** An enum, not free text — the column is what a client renders from. */

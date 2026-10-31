@@ -194,6 +194,16 @@ test('original games aggregator', async (t) => {
     assert.strictEqual(balances.get(`${uid}:INR`), '1');
   });
 
+  await t.test('a win naming a round with no bet of this player is refused', async () => {
+    const uid = await player('10');
+    const refused = await call('win', { player_id: String(uid), currency: 'INR', transaction_id: newTx(), amount: 500, round_id: newTx() });
+    assert.notStrictEqual(refused.body.status, 'OK');
+    const round = newTx();
+    await call('bet', { player_id: String(uid), currency: 'INR', transaction_id: newTx(), amount: 100, round_id: round, game_code: 'g' });
+    const paid = await call('win', { player_id: String(uid), currency: 'INR', transaction_id: newTx(), amount: 300, round_id: round, game_code: 'g' });
+    assert.strictEqual(paid.body.status, 'OK');
+  });
+
   await t.test('wallet.zero_win and win credit', async () => {
     const uid = await player('10');
     const zero = await call('win', { player_id: String(uid), currency: 'INR', transaction_id: newTx(), amount: 0, is_round_end: true });

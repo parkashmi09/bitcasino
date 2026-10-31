@@ -651,6 +651,7 @@ test('a switched-off race still ranks today with no prizes', async () => {
       Race: { findOne: async () => null },
       Exchangerate: { findAll: async () => [{ currency: 'INR', usd_rate: '0.012' }] },
       Users: { findAll: async () => [{ id: 7, name: 'p7' }, { id: 8, name: 'p8' }] },
+      Userconfig: { findAll: async () => [] },
     },
     logger: createLogger({ name: 'race-test', level: 'silent' }),
     config: { RACE_TIMEZONE: IST },
@@ -683,6 +684,36 @@ test('a switched-off race still ranks today with no prizes', async () => {
   assert.strictEqual(board.me.usdWagered, '34.80000000');
 });
 
+test('"Hide my username from public lists": players see ****, staff see the name', async () => {
+  const row = {
+    type: 'daily', enabled: false, prize_pool: '100', platform_fee_percent: '0', winner_count: 3,
+    top3_percentage: '60', min_points: '0', currency: 'USDT', rank_percentage: [],
+    sports_points: '1', casino_points: '1', slot_points: '1', crash_points: '1', other_points: '1',
+  };
+  const service = new RaceService({
+    models: {
+      RaceConfig: { findOne: async () => row },
+      Race: { findOne: async () => null },
+      Exchangerate: { findAll: async () => [] },
+      Users: { findAll: async () => [{ id: 7, name: 'p7' }, { id: 8, name: 'p8' }] },
+      Userconfig: { findAll: async ({ where }) => (where.hide_username ? [{ uid: 8 }] : []) },
+    },
+    logger: createLogger({ name: 'race-test', level: 'silent' }),
+    config: { RACE_TIMEZONE: IST },
+    clients: {
+      casino: { get: async () => ({ rows: [{ userId: '7', bucket: 'other', currency: 'USDT', amount: '5', bets: 1 }, { userId: '8', bucket: 'other', currency: 'USDT', amount: '9', bets: 1 }] }) },
+      sports: { get: async () => ({ rows: [] }) },
+    },
+    wallet: {},
+    rewardMoney: { fromUsd: async (usd) => ({ currency: 'USDT', amount: usd, usd }), toUsd: async (a) => a },
+  });
+
+  const players = await service.leaderboard({ type: 'daily' });
+  assert.deepStrictEqual(players.leaderboard.map((r) => [r.userId, r.name]), [['8', '****'], ['7', 'p7']]);
+  const staff = await service.leaderboard({ type: 'daily', staff: true });
+  assert.deepStrictEqual(staff.leaderboard.map((r) => [r.userId, r.name]), [['8', 'p8'], ['7', 'p7']]);
+});
+
 test('an agent-tree player is not on the board at all, only direct users are', async () => {
   const row = {
     type: 'daily', enabled: false, prize_pool: '0', platform_fee_percent: '0', winner_count: 3,
@@ -696,6 +727,7 @@ test('an agent-tree player is not on the board at all, only direct users are', a
       Race: { findOne: async () => null },
       Exchangerate: { findAll: async () => [] },
       Users: { findAll: async ({ where }) => users.filter((u) => !('parent_staff_id' in where) || u.parent_staff_id === where.parent_staff_id) },
+      Userconfig: { findAll: async () => [] },
     },
     logger: createLogger({ name: 'race-test', level: 'silent' }),
     config: { RACE_TIMEZONE: IST },
@@ -727,6 +759,7 @@ test("the board prints each rank's share on a 0 pool; Last Champion is the last 
       RaceReward: { findAll: async () => (settledRace ? [{ user_id: '8', rank: 1, points: '9', amount: '5', currency: 'USDT' }] : []) },
       Exchangerate: { findAll: async () => [] },
       Users: { findAll: async () => [{ id: 7, name: 'p7' }, { id: 8, name: 'p8' }] },
+      Userconfig: { findAll: async () => [] },
     },
     logger: createLogger({ name: 'race-test', level: 'silent' }),
     config: { RACE_TIMEZONE: IST },
@@ -809,6 +842,7 @@ test('booked seats: a pinned boat takes its rank, an inactive pinned boat falls 
         },
         Exchangerate: { findAll: async () => [] },
         Users: { findAll: async () => [{ id: 7, name: 'p7' }, { id: 8, name: 'p8' }, { id: 9, name: 'p9' }] },
+        Userconfig: { findAll: async () => [] },
       },
       logger: createLogger({ name: 'race-test', level: 'silent' }),
       config: { RACE_TIMEZONE: IST },

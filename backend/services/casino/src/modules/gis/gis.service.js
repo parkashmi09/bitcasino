@@ -262,6 +262,21 @@ class GisService {
   }
 
   async #win({ body, userId, settlement, amount, balance }) {
+    // A plain win names its round: no stake from this player in that round, no payout.
+    // Free spins and jackpots have no stake, and the provider may leave round_id out.
+    const plainWin = !body.freespin_id && (body.type == null || body.type === 'win');
+    if (plainWin && body.round_id != null && !money.isZero(amount)) {
+      const bet = await this.models.GisTransactions.findOne({
+        where: { user_id: userId, round_id: String(body.round_id), action: ACTION.BET },
+        attributes: ['id'],
+        raw: true,
+      });
+      if (!bet) {
+        this.logger?.error({ playerId: userId, roundId: body.round_id, amount }, 'GIS win refused: no bet in this round');
+        return this.#fail('No bet for this round');
+      }
+    }
+
     const response = await this.#apply({
       body,
       userId,
@@ -313,7 +328,7 @@ class GisService {
     if (!betId) return this.#fail('bet_transaction_id is required for a refund');
 
     const bet = await this.models.GisTransactions.findOne({
-      where: { transaction_id: betId, action: ACTION.BET },
+      where: { transaction_id: betId, action: ACTION.BET, user_id: userId, currency: settlement },
       raw: true,
     });
 
@@ -327,15 +342,20 @@ class GisService {
       return { balance: this.#quote(balance), transaction_id: this.#responseId(body.transaction_id) };
     }
 
+    // Never more than the stake we took, whatever the request says.
+    const stake = money.toDecimalString(money.abs(String(bet.amount ?? '0')));
+    const refund = money.lt(stake, amount) ? stake : amount;
+
     const outcome = await this.#apply({
       body,
       userId,
       settlement,
-      amount,
+      amount: refund,
       balance,
       storageId: `rf:${betId}`,
       isCredit: true,
       reason: 'BET_REFUND',
+      reversedBet: betId,
     });
 
     /* The stake was counted under `gis:<bet id>` when it was taken; a refunded
@@ -343,9 +363,9 @@ class GisService {
        refunded part: `amount` (settlement currency, the stake's currency) pro-rates the
        reversal in user-service, keyed by the provider's refund transaction id. A refund of
        the whole stake (or more) is a full reversal there. */
-    if (!outcome.duplicate && !outcome.error_code && !outcome.insufficient && !money.isZero(amount)) {
+    if (!outcome.duplicate && !outcome.error_code && !outcome.insufficient && !money.isZero(refund)) {
       await this.#uncount(userId, betId, {
-        amount: money.toDecimalString(money.abs(String(amount))),
+        amount: money.toDecimalString(money.abs(String(refund))),
         refundRef: body.transaction_id == null || body.transaction_id === '' ? `rf:${betId}` : String(body.transaction_id),
       });
     }
@@ -385,7 +405,7 @@ class GisService {
       if (!originalId) continue;
 
       const original = await this.models.GisTransactions.findOne({
-        where: { transaction_id: originalId },
+        where: { transaction_id: originalId, user_id: userId, currency: settlement },
         raw: true,
       });
 
@@ -411,6 +431,7 @@ class GisService {
         reason: 'BET_ROLLBACK',
         action: ACTION.ROLLBACK,
         reverses: originalId,
+        reversedBet: isCredit ? originalId : null,
       });
 
       /**
@@ -466,6 +487,7 @@ class GisService {
     reason,
     action = body.action,
     reverses = null,
+    reversedBet = null,
     insufficientIsAnError = false,
   }) {
     if (!storageId) return this.#fail('transaction_id is required');
@@ -475,6 +497,22 @@ class GisService {
 
     try {
       const result = await this.db.transaction(async (transaction) => {
+        /**
+         * A refund (`rf:`) and a rollback (`rb:`) of one bet have different ids, so the
+         * unique index alone would let both pay. The bet's row lock queues them, and the
+         * loser is treated as the duplicate it is.
+         */
+        if (reversedBet) {
+          await this.models.GisTransactions.findOne({ where: { transaction_id: reversedBet }, attributes: ['id'], raw: true, lock: true, transaction });
+          const done = await this.models.GisTransactions.findOne({
+            where: { transaction_id: [`rf:${reversedBet}`, `rb:${reversedBet}`] },
+            attributes: ['id'],
+            raw: true,
+            transaction,
+          });
+          if (done) throw Object.assign(new Error('Bet already reversed'), { name: 'SequelizeUniqueConstraintError' });
+        }
+
         await this.models.GisTransactions.create(
           {
             user_id: userId,

@@ -319,7 +319,7 @@ class RaceService {
    * @param {boolean} [options.live]  the window's own wagers even after End & pay (the daily
    *   quests count today's turnover, not the paid rows).
    */
-  async leaderboard({ type, userId = null, live = false }) {
+  async leaderboard({ type, userId = null, live = false, staff = false }) {
     const config = await this.getConfig({ type });
     if (!config) throw errors.NOT_CONFIGURED({ type });
 
@@ -337,6 +337,7 @@ class RaceService {
       const mine = userId ? board.leaderboard.find((r) => String(r.userId) === String(userId)) : null;
       return {
         ...board,
+        leaderboard: staff ? board.leaderboard : await this.#hideNames(board.leaderboard),
         settled: true,
         me: mine ? { rank: mine.rank, points: mine.points, usdWagered: mine.usdWagered, inPrizes: true, payout: mine.payout } : null,
       };
@@ -410,7 +411,7 @@ class RaceService {
       multipliers: config.multipliers,
       minPoints: config.minPoints,
       winnerCount: config.winnerCount,
-      leaderboard: rows,
+      leaderboard: staff ? rows : await this.#hideNames(rows),
       me:
         meIndex >= 0
           ? {
@@ -455,7 +456,8 @@ class RaceService {
         payoutCurrency: payout.currency, payoutPrizePool: payout.price('0'), winnerCount: 0, leaderboard: [],
       };
     }
-    return this.#settledBoard(race, config);
+    const board = await this.#settledBoard(race, config);
+    return { ...board, leaderboard: await this.#hideNames(board.leaderboard) };
   }
 
   /** A settled race as a board: its paid rows in rank order, priced as the claim pays them. */
@@ -1066,7 +1068,8 @@ class RaceService {
       ? await this.models.RaceReward.findAll({ where: { race_id: ids, user_id: userId }, raw: true })
       : [];
     const mineBy = new Map(mine.map((r) => [String(r.race_id), r]));
-    const names = await this.#namesFor(podium.map((r) => r.user_id));
+    const real = await this.#namesFor(podium.map((r) => r.user_id));
+    const names = new Map((await this.#hideNames([...real].map(([id, name]) => ({ userId: id, name })))).map((r) => [r.userId, r.name]));
 
     const out = [];
     for (const race of races) {
@@ -1415,6 +1418,19 @@ class RaceService {
       raw: true,
     });
     return new Map(users.map((u) => [String(u.id), u.name ?? null]));
+  }
+
+  /**
+   * Settings → Preferences → "Hide my username from public lists": on a board a PLAYER reads, those
+   * players' names become '****' (the site prints "Hidden"). Staff boards and settlement keep names.
+   */
+  async #hideNames(rows) {
+    const ids = [...new Set(rows.map((r) => r.userId).filter((id) => id != null).map(String))];
+    if (!ids.length) return rows;
+    const hiders = await this.models.Userconfig.findAll({ where: { uid: ids, hide_username: true }, attributes: ['uid'], raw: true });
+    if (!hiders.length) return rows;
+    const hidden = new Set(hiders.map((h) => String(h.uid)));
+    return rows.map((r) => (r.userId != null && hidden.has(String(r.userId)) ? { ...r, name: '****' } : r));
   }
 
   async #racesByIds(raceIds) {

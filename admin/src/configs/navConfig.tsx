@@ -549,7 +549,6 @@ export const navItems: NavItem[] = [
       { icon: 'Palette', label: 'Branding', href: '/site-config/branding', permission: 'config:read' },
       { icon: 'Flag', label: 'Feature flags', href: '/site-config/flags', permission: 'config:read' },
       { icon: 'Gauge', label: 'Limits and policy', href: '/site-config/limits', permission: 'config:read' },
-      { icon: 'Mail', label: 'Email (SMTP)', href: '/site-config/email', permission: 'config:read' },
     ]
   },
   {

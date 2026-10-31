@@ -75,6 +75,27 @@ class VipService {
   }
 
   /**
+   * rainbet: does this card get this perk (admin → VIP Club → Perks by rank)? Read at most every
+   * 10 seconds. An unreadable table pays as before, so a read failure never stops a reward; a perk
+   * the admin removed pays nobody.
+   */
+  async #perkPays(key, card) {
+    if (!this.perkCache || Date.now() - this.perkCache.at > 10_000) {
+      let rows = null;
+      try {
+        [rows] = await this.models.Users.sequelize.query('SELECT key, enabled, cards FROM vip_perks WHERE key IS NOT NULL');
+      } catch (error) {
+        this.logger?.warn({ err: error.message }, 'vip: perks unreadable, paying as before');
+      }
+      this.perkCache = { at: Date.now(), byKey: rows && new Map(rows.map((r) => [r.key, r])) };
+    }
+    const { byKey } = this.perkCache;
+    if (!byKey) return true;
+    const perk = byKey.get(key);
+    return Boolean(perk?.enabled && perk.cards?.includes(card));
+  }
+
+  /**
    * The ladder. Same for everyone on this site, no login.
    *
    * `maxXp` on the top band is `null` rather than its stored number:
@@ -235,7 +256,7 @@ class VipService {
       });
       const total = this.#wager(row ? row.wager : fallbackWager);
       const standing = vipLadder.levelFor(total);
-      const rate = rakebackRateForCard(standing.card);
+      const rate = (await this.#perkPays('rakeback', standing.card)) ? rakebackRateForCard(standing.card) : '0';
       await this.models.Users.update(
         { rakeback: rate },
         { where: { id: userId, rakeback: { [Op.ne]: rate } }, transaction }
@@ -419,7 +440,7 @@ class VipService {
 
     const out = {};
     for (const type of PERIODS) {
-      const pays = card && periodicAmount(card, type) !== '0';
+      const pays = card && periodicAmount(card, type) !== '0' && (await this.#perkPays(type, card));
       const last = latest[type]?.created_at;
       out[type] = pays && last ? new Date(new Date(last).getTime() + PERIOD_MS[type]).toISOString() : null;
     }
@@ -467,6 +488,7 @@ class VipService {
     for (const type of PERIODS) {
       const amount = periodicAmount(vip.card, type);
       if (!amount || amount === '0') continue;
+      if (!(await this.#perkPays(type, vip.card))) continue;
 
       try {
         await this.models.BonusClaim.sequelize.transaction(async (transaction) => {
@@ -532,6 +554,7 @@ class VipService {
       monthly: { wager: formula.monthlyWager ?? '3.5', loss: formula.monthlyLoss ?? '1.5' },
     };
     for (const type of PERIODS) {
+      if (!(await this.#perkPays(type, vip.card))) continue;
       try {
         const { start, end } = closedWindow(type);
         const done = await this.models.BonusClaim.findOne({

@@ -24,7 +24,9 @@ import { setRealtimeConnected } from '@/lib/realtime-status'
  * Renders nothing; mounted once in the signed-in layout.
  */
 const SOCKET_BASE = (process.env.NEXT_PUBLIC_SOCKET_BASE || siteConfig.apiBaseUrl).replace(/\/+$/, '')
-const WS = process.env.NEXT_PUBLIC_SOCKET_TRANSPORT === 'websocket'
+
+// WebSocket, like the player site; NEXT_PUBLIC_SOCKET_TRANSPORT=polling falls back to long-polling for a proxy that drops the upgrade.
+const WS = process.env.NEXT_PUBLIC_SOCKET_TRANSPORT !== 'polling'
 
 // One save fires up to three pushes (flags, features, coins): refetch once.
 const DEBOUNCE_MS = 300
@@ -55,8 +57,8 @@ const RealtimeRefresh = () => {
     // Same transport settings as the player site (frontend/src/services/realtime.js).
     const socket = io(SOCKET_BASE, {
       path: '/socket.io',
-      transports: WS ? ['polling', 'websocket'] : ['polling'],
-      upgrade: WS,
+      transports: WS ? ['websocket', 'polling'] : ['polling'],
+      tryAllTransports: WS,
       reconnection: true,
       reconnectionAttempts: Infinity,
       reconnectionDelay: 1000,

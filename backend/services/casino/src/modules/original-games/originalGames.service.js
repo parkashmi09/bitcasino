@@ -278,6 +278,19 @@ class OriginalGamesService {
     const seen = await this.#tx(txId);
     if (seen) return this.#replay(seen, currency);
 
+    // A win that names its round needs this player's bet in that round. The aggregator's own
+    // validation run plays no real round.
+    if (body.round_id != null && !money.isZero(amount) && body.player_id !== VALIDATION_PLAYER_ID) {
+      const [bet] = await this.#query(
+        `SELECT 1 FROM og_transactions WHERE user_id = :userId AND round_id = :roundId AND kind = 'bet' AND status = 'applied' LIMIT 1`,
+        { userId: String(userId), roundId: String(body.round_id) }
+      );
+      if (!bet) {
+        this.logger?.error({ userId, txId, roundId: body.round_id }, 'Original games win refused: no bet in this round');
+        return this.#error(ERROR_CODE.INTERNAL, { currency, balance });
+      }
+    }
+
     const outcome = await this.#applyMoney({ kind: 'win', body, userId, currency, amount, balance, txId, isCredit: true });
     return outcome.response;
   }

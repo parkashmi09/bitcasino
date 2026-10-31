@@ -4,7 +4,7 @@ import { useState } from 'react'
 
 import Link from 'next/link'
 
-import { ChartColumnIcon, PencilIcon, PercentIcon, Trash2Icon, UploadIcon } from 'lucide-react'
+import { ChartColumnIcon, PencilIcon, PercentIcon, PlusIcon, Trash2Icon, UploadIcon } from 'lucide-react'
 
 import { useStatsFilters } from '@/components/shared/charts'
 import Can from '@/components/shared/Can'
@@ -14,7 +14,7 @@ import DataTable, { type Column } from '@/components/shared/DataTable'
 import DateTime from '@/components/shared/DateTime'
 import ErrorState from '@/components/shared/ErrorState'
 import FormDialog from '@/components/shared/FormDialog'
-import { SwitchField, TextAreaField, TextField } from '@/components/shared/FormField'
+import { SelectField, SwitchField, TextAreaField, TextField } from '@/components/shared/FormField'
 import Money from '@/components/shared/Money'
 import PageHeader from '@/components/shared/PageHeader'
 import { RewardCurrencyNotice } from '@/components/shared/RewardCurrency'
@@ -24,6 +24,7 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Switch } from '@/components/ui/switch'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { useApi, useApiMutation, useListState, usePagedApi } from '@/hooks/use-api'
 import { useSession } from '@/contexts/SessionContext'
@@ -31,6 +32,7 @@ import { api } from '@/lib/api/client'
 import { check } from '@/lib/validate'
 import { formatNumber } from '@/lib/format'
 import RewardStats from './RewardStats'
+import VipPerks from './VipPerks'
 import type { Club, ClubEarning, ClubMember, VipLadder, VipLevel } from './types'
 import { useLocalList } from './useLocalList'
 
@@ -49,7 +51,7 @@ const CARD_TONE: Record<string, string> = {
 
 type Branding = {
   ladder: string
-  levels: { level: number; name: string; defaultName: string; card: string }[]
+  levels: { level: number; name: string; defaultName: string; card: string; minXp: string | null; enabled: boolean; custom: boolean }[]
   badges: { card: string; url: string | null }[]
 }
 
@@ -139,6 +141,69 @@ const BadgeCard = ({ card, url }: { card: string; url: string | null }) => {
   )
 }
 
+/** On or off for the site. Off: the level leaves the player site and nobody can hold it. */
+const LevelSwitch = ({ level, name, enabled }: { level: number; name: string; enabled: boolean }) => {
+  const toggle = useApiMutation({
+    fn: (on: boolean) => api.put(`${BRANDING}/levels/${level}/enabled`, { enabled: on }),
+    invalidate: BRANDING_INVALIDATE,
+    success: () => `${name} ${enabled ? 'switched off' : 'switched on'}`
+  })
+
+  return <Switch checked={enabled} disabled={toggle.isPending} aria-label={`${name} on the site`} onCheckedChange={on => void toggle.mutateAsync(on)} />
+}
+
+const DeleteLevel = ({ level, name }: { level: number; name: string }) => {
+  const remove = useApiMutation({
+    fn: () => api.delete(`${BRANDING}/levels/${level}`),
+    invalidate: BRANDING_INVALIDATE,
+    success: () => `${name} deleted`
+  })
+
+  return (
+    <ConfirmDialog
+      trigger={<Button size='icon' variant='ghost' className='size-7' aria-label={`Delete ${name}`}><Trash2Icon /></Button>}
+      title={`Delete ${name}?`}
+      description='Players on this level drop to the level below it. Rewards already paid stay paid.'
+      confirmLabel='Delete level'
+      destructive
+      onConfirm={() => remove.mutateAsync()}
+    />
+  )
+}
+
+const AddLevel = ({ cards, above }: { cards: string[]; above: string }) => {
+  const [name, setName] = useState('')
+  const [xp, setXp] = useState('')
+  const [card, setCard] = useState('')
+
+  const add = useApiMutation({
+    fn: () => api.post(`${BRANDING}/levels`, { name: name.trim(), minXp: xp.trim(), card }),
+    invalidate: BRANDING_INVALIDATE,
+    success: () => `${name.trim()} added`
+  })
+
+  return (
+    <FormDialog
+      trigger={<Button size='sm'><PlusIcon /> Add level</Button>}
+      title='Add VIP level'
+      description={`A new level goes on top of the ladder, so its wager must be above ${above} USD. It pays the level-up and rank-up rewards of the tier you choose.`}
+      submitLabel='Add level'
+      onSubmit={() => add.mutateAsync()}
+      validate={() => ({
+        'vip-new-name': name.trim() ? undefined : 'Enter a name',
+        'vip-new-xp': /^\d{1,14}(\.\d{1,2})?$/.test(xp.trim()) ? (Number(xp) > Number(above) ? undefined : `Must be above ${above}`) : 'A USD amount, e.g. 1000',
+        'vip-new-card': card ? undefined : 'Choose a tier'
+      })}
+    >
+      <TextField id='vip-new-name' label='Level name' required maxLength={40} value={name} onChange={e => setName(e.target.value)} />
+      <TextField id='vip-new-xp' label='Wager to reach this level (USD)' required inputMode='decimal' value={xp} onChange={e => setXp(e.target.value)} />
+      <SelectField id='vip-new-card' label='Tier (badge and rewards)' required value={card} onChange={setCard} options={cards.map(c => ({ value: c, label: c.charAt(0).toUpperCase() + c.slice(1) }))} />
+    </FormDialog>
+  )
+}
+
+type LadderRow = VipLevel & { enabled?: boolean; custom?: boolean }
+
 const VipLadder = () => {
   const q = useApi<VipLadder>('user/vip/levels')
   const branding = useApi<Branding>(BRANDING)
@@ -152,7 +217,19 @@ const VipLadder = () => {
   const gates = q.data?.bonusGates
   const tiers = Array.from(new Set(levels.map(l => l.card)))
 
-  const columns: Column<VipLevel>[] = [
+  // Staff see every level, switched off ones too; the public route lists only what players see.
+  const managed = (branding.data?.levels ?? []).filter(l => l.level > 0)
+  const on = managed.filter(l => l.enabled)
+  const rows: LadderRow[] = managed.length
+    ? managed.map(l => {
+        const next = on.find(n => n.level > l.level)
+
+        return { ...l, minXp: l.minXp ?? '0', maxXp: l.enabled && next?.minXp ? String(Number(next.minXp) - 1) : null } as LadderRow
+      })
+    : levels
+  const topFloor = managed.length ? managed[managed.length - 1].minXp ?? '0' : '0'
+
+  const columns: Column<LadderRow>[] = [
     { key: 'level', header: 'Level', cell: r => <span className='font-semibold tabular-nums'>L{r.level}</span> },
     {
       key: 'name',
@@ -174,7 +251,20 @@ const VipLadder = () => {
     },
     { key: 'card', header: 'Card', cell: r => <Badge variant='outline' className={`border-transparent capitalize ${CARD_TONE[r.card] ?? ''}`}>{r.card}</Badge> },
     { key: 'min', header: `From (${money.code} wagered)`, align: 'right', cell: r => <span className='tabular-nums'>{money.format(r.minXp, 'USD', { digits: 2 })}</span> },
-    { key: 'max', header: 'To', align: 'right', cell: r => (r.maxXp === null ? <span className='text-muted-foreground'>and above</span> : <span className='tabular-nums'>{money.format(r.maxXp, 'USD', { digits: 2 })}</span>) }
+    { key: 'max', header: 'To', align: 'right', cell: r => (r.enabled === false ? <span className='text-muted-foreground'>—</span> : r.maxXp === null ? <span className='text-muted-foreground'>and above</span> : <span className='tabular-nums'>{money.format(r.maxXp, 'USD', { digits: 2 })}</span>) },
+    {
+      key: 'site',
+      header: 'On site',
+      cell: r =>
+        r.enabled === undefined ? null : (
+          <span className='flex items-center gap-1'>
+            <Can permission='config:write' fallback={<StatusBadge value={r.enabled ? 'active' : 'inactive'} />}>
+              <LevelSwitch level={r.level} name={r.name ?? ''} enabled={r.enabled === true} />
+              {r.custom && <DeleteLevel level={r.level} name={r.name ?? ''} />}
+            </Can>
+          </span>
+        )
+    }
   ]
 
   return (
@@ -211,7 +301,16 @@ const VipLadder = () => {
           ))}
         </CardContent>
       </Card>
-      <DataTable columns={columns} rows={q.data ? levels : undefined} rowKey={r => r.level} loading={q.isLoading} error={q.error} dense />
+      {managed.length > 0 && <VipPerks cards={(branding.data?.badges ?? []).map(b => b.card).filter(c => c !== 'unranked' && c !== 'beginner')} />}
+      {managed.length > 0 && (
+        <Can permission='config:write'>
+          <div className='flex items-center justify-between gap-3'>
+            <p className='text-muted-foreground text-sm'>A level switched off leaves the player site, and players on it drop to the level below. Rewards already paid stay paid.</p>
+            <AddLevel cards={branding.data?.badges.map(b => b.card).filter(c => c !== 'unranked' && c !== 'beginner') ?? []} above={topFloor} />
+          </div>
+        </Can>
+      )}
+      <DataTable columns={columns} rows={q.data ? rows : undefined} rowKey={r => r.level} loading={q.isLoading} error={q.error} dense />
     </div>
   )
 }

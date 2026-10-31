@@ -214,6 +214,19 @@ class SeamlessService {
 
       if (money.isZero(magnitude)) continue;
 
+      // A win that names its round needs this player's stake in that round.
+      if (action === ACTION.DEPOSIT && tx.round_id != null) {
+        const stake = await this.models.SeamlessTransaction.findOne({
+          where: { user_id: userId, round_id: String(tx.round_id), action: [ACTION.WITHDRAW, ACTION.PUSHBET] },
+          attributes: ['id'],
+          raw: true,
+        });
+        if (!stake) {
+          this.logger?.error({ member, roundId: tx.round_id, transactionId: tx.id }, 'Seamless win refused: no bet in this round');
+          return { code: RESPONSE_CODES.BET_NOT_EXIST, message: 'No bet for this round' };
+        }
+      }
+
       const outcome = await this.#applyOnce({
         userId, member, body, tx, action, reason,
         isCredit, magnitude, providerAmount, currency,
@@ -280,9 +293,22 @@ class SeamlessService {
    * whole thing rolls back, and nothing moves. That ordering is what makes the
    * guard a guard rather than a race.
    */
-  async #applyOnce({ userId, member, body, tx, action, reason, isCredit, magnitude, providerAmount, currency }) {
+  async #applyOnce({ userId, member, body, tx, action, reason, isCredit, magnitude, providerAmount, currency, reversing = null }) {
     try {
       return await this.db.transaction(async (transaction) => {
+        // A rollback and a cancel of one movement have different ids. The original's row
+        // lock queues them, and the second counts as a duplicate instead of paying again.
+        if (reversing) {
+          await this.models.SeamlessTransaction.findOne({ where: { transaction_id: reversing, user_id: userId }, attributes: ['id'], raw: true, lock: true, transaction });
+          const done = await this.models.SeamlessTransaction.findOne({
+            where: { transaction_id: [`${ACTION.ROLLBACK}:${reversing}`, `${ACTION.CANCEL}:${reversing}`] },
+            attributes: ['id'],
+            raw: true,
+            transaction,
+          });
+          if (done) throw Object.assign(new Error('Already reversed'), { name: 'SequelizeUniqueConstraintError' });
+        }
+
         await this.models.SeamlessTransaction.create(
           {
             transaction_id: String(tx.id),
@@ -382,6 +408,7 @@ class SeamlessService {
         magnitude,
         providerAmount: String(original.provider_amount ?? '0'),
         currency: currency ?? original.currency,
+        reversing: originalId,
       });
 
       if (outcome.duplicate) continue;
@@ -425,6 +452,13 @@ class SeamlessService {
       // An unconfigured integration must refuse, not fall through to a
       // signature check against `undefined`.
       this.logger?.error('SEAMLESS_SECRET_KEY is not configured — refusing casino callbacks');
+      return { code: RESPONSE_CODES.PRODUCT_UNDER_MAINTENANCE, message: 'Product under maintenance' };
+    }
+
+    // The legacy signature covers no member or amount, so one captured signature could move money
+    // until it goes stale. It is only accepted from the provider's own addresses.
+    if (this.config.SEAMLESS_SIGN_MODE !== 'full' && !this.config.SEAMLESS_ALLOWED_IPS?.length) {
+      this.logger?.error('Seamless legacy signature needs SEAMLESS_ALLOWED_IPS — refusing casino callbacks');
       return { code: RESPONSE_CODES.PRODUCT_UNDER_MAINTENANCE, message: 'Product under maintenance' };
     }
 

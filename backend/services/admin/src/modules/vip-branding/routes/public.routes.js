@@ -1,7 +1,7 @@
 'use strict';
 
 const { Router } = require('express');
-const { validate, asyncHandler } = require('@ibitplay/common');
+const { validate, asyncHandler, response } = require('@ibitplay/common');
 
 const v = require('../vipBranding.validators');
 const { VipBrandingService } = require('../vipBranding.service');
@@ -10,6 +10,9 @@ const { VipBrandingService } = require('../vipBranding.service');
 module.exports = function publicRoutes(deps) {
   const service = new VipBrandingService(deps);
   const router = Router();
+
+  // The perks table on the player VIP page: labels and ranks only.
+  router.get('/perks', asyncHandler(async (_req, res) => response.ok(res, await service.publicPerks())));
 
   router.get(
     '/badges/:card/image',

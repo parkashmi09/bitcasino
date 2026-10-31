@@ -325,6 +325,7 @@ class StaffService {
       // A forced change — first sign-in, or the next one after a superior's reset (TENEXCH flow) —
       // issues a fresh 6-digit transaction password, returned once; the old one stops working.
       // Never to an executive: it acts for this account but does not own its secrets.
+      // A whitelabel company chooses its own instead of being issued one.
       if (row.must_change_password && !actor.executiveId && !isLoginPasswordMode()) {
         transactionPassword = chosenTransactionPassword ?? String(randomInt(100000, 1000000));
       }
@@ -333,6 +334,7 @@ class StaffService {
     await this.models.Staff.update(
       {
         password: await hashPassword(newPassword, PASSWORD_ROUNDS),
+        ...(transactionPassword ? { transaction_password: await hashPassword(transactionPassword, PASSWORD_ROUNDS) } : {}),
         // Your own change clears the flag. A reset by someone above you sets
         // it: they know the password now, so you must replace it.
         must_change_password: !self,

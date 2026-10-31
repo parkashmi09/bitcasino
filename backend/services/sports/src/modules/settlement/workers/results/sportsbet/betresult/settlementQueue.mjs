@@ -17,6 +17,7 @@ function getPublisher(log2 = noopLog) {
     pub = new IORedis({
       host: process.env.REDIS_HOST || "127.0.0.1",
       port: +(process.env.REDIS_PORT || 6379),
+      password: process.env.REDIS_PASSWORD || void 0,
       maxRetriesPerRequest: null
     });
     pub.on("error", (e) => log2.error("[SettleQueue] redis wake error", { error: e.message }));

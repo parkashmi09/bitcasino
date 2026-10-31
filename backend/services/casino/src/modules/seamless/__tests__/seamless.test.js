@@ -156,6 +156,7 @@ test('casino seamless wallet', async (t) => {
         SEAMLESS_OPERATOR_CODE: OPERATOR,
         SEAMLESS_MAX_SKEW_SECONDS: 300,
         SEAMLESS_SIGN_MODE: 'legacy',
+        SEAMLESS_ALLOWED_IPS: ['10.0.0.1'],
         ...config,
       },
     });
@@ -549,15 +550,51 @@ test('casino seamless wallet', async (t) => {
   //  Audit
   // ══════════════════════════════════════════════════════════════════════
 
+  await t.test('a rollback and a cancel of one bet refund once', async () => {
+    const { uid, balances } = player('100');
+    const { service } = build(balances);
+    const id = newTxId();
+    await service.withdraw(request('withdraw', { member_account: String(uid), transactions: [{ id, amount: '40' }] }));
+    assert.equal(Number(balances.get(String(uid))), 60);
+
+    await Promise.all([
+      service.rollback(request('rollback', { member_account: String(uid), transactions: [{ id }] })),
+      service.cancel(request('cancel', { member_account: String(uid), transactions: [{ id }] })),
+    ]);
+    assert.equal(Number(balances.get(String(uid))), 100, 'the stake came back once');
+  });
+
+  await t.test('a win naming a round with no bet of this player is refused', async () => {
+    const { uid, balances } = player('100');
+    const { service } = build(balances);
+    const result = await service.deposit(
+      request('deposit', { member_account: String(uid), transactions: [{ id: newTxId(), amount: '500', round_id: `none-${newTxId()}` }] })
+    );
+    assert.equal(result.code, RESPONSE_CODES.BET_NOT_EXIST);
+    assert.equal(Number(balances.get(String(uid))), 100);
+  });
+
+  await t.test('the legacy signature is refused with no provider IP list', async () => {
+    const { uid, balances } = player('100');
+    const { service } = build(balances, { SEAMLESS_ALLOWED_IPS: [] });
+    const result = await service.deposit(request('deposit', { member_account: String(uid), transactions: [{ id: newTxId(), amount: '50' }] }));
+    assert.equal(result.code, RESPONSE_CODES.PRODUCT_UNDER_MAINTENANCE);
+    assert.equal(Number(balances.get(String(uid))), 100);
+  });
+
   await t.test('every applied movement leaves a traceable record', async () => {
     const { uid, balances } = player('100');
     const { service } = build(balances);
     const id = newTxId();
+    const round = `R-${id}`;
 
+    await service.withdraw(
+      request('withdraw', { member_account: String(uid), transactions: [{ id: newTxId(), amount: '5', round_id: round }] })
+    );
     await service.deposit(
       request('deposit', {
         member_account: String(uid),
-        transactions: [{ id, amount: '15', round_id: 'R-1', game_code: 'G-1' }],
+        transactions: [{ id, amount: '15', round_id: round, game_code: 'G-1' }],
       })
     );
 
@@ -566,7 +603,7 @@ test('casino seamless wallet', async (t) => {
     });
 
     assert.ok(row, 'legacy recorded nothing at all');
-    assert.equal(row.round_id, 'R-1');
+    assert.equal(row.round_id, round);
     assert.equal(row.game_code, 'G-1');
     assert.ok(row.ledger_id, 'and the ledger row it produced is linked');
   });

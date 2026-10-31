@@ -36,9 +36,11 @@ const PromptPreview = ({ p }: { p: PromptSettings }) => (
     </div>
     <p className='text-muted-foreground mt-3 text-center text-xs'>
       {p.enabled
-        ? p.trigger === 'after_login'
-          ? `Shown ${p.delaySeconds}s after a signed-in visit`
-          : 'Shown once the player has made a deposit'
+        ? p.trigger === 'on_visit'
+          ? `Shown ${p.delaySeconds}s into any visit, signed in or not`
+          : p.trigger === 'after_login'
+            ? `Shown ${p.delaySeconds}s after a signed-in visit`
+            : 'Shown once the player has made a deposit'
         : 'Popup off — players can still turn push on in Settings'}
       {p.enabled ? `; after “${p.laterLabel}”, again in ${p.cooldownDays} day(s). Never shown once allowed or blocked.` : ''}
     </p>
@@ -127,6 +129,7 @@ const PushSettings = () => {
                     value={s.prompt.trigger}
                     onChange={v => setPrompt('trigger', v as PromptSettings['trigger'])}
                     options={[
+                      { value: 'on_visit', label: 'On every visit + delay (signed in or not)' },
                       { value: 'after_login', label: 'After sign-in + delay' },
                       { value: 'after_first_deposit', label: 'After the first deposit' }
                     ]}

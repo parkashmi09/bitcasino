@@ -144,3 +144,31 @@ test('Loyalty Club ladder (bitcasino + smartbet)', async (t) => {
     assert.equal(levelUpAmount(6, 'hero'), levelUpAmount(24, 'eternal'));
   });
 });
+
+test('a level switched off leaves the ladder and an added one goes on top', () => {
+  const { VIP_LADDERS: all, rebrand: lay } = require('../src/vipLadders');
+  const base = all.platform;
+  const off = base.levels[1];
+  const top = base.levels[base.levels.length - 1];
+  const floor = Number(top.minXp) * 2;
+  const ladder = lay(base, {
+    names: new Map(),
+    badges: new Map(),
+    thresholds: new Map(),
+    disabled: new Set([off.level]),
+    custom: [{ level: top.level + 1, name: 'Legend', card: top.card, minXp: floor }],
+  });
+  assert.equal(ladder.levels.some((b) => b.level === off.level), false);
+  assert.equal(ladder.levelFor(String(off.minXp)).level, base.levels[0].level);
+  assert.equal(ladder.top.name, 'Legend');
+  assert.equal(ladder.levelFor(String(floor)).level, top.level + 1);
+  assert.equal(ladder.levelFor(String(floor - 1)).level, top.level);
+  assert.equal(ladder.publish().at(-1).maxXp, null);
+});
+
+test('every level switched off keeps the built-in ladder', () => {
+  const { VIP_LADDERS: all, rebrand: lay } = require('../src/vipLadders');
+  const base = all.platform;
+  const ladder = lay(base, { names: new Map(), badges: new Map(), disabled: new Set(base.levels.map((b) => b.level)) });
+  assert.equal(ladder.levels.length, base.levels.length);
+});

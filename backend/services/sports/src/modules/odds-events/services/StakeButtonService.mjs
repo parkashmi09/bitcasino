@@ -2,11 +2,11 @@
 import { StakeButtonValue_default } from "../../../models/user/StakeButtonValue.mjs";
 
 var DEFAULT_GAME_BUTTONS = [
+  { label: "100", value: 100 },
+  { label: "500", value: 500 },
   { label: "1k", value: 1e3 },
-  { label: "2k", value: 2e3 },
   { label: "5k", value: 5e3 },
   { label: "10k", value: 1e4 },
-  { label: "20k", value: 2e4 },
   { label: "25k", value: 25e3 }
 ];
 var tableReady = null;

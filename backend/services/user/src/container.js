@@ -1,6 +1,7 @@
 'use strict';
 
-const { createLogger, ServiceClient, Mailer, resolveInternalKey, configureEntitlements, configureCurrencyRegistry, sitePolicy } = require('@ibitplay/common');
+const { createLogger, ServiceClient, resolveInternalKey, configureEntitlements, configureCurrencyRegistry, sitePolicy } = require('@ibitplay/common');
+const { SiteMailer } = require('./lib/siteMailer');
 const { createAuthMiddleware, configureAgentPlayers } = require('@ibitplay/auth');
 const db = require('@ibitplay/db');
 
@@ -83,7 +84,8 @@ async function createContainer({ logger: injectedLogger } = {}) {
    * One pooled transport for the process. Legacy built a fresh one per request
    * with the SMTP password in the source — see `packages/common/src/mailer.js`.
    */
-  const mailer = new Mailer({ config, logger });
+  // .env SMTP when complete, else the sender saved in site admin → Site Config → Email (lib/siteMailer.js).
+  const mailer = new SiteMailer({ config, logger, clients });
 
   // The owner's plan, asked of admin-service and cached 15 s — see
   // `packages/common/src/entitlements.js`.

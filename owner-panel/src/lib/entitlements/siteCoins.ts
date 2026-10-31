@@ -37,6 +37,7 @@ function catalogueCoins(): SiteCoin[] {
  */
 export async function siteCoins(): Promise<Answer> {
   const base = serverConfig.gatewayUrl.replace(/\/$/, '')
+  const assetBase = serverConfig.publicApiBase.replace(/\/$/, '')
 
   if (!base || !serverConfig.sharedSecret) return { coins: catalogueCoins(), source: 'catalogue', reason: 'SITE_GATEWAY_URL / OWNER_SHARED_SECRET not set' }
 
@@ -64,8 +65,9 @@ export async function siteCoins(): Promise<Answer> {
         siteEnabled: typeof c.siteEnabled === 'boolean' ? c.siteEnabled : null,
         networks: Array.isArray(c.networks) ? c.networks : [],
 
-        // The image route answers with Cross-Origin-Resource-Policy: cross-origin, so the page loads it directly.
-        imageUrl: typeof image === 'string' && image.startsWith('/') ? `${base}${image}` : null
+        // The image route answers with Cross-Origin-Resource-Policy: cross-origin, so the page loads
+        // it directly — from the browser-facing origin, not `base`, which may be a loopback address.
+        imageUrl: typeof image === 'string' && image.startsWith('/') ? `${assetBase}${image}` : null
       }))
     }
   } catch (error) {

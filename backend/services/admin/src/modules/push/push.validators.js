@@ -109,7 +109,7 @@ const putSettings = {
           text: z.string().trim().min(1).max(300),
           allowLabel: z.string().trim().min(1).max(24),
           laterLabel: z.string().trim().min(1).max(24),
-          trigger: z.enum(['after_login', 'after_first_deposit']),
+          trigger: z.enum(['on_visit', 'after_login', 'after_first_deposit']),
           delaySeconds: z.number().int().min(0).max(3600),
           cooldownDays: z.number().int().min(1).max(365),
         })

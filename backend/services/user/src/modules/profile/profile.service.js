@@ -106,16 +106,18 @@ class ProfileService {
       }
     }
 
-    // rainbet: the player's "Display Statistics on Profile" switch (userconfig, migration 169).
-    const showStats = await this.models.Userconfig.findOne({ where: { uid: userId }, attributes: ['show_statistics'], raw: true })
-      .then((c) => c?.show_statistics !== false, () => true);
-    if (!showStats) stats = null;
+    // Either switch hides the counts: rainbet's "Display Statistics on Profile" (show_statistics, migration 169)
+    // or hash's "Hide my gaming data on profile" (hide_gaming_data, migration 177). No counts leave the server.
+    const prefs = await this.models.Userconfig.findOne({ where: { uid: userId }, attributes: ['show_statistics', 'hide_gaming_data'], raw: true })
+      .catch(() => null);
+    const hidden = prefs?.show_statistics === false || Boolean(prefs?.hide_gaming_data);
 
     return {
       userId: String(user.id),
       username: user.name,
       avatar: user.avatar,
       joinedAt: user.created,
+      gamingDataHidden: hidden,
       /* The COMPUTED level — see above. `card` is the tier name the VIP page
          shows beside it. */
       level: vip.level,
@@ -123,10 +125,10 @@ class ProfileService {
       // The admin's name for the level and its card badge (VIP branding, migration 120).
       levelName: vip.name,
       badgeUrl: vip.badgeUrl ?? null,
-      gamesPlayed: showStats ? user.games_played : null,
-      statisticsHidden: !showStats,
-      bets: stats?.bets ?? null,
-      wins: stats?.wins ?? null,
+      gamesPlayed: hidden ? null : user.games_played,
+      statisticsHidden: hidden,
+      bets: hidden ? null : stats?.bets ?? null,
+      wins: hidden ? null : stats?.wins ?? null,
     };
   }
 

@@ -44,6 +44,12 @@ const EXTENSIONS = {
     show_bets_publicly: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: true, field: 'show_bets_publicly' },
     show_statistics: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: true, field: 'show_statistics' },
     tip_notifications: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: true, field: 'tip_notifications' },
+    // ── migration 177-userconfig-privacy-email (hash 167)───────────────────────
+    hide_gaming_data: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: false, field: 'hide_gaming_data' },
+    hide_username: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: false, field: 'hide_username' },
+    max_profit_alert: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: true, field: 'max_profit_alert' },
+    deposit_email: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: true, field: 'deposit_email' },
+    withdraw_email: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: true, field: 'withdraw_email' },
   },
 
   // ── migration 008-wager-columns ──────────────────────────────────────

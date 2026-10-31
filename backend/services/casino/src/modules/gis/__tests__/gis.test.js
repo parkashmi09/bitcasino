@@ -408,6 +408,52 @@ test('slotegrator (gis)', async (t) => {
   //  Rollbacks
   // ══════════════════════════════════════════════════════════════════════
 
+  await t.test('a refund and a rollback of one bet return the stake once, in either order', async () => {
+    for (const order of [['refund', 'rollback'], ['rollback', 'refund']]) {
+      const uid = await seedPlayer(newUid());
+      const balances = new Map([[String(uid), '1000']]);
+      const service = new GisService({ models, db: connection, logger, wallet: makeWallet(balances), provider, games: { async recordPlay() {}, async recordActivity() { return {}; }, async reverseActivity() { return {}; } }, config: { SERVICE_NAME: 'casino-service', GIS_MAX_SKEW_SECONDS: 300 } });
+      const tx = (body) => service.handleTransaction(callback({ player_id: String(uid), currency: 'USDT', ...body }));
+      const bet = newTxId();
+      await tx({ action: 'bet', amount: '100', transaction_id: bet });
+      for (const step of order) {
+        if (step === 'refund') await tx({ action: 'refund', amount: '100', transaction_id: newTxId(), bet_transaction_id: bet });
+        else await tx({ action: 'rollback', transaction_id: newTxId(), rollback_transactions: [{ transaction_id: bet, action: 'bet', amount: '100' }] });
+      }
+      assert.equal(Number(balances.get(String(uid))), 1000, order.join(' then '));
+    }
+  });
+
+  await t.test('a refund pays at most the stake, and only for the bet of that player', async () => {
+    const uid = await seedPlayer(newUid());
+    const other = await seedPlayer(newUid());
+    const balances = new Map([[String(uid), '1000'], [String(other), '0']]);
+    const service = new GisService({ models, db: connection, logger, wallet: makeWallet(balances), provider, games: { async recordPlay() {}, async recordActivity() { return {}; }, async reverseActivity() { return {}; } }, config: { SERVICE_NAME: 'casino-service', GIS_MAX_SKEW_SECONDS: 300 } });
+    const tx = (player, body) => service.handleTransaction(callback({ player_id: String(player), currency: 'USDT', ...body }));
+    const bet = newTxId();
+    await tx(uid, { action: 'bet', amount: '100', transaction_id: bet });
+    await tx(other, { action: 'refund', amount: '100', transaction_id: newTxId(), bet_transaction_id: bet });
+    assert.equal(Number(balances.get(String(other))), 0, 'not the bet of another player');
+    await tx(uid, { action: 'refund', amount: '9999', transaction_id: newTxId(), bet_transaction_id: bet });
+    assert.equal(Number(balances.get(String(uid))), 1000, 'the stake, not the figure asked');
+  });
+
+  await t.test('a win naming a round with no bet is refused; free spins and matched rounds pay', async () => {
+    const uid = await seedPlayer(newUid());
+    const balances = new Map([[String(uid), '1000']]);
+    const service = new GisService({ models, db: connection, logger, wallet: makeWallet(balances), provider, games: { async recordPlay() {}, async recordActivity() { return {}; }, async reverseActivity() { return {}; } }, config: { SERVICE_NAME: 'casino-service', GIS_MAX_SKEW_SECONDS: 300 } });
+    const tx = (body) => service.handleTransaction(callback({ player_id: String(uid), currency: 'USDT', ...body }));
+    const round = `round-${newTxId()}`;
+    const refused = await tx({ action: 'win', amount: '500', transaction_id: newTxId(), round_id: round });
+    assert.ok(refused.error_code, 'no bet yet');
+    assert.equal(Number(balances.get(String(uid))), 1000);
+    await tx({ action: 'bet', amount: '10', transaction_id: newTxId(), round_id: round });
+    await tx({ action: 'win', amount: '30', transaction_id: newTxId(), round_id: round });
+    assert.equal(Number(balances.get(String(uid))), 1020);
+    await tx({ action: 'win', amount: '5', transaction_id: newTxId(), round_id: `fs-${newTxId()}`, freespin_id: 'fs1' });
+    assert.equal(Number(balances.get(String(uid))), 1025);
+  });
+
   await t.test('wager feed: a refunded bet and a rolled-back bet stop counting, once each; a rolled-back win does not', async () => {
     const uid = await seedPlayer(newUid());
     const balances = new Map([[String(uid), '1000']]);

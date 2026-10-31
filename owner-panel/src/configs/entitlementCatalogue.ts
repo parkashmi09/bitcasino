@@ -640,6 +640,12 @@ export const FLAG_GROUPS: FlagGroup[] = [
     keys: ['google_login']
   },
   {
+    // rainbet: the player site's language picker (frontend/src/lib/i18n.js).
+    title: 'Languages',
+    description: 'Languages players can pick on the site. OFF: the language leaves the picker, and a player using it moves to another allowed one. With all off the site stays in English with no picker.',
+    keys: ['lang_en', 'lang_ar', 'lang_es', 'lang_fr', 'lang_ja', 'lang_pt', 'lang_ru', 'lang_tr', 'lang_zh']
+  },
+  {
     title: 'Home page sections',
     description: 'Blocks on the landing page, top to bottom.',
     keys: [
@@ -710,6 +716,15 @@ export const FLAG_LABELS: Record<string, string> = {
   idle_logout: 'Idle logout (no bet in the first 5 minutes after sign-in)',
   demo_login: 'Demo login (agent Sign In: ₹1500, sports only, 30 minutes)',
   google_login: 'Sign in with Google',
+  lang_en: 'English',
+  lang_ar: 'Arabic (العربية)',
+  lang_es: 'Spanish (Español)',
+  lang_fr: 'French (Français)',
+  lang_ja: 'Japanese (日本語)',
+  lang_pt: 'Portuguese (Português)',
+  lang_ru: 'Russian (Русский)',
+  lang_tr: 'Turkish (Türkçe)',
+  lang_zh: 'Chinese (中文)',
   idr: 'IDR',
   home_heroSection: 'Hero carousel',
   home_welcomebanner: 'Welcome banner',

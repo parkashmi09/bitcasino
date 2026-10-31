@@ -180,7 +180,7 @@ async function runBetBuffer(body, sb, opts = {}) {
       if (!manual.accept) return reject(MESSAGES.BET.UNMATCHED_NOT_ALLOWED, `MANUAL_LIMIT:${slipOdds}/${finalOdds}`);
       finalOdds = manual.finalOdds;
     } else {
-      const auto = autoBetCheck({ marketType: flags?.marketType ?? sb.market_type, betType, selectedOdds, currentOdds: finalOdds });
+      const auto = autoBetCheck({ marketType: flags?.marketType ?? sb.market_type, priceGuarded: flags?.priceGuarded, betType, selectedOdds, currentOdds: finalOdds });
       if (!auto.accept) return reject(MESSAGES.BET.ODDS_CHANGE_NOT_CONFIRMED, `ODDS_MOVED:${selectedOdds}->${finalOdds}`);
       finalOdds = auto.finalOdds;
     }

@@ -108,7 +108,7 @@ export type PromptSettings = {
   text: string
   allowLabel: string
   laterLabel: string
-  trigger: 'after_login' | 'after_first_deposit'
+  trigger: 'on_visit' | 'after_login' | 'after_first_deposit'
   delaySeconds: number
   cooldownDays: number
 }

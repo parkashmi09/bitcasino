@@ -1,6 +1,7 @@
 'use strict';
 
 const { PLATFORM_EVENTS, roomForUser, encode } = require('@ibitplay/socket');
+const { sendSuccessEmail } = require('./successEmail');
 
 /**
  * Tell a player something happened to their account.
@@ -96,6 +97,9 @@ async function sendOne(deps, userId, n) {
 
   SENT.add(memo);
   if (SENT.size > SENT_MAX) SENT.delete(SENT.values().next().value);
+
+  // The deposit / withdrawal success email, once per event (a replay finds the row already there).
+  if (result?.created) void sendSuccessEmail(deps, userId, n, amountText(meta?.amount, meta?.currency));
 
   if (result?.created && deps.io) {
     deps.io.to(roomForUser(String(userId))).emit(

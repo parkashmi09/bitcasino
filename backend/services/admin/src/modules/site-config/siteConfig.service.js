@@ -202,6 +202,9 @@ const SETTING_PAIRS = Object.freeze([
  * `OPERATOR_FLAGS`, which the staff screen writes, not to what a signed-out
  * browser reads to decide whether to draw a tab.
  */
+/** The owner's Languages switches (`lang_<code>`), in the player site's picker order. */
+const SITE_LANGUAGES = Object.freeze(['ar', 'en', 'es', 'fr', 'ja', 'pt', 'ru', 'tr', 'zh']);
+
 const PUBLIC_FLAGS = Object.freeze([
   // top-level features
   'casino', 'lotto', 'vipclub', 'clubmembership', 'bonus', 'affiliate',
@@ -1092,6 +1095,8 @@ class SiteConfigService {
     flags.sportsexchange = flags.sports && entitlements.flagOnIn(planDoc, 'sportsexchange');
     // The owner's Demo login switch: the player site draws the Demo button only while it is on.
     flags.demo_login = entitlements.flagOnIn(planDoc, 'demo_login');
+    // The owner's Languages switches: the player site offers only these.
+    const languages = SITE_LANGUAGES.filter((code) => entitlements.flagOnIn(planDoc, `lang_${code}`));
 
     const amounts = Object.fromEntries(
       PUBLIC_AMOUNTS.map((name) => [name, this.#amount(row?.[name])])
@@ -1118,6 +1123,7 @@ class SiteConfigService {
     return {
       ...flags,
       ...amounts,
+      languages,
       registerBonusEnabled,
       // A browser can say "your friend must deposit" next to the joining bonus.
       affiliateBonusRequiresDeposit: row ? row.affiliate_bonus_requires_deposit !== false : true,
@@ -1498,7 +1504,7 @@ class SiteConfigService {
       config: {
         ...this.config,
         ...(settings.hasAppPassword
-          ? { SMTP_USER: settings.sendFrom, SMTP_PASSWORD: await this.#appPassword() }
+          ? { SMTP_HOST: this.config.SMTP_HOST || 'smtp.gmail.com', SMTP_USER: settings.sendFrom, SMTP_PASSWORD: await this.#appPassword() }
           : {}),
       },
       logger: this.logger,
@@ -1524,6 +1530,16 @@ class SiteConfigService {
   async #appPassword() {
     const row = await this.#configRow(['id', 'gmailapppassword']);
     return row?.gmailapppassword ?? null;
+  }
+
+  /**
+   * Site Config → Email's sender for user-service's player emails (OTP, deposit / withdrawal
+   * success) — INTERNAL only, it carries the app password. Null until both are set.
+   */
+  async mailSender() {
+    const row = await this.#configRow(['id', 'gmailuser', 'gmailapppassword']);
+    if (!row?.gmailuser || !row?.gmailapppassword) return null;
+    return { sendFrom: row.gmailuser, appPassword: row.gmailapppassword };
   }
 
   // ══════════════════════════════════════════════════════════════════════

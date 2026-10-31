@@ -160,6 +160,11 @@ function requireGameEntitled(deps = {}, pick, { mustExist = false } = {}) {
       const flags = flagsFor(game, bookUids);
       for (const flag of flags) await entitlements.assertFlagEntitled(flag);
       if (flags.includes('sportsbook')) await assertSportsSwitchOn(deps);
+      // The site admin's own Casino switch, as the owner's flag above. The books are not casino.
+      if (flags.includes('casino')) {
+        const site = await models?.Siteconfig?.findOne({ attributes: ['casino'], raw: true });
+        if (site?.casino === false) throw E.PROVIDER_DISABLED({ provider: 'casino' });
+      }
       /**
        * The site admin's own switch (Casino → Providers, migration 067), after
        * the owner's plan: the plan says what the site MAY offer, the switch

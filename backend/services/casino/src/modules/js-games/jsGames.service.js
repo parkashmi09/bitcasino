@@ -213,6 +213,19 @@ class JsGamesService {
       const delta = win - bet;
       const type = bet > 0n && win > 0n ? 'settle' : bet > 0n ? 'bet' : win > 0n ? 'win' : 'loss';
 
+      // A win alone that names its round needs this player's stake in that round.
+      if (type === 'win' && payload.game_round != null) {
+        const stake = await this.models.JsGameTransactions.findOne({
+          where: { user_id: userId, external_transaction_id: String(payload.game_round), transaction_type: ['bet', 'settle'] },
+          attributes: ['id'],
+          raw: true,
+        });
+        if (!stake) {
+          this.logger?.error({ serial, userId, round: payload.game_round }, 'jsGames v1 win refused: no bet in this round');
+          return this.#v1Error(CODE.BAD_PARAMETERS);
+        }
+      }
+
       const outcome = await this.#applyMovement({
         model: this.models.JsGameTransactions,
         where: { serial_number: serial },

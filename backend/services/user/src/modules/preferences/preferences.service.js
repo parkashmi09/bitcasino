@@ -80,7 +80,7 @@ class PreferencesService {
    * from here: rotating a seed is what makes a past round verifiable, and it
    * belongs to the fairness path, not to a settings screen.
    */
-  async update({ userId, theme, language, emailNotifications, pushNotifications, hideBalance, showBetsPublicly, showStatistics, tipNotifications }) {
+  async update({ userId, theme, language, emailNotifications, pushNotifications, hideBalance, showBetsPublicly, showStatistics, tipNotifications, hideGamingData, hideUsername, maxProfitAlert, depositEmail, withdrawEmail }) {
     if (theme !== undefined && !THEMES.includes(theme)) throw errors.UNKNOWN_THEME({ theme });
     if (language !== undefined && !LANGUAGES.includes(language)) throw errors.UNKNOWN_LANGUAGE({ language });
 
@@ -94,6 +94,11 @@ class PreferencesService {
     if (showBetsPublicly !== undefined) changes.show_bets_publicly = Boolean(showBetsPublicly);
     if (showStatistics !== undefined) changes.show_statistics = Boolean(showStatistics);
     if (tipNotifications !== undefined) changes.tip_notifications = Boolean(tipNotifications);
+    if (hideGamingData !== undefined) changes.hide_gaming_data = Boolean(hideGamingData);
+    if (hideUsername !== undefined) changes.hide_username = Boolean(hideUsername);
+    if (maxProfitAlert !== undefined) changes.max_profit_alert = Boolean(maxProfitAlert);
+    if (depositEmail !== undefined) changes.deposit_email = Boolean(depositEmail);
+    if (withdrawEmail !== undefined) changes.withdraw_email = Boolean(withdrawEmail);
 
     if (!Object.keys(changes).length) throw errors.NOTHING_TO_UPDATE();
 
@@ -123,6 +128,11 @@ class PreferencesService {
       showBetsPublicly: row?.show_bets_publicly ?? DEFAULTS.showBetsPublicly,
       showStatistics: row?.show_statistics ?? DEFAULTS.showStatistics,
       tipNotifications: row?.tip_notifications ?? DEFAULTS.tipNotifications,
+      hideGamingData: row?.hide_gaming_data ?? DEFAULTS.hideGamingData,
+      hideUsername: row?.hide_username ?? DEFAULTS.hideUsername,
+      maxProfitAlert: row?.max_profit_alert ?? DEFAULTS.maxProfitAlert,
+      depositEmail: row?.deposit_email ?? DEFAULTS.depositEmail,
+      withdrawEmail: row?.withdraw_email ?? DEFAULTS.withdrawEmail,
       updatedAt: row?.updatedat ?? null,
       /**
        * Deliberately absent: `fair_server_seed`, `fair_server_seed_hash`,

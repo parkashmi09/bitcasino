@@ -7,6 +7,7 @@ const jwt = require('jsonwebtoken');
 
 const google = require('../google');
 const { AuthService } = require('../auth.service');
+const { configureAgentPlayers, resetAgentPlayers } = require('@ibitplay/auth');
 
 const CONFIG = {
   JWT_ACCESS_SECRET: 'test-access-secret-that-is-long-enough-000000',
@@ -133,6 +134,18 @@ test('callback: an email held by a password account is refused, not linked', asy
   const target = new URL(await callback(service));
   assert.equal(target.searchParams.get('error'), 'AUTH_GOOGLE_EMAIL_IN_USE');
   assert.equal(codes.length, 0);
+});
+
+test('callback: an agent\'s player never gets a code — Google is for the site\'s own players', async () => {
+  configureAgentPlayers({ loadOwnerStaffId: async (id) => (Number(id) === 78 ? 5 : null), loadStaff: async (id) => ({ id, level: 6 }) });
+  try {
+    const { service, codes } = harness({ linked: { id: 78, status: 'active' } });
+    const target = new URL(await callback(service));
+    assert.equal(target.searchParams.get('error'), 'AUTH_GOOGLE_SIGNIN_FAILED');
+    assert.equal(codes.length, 0);
+  } finally {
+    resetAgentPlayers();
+  }
 });
 
 test('callback: a new player on a B2B site is refused (public sign-up closed)', async () => {

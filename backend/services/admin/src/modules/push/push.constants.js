@@ -54,9 +54,10 @@ const PROMPT_DEFAULTS = Object.freeze({
   text: 'Turn on notifications for deposits, withdrawals, bonuses and VIP rewards the moment they happen.',
   allowLabel: 'Allow',
   laterLabel: 'Not now',
-  /** after_login: N seconds after a signed-in visit; after_first_deposit: once the player has deposited. */
-  trigger: 'after_login',
-  delaySeconds: 20,
+  /** on_visit: N seconds into any visit, signed in or not (a later sign-in ties the browser to the
+   *  player); after_login: N seconds after a signed-in visit; after_first_deposit: once the player has deposited. */
+  trigger: 'on_visit',
+  delaySeconds: 3,
   cooldownDays: 7,
 });
 

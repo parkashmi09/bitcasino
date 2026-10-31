@@ -112,5 +112,11 @@ module.exports = function internalRoutes(deps) {
     })
   );
 
+  /** Site Config → Email's Gmail sender + app password, for user-service's mailer. Internal only. */
+  router.get(
+    '/mail-sender',
+    asyncHandler(async (_req, res) => response.ok(res, await service.mailSender()))
+  );
+
   return router;
 };
