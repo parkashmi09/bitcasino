@@ -1,6 +1,7 @@
 'use strict';
 
 const { Op, fn, col, where } = require('sequelize');
+const { vipCardsFor } = require('../../lib/vipCards');
 
 const errors = require('./social.errors');
 const {
@@ -22,6 +23,11 @@ class SocialService {
     this.logger = logger;
     /** `setAvatar` reads `AVATAR_BASE_URL` — legacy had it as a module constant. */
     this.config = config ?? {};
+  }
+
+  /** rainbet: each poster's VIP standing for the chat medals (`lib/vipCards`). */
+  #vipOf(userIds) {
+    return vipCardsFor(this, userIds);
   }
 
   /** The model for a room, or a refusal. Never a concatenated table name. */
@@ -95,9 +101,12 @@ class SocialService {
       level: user.level ?? 1,
     });
 
+    const vip = (await this.#vipOf([user.id])).get(String(user.id));
     return {
       // The label the clients filter on — `brazil` is broadcast as `spam`.
       country: ROOM_LABELS[key] ?? key,
+      card: vip?.card ?? null,
+      badgeUrl: vip?.badgeUrl ?? null,
       room: key,
       message: text,
       name: user.name,
@@ -265,12 +274,15 @@ class SocialService {
       raw: true,
     });
 
+    const vip = await this.#vipOf(rows.map((row) => row.uid));
     return {
       room: key,
       country: ROOM_LABELS[key] ?? key,
       // Oldest first, which is how a chat window renders.
       rows: rows.reverse().map((row) => ({
         uid: String(row.uid),
+        card: vip.get(String(row.uid))?.card ?? null,
+        badgeUrl: vip.get(String(row.uid))?.badgeUrl ?? null,
         name: row.name,
         avatar: row.avatar ?? null,
         message: row.message,

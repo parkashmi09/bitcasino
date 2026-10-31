@@ -1,73 +1,47 @@
 'use strict';
 
 const { Server } = require('socket.io');
-const { createSocketServer } = require('@ibitplay/socket');
-const { TokenService, TOKEN_TYPES } = require('@ibitplay/auth');
+
+const { setupBetsSocket } = require('./modules/bets/sockets');
+const { setupOddsSocket } = require('./modules/odds-events/sockets');
 
 /**
- * sports-service's socket transport.
+ * sports-service's socket transport: the mssports balance room (`modules/bets/sockets.js`) and
+ * the match pages' live odds (`modules/odds-events/sockets.js`).
  *
- * ═════════════════════════════════════════════════════════════════════════
- * ONE EVENT, AND IT STILL NEEDS ITS OWN SERVER
+ * The handlers are mssports' own, so the protocol is TENEXCH's: the client joins `user_<id>` with
+ * 'authenticate', asks with 'getBalance' / 'subscribeBalance', and receives 'balanceUpdate' —
+ * including the pushes the settlement worker publishes on Redis after a payout.
  *
- * `C.SPORT_GAME` is the only socket event `legacy/sports/` registers. It could
- * in principle be served from user-service over an internal call — but it reads
- * the fixture feed, and the feed client, its cache and its provider
- * credentials all live here. Putting the handler anywhere else would mean a
- * second cache and a second set of credentials for one event.
- *
- * The same reasoning casino-service's transport gives: a service owns the
- * sockets that touch the things it owns.
- *
- * The token service is shared, so a player's session is one session across all
- * three transports. Legacy had two independent notions of a session — a JWT
- * signed with a hardcoded string and a row in `tokens` — which is why logging
- * out invalidated one and not the other.
- * ═════════════════════════════════════════════════════════════════════════
+ * CORS is the platform's `SOCKET_ALLOWED_ORIGINS`. The gateway sends `/socket.io` to user-service,
+ * so this server is reached on the sports-service port itself.
  */
-
-const SOCKET_MODULES = [require('./modules/feed/sockets')];
-
 function attachSockets({ server, container }) {
   const { config, logger } = container;
 
   const io = new Server(server, {
-    // Always enforced. Legacy's allowlist ran only under `config.developer`.
+    path: '/socket.io',
     cors: { origin: parseOrigins(config.SOCKET_ALLOWED_ORIGINS), credentials: true },
     maxHttpBufferSize: 512 * 1024,
     pingTimeout: 30_000,
   });
 
-  const tokens = new TokenService(config);
+  const relay = setupBetsSocket(io);
+  setupOddsSocket(io);
+  logger.info('Sports socket transport attached (mssports balance room + odds push)');
 
-  const authenticate = async (token) => {
-    const payload = tokens.verify(token, TOKEN_TYPES.ACCESS);
-    return payload?.sub ? { userId: String(payload.sub) } : null;
+  return {
+    io,
+    close: () => {
+      relay.disconnect();
+      io.close();
+    },
   };
-
-  const socketServer = createSocketServer({ io, authenticate, logger, config });
-
-  for (const module of SOCKET_MODULES) {
-    module.register({ on: socketServer.on, deps: container });
-  }
-
-  logger.info({ modules: SOCKET_MODULES.length }, 'Sports socket transport attached');
-
-  return { io, close: () => io.close() };
 }
 
 /**
- * The allowed origins.
- *
- * `config.SOCKET_ALLOWED_ORIGINS` is a `coercers.list`, so it arrives as an
- * ARRAY already split on commas. This normalises whatever it is given — an
- * array from the config, or a raw comma-separated string if a caller passes
- * one — so neither shape silently produces an empty allowlist.
- *
- * No default. An unset value means no browser origin connects, which fails
- * visibly rather than silently accepting everything. Legacy hardcoded eight
- * origins in the middle of `index.js` and then only consulted the list when
- * `config.developer` was true, so production accepted every origin.
+ * The allowed origins — an array from `coercers.list`, or a raw comma-separated string. No default:
+ * an unset value means no browser origin connects, which fails visibly.
  */
 function parseOrigins(value) {
   const parts = Array.isArray(value) ? value : String(value ?? '').split(',');

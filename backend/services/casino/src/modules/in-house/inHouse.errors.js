@@ -28,6 +28,10 @@ module.exports = defineErrors('INHOUSE', {
     message: 'Your balance is not enough',
   },
 
+  CASINO_LOCKED: { status: 403, message: 'Casino play is locked on this account' },
+  // A demo account (`users.is_demo`) bets on the sports exchange only.
+  DEMO_NOT_ALLOWED: { status: 403, message: 'Demo accounts can only bet on sports. Use a real ID to play casino games.' },
+
   BET_NOT_FOUND: { status: 404, message: 'No such bet' },
 
   ALREADY_SETTLED: {

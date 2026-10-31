@@ -1,7 +1,7 @@
 'use strict';
 
 const { Router } = require('express');
-const { validate } = require('@ibitplay/common');
+const { validate, noQuery } = require('@ibitplay/common');
 
 const v = require('../wallet.validators');
 const { WalletService } = require('../wallet.service');
@@ -19,7 +19,7 @@ module.exports = function userRoutes(deps) {
 
   const router = Router();
 
-  router.get('/balances', ctrl.balances);
+  router.get('/balances', noQuery(), ctrl.balances);
 
   /**
    * @legacy GET /user/api/balance?uid=&coin_symbol=
@@ -30,7 +30,7 @@ module.exports = function userRoutes(deps) {
    * that had drifted from the `credits` columns. The player comes from the
    * token, and the currency is resolved through the wallet's allow-list.
    */
-  router.get('/balances/:currency', validate(v.balanceOf), ctrl.balanceOf);
+  router.get('/balances/:currency', noQuery(), validate(v.balanceOf), ctrl.balanceOf);
   router.get('/history', validate(v.listHistory), ctrl.history);
   router.get('/ledger', validate(v.listLedger), ctrl.ledger);
 

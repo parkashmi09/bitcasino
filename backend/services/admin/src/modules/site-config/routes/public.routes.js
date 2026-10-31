@@ -1,7 +1,8 @@
 'use strict';
 
+const crypto = require('crypto');
 const { Router } = require('express');
-const { response, asyncHandler, createRateLimiter } = require('@ibitplay/common');
+const { response, asyncHandler, createRateLimiter, UnauthorizedError } = require('@ibitplay/common');
 
 const { SiteConfigService } = require('../siteConfig.service');
 
@@ -41,6 +42,22 @@ module.exports = function publicRoutes(deps) {
     '/public',
     limiter,
     asyncHandler(async (_req, res) => response.ok(res, await service.publicSettings()))
+  );
+
+  /**
+   * The owner panel's methods editor: every `payment_methods` row with both switches.
+   * `x-owner-key: <OWNER_SHARED_SECRET>` (timing-safe), else 401 — as the Coins screen's read.
+   */
+  router.get(
+    '/payment-methods/owner',
+    limiter,
+    asyncHandler(async (req, res) => {
+      const secret = deps.config?.OWNER_SHARED_SECRET;
+      const given = req.get('x-owner-key');
+      const digest = (v) => crypto.createHash('sha256').update(String(v)).digest();
+      if (!secret || !given || !crypto.timingSafeEqual(digest(given), digest(secret))) throw new UnauthorizedError('Bad owner key');
+      return response.ok(res, await service.ownerPaymentMethods());
+    })
   );
 
   return router;

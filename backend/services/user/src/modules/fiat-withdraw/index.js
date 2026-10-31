@@ -10,7 +10,7 @@ module.exports = {
   name: 'fiat-withdraw',
   service: 'user',
   basePath: '/withdrawals/fiat',
-  models: ['core', 'payments'],
+  models: ['core', 'payments', 'extended'],
   routers: {
     user: require('./routes/user.routes'),
     admin: require('./routes/admin.routes'),

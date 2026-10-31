@@ -1,7 +1,9 @@
 'use strict';
 
 const { Op, literal } = require('sequelize');
-const { money } = require('@ibitplay/common');
+const { money, assertCurrencySupportedFor } = require('@ibitplay/common');
+const { GamesService } = require('../../games/games.service');
+const { assertInHouseEntitled } = require('../../games/gameEntitlement');
 
 const errors = require('../inHouse.errors');
 const { HOUSE_EDGE_PERCENT, COIN_COLUMNS, PLAY_COIN_BLOCKED } = require('../inHouse.constants');
@@ -66,11 +68,19 @@ function makeGameId(add = 0) {
 }
 
 class GameEngine {
-  constructor({ models, db, logger, config }) {
+  constructor({ models, db, logger, config, clients }) {
     this.models = models;
     this.db = db;
     this.logger = logger;
     this.config = config;
+    /** rainbet: user-service, for the player's own break / limit before a stake. */
+    this.clients = clients;
+    /**
+     * `recordPlay` and the wager counters live with the catalogue they are
+     * about. Same service, same models — a plain collaborator, not an HTTP hop.
+     * `clients` reaches user-service for the VIP on-wager sync.
+     */
+    this.games = new GamesService({ models, db, config, logger, clients });
   }
 
   /**
@@ -82,6 +92,9 @@ class GameEngine {
    */
   async placeBet({ userId, game, coin, amount, data }) {
     const currency = String(coin ?? '').toUpperCase();
+    // The in-house engine settles on `credits` columns only; an owner-created
+    // coin (wallet_balances) is refused by name: CURRENCY_NOT_SUPPORTED_FOR_GAMES.
+    assertCurrencySupportedFor('GAMES', currency);
     const column = COIN_COLUMNS[currency];
     if (!column) throw errors.UNSUPPORTED_COIN({ coin: currency });
 
@@ -93,9 +106,23 @@ class GameEngine {
     // Legacy's four consecutive `bet <= 0` checks, which are one check.
     if (stake <= 0n) throw errors.INVALID_STAKE({ amount });
 
+    // The owner's plan: Originals (and casino, and crash for the crash games)
+    // must be in it before a stake is taken. 403 NOT_ENTITLED, nothing debited.
+    await assertInHouseEntitled(game);
+
+    // The admin's Casino lock / Account lock (Risk management) stops in-house play too, as it does provider games.
+    const locks = await this.models.Users.findOne({ where: { id: userId }, attributes: ['casino_locked', 'system_locked', 'is_demo'], raw: true });
+    if (locks?.is_demo) throw errors.DEMO_NOT_ALLOWED({ userId });
+    if (locks?.casino_locked || locks?.system_locked) throw errors.CASINO_LOCKED({ userId });
+
     const decimal = money.toDecimalString(stake);
 
-    return this.db.transaction(async (transaction) => {
+    // rainbet: the player's own break or loss / wager limit (user-service responsible-gambling). This
+    // engine debits `credits` itself rather than through the wallet's `debit`, so it asks first; a
+    // refusal is the wallet's own 403 RESPONSIBLE_* and nothing is debited.
+    await this.clients.user.post('/internal/user/responsible-gambling/check', { userId: String(userId), currency, amount: decimal, sports: false });
+
+    const opened = await this.db.transaction(async (transaction) => {
       /**
        * The GUARDED debit. `WHERE <column> >= stake`, and the row count is the
        * answer — Postgres decides whether the player can afford it, at the
@@ -164,8 +191,51 @@ class GameEngine {
 
       const balance = await this.#balance(userId, column, transaction);
 
+      // The stake's ledger row, in the same transaction as the debit — the
+      // wallet must reconcile against its own ledger (see `#writeLedger`).
+      await this.#writeLedger(
+        {
+          userId, username: player?.name, currency, signed: -stake, newBalance: balance,
+          reason: 'BET_STAKE', betId: bet.id, game,
+        },
+        transaction
+      );
+
       return { betId: String(bet.id), balance, stake: decimal, currency, column };
     });
+
+    /**
+     * AFTER the transaction, and deliberately outside it.
+     *
+     * A bet counts toward a wagering requirement when it is PLACED, not when
+     * it wins — the requirement measures turnover — so the stake is recorded
+     * here rather than in `settle`. Recording it in `settle` would also miss
+     * a round that never settles.
+     *
+     * Outside the transaction because these three writes are bookkeeping about
+     * the bet, not part of it: a failed counter must never roll back a debit
+     * that already happened. `recordActivity` swallows and logs its own
+     * failures for the same reason.
+     */
+    /* `ref` is the bet row: the count is exactly-once per bet, converted to
+       USD by user-service, and the in-house engine now accrues rakeback too. */
+    await this.games
+      .recordActivity({
+        userId,
+        gameRef: game,
+        wagered: decimal,
+        currency,
+        source: 'inhouse',
+        ref: opened.betId,
+        category: 'originals',
+        provider: 'BC Originals',
+        // A round is counted in `games_played` when it SETTLES (see `settle`),
+        // so a refunded or invalid round is not a game played.
+        countPlay: false,
+      })
+      .catch((error) => this.logger?.warn({ err: error, betId: String(opened.betId) }, 'Wager feed failed — the bet stands'));
+
+    return opened;
   }
 
   /**
@@ -185,61 +255,70 @@ class GameEngine {
     const stake = money.toMinor(String(amount ?? '0'));
 
     /**
-     * ═════════════════════════════════════════════════════════════════════
-     * THE PROFIT IS QUANTISED. THE STAKE IS NOT. THEY COME FROM DIFFERENT
-     * SIDES OF THE FLOAT BOUNDARY.
+     * ═══════════════════════════════════════════════════════════════════════
+     * `toMinorQuantised`, NOT `toMinor` — AND THIS IS NOT THE CASE THAT
+     * FUNCTION'S HEADER WARNS ABOUT
      *
-     * `amount` is `placeBet`'s own `toDecimalString` output — exact by
-     * construction, so `toMinor` is right to refuse anything else.
+     * Every game computes its profit in JS floats and stringifies the result:
      *
-     * `profit` is the GAME's number, and every game computes it in JS floats
-     * because the arithmetic was ported as-is. `limbo.js` is
-     * `stake * target - stake`, and:
+     *     profit = stake * target - stake      // games/limbo.js
+     *     return { …, profit: String(profit) }
      *
-     *     10 * 1.01 - 10  ->  0.09999999999999964     (17 places)
-     *     10 * 3.33 - 10  ->  23.299999999999997      (15 places)
-     *     10 * 2    - 10  ->  10                      (exact)
+     * For a 10 stake at 1.02× that is `0.19999999999999928` — SEVENTEEN
+     * decimal places. `toMinor` refuses anything over eight, correctly, so the
+     * round threw `BAD_REQUEST: amount supports at most 8 decimal places`
+     * after the stake had been taken. `sockets.js` caught it and refunded, so
+     * no money was lost — but the round died, and it died for most
+     * multipliers rather than a rare few. 2.00× settles; 1.02× never did.
      *
-     * Each game then does `String(profit)`, so a float artefact arrives here
-     * verbatim. `toMinor` refuses more than 8 places — correctly, for a
-     * request body — and threw `BAD_REQUEST: amount supports at most 8
-     * decimal places` right here, inside `settle`.
+     * `toMinorQuantised`'s header says it is for reading stored balances and
+     * NEVER for a request body. This is neither. The over-precision here is an
+     * artifact of arithmetic THIS SERVER just performed on its own numbers —
+     * `0.19999999999999928` is a float's way of writing `0.20`, not a claim to
+     * precision the platform cannot hold, and not something a player supplied.
+     * Rounding it half-away-from-zero to the platform's scale is what the value
+     * already meant. Refusing it only loses the round.
      *
-     * **That voided the win.** The handler's catch refunds the stake and
-     * re-raises, so no money was lost — but a WON round paid nothing and the
-     * player got a message about decimal places. It was deterministic per
-     * (stake, payout) pair, not intermittent: `10 @ 1.01` never paid, `10 @
-     * 2.00` always did. Every one of the twenty games has the same
-     * `String(<float>)` shape, so every one of them had it.
-     *
-     * Quantising is not a tolerance here, it is the more correct number:
-     * 10 × 1.01 − 10 is exactly 0.1 in decimal, and 0.09999999999999964 is
-     * the float's error. Rounding half-up recovers the value the game meant.
-     *
-     * This is the one WRITE that may quantise, and it is why
-     * `toMinorQuantised` is reachable from outside a read. It sits exactly on
-     * the boundary between legacy's float arithmetic and this engine's exact
-     * arithmetic, which is the last place a float artefact can be corrected
-     * before it becomes money.
-     * ═════════════════════════════════════════════════════════════════════
+     * The stake above stays on strict `toMinor`: that one DOES come from the
+     * player's message, and an over-precise stake is exactly the input the
+     * strict parser exists to reject.
+     * ═══════════════════════════════════════════════════════════════════════
      */
     const won = money.toMinorQuantised(String(profit ?? '0'), { field: 'profit' });
 
     /**
-     * Legacy's payout arithmetic, kept:
+     * ═══════════════════════════════════════════════════════════════════════
+     * WHAT IS PAID IS WHAT IS RECORDED
+     *
+     * Legacy's payout arithmetic:
      *
      *     var percent = (houseEdge / 100) * amount;
      *     var calculateHouse = amount - percent;
      *     var amountAndProfit = profit + calculateHouse;
      *
-     * The stake comes back less the house edge, plus the profit. Computed in
-     * minor units here rather than through `parseFloat`/`toFixed(8)`, so the
-     * figure is the same one every time rather than one of several depending
-     * on rounding.
+     * The engine's 2% house edge (`HOUSE_EDGE_PERCENT`, shown on the admin
+     * In-house page and priced into games such as Magic Wheel, whose odds are
+     * fair before it) is kept: a round that wins or loses returns the stake
+     * less 2%, plus the game's profit.
+     *
+     * What changed is the RECORD. `bets.profit`, the socket reply and every
+     * report built on them used to carry the game's gross profit while the
+     * wallet received 2% of the stake less — ₹10 at 2× recorded +10 and paid
+     * +9.80. Now `profit` is `payout − stake`: the net the player actually
+     * received, so Bet History, P&L / GGR and the agent tree add up to the
+     * ledger.
+     *
+     * A PUSH (the game's profit is exactly 0 — a blackjack push, a Limbo /
+     * Hash Dice tie, Plinko's 1.00× slot, a cash-out before any step) returns
+     * the FULL stake. Taking 2% of a stake on a round that neither won nor
+     * lost is a fee, not an edge, and recorded as profit 0 it was invisible.
+     * ═══════════════════════════════════════════════════════════════════════
      */
-    const houseCut = (stake * BigInt(Math.round(HOUSE_EDGE_PERCENT * 100))) / 10_000n;
-    const returned = stake - houseCut;
-    const payout = won + returned;
+    const push = won === 0n;
+    const houseCut = push ? 0n : (stake * BigInt(Math.round(HOUSE_EDGE_PERCENT * 100))) / 10_000n;
+    const gross = stake + won - houseCut;
+    const payout = gross > 0n ? gross : 0n;
+    const net = payout - stake;
 
     return this.db.transaction(async (transaction) => {
       const bet = await this.models.Bets.findOne({
@@ -259,7 +338,7 @@ class GameEngine {
 
       await bet.update(
         {
-          profit: money.toDecimalString(won),
+          profit: money.toDecimalString(net),
           // `bets.result` is a JSON column. Legacy `JSON.stringify`d into it,
           // which for a bare number stores a JSON number — kept.
           result,
@@ -277,9 +356,22 @@ class GameEngine {
 
       const balance = await this.#balance(userId, column, transaction);
 
+      if (payout > 0n) {
+        await this.#writeLedger(
+          {
+            userId, username: bet.name, currency, signed: payout, newBalance: balance,
+            reason: 'BET_PAYOUT', betId, game: bet.game,
+          },
+          transaction
+        );
+      }
+
+      // A settled round is a game played — once, because a bet settles once.
+      await this.models.Users.increment({ games_played: 1 }, { where: { id: userId }, transaction });
+
       return {
         betId: String(betId),
-        profit: money.toDecimalString(won),
+        profit: money.toDecimalString(net),
         payout: money.toDecimalString(payout),
         balance,
         result,
@@ -300,7 +392,7 @@ class GameEngine {
     const column = COIN_COLUMNS[String(coin ?? '').toUpperCase()];
     if (!column) throw errors.UNSUPPORTED_COIN({ coin });
 
-    return this.db.transaction(async (transaction) => {
+    const outcome = await this.db.transaction(async (transaction) => {
       const bet = await this.models.Bets.findOne({
         where: { id: betId, uid: userId },
         transaction,
@@ -309,14 +401,35 @@ class GameEngine {
       if (!bet || bet.result !== null) return { refunded: false };
 
       await bet.update({ profit: '0', result: 'refunded' }, { transaction });
+      const refunded = money.toMinor(String(amount ?? '0'));
       await this.models.Credits.increment(
-        { [column]: money.toDecimalString(money.toMinor(String(amount ?? '0'))) },
+        { [column]: money.toDecimalString(refunded) },
         { where: { uid: userId }, transaction }
       );
+      if (refunded > 0n) {
+        await this.#writeLedger(
+          {
+            userId, username: bet.name, currency: String(coin).toUpperCase(), signed: refunded,
+            newBalance: await this.#balance(userId, column, transaction),
+            reason: 'BET_REFUND', betId, game: bet.game,
+          },
+          transaction
+        );
+      }
 
       this.logger?.warn({ userId: String(userId), betId: String(betId) }, 'In-house bet refunded');
       return { refunded: true };
     });
+
+    /* The stake was counted when the bet was placed (`inhouse:<bet id>`); a
+       refunded bet is no turnover, so it stops counting — after the refund
+       has committed, best-effort, never failing it. */
+    if (outcome.refunded) {
+      await this.games
+        .reverseActivity({ userId, source: 'inhouse', ref: betId, outbox: true })
+        .catch((error) => this.logger?.warn({ err: error, betId: String(betId) }, 'Wager reversal failed — the refund stands'));
+    }
+    return outcome;
   }
 
   /**
@@ -402,10 +515,39 @@ class GameEngine {
     return round;
   }
 
-  /** Record a step. The outcome stays hidden until the round ends. */
-  async stepRound({ round, selected, profit }) {
+  /**
+   * Record a step. The outcome stays hidden until the round ends.
+   *
+   * ═════════════════════════════════════════════════════════════════════════
+   * `state` IS PART OF A STEP, AND DROPPING IT BROKE HILO COMPLETELY
+   *
+   * Only `selected` and `profit` were written here. Most of the multi-step
+   * games do not care — Mines, Tower, Goal and Snake & Ladders decide a click
+   * against a board that was fixed when the round opened, so their state never
+   * changes.
+   *
+   * HiLo's does. `games/hilo.js` `step` returns
+   *
+   *     state: { ...state, result, next: next + 1 }
+   *
+   * and that `next` is the position in the deck. Discarded, `next` stayed `0`,
+   * so every turn of the round compared `result[0]` against `result[1]` — the
+   * same two cards, forever. Which means the round was decided by the deal:
+   *
+   *   `result[0] >= result[1]`  every turn wins, the round NEVER ends, and
+   *                             each one pays another `stake / 3`. A player who
+   *                             kept clicking was minting money.
+   *   otherwise                 the first turn loses, always.
+   *
+   * Roughly half of all rounds were the first kind. Persisting what the game
+   * returns is the whole fix; `?? round.state` keeps the games that return
+   * nothing exactly as they were.
+   * ═════════════════════════════════════════════════════════════════════════
+   */
+  async stepRound({ round, selected, profit, state }) {
     await round.update({
       selected,
+      state: state ?? round.state,
       steps: round.steps + 1,
       profit: profit !== undefined ? String(profit) : round.profit,
       updated_at: new Date(),
@@ -433,11 +575,74 @@ class GameEngine {
 
     await round.update({
       status: status ?? (isWinner ? 'cashed_out' : 'lost'),
-      profit: String(profit),
+      // The net actually paid, the same figure as `bets.profit`.
+      profit: settled.profit,
       updated_at: new Date(),
     });
 
     return settled;
+  }
+
+  /**
+   * The ledger + history rows for one in-house money movement.
+   *
+   * Every other wallet move — user-service's `#writeRecords`, the admin
+   * opening balance — writes a signed `credits_ledger` row and a
+   * `wallet_history` row in the SAME transaction as the balance change. The
+   * in-house engine changed `credits` directly and wrote neither, so a player's
+   * wallet drifted from the sum of its ledger by every house-game round and
+   * reconcile reported `balanced: false`.
+   *
+   * Written here, inside the engine's transaction, rather than through
+   * user-service: the bet row, the balance and the record must commit
+   * together. The idempotency key follows `WalletClient.key`'s shape
+   * (`casino-service:<REASON>:INHOUSE:<bet id>`), so the partial unique index on
+   * `credits_ledger.idempotency_key` also refuses a second stake, payout or
+   * refund for the same bet.
+   *
+   * `newBalance` is read after the change while the row lock is held, so
+   * `previousBalance = newBalance − signed` is exact.
+   */
+  async #writeLedger({ userId, username, currency, signed, newBalance, reason, betId, game }, transaction) {
+    const amount = money.toDecimalString(signed);
+    const magnitude = money.toDecimalString(signed < 0n ? -signed : signed);
+    const previousBalance = money.toDecimalString(money.toMinor(newBalance) - signed);
+    const description = `Originals ${game ?? 'game'} ${reason === 'BET_STAKE' ? 'stake' : reason === 'BET_PAYOUT' ? 'payout' : 'refund'} #${betId}`;
+
+    await this.models.CreditsLedger.create(
+      {
+        user_id: String(userId),
+        currency,
+        amount,
+        reason,
+        description,
+        balance: newBalance,
+        closing: newBalance,
+        netamount: 0,
+        profit: 0,
+        loss: 0,
+        commission: 0,
+        idempotency_key: `casino-service:${reason}:INHOUSE:${betId}`,
+        source_service: 'casino-service',
+        meta: { refType: 'INHOUSE', refId: String(betId), game: game ?? null, previousBalance },
+      },
+      { transaction }
+    );
+
+    await this.models.WalletHistory.create(
+      {
+        uid: userId,
+        username: username || String(userId),
+        coin: currency,
+        operation: signed < 0n ? 'debit' : 'credit',
+        amount: magnitude,
+        previous_balance: previousBalance,
+        new_balance: newBalance,
+        description,
+        transaction_time: new Date(),
+      },
+      { transaction }
+    );
   }
 
   async #balance(userId, column, transaction) {

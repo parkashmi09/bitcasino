@@ -44,6 +44,16 @@ function fromSequelize(err) {
   }
 }
 
+/**
+ * Whether a service may put a stack trace in a 5xx body: only with
+ * ERROR_EXPOSE_STACK=true, and never in production whatever the flag says.
+ * A stack names server file paths, so the default is off everywhere —
+ * including local development.
+ */
+function stackExposure(config = {}) {
+  return config.ERROR_EXPOSE_STACK === true && config.NODE_ENV !== 'production';
+}
+
 function errorHandler({ logger, exposeStack = false } = {}) {
   // Express identifies error middleware by arity — all four params are required.
   return function errorHandlerMiddleware(err, req, res, _next) {
@@ -105,4 +115,4 @@ function errorHandler({ logger, exposeStack = false } = {}) {
   };
 }
 
-module.exports = { errorHandler };
+module.exports = { errorHandler, stackExposure };

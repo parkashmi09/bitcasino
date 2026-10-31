@@ -17,4 +17,18 @@ module.exports = {
   routers: {
     internal: require('./routes/internal.routes'),
   },
+  /**
+   * Settled sports stakes into `userwager` (Rollover, VIP, rakeback, admin wager) and voided
+   * ones back out — see `sportsWagerSync.js`. Runs in sports-worker; exactly-once per bet.
+   */
+  jobs: [
+    {
+      name: 'wager:sports-sync',
+      intervalMs: Number(process.env.SPORTS_WAGER_SYNC_INTERVAL_MS || 60 * 1000),
+      run: async (container) => {
+        const { SportsWagerSync } = require('./sportsWagerSync');
+        return new SportsWagerSync(container).run();
+      },
+    },
+  ],
 };

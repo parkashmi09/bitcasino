@@ -44,4 +44,24 @@ const TRANSITIONS = Object.freeze({
  */
 const REFUNDING_STATUSES = Object.freeze([STATUS.REJECTED]);
 
-module.exports = { STATUS, STATUSES, TRANSITIONS, REFUNDING_STATUSES };
+/** The wallet column a coin lives on. A map, never a string in the SQL. */
+const COIN_COLUMNS = Object.freeze({
+  BTC: 'btc', ETH: 'eth', LTC: 'ltc', BCH: 'bch', USDT: 'usdt', TRX: 'trx',
+  DOGE: 'doge', ADA: 'ada', XRP: 'xrp', BNB: 'bnb', USDC: 'usdc', BUSD: 'busd',
+  SHIB: 'shib', MATIC: 'matic', INR: 'inr',
+});
+
+/** `nc` is play money — legacy refuses it here too. */
+const BLOCKED_COINS = Object.freeze(['NC']);
+
+/**
+ * A coin as the ledger spells it: upper-case.
+ *
+ * `credits_ledger.currency` is compared exactly by `WalletService.reconcile`,
+ * so a refund written under `'usdt'` is invisible to `reconcile('USDT')`. Rows
+ * the old socket path wrote carry the lower-case spelling, so every read of
+ * `withdrawals.coin` that moves money goes through this.
+ */
+const normaliseCoin = (coin) => String(coin ?? '').trim().toUpperCase();
+
+module.exports = { STATUS, STATUSES, TRANSITIONS, REFUNDING_STATUSES, COIN_COLUMNS, BLOCKED_COINS, normaliseCoin };

@@ -47,10 +47,26 @@
  * not exist is worse than no entry, because it reads as coverage.
  */
 const INTERNAL_SURFACE = Object.freeze({
-  'user-service': ['/internal/user/wallet', '/internal/user/exchange-rate'],
+  'user-service': [
+    '/internal/user/wallet',
+    '/internal/user/exchange-rate',
+    '/internal/user/rakeback',
+    '/internal/user/preferences',
+    '/internal/user/vip',
+    '/internal/user/affiliate',
+    '/internal/user/wager',
+    '/internal/user/history',
+    // rainbet: a player's own breaks / limits, asked by casino-service before an in-house stake.
+    '/internal/user/responsible-gambling',
+  ],
   'admin-service': [
+    '/internal/admin/accounts',
     '/internal/admin/audit',
     '/internal/admin/auth',
+    '/internal/admin/avatars',
+    '/internal/admin/branding',
+    '/internal/admin/currencies',
+    '/internal/admin/entitlements',
     '/internal/admin/notifications',
     '/internal/admin/site-config',
     '/internal/admin/staff-directory',
@@ -83,8 +99,42 @@ const INTERNAL_ACL = Object.freeze({
    * wager and VIP screens.
    */
   'user-service': [
+    /**
+     * The agent-tree wallet adjust. `/admin/user/wallet/adjust` lives here, but
+     * for a level 4–6 caller it is a transfer between the agent's float
+     * (`staff_balances`, admin domain) and the player — one transaction that
+     * only admin-service can run. The staff id is the verified token's; admin
+     * re-checks the tree and the transaction password.
+     */
+    '/internal/admin/accounts',
     '/internal/admin/audit',
     '/internal/admin/auth',
+    /**
+     * The avatar set: the public list for the state sync socket, and one avatar's unlock level
+     * for `POST /user/profile/avatar`.
+     */
+    '/internal/admin/avatars',
+    /** The public branding block, for the state sync socket (`modules/sync/sockets.js`). */
+    '/internal/admin/branding',
+    /**
+     * The coin registry (names, networks, switches) — read through
+     * `currencyRegistry` for the crypto deposit / withdrawal network lists.
+     */
+    '/internal/admin/currencies',
+    '/internal/admin/entitlements',
+    /**
+     * A player's own notification inbox. Admin-service owns the sending side
+     * and the `user_notifications` table; user-service holds the player's
+     * session, so the bell in the header reaches the inbox through here
+     * rather than by both services writing the same rows.
+     *
+     * The internal routes it reaches were written FOR this caller — their own
+     * file opens "What a PLAYER does with their own notifications … user-service
+     * proxies the three player-facing actions" — and every one of them takes
+     * the player id as a parameter, which user-service fills from the
+     * authenticated token and never from the request body.
+     */
+    '/internal/admin/notifications',
     '/internal/admin/site-config',
     '/internal/admin/staff-directory',
     '/internal/casino/bet-history',
@@ -110,20 +160,58 @@ const INTERNAL_ACL = Object.freeze({
     '/internal/sports/settlement',
     '/internal/sports/wager',
     '/internal/user/exchange-rate',
+    /** A branch's deposits and withdrawals, every rail (modules/branches; user-service owns the rail list). */
+    '/internal/user/history',
+    /**
+     * Site flags and features are written here and heard on the player
+     * sockets, which are user-service's. This is the push, nothing else:
+     * the route takes the public view admin-service computed and emits it.
+     */
+    '/internal/user/preferences',
   ],
 
   /** Pays out casino bets, so it holds the wallet. Not sports settlement. */
   'casino-service': [
     '/internal/admin/audit',
+    '/internal/admin/entitlements',
+    /** Free spins granted / won → the player's bell (gis.service.js `#notifyFreeSpins`). */
+    '/internal/admin/notifications',
     '/internal/admin/site-config',
     '/internal/admin/staff-directory',
     '/internal/user/exchange-rate',
+    /**
+     * Rakeback is accrued from the jsGames settlement callback. The figure is
+     * computed here; the column it lands on is user-service's, and this is the
+     * only way to reach it.
+     */
+    '/internal/user/rakeback',
+    /**
+     * The other two halves of the same settlement callback.
+     *
+     * `vip/on-wager` syncs the player's rakeback rate and pays level/rank-up
+     * credits; `affiliate/on-wager` pays the upline its commission. Both are
+     * called from `games.service.js` right after the wager row moves, and both
+     * are wrapped in a `try/catch` that only warns — so a missing grant here
+     * does not fail a bet, it silently stops paying people.
+     */
+    '/internal/user/vip',
+    '/internal/user/affiliate',
     '/internal/user/wallet',
+    /** Every settled stake is counted here (wager/wagerActivity.service.js), plus /reverse for refunds. */
+    '/internal/user/wager',
+    /**
+     * rainbet: the in-house engine takes its stake on `credits` itself, not through the wallet's
+     * debit, so it asks user-service whether the player's own break or limit allows the stake.
+     */
+    '/internal/user/responsible-gambling',
+     /** rainbet: lobby content changed (categories, collections, providers) → player sockets (contentPush.js). */
+    '/internal/user/preferences',
   ],
 
   /** Pays out sports bets. Not casino's surface. */
   'sports-service': [
     '/internal/admin/audit',
+    '/internal/admin/entitlements',
     '/internal/admin/site-config',
     '/internal/admin/staff-directory',
     '/internal/sports/bet-admin',
@@ -131,6 +219,8 @@ const INTERNAL_ACL = Object.freeze({
     '/internal/sports/wager',
     '/internal/user/exchange-rate',
     '/internal/user/wallet',
+    /** Settled sports stakes count toward wager, VIP, affiliate and rakeback. */
+    '/internal/user/wager',
   ],
 });
 

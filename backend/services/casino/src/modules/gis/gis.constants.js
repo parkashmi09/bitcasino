@@ -21,37 +21,22 @@ const MONEY_ACTIONS = Object.freeze(new Set([ACTION.BET, ACTION.WIN, ACTION.REFU
  * Currencies the integration accepts from the provider, and the wallet currency
  * each settles against.
  *
- * ── WHY PKR SETTLES IN INR ───────────────────────────────────────────────
- * This is legacy's `CUR2COL`, kept exactly:
- *
- *     const CUR2COL = { PKR: 'inr', INR: 'inr', USD: 'usdt', USDT: 'usdt' };
- *
- * A PKR-denominated game moves the player's INR balance, and a USD game moves
- * USDT — one rupee treated as one rupee and one dollar as one tether, with no
- * conversion anywhere. Whether that is right is a product decision with a
- * reconciliation behind it, not something a port may quietly change: altering
- * it would silently re-denominate every existing player's casino play.
- *
- * It is declared here, once, instead of being implied by a column name built
- * inside a query.
+ * The player's wallet a launch plays from: INR, PKR and USDT (USD is USDT). One unit for one unit, no conversion.
  */
 const SETTLEMENT_CURRENCY = Object.freeze({
   USDT: 'USDT',
   USD: 'USDT',
   INR: 'INR',
-  PKR: 'INR',
+  PKR: 'PKR',
 });
 
 const SUPPORTED_CURRENCIES = Object.freeze(Object.keys(SETTLEMENT_CURRENCY));
 
-/**
- * What the provider is told a currency is called.
- *
- * Slotegrator has no USDT and no INR on some accounts, so legacy quoted USD and
- * PKR outbound. Inbound it accepts both spellings — which is why
- * `SETTLEMENT_CURRENCY` above maps four codes onto two balances.
- */
-const OUTBOUND_CURRENCY = Object.freeze({ USDT: 'USD', INR: 'PKR' });
+/** What the provider is told a wallet's currency is called. INR and PKR go as themselves. */
+const OUTBOUND_CURRENCY = Object.freeze({ USDT: 'USD' });
+
+/** A callback's currency → the wallet it moves: the reverse of OUTBOUND_CURRENCY. */
+const CALLBACK_CURRENCY = Object.freeze({ USD: 'USDT', USDT: 'USDT', INR: 'INR', PKR: 'PKR' });
 
 /**
  * The uuid-v5 namespace used to derive the transaction id we hand back.
@@ -76,6 +61,7 @@ module.exports = {
   SETTLEMENT_CURRENCY,
   SUPPORTED_CURRENCIES,
   OUTBOUND_CURRENCY,
+  CALLBACK_CURRENCY,
   RESPONSE_ID_NAMESPACE,
   BALANCE_SCALE,
   DEVICES,

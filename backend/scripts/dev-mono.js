@@ -46,8 +46,10 @@ const {
   dbEnvShape,
   jwtEnvShape,
   adminJwtEnvShape,
+  configureEntitlements,
+  configureCurrencyRegistry,
 } = require('@ibitplay/common');
-const { createAuthMiddleware } = require('@ibitplay/auth');
+const { createAuthMiddleware, configureAgentPlayers } = require('@ibitplay/auth');
 const db = require('@ibitplay/db');
 
 const ROOT = path.resolve(__dirname, '..');
@@ -61,6 +63,12 @@ const config = loadEnv(
     ...jwtEnvShape,
     ...adminJwtEnvShape,
     MONO_PORT: coercers.int(4000),
+    // The owner panel — same keys as admin-service's config (docs/OWNER-PANEL.md §3).
+    OWNER_SHARED_SECRET: coercers.optionalStr(),
+    OWNER_POLL_SECONDS: coercers.int(15),
+    OWNER_VERIFY_KEY: coercers.optionalStr(),
+    OWNER_SITE_KEY: coercers.optionalStr(),
+    OWNER_MAX_AGE_SECONDS: coercers.int(300),
   },
   { serviceDir: ROOT }
 );
@@ -166,6 +174,7 @@ async function main() {
 
   const auth = createAuthMiddleware({
     config,
+    loadSession: (id) => connection.models.AuthSession.findByPk(id, { attributes: ['revoked_at'], raw: true }),
     loadUser: async (userId) =>
       connection.models.Users.findByPk(userId, {
         attributes: ['id', 'status', 'is_locked', 'system_locked', 'bet_status'],
@@ -190,6 +199,32 @@ async function main() {
   );
 
   const container = { config, logger, db: connection, models: connection.models, clients, auth };
+
+  // Agent-tree players (owner at staff level 4–6): no promotions, vault or
+  // deposits — the same resolver user-service's container configures.
+  container.agentPlayers = configureAgentPlayers({
+    loadOwnerStaffId: async (userId) =>
+      (await connection.models.Users.findByPk(userId, { attributes: ['parent_staff_id'], raw: true }))?.parent_staff_id ?? null,
+    loadStaff: (staffId) => resolveStaff(connection.models, staffId),
+  });
+
+  /**
+   * The owner's entitlements, exactly as admin-service's container and index
+   * do it: one store over `owner_entitlements`, registered as this process's
+   * source BEFORE any module is mounted. Without it every module here read
+   * the default — everything entitled — and enforcement was off in this mode.
+   */
+  const { createEntitlementsStore } = require(path.join(ROOT, 'services/admin/src/modules/entitlements/entitlements.store'));
+  const { FeaturesService } = require(path.join(ROOT, 'services/admin/src/modules/features/features.service'));
+  const entitlementsStore = createEntitlementsStore({ config, logger, db: connection });
+  configureEntitlements({ read: () => entitlementsStore.current() });
+  const { CurrenciesService } = require(path.join(ROOT, 'services/admin/src/modules/currencies/currencies.service'));
+  configureCurrencyRegistry({ read: () => new CurrenciesService(container).list(), logger, config });
+  // The owner API (`/api/v1/admin/owner`) reads it from the container.
+  container.entitlementsStore = entitlementsStore;
+  await entitlementsStore.start({
+    onChange: (current) => new FeaturesService(container).onEntitlementsChange(current),
+  });
 
   let total = 0;
   for (const service of SERVICES) {
@@ -216,12 +251,16 @@ async function main() {
 
   logger.info({ total }, 'Monolith assembled — all services in one process');
 
+  // Same as admin-service's bootstrapSite(): apply the owner's document once
+  // at boot, in case the store's last onChange attempt failed. Never throws.
+  await new FeaturesService(container).applyOwner(entitlementsStore.current());
+
   startServer({
     app,
     port: config.MONO_PORT,
     serviceName: 'monolith',
     logger,
-    onShutdown: [() => connection.close()],
+    onShutdown: [() => entitlementsStore.stop(), () => connection.close()],
   });
 }
 

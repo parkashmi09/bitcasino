@@ -286,6 +286,21 @@ test('blogs', async (t) => {
     assert.ok(staffView.rows.some((row) => row.id === draft.id));
   });
 
+  await t.test('a published row with no published_at does not outrank a newer post', async () => {
+    /**
+     * The demo seed inserted published rows without the stamp, and a plain
+     * `published_at DESC` puts NULLs first — an 08 Oct seed post sat above a
+     * post published on 10 Oct. The list falls back to the display date.
+     */
+    const category = `order-${process.pid}`;
+    const old = await makePost({ isPublished: true, category, date: new Date('2020-01-01T00:00:00Z') });
+    await models.Blogs.update({ published_at: null }, { where: { id: old.id } });
+    const fresh = await makePost({ isPublished: true, category });
+
+    const result = await service.list({ category, limit: 10 });
+    assert.deepStrictEqual(result.rows.map((row) => row.id), [fresh.id, old.id]);
+  });
+
   await t.test('a category with no posts is an empty list, not a 404', async () => {
     /**
      * Legacy returned 404 when a category had no rows, which makes a client

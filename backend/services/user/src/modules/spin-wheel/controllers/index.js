@@ -53,7 +53,7 @@ function createControllers({ service }) {
 
     /** @legacy GET /api/spinwin/admin/claims */
     listClaims: asyncHandler(async (req, res) => {
-      const result = await service.listClaims(req.query);
+      const result = await service.listClaims({ ...req.query, staff: req.staff });
       return response.paginated(res, result.rows, { ...page(req.query), total: result.total });
     }),
   };

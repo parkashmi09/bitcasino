@@ -42,6 +42,16 @@ module.exports = (sequelize) => {
       allowNull: true,
       field: "is_active",
     },
+    early_penalty_rate: {
+      type: DataTypes.DECIMAL(10, 4),
+      allowNull: true,
+      field: 'early_penalty_rate',
+    },
+    allow_early_withdrawal: {
+      type: DataTypes.BOOLEAN,
+      allowNull: true,
+      field: 'allow_early_withdrawal',
+    },
   }, {
     sequelize,
     modelName: "VaultLockRate",

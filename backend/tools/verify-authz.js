@@ -38,80 +38,10 @@ const { findUnauthorizedWrites } = require('../packages/common/src/moduleLoader'
 const SERVICES_DIR = path.join(__dirname, '..', 'services');
 const LIST = process.argv.includes('--list');
 
-/**
- * A no-op middleware carrying the tag the checker looks for.
- *
- * The tag, not the name: `markAuthorization` is the contract, and a stub that
- * stands in for a real guard has to satisfy the same contract or this tool
- * reports guarded routes as unguarded.
- */
-const IS_AUTHORIZATION = Symbol.for('ibitplay.authorizationMiddleware');
-const guard = () => {
-  const fn = (_req, _res, next) => next();
-  fn[IS_AUTHORIZATION] = true;
-  return fn;
-};
-const plain = () => (_req, _res, next) => next();
-
-const authStub = {
-  // Authentication — deliberately NOT tagged. Proving who is calling is not
-  // an authorization decision, and treating it as one would make the whole
-  // check pass trivially on every admin route.
-  authenticate: plain,
-  requireActive: plain,
-  requireRole: plain,
-  authenticateStaff: plain,
-  // Authorization.
-  requirePermission: guard,
-  requireAnyPermission: guard,
-  requireLevel: guard,
-  requireAuthorityOver: guard,
-  requireSelfOrPermission: guard,
-};
-
-/**
- * Anything a factory might reach for while building its router.
- *
- * A Proxy rather than a hand-written object: modules keep adding dependencies,
- * and a checker that needs updating every time one does is a checker that gets
- * switched off. Unknown property reads return another stub; unknown calls
- * return one too.
- */
-function deepStub(label = 'stub') {
-  const fn = function stubFn() { return deepStub(label); };
-  return new Proxy(fn, {
-    get(_target, prop) {
-      if (prop === Symbol.toPrimitive || prop === 'toString') return () => label;
-      if (prop === 'then') return undefined; // never look thenable to `await`
-      if (prop === Symbol.iterator) return function* () {};
-      return deepStub(`${label}.${String(prop)}`);
-    },
-    apply() { return deepStub(label); },
-    construct() { return deepStub(label); },
-  });
-}
-
-const deps = new Proxy(
-  {
-    auth: authStub,
-    config: {
-      RATE_LIMIT_ENABLED: false,
-      SERVICE_NAME: 'verify',
-      INTERNAL_API_KEY: 'x',
-      /**
-       * Throwaway values, and they must differ from each other — `TokenService`
-       * refuses to construct when the access and refresh secrets match, which
-       * is a real check worth not defeating even in a stub. Nothing is signed
-       * or verified here; the routers are built and thrown away.
-       */
-      JWT_ACCESS_SECRET: 'verify-authz-access-secret-not-used-for-signing',
-      JWT_REFRESH_SECRET: 'verify-authz-refresh-secret-not-used-for-signing',
-      JWT_ADMIN_SECRET: 'verify-authz-admin-secret-not-used-for-signing',
-    },
-    logger: { info() {}, warn() {}, error() {}, debug() {} },
-  },
-  { get: (target, prop) => (prop in target ? target[prop] : deepStub(String(prop))) }
-);
+// Stub dependencies (auth guards tagged like the real ones, deep-stubbed
+// container, never-settling service clients) live in ./lib/router-stubs so
+// verify-strict-validators builds exactly the same routers.
+const { IS_AUTHORIZATION, deps } = require('./lib/router-stubs');
 
 const findings = [];
 const exemptions = [];

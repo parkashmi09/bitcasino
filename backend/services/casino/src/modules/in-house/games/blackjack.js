@@ -113,4 +113,14 @@ function play({ amount, profit, state, hash, logger, serverAuthority }) {
   };
 }
 
-module.exports = { play, open, key: 'blackjack' };
+/**
+ * What the client may see of an opened round.
+ *
+ * The player's two cards and the dealer's up card — never `deck`, which is
+ * every card still to come. A client that could read the deck would know the
+ * dealer's draw before deciding anything, so the projection is the whole
+ * security boundary here and not a convenience.
+ */
+const publicState = (state = {}) => ({ pCards: state.pCards ?? [], dCards: state.dCards ?? [] });
+
+module.exports = { play, open, publicState, key: 'blackjack' };

@@ -59,15 +59,15 @@ function createControllers({ service }) {
      * @legacy GET /vaultpro/admin/vault/users
      */
     users: asyncHandler(async (req, res) =>
-      response.paginated(res, await service.listVaultUsers(req.query), page(req.query))
+      response.paginated(res, await service.listVaultUsers({ ...req.query, staff: req.staff }), page(req.query))
     ),
 
     /** @legacy GET /vaultpro/admin/vault/stats */
-    stats: asyncHandler(async (_req, res) => response.ok(res, await service.stats())),
+    stats: asyncHandler(async (req, res) => response.ok(res, await service.stats({ staff: req.staff }))),
 
     /** @legacy GET /vaultpro/admin/vault/interest-history */
     allInterest: asyncHandler(async (req, res) =>
-      response.paginated(res, await service.listAllInterest(req.query), page(req.query))
+      response.paginated(res, await service.listAllInterest({ ...req.query, staff: req.staff }), page(req.query))
     ),
   };
 }

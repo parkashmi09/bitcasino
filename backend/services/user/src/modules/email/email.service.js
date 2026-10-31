@@ -2,7 +2,8 @@
 
 const crypto = require('crypto');
 const { Op } = require('sequelize');
-const { hashPassword, verifyPassword } = require('@ibitplay/auth');
+const { hashPassword, verifyPassword, isAgentTree } = require('@ibitplay/auth');
+const { visibleStaff } = require('../directory/playerScope');
 
 const E = require('./email.errors');
 const { renderOtp, renderGeneral } = require('./templates');
@@ -31,7 +32,7 @@ const {
  * not a second factor — it is a formality, and anything gated behind it was
  * open to whoever could call the endpoint. It was also unauthenticated, sent to
  * any address in the body, and built its SMTP transport inline with
- * `support@camelbit.games` / `camelbit@123` in the source.
+ * `<redacted, see backend/docs/ROTATION.md>` / `<redacted, see backend/docs/ROTATION.md>` in the source.
  *
  * A code is never in a response here. It goes to the address on the account and
  * nowhere else.
@@ -66,8 +67,9 @@ const {
  * age from `created_at` in the SELECT instead. One column, one deadline.
  */
 class EmailService {
-  constructor({ models, db, config, logger, mailer }) {
+  constructor({ models, db, config, logger, mailer, clients }) {
     this.models = models;
+    this.clients = clients;
     this.db = db;
     this.config = config;
     this.logger = logger;
@@ -243,90 +245,6 @@ class EmailService {
     return this.#consumeProof(this.#normaliseEmail(email), purpose);
   }
 
-  /**
-   * Spend a recent verification, **and re-check the code that made it**.
-   *
-   * ═════════════════════════════════════════════════════════════════════════
-   * WHY `spendProof` ALONE IS NOT ENOUGH FOR AN UNAUTHENTICATED CALLER
-   *
-   * `spendProof` is keyed on the address and the purpose. That is sufficient
-   * where `profile` uses it, because the request that spends the proof is
-   * already carrying the account holder's token — the caller has proved who
-   * they are by a completely separate mechanism, and the proof is only being
-   * asked "did this person also demonstrate they can read mail there".
-   *
-   * Password reset has no such token. The whole point is that the caller
-   * cannot authenticate. So a spend keyed on the address alone would mean:
-   * for the 300 seconds after a victim verifies their own code, ANY request
-   * naming that address can set the password. An attacker who knows the
-   * email and is watching for the reset wins the account, having never seen
-   * the code.
-   *
-   * That window is narrow and it is real, and "narrow" is not a security
-   * property. Re-checking the code closes it: the caller must still hold the
-   * secret that was mailed, so the proof row becomes a record that the code
-   * was used recently rather than a bearer credential of its own.
-   * ═════════════════════════════════════════════════════════════════════════
-   *
-   * The code is compared against the same bcrypt hash `verifyOtp` compared —
-   * the row keeps `otp_hash` after verification, so nothing extra is stored.
-   *
-   * Answers the user the proof belongs to, because the caller needs it and
-   * looking it up twice invites the two lookups disagreeing.
-   */
-  async spendProofWithCode({ email, purpose, code }) {
-    const address = this.#normaliseEmail(email);
-
-    const record = await this.models.UserOtps.findOne({
-      where: {
-        email: address,
-        purpose,
-        is_verified: true,
-        verified_at: { [Op.gte]: new Date(Date.now() - OTP_PROOF_TTL_SECONDS * 1000) },
-      },
-      order: [['verified_at', 'DESC']],
-    });
-
-    // One error for "never verified", "verified too long ago" and "wrong
-    // code" — the same reasoning as `OTP_INVALID` itself. Distinguishing them
-    // tells a caller which of the three they got wrong, which is three
-    // different oracles in one response.
-    if (!record) throw E.OTP_INVALID();
-
-    if (!(await verifyPassword(String(code ?? ''), record.otp_hash))) {
-      /**
-       * A wrong code here does NOT destroy the proof.
-       *
-       * It is tempting to burn it — a wrong code at this stage is suspicious.
-       * But the person holding the real code is the person who just verified
-       * it, and destroying the row on a mistyped digit would force them back
-       * to the start of the flow through no fault of their own. The row
-       * expires on its own in under five minutes, and the route in front of
-       * this is rate-limited.
-       */
-      throw E.OTP_INVALID();
-    }
-
-    const user = record.user_id
-      ? await this.models.Users.findOne({
-          where: { id: record.user_id },
-          attributes: ['id', 'email', 'name'],
-          raw: true,
-        })
-      : await this.models.Users.findOne({
-          where: { email: address },
-          attributes: ['id', 'email', 'name'],
-          raw: true,
-        });
-
-    if (!user) throw E.OTP_INVALID();
-
-    // Spent, so the same verification cannot authorise two resets.
-    await record.destroy();
-
-    return user;
-  }
-
   // ══════════════════════════════════════════════════════════════════════
   //  Two-factor reset
   // ══════════════════════════════════════════════════════════════════════
@@ -407,6 +325,7 @@ class EmailService {
   async sendToPlayer({ to, subject, title, content, ctaLink, ctaText, actor }) {
     const address = this.#normaliseEmail(to);
     await this.#assertPlayer([address]);
+    await this.#assertInTree(actor, address);
 
     const result = await this.mailer.send({
       to: address,
@@ -443,6 +362,31 @@ class EmailService {
     // Per-recipient results, so a partial failure is visible. Legacy returned
     // whatever the helper produced with no summary at all.
     return outcome;
+  }
+
+  /**
+   * An agent-tree sender (super master, master, agent, or an executive of one)
+   * may email only players in its own tree. `users:write` — the route's grant —
+   * reaches agents, and this route took any player's address. House staff see
+   * every player, so they are not narrowed. Fails closed when the tree cannot
+   * be resolved.
+   */
+  async #assertInTree(actor, address) {
+    if (!actor || !isAgentTree(actor)) return;
+
+    const scope = this.clients?.admin
+      ? await visibleStaff({ clients: this.clients, config: this.config }, actor.id)
+      : { all: false, staffIds: [] };
+    if (scope.all) return;
+
+    const player = scope.staffIds.length
+      ? await this.models.Users.findOne({
+          where: { email: address, parent_staff_id: scope.staffIds },
+          attributes: ['id'],
+          raw: true,
+        })
+      : null;
+    if (!player) throw E.RECIPIENT_NOT_ALLOWED({ reason: 'not a player in your tree' });
   }
 
   /** Every address must belong to a registered player. */

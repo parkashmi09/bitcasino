@@ -76,6 +76,12 @@ test('crypto deposits', async (t) => {
     if (connection) await connection.close();
   });
 
+  /**
+   * CCPayment's order record, per order id — what `getAppOrderInfo` answers. The webhook only
+   * names the order; the money is read from here, as CCPayment's doc requires.
+   */
+  const orders = new Map();
+  const providerCalls = [];
   const service = new CryptoService({
     models: connection.models,
     db: connection,
@@ -86,7 +92,15 @@ test('crypto deposits', async (t) => {
       CCPAYMENT_APP_SECRET: APP_SECRET,
       CCPAYMENT_BASE_URL: 'https://ccpayment.test',
     },
-    http: { raw: async () => ({ code: 10000, data: { coins: [] } }) },
+    http: {
+      raw: async (url, { body } = {}) => {
+        providerCalls.push(url);
+        if (!url.endsWith('/getAppOrderInfo')) return { code: 10000, data: { coins: [] } };
+        const order = orders.get(JSON.parse(body).orderId);
+        if (order instanceof Error) throw order;
+        return order ? { code: 10000, msg: 'success', data: order } : { code: 11000, msg: 'order not found' };
+      },
+    },
   });
 
   /** A signed webhook, exactly as the provider would send it. */
@@ -112,7 +126,7 @@ test('crypto deposits', async (t) => {
       coinid: 1280,
       price,
       orderid: orderId,
-      chain: 'TRC20',
+      chain: 'TRX',
       status,
       created_at: new Date(),
       updated_at: new Date(),
@@ -124,25 +138,101 @@ test('crypto deposits', async (t) => {
     const row = await connection.models.Credits.findOne({ where: { uid }, raw: true });
     return money.toDecimalString(money.toMinor(row?.usdt ?? '0'));
   };
+  const ledgerRows = (uid) => connection.models.CreditsLedger.count({ where: { user_id: String(uid) } });
+  const rowOf = (orderId) => connection.models.Ccdeposit.findOne({ where: { orderid: orderId }, raw: true });
 
+  let rec = 0;
+  /** One payment in the order's `paidList`. */
+  const payment = (amount, overrides = {}) => ({
+    recordId: `rec-${process.pid}-${(rec += 1)}`,
+    amount,
+    serviceFee: '0',
+    status: 'Success',
+    isFlaggedAsRisky: false,
+    ...overrides,
+  });
+  const paidOrder = (orderId, paidList, coinSymbol = 'USDT') => orders.set(orderId, { coinId: 1280, coinSymbol, chain: 'TRX', paidList });
+
+  // The webhook as CCPayment sends it: no amount, and a status that is only a hint.
   const deposit = (orderId, overrides = {}) => ({
     type: 'ApiDeposit',
-    msg: { orderId, coinSymbol: 'USDT', status: 'Success', amount: '100', ...overrides },
+    msg: { recordId: 'from-webhook', orderId, coinId: 1280, coinSymbol: 'USDT', status: 'Success', isFlaggedAsRisky: false, ...overrides },
   });
 
-  await t.test('a signed deposit credits once and writes a ledger row', async () => {
+  await t.test('a signed deposit credits what the order record says arrived, with a ledger row', async () => {
     const uid = newUid();
     const orderId = await seed(uid, newOrderId());
+    paidOrder(orderId, [payment('100')]);
 
     const result = await service.handleWebhook(signed(deposit(orderId)));
 
     assert.equal(result.credited, true);
     assert.equal(await balance(uid), '100.00000000');
-
     // Legacy wrote `UPDATE credits SET usdt = usdt + $1` and nothing else, so a
     // crypto deposit appeared on no statement anywhere.
-    const ledger = await connection.models.CreditsLedger.count({ where: { user_id: String(uid) } });
-    assert.equal(ledger, 1);
+    assert.equal(await ledgerRows(uid), 1);
+    const row = await rowOf(orderId);
+    assert.equal(row.status, 'Success');
+    assert.equal(money.toDecimalString(money.toMinorQuantised(row.amount)), '100.00000000');
+  });
+
+  await t.test('an UNDER-payment credits what arrived, not the amount ordered', async () => {
+    // The bug this rewrite exists for: the webhook carries no amount, and the
+    // old code fell back to the ORDER price — 100 credited for 1 sent.
+    const uid = newUid();
+    const orderId = await seed(uid, newOrderId(), { price: '100' });
+    paidOrder(orderId, [payment('1')]);
+
+    await service.handleWebhook(signed(deposit(orderId)));
+    assert.equal(await balance(uid), '1.00000000');
+  });
+
+  await t.test('an amount in the webhook body is ignored — only the order record pays', async () => {
+    const uid = newUid();
+    const orderId = await seed(uid, newOrderId());
+    paidOrder(orderId, [payment('5')]);
+
+    await service.handleWebhook(signed(deposit(orderId, { amount: '999999' })));
+    assert.equal(await balance(uid), '5.00000000');
+  });
+
+  await t.test('webhook says Success but the order record is still Processing: nothing credited', async () => {
+    // CCPayment: "Do not treat the webhook status as the final order status".
+    const uid = newUid();
+    const orderId = await seed(uid, newOrderId());
+    paidOrder(orderId, [payment('100', { status: 'Processing' })]);
+
+    const result = await service.handleWebhook(signed(deposit(orderId)));
+    assert.equal(result.credited, false);
+    assert.equal(await balance(uid), '0.00000000');
+    assert.equal((await rowOf(orderId)).status, 'Processing');
+  });
+
+  await t.test('a payment flagged as risky is held, not credited', async () => {
+    const uid = newUid();
+    const orderId = await seed(uid, newOrderId());
+    paidOrder(orderId, [payment('100', { isFlaggedAsRisky: true })]);
+
+    const result = await service.handleWebhook(signed(deposit(orderId, { isFlaggedAsRisky: true })));
+    assert.equal(result.credited, false);
+    assert.equal(await balance(uid), '0.00000000');
+    assert.equal((await rowOf(orderId)).status, 'Risky');
+  });
+
+  await t.test('two payments into one order are both credited, each once', async () => {
+    const uid = newUid();
+    const orderId = await seed(uid, newOrderId(), { price: '100' });
+    const first = payment('60');
+    paidOrder(orderId, [first]);
+    await service.handleWebhook(signed(deposit(orderId)));
+
+    paidOrder(orderId, [first, payment('40')]);
+    const second = await service.handleWebhook(signed(deposit(orderId)));
+    assert.equal(second.credits.length, 1, 'only the new payment is a new credit');
+
+    await service.handleWebhook(signed(deposit(orderId)));
+    assert.equal(await balance(uid), '100.00000000');
+    assert.equal(await ledgerRows(uid), 2);
   });
 
   await t.test('a coin symbol carrying SQL is REFUSED, not interpolated', async () => {
@@ -151,28 +241,29 @@ test('crypto deposits', async (t) => {
      *
      *     `UPDATE credits SET ${coinSymbolLower} = ${coinSymbolLower} + $1 ...`
      *
-     * with `coinSymbol` from this body. The amount was parameterised; the
-     * column name was not.
+     * with `coinSymbol` from the webhook. The coin now comes from the order
+     * record, and is still looked up in a fixed map.
      */
     const uid = newUid();
     const orderId = await seed(uid, newOrderId());
+    paidOrder(orderId, [payment('100')], 'usdt = 999999, x');
 
     await assert.rejects(
-      () => service.handleWebhook(signed(deposit(orderId, { coinSymbol: 'usdt = 999999, x' }))),
+      () => service.handleWebhook(signed(deposit(orderId))),
       (err) => err.code === 'CRYPTO_UNSUPPORTED_COIN' && err.status === 422
     );
 
     assert.equal(await balance(uid), '0.00000000');
-    const row = await connection.models.Ccdeposit.findOne({ where: { orderid: orderId }, raw: true });
-    assert.equal(row.status, 'Processing', 'and the deposit is untouched');
+    assert.equal((await rowOf(orderId)).status, 'Processing', 'and the deposit is untouched');
   });
 
   await t.test('an unknown coin is refused too', async () => {
     const uid = newUid();
     const orderId = await seed(uid, newOrderId());
+    paidOrder(orderId, [payment('100')], 'SHIB');
 
     await assert.rejects(
-      () => service.handleWebhook(signed(deposit(orderId, { coinSymbol: 'SHIB' }))),
+      () => service.handleWebhook(signed(deposit(orderId))),
       (err) => err.code === 'CRYPTO_UNSUPPORTED_COIN'
     );
     assert.equal(await balance(uid), '0.00000000');
@@ -181,6 +272,7 @@ test('crypto deposits', async (t) => {
   await t.test('an unsigned webhook is rejected', async () => {
     const uid = newUid();
     const orderId = await seed(uid, newOrderId());
+    paidOrder(orderId, [payment('100')]);
 
     await assert.rejects(
       () => service.handleWebhook({ rawBody: JSON.stringify(deposit(orderId)), signature: '', timestamp: '' }),
@@ -192,10 +284,11 @@ test('crypto deposits', async (t) => {
   await t.test('a tampered body does not verify', async () => {
     const uid = newUid();
     const orderId = await seed(uid, newOrderId());
+    paidOrder(orderId, [payment('100')]);
 
-    const genuine = signed(deposit(orderId, { amount: '1' }));
-    // Same signature, bigger amount.
-    const tampered = { ...genuine, rawBody: JSON.stringify(deposit(orderId, { amount: '999999' })) };
+    const genuine = signed(deposit(orderId, { status: 'Processing' }));
+    // Same signature, different status.
+    const tampered = { ...genuine, rawBody: JSON.stringify(deposit(orderId)) };
 
     await assert.rejects(
       () => service.handleWebhook(tampered),
@@ -205,25 +298,23 @@ test('crypto deposits', async (t) => {
   });
 
   await t.test('a replayed webhook credits ONCE', async () => {
-    // The provider retries. Two guards: the final-status check, and an
-    // idempotency key derived from the order.
+    // The provider retries; the credit is keyed on CCPayment's recordId.
     const uid = newUid();
     const orderId = await seed(uid, newOrderId());
+    paidOrder(orderId, [payment('100')]);
 
     await service.handleWebhook(signed(deposit(orderId)));
     const second = await service.handleWebhook(signed(deposit(orderId)));
 
-    assert.equal(second.credited, undefined);
-    assert.equal(second.reason, 'already settled');
+    assert.equal(second.credited, false);
     assert.equal(await balance(uid), '100.00000000');
-
-    const ledger = await connection.models.CreditsLedger.count({ where: { user_id: String(uid) } });
-    assert.equal(ledger, 1);
+    assert.equal(await ledgerRows(uid), 1);
   });
 
   await t.test('two simultaneous webhooks for one order credit once', async () => {
     const uid = newUid();
     const orderId = await seed(uid, newOrderId());
+    paidOrder(orderId, [payment('100')]);
 
     const results = await Promise.allSettled([
       service.handleWebhook(signed(deposit(orderId))),
@@ -232,40 +323,49 @@ test('crypto deposits', async (t) => {
 
     assert.ok(results.some((r) => r.status === 'fulfilled'));
     assert.equal(await balance(uid), '100.00000000');
+    assert.equal(await ledgerRows(uid), 1);
   });
 
-  await t.test('a non-success status records without crediting', async () => {
+  await t.test('a failed payment marks the order Failed, and says so once', async () => {
     const uid = newUid();
     const orderId = await seed(uid, newOrderId());
+    paidOrder(orderId, [payment('100', { status: 'Failed' })]);
 
-    const result = await service.handleWebhook(signed(deposit(orderId, { status: 'Processing' })));
+    const first = await service.handleWebhook(signed(deposit(orderId, { status: 'Failed' })));
+    assert.equal(first.credited, false);
+    assert.equal(first.failed, true);
+    assert.equal((await rowOf(orderId)).status, 'Failed');
 
-    assert.equal(result.credited, false);
+    const again = await service.handleWebhook(signed(deposit(orderId, { status: 'Failed' })));
+    assert.equal(again.failed, false, 'the player is told once');
     assert.equal(await balance(uid), '0.00000000');
   });
 
-  await t.test('a webhook for an unknown order is acknowledged, not credited', async () => {
+  await t.test('a webhook for an unknown order is acknowledged, and CCPayment is not asked', async () => {
+    const before = providerCalls.length;
     const result = await service.handleWebhook(signed(deposit(newOrderId())));
     assert.equal(result.handled, false);
     assert.equal(result.reason, 'unknown order');
+    assert.equal(providerCalls.length, before);
   });
 
-  await t.test('the amount that ARRIVED is credited, not the amount ordered', async () => {
-    // Over- and under-payment are both real. Crediting the order amount would
-    // pay out money that never landed.
+  await t.test('CCPayment unreachable: the webhook fails (so it is retried) and nothing is credited', async () => {
     const uid = newUid();
-    const orderId = await seed(uid, newOrderId(), { price: '100' });
+    const orderId = await seed(uid, newOrderId());
+    orders.set(orderId, new Error('connect ETIMEDOUT'));
 
-    await service.handleWebhook(signed(deposit(orderId, { amount: '97.5' })));
-    assert.equal(await balance(uid), '97.50000000');
+    await assert.rejects(() => service.handleWebhook(signed(deposit(orderId))));
+    assert.equal(await balance(uid), '0.00000000');
+    assert.equal((await rowOf(orderId)).status, 'Processing');
   });
 
-  await t.test('a deposit amount keeps full precision', async () => {
+  await t.test('a deposit amount keeps 8 places, and anything finer is cut, never rounded up', async () => {
     const uid = newUid();
     const orderId = await seed(uid, newOrderId(), { price: '0.00123456' });
+    paidOrder(orderId, [payment('0.00123456'), payment('0.000000019')]);
 
-    await service.handleWebhook(signed(deposit(orderId, { amount: '0.00123456' })));
-    assert.equal(await balance(uid), '0.00123456');
+    await service.handleWebhook(signed(deposit(orderId)));
+    assert.equal(await balance(uid), '0.00123457');
   });
 
   await t.test('a non-deposit event is acknowledged and ignored', async () => {

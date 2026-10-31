@@ -2,9 +2,10 @@
 
 const test = require('node:test');
 const assert = require('node:assert');
+const crypto = require('node:crypto');
 
 const db = require('@ibitplay/db');
-const { createLogger, money } = require('@ibitplay/common');
+const { createLogger, money, entitlements } = require('@ibitplay/common');
 
 const { PaymentOrdersService } = require('../paymentOrders.service');
 const { validatePayoutDetails } = require('../payoutDetails');
@@ -88,13 +89,14 @@ test('payment orders', async (t) => {
   };
 
   /** A service whose gateway answers however the test needs. */
-  const build = (respond, config = {}) => {
+  const build = (respond, config = {}, deps = {}) => {
     const calls = [];
     const handler = async (url, body) => {
       calls.push({ url, body });
       return respond(url, body);
     };
     const service = new PaymentOrdersService({
+      ...deps,
       models: connection.models,
       db: connection,
       logger,
@@ -289,6 +291,23 @@ test('payment orders', async (t) => {
     assert.equal(calls.length, 0);
   });
 
+  await t.test("the operator's stored maximum is the limit, not the deployment's", async () => {
+    const uid = newUid();
+    await seed(uid, '10000000');
+
+    const { service, calls } = build(ok);
+    // What `operatorSettings` answers once the site admin has saved a value.
+    const stored = (key, fallback) => (key === 'withdraw_maximum' ? '100' : fallback);
+    service.settings = { value: stored, read: async (key, fallback) => stored(key, fallback) };
+    await assert.rejects(
+      () => service.createWithdrawal({
+        userId: uid, provider: 'apay', currency: 'INR', amount: '500', details: BANK,
+      }),
+      (err) => err.code === 'PAYORDER_ABOVE_MAXIMUM' && err.details?.maximum === '100'
+    );
+    assert.equal(calls.length, 0);
+  });
+
   await t.test('unverified identity blocks a payout when KYC is required', async () => {
     const uid = newUid();
     await seed(uid, '1000');
@@ -433,6 +452,46 @@ test('payment orders', async (t) => {
       () => service.createDeposit({ userId: uid, provider: 'apay', currency: 'INR', amount: '100' }),
       (err) => err.code === 'PAYORDER_PROVIDER_DISABLED' && err.status === 503
     );
+  });
+
+  await t.test('a gateway the owner switched off takes no new deposit or withdrawal', async () => {
+    const uid = newUid();
+    await seed(uid, '1000');
+    const { service, calls } = build(ok);
+    const disabled = (err) => err.code === 'PAYORDER_PROVIDER_DISABLED' && err.status === 503;
+    entitlements.configureEntitlements({ read: () => ({ features: {}, flags: { gateway_ccpayment: false, gateway_apay: false } }) });
+
+    try {
+      await assert.rejects(() => service.getAvailableMethods({ provider: 'ccpayment' }), disabled);
+      await assert.rejects(() => service.createDeposit({ userId: uid, provider: 'ccpayment', currency: 'USDT', amount: '25', chain: 'TRON' }), disabled);
+      await assert.rejects(() => service.createWithdrawal({ userId: uid, provider: 'apay', currency: 'INR', amount: '400', details: BANK }), disabled);
+      assert.equal(await balanceOf(uid), '1000.00000000', 'nothing is held');
+      assert.equal(calls.length, 0, 'the gateway is never called');
+
+      // A gateway the owner left alone (missing flag) still works.
+      const order = await service.createDeposit({ userId: uid, provider: 'waypay', currency: 'INR', amount: '100' });
+      assert.ok(order.reference);
+    } finally {
+      entitlements.resetEntitlements();
+    }
+  });
+
+  await t.test('a gateway the Super Admin switched off (Payment Methods) takes no new deposit or withdrawal', async () => {
+    const uid = newUid();
+    await seed(uid, '1000');
+    const admin = { get: async () => ({ payment_gateways_off: ['apay'] }) };
+    const { service, calls } = build(ok, {}, { clients: { admin } });
+    const disabled = (err) => err.code === 'PAYORDER_PROVIDER_DISABLED' && err.status === 503;
+
+    await assert.rejects(() => service.getAvailableMethods({ provider: 'apay' }), disabled);
+    await assert.rejects(() => service.createDeposit({ userId: uid, provider: 'apay', currency: 'INR', amount: '100' }), disabled);
+    await assert.rejects(() => service.createWithdrawal({ userId: uid, provider: 'apay', currency: 'INR', amount: '400', details: BANK }), disabled);
+    assert.equal(await balanceOf(uid), '1000.00000000', 'nothing is held');
+    assert.equal(calls.length, 0, 'the gateway is never called');
+
+    // One the Super Admin left on still works.
+    const order = await service.createDeposit({ userId: uid, provider: 'waypay', currency: 'INR', amount: '100' });
+    assert.ok(order.reference);
   });
 
   // ══════════════════════════════════════════════════════════════════════
@@ -665,5 +724,254 @@ test('payment orders', async (t) => {
     // CCPayment says 'Processing' where the others say 'Pending'.
     assert.equal(cc.status, 'pending');
     assert.equal(cc.rawStatus, 'Processing');
+  });
+
+  await t.test('the site’s network name reaches CCPayment as its chain symbol', async () => {
+    // The Crypto tab sends bc.game's TRON / BITCOIN; CCPayment only knows TRX / BTC.
+    const uid = newUid();
+    await seed(uid, '0');
+    const { service, calls } = build(ok);
+
+    await service.createDeposit({ userId: uid, provider: 'ccpayment', currency: 'USDT', amount: '25', chain: 'TRON' });
+    await service.createDeposit({ userId: uid, provider: 'ccpayment', currency: 'USDT', amount: '25', chain: 'BSC' });
+
+    assert.deepEqual(calls.map((c) => JSON.parse(c.body).chain), ['TRX', 'BSC']);
+  });
+
+  await t.test('a small coin deposit is not held to the INR fallback minimum', async () => {
+    // DEPOSIT_MINIMUM ('1') is an INR figure: 1 BTC would be the floor.
+    const uid = newUid();
+    await seed(uid, '0');
+    const { service } = build(ok);
+
+    const order = await service.createDeposit({ userId: uid, provider: 'ccpayment', currency: 'BTC', amount: '0.0005', chain: 'BITCOIN' });
+    assert.equal(order.amount, '0.00050000');
+  });
+
+  await t.test('the coins CCPayment is offered for are the configured ones', async () => {
+    const { service } = build(ok);
+    const { methods } = await service.getAvailableMethods({ provider: 'ccpayment' });
+    assert.deepEqual(methods, ['USDT', 'BTC', 'ETH']);
+  });
+
+  await t.test('with no CCPAYMENT_COIN_IDS the coin ids come from CCPayment’s live coin list', async () => {
+    const uid = newUid();
+    await seed(uid, '0');
+    const live = (url) => (url.endsWith('/getCoinList')
+      ? { code: 10000, data: { coins: [{ coinId: 1280, symbol: 'USDT' }, { coinId: 4242, symbol: 'NEWCOIN' }] } }
+      : ok(url));
+    const { service, calls } = build(live, { CCPAYMENT_COIN_IDS: undefined });
+
+    const { methods } = await service.getAvailableMethods({ provider: 'ccpayment' });
+    assert.deepEqual(methods, ['USDT', 'NEWCOIN']);
+
+    await service.createDeposit({ userId: uid, provider: 'ccpayment', currency: 'USDT', amount: '25', chain: 'TRON' });
+    const sent = calls.find((c) => c.url.endsWith('/createAppOrderDepositAddress'));
+    assert.equal(JSON.parse(sent.body).coinId, 1280);
+    assert.equal(calls.filter((c) => c.url.endsWith('/getCoinList')).length, 1, 'the list is cached, not asked per deposit');
+  });
+
+  // ══════════════════════════════════════════════════════════════════════
+  //  F2Pay — RSA-signed INR deposits
+  // ══════════════════════════════════════════════════════════════════════
+
+  // Ours signs the request; F2Pay's (another pair) signs its answer. F2Pay's public key goes in as
+  // the bare base64 body, the form its dashboard shows; ours as PEM.
+  const ours = crypto.generateKeyPairSync('rsa', { modulusLength: 2048 });
+  const theirs = crypto.generateKeyPairSync('rsa', { modulusLength: 2048 });
+  const F2PAY = {
+    F2PAY_MERCHANT_ID: 'F2_TEST',
+    F2PAY_BASE_URL: 'https://f2pay.test',
+    F2PAY_PRIVATE_KEY: ours.privateKey.export({ type: 'pkcs8', format: 'pem' }),
+    F2PAY_PUBLIC_KEY: theirs.publicKey.export({ type: 'spki', format: 'der' }).toString('base64'),
+  };
+  // F2Pay's methods are `payment_methods` rows (153 seeds INR UpiMixed, 155 USDT PI_USDT_TRX; INR + crypto only).
+  const methodRow = (currency, code) => connection.models.PaymentMethod.findOne({ where: { gateway: 'f2pay', currency, code } });
+  const f2payAnswer = (biz, key = theirs.privateKey) => {
+    const bizContent = JSON.stringify(biz);
+    return { code: '0000', msg: 'success', bizContent, sign: crypto.sign('sha256', Buffer.from(bizContent), key).toString('base64') };
+  };
+  const cashier = (url, body) =>
+    f2payAnswer({ mchOrderNo: JSON.parse(body.bizContent).mchOrderNo, platNo: 'F2P-1', payUrl: 'https://cashier.f2pay.test/abc' });
+
+  await t.test('an F2Pay deposit is signed with our key and opens F2Pay’s cashier page', async () => {
+    const uid = newUid();
+    await seed(uid, '0');
+    const { service, calls } = build(cashier, F2PAY);
+
+    const order = await service.createDeposit({ userId: uid, provider: 'f2pay', currency: 'INR', amount: '500', ip: '203.0.113.5' });
+    assert.equal(order.redirectUrl, 'https://cashier.f2pay.test/abc');
+
+    const sent = calls[0].body;
+    assert.equal(calls[0].url, 'https://f2pay.test/payin/inr/order/create');
+    assert.equal(sent.merchantId, 'F2_TEST');
+    assert.ok(crypto.verify('sha256', Buffer.from(sent.bizContent), ours.publicKey, Buffer.from(sent.sign, 'base64')), 'signed over the exact string sent');
+    const biz = JSON.parse(sent.bizContent);
+    assert.equal(biz.mchOrderNo, order.reference);
+    assert.equal(biz.amount, '500.00');
+    assert.equal(biz.methodCode, 'UpiMixed', 'no method picked = the first configured one');
+    assert.equal(biz.notifyUrl, 'https://api.example.test/api/v1/user/psp/f2pay/callback');
+    assert.equal(biz.customerName, `pay-${uid}`);
+    assert.equal(biz.customerIpAddress, '203.0.113.5');
+
+    const row = await connection.models.F2payDeposits.findOne({ where: { mch_order_no: order.reference }, raw: true });
+    assert.equal(row.status, 'Pending');
+    assert.equal(row.plat_no, 'F2P-1');
+    assert.equal(await balanceOf(uid), '0.00000000', 'nothing is credited until the callback is verified');
+  });
+
+  await t.test('an F2Pay answer that F2Pay did not sign is refused and the order marked failed', async () => {
+    const uid = newUid();
+    await seed(uid, '0');
+    // Signed with OUR key — anyone in the middle could produce that, F2Pay would not.
+    const { service } = build((url, body) => f2payAnswer({ mchOrderNo: JSON.parse(body.bizContent).mchOrderNo, payUrl: 'https://evil.test' }, ours.privateKey), F2PAY);
+
+    await assert.rejects(
+      () => service.createDeposit({ userId: uid, provider: 'f2pay', currency: 'INR', amount: '500' }),
+      (err) => err.code === 'PAYORDER_PROVIDER_REJECTED'
+    );
+    const row = await connection.models.F2payDeposits.findOne({ where: { user_id: uid }, raw: true });
+    assert.equal(row.status, 'Failed');
+  });
+
+  await t.test('an F2Pay withdrawal holds the balance and sends a signed BANK_INR payout', async () => {
+    const uid = newUid();
+    await seed(uid, '1000');
+    const { service, calls } = build(cashier, F2PAY);
+
+    const order = await service.createWithdrawal({ userId: uid, provider: 'f2pay', currency: 'INR', amount: '100', details: BANK });
+    assert.equal(order.status, 'pending');
+    assert.equal(calls[0].url, 'https://f2pay.test/payout/inr/order/create');
+    const sent = calls[0].body;
+    assert.ok(crypto.verify('sha256', Buffer.from(sent.bizContent), ours.publicKey, Buffer.from(sent.sign, 'base64')));
+    const biz = JSON.parse(sent.bizContent);
+    assert.equal(biz.mchOrderNo, order.reference);
+    assert.equal(biz.amount, '100.00');
+    assert.equal(biz.methodCode, 'BANK_INR');
+    assert.equal(biz.customerAccountNum, BANK.account_number);
+    assert.equal(biz.ifsc, BANK.bank_code);
+    assert.equal(biz.notifyUrl, 'https://api.example.test/api/v1/user/psp/f2pay/payout-callback');
+
+    const row = await connection.models.F2payWithdrawals.findOne({ where: { mch_order_no: order.reference }, raw: true });
+    assert.equal(row.status, 'Pending');
+    assert.equal(row.plat_no, 'F2P-1');
+    assert.equal(await balanceOf(uid), '900.00000000', 'held on request');
+  });
+
+  await t.test('F2Pay pays out INR only, in rupees and paise; a refused payout is refunded', async () => {
+    const uid = newUid();
+    await seed(uid, '1000');
+    const { service, calls } = build(cashier, F2PAY);
+
+    await assert.rejects(
+      () => service.createWithdrawal({ userId: uid, provider: 'f2pay', currency: 'USDT', amount: '100', details: BANK }),
+      (err) => err.code === 'PAYORDER_CURRENCY_NOT_SUPPORTED'
+    );
+    await assert.rejects(
+      () => service.createDeposit({ userId: uid, provider: 'f2pay', currency: 'INR', amount: '100.555' }),
+      (err) => err.code === 'PAYORDER_PROVIDER_REJECTED'
+    );
+    assert.equal(calls.length, 0, 'neither reached F2Pay');
+
+    const refused = build(() => ({ code: '20010', msg: 'not in payout ip white list' }), F2PAY).service;
+    await assert.rejects(
+      () => refused.createWithdrawal({ userId: uid, provider: 'f2pay', currency: 'INR', amount: '100', details: BANK }),
+      (err) => err.code === 'PAYORDER_PROVIDER_REJECTED'
+    );
+    const row = await connection.models.F2payWithdrawals.findOne({ where: { user_id: uid }, raw: true });
+    assert.equal(row.status, 'Failed');
+    assert.equal(row.refunded, true);
+    assert.equal(await balanceOf(uid), '1000.00000000');
+  });
+
+  await t.test('F2Pay takes INR and crypto only: an IDR deposit never reaches F2Pay', async () => {
+    const uid = newUid();
+    await seed(uid, '0');
+    const { service, calls } = build(cashier, F2PAY);
+    const { getGateway } = require('../gateways');
+
+    const { methods } = await service.getAvailableMethods({ provider: 'f2pay' });
+    assert.ok(methods.some((m) => m.currency === 'INR') && methods.every((m) => ['INR', 'USDT'].includes(m.currency)), JSON.stringify(methods));
+    assert.equal(getGateway('f2pay').supports('IDR', 'payin', F2PAY), false);
+
+    await assert.rejects(
+      () => service.createDeposit({ userId: uid, provider: 'f2pay', currency: 'IDR', amount: '20000', method: 'QRIS' }),
+      (err) => err.code === 'PAYORDER_CURRENCY_NOT_SUPPORTED'
+    );
+    await assert.rejects(
+      () => service.createDeposit({ userId: uid, provider: 'f2pay', currency: 'INR', amount: '500', method: 'QRIS' }),
+      (err) => err.code === 'PAYORDER_METHOD_NOT_SUPPORTED'
+    );
+    assert.equal(calls.length, 0);
+    assert.equal(await connection.models.F2payDeposits.count({ where: { user_id: uid } }), 0);
+  });
+
+  await t.test('a USDT deposit goes to F2Pay’s crypto payin, names the coin, and is recorded in USDT', async () => {
+    const uid = newUid();
+    await seed(uid, '0');
+    const [row, created] = await connection.models.PaymentMethod.findOrCreate({
+      where: { gateway: 'f2pay', currency: 'USDT', code: 'PI_USDT_TRX' },
+      defaults: { owner_enabled: true, site_enabled: true },
+    });
+    try {
+      const { service, calls } = build(cashier, F2PAY);
+      const order = await service.createDeposit({ userId: uid, provider: 'f2pay', currency: 'USDT', amount: '10.5', ip: '203.0.113.5' });
+      assert.equal(order.redirectUrl, 'https://cashier.f2pay.test/abc');
+      assert.equal(calls[0].url, 'https://f2pay.test/payin/crypto/order/create');
+      const biz = JSON.parse(calls[0].body.bizContent);
+      assert.deepEqual([biz.currency, biz.methodCode, biz.amount], ['USDT', 'PI_USDT_TRX', '10.50']);
+
+      const deposit = await connection.models.F2payDeposits.findOne({ where: { mch_order_no: order.reference }, raw: true });
+      assert.equal(deposit.currency, 'USDT');
+      assert.equal(deposit.status, 'Pending');
+
+      // An INR order still goes to the INR payin, without a coin.
+      await service.createDeposit({ userId: uid, provider: 'f2pay', currency: 'INR', amount: '500' });
+      assert.equal(calls[1].url, 'https://f2pay.test/payin/inr/order/create');
+      assert.equal(JSON.parse(calls[1].body.bizContent).currency, undefined);
+    } finally {
+      if (created) await row.destroy();
+    }
+  });
+
+  await t.test('the owner picks the currencies F2Pay opens for (flags.f2pay_<code>)', async () => {
+    const uid = newUid();
+    await seed(uid, '0');
+    const { service, calls } = build(cashier, F2PAY);
+    entitlements.configureEntitlements({ read: () => ({ features: {}, flags: { f2pay_inr: false } }) });
+
+    try {
+      const { methods } = await service.getAvailableMethods({ provider: 'f2pay' });
+      assert.ok(!methods.some((m) => m.currency === 'INR'), 'INR is off at the owner');
+      await assert.rejects(
+        () => service.createDeposit({ userId: uid, provider: 'f2pay', currency: 'INR', amount: '500' }),
+        (err) => err.code === 'PAYORDER_CURRENCY_NOT_SUPPORTED'
+      );
+      assert.equal(calls.length, 0);
+    } finally {
+      entitlements.resetEntitlements();
+    }
+  });
+
+  await t.test('a method the owner switched off (payment_methods) is not offered and refused', async () => {
+    const uid = newUid();
+    await seed(uid, '0');
+    const { service, calls } = build(cashier, F2PAY);
+    const row = await methodRow('INR', 'UpiMixed');
+    const before = { owner_enabled: row.owner_enabled };
+    try {
+      for (const off of [{ owner_enabled: false }]) {
+        await row.update(off);
+        const { methods } = await service.getAvailableMethods({ provider: 'f2pay' });
+        assert.ok(!methods.some((m) => m.method === 'UpiMixed'), JSON.stringify(off));
+        await assert.rejects(
+          () => service.createDeposit({ userId: uid, provider: 'f2pay', currency: 'INR', amount: '500', method: 'UpiMixed' }),
+          (err) => ['PAYORDER_CURRENCY_NOT_SUPPORTED', 'PAYORDER_METHOD_NOT_SUPPORTED'].includes(err.code)
+        );
+      }
+      assert.equal(calls.length, 0);
+    } finally {
+      await row.update(before);
+    }
   });
 });

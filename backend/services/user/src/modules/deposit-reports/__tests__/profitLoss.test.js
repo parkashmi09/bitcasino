@@ -184,6 +184,25 @@ test('deposit reports: profit and loss', async (t) => {
     assert.match(pl.profitLoss, /^-?\d+\.\d{8}$/);
   });
 
+  await t.test('withdrawn is Approved or Paid, never pending or rejected', async () => {
+    // Since ebfcdc0 a bank withdrawal goes In Queue → Approved → Paid. Counting
+    // 'Approved' alone dropped a withdrawal from the P&L once it was paid.
+    const uid = await seedPlayer(newUid(), { fromStaff: '1000', balance: '0' });
+    const row = (amount, status) => ({
+      uid, amount, status, currency: 'INR', account_holder_name: `pl-${uid}`, date: new Date(),
+    });
+    await connection.models.FiatWithdrawals.bulkCreate([
+      row('100', 'Approved'), // a legacy row: Approved was the payout
+      row('40', 'Paid'), // the new flow's payout
+      row('7', 'In Queue'),
+      row('9', 'Rejected'),
+    ]);
+
+    const pl = await service.userProfitLoss({ staff, userId: uid });
+    assert.equal(pl.withdrawals, '140.00000000', 'Approved 100 + Paid 40, each once');
+    assert.equal(pl.profitLoss, '860.00000000');
+  });
+
   await t.test('money is exact — no float drift', async () => {
     const uid = await seedPlayer(newUid(), { fromStaff: '0.1', withdrawn: '0.2', balance: '0' });
     const pl = await service.userProfitLoss({ staff, userId: uid });

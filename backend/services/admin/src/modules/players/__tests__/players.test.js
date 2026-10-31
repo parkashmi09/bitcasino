@@ -1,10 +1,15 @@
 'use strict';
 
+// These cases exercise the SEPARATE transaction password (`staff.transaction_password`);
+// login mode (the default) is covered in staff-auth/__tests__/txnPasswordMode.test.js.
+process.env.TXN_PASSWORD_MODE = 'separate';
+
 const test = require('node:test');
 const assert = require('node:assert');
 
 const db = require('@ibitplay/db');
 const { createLogger, money } = require('@ibitplay/common');
+const { hashPassword } = require('@ibitplay/auth');
 
 const { PlayersService } = require('../players.service');
 const v = require('../players.validators');
@@ -25,21 +30,6 @@ let nextId = 600_000_000 + (process.pid % 100_000) * 1000;
 const newId = () => (nextId += 1);
 
 test('player validators', async (t) => {
-  await t.test('an opening balance is a positive decimal STRING', () => {
-    /**
-     * `initial_balance` came off the body unvalidated in legacy and was
-     * compared with `>` against a balance read.
-     */
-    const parse = (initialBalance) =>
-      v.create.body.safeParse({ username: 'someone', password: 'correct-horse', initialBalance });
-
-    assert.equal(parse('1000.50').success, true);
-    assert.equal(parse('-500').success, false, 'a negative would run the transfer backwards');
-    assert.equal(parse(1000).success, false, 'a number is not a decimal string');
-    assert.equal(parse('1e5').success, false);
-    assert.equal(parse('abc').success, false);
-  });
-
   await t.test('a close needs a reason', () => {
     // Legacy recorded that a delete happened and nothing about why, for an
     // action that was irreversible.
@@ -55,9 +45,11 @@ test('player validators', async (t) => {
     // `.strict()` — a caller sending `role_id` or `parent_staff_id` directly
     // gets an error rather than having it quietly dropped.
     assert.equal(
-      v.create.body.safeParse({ username: 'x'.repeat(5), password: 'correct-horse', role_id: 1 }).success,
+      v.update.body.safeParse({ username: 'x'.repeat(5), role_id: 1 }).success,
       false
     );
+    // Agent ke neeche daalna (parentId) bahar se nahi — sirf Sports Exchange.
+    assert.equal(v.update.body.safeParse({ parentId: 5 }).success, false);
   });
 });
 
@@ -86,27 +78,35 @@ test('players against a database', async (t) => {
   const { models } = connection;
   const service = new PlayersService({ models, db: connection, logger, config: {} });
 
-  const roleId = (await models.Roles.findOne({ raw: true }))?.id ?? 1;
+  // An AGENT's role, not the first one in the table: Super Admin, Admin and Sub
+  // Admin are the back office and see every player on the site, so rivals
+  // modelled with one of those would not be rivals at all.
+  const roleId = (await models.Roles.findOne({ where: { level: 6 }, raw: true }))?.id;
+  assert.ok(roleId, 'the test database needs a level-6 (agent) role');
 
   const agent = newId();
   const rival = newId();
+  // Every funded creation below the platform owner needs the transaction
+  // password (the Addaplay rule), whatever grants the session holds.
+  const OWN_TXN = 'players own txn password';
   const created = [];
 
   t.before(async () => {
-    await models.StaffBalances.destroy({ where: { staff_id: [agent, rival] } });
+    await models.StaffCredits.destroy({ where: { staff_id: [agent, rival] } });
     await models.Staff.destroy({ where: { id: [agent, rival] } });
 
     await models.Staff.bulkCreate([
-      { id: agent, name: `pa-${agent}`, email: `pa${agent}@t.test`, password: 'x', role_id: roleId, parent_id: null },
-      { id: rival, name: `pr-${rival}`, email: `pr${rival}@t.test`, password: 'x', role_id: roleId, parent_id: null },
+      { id: agent, name: `pa-${agent}`, email: `pa${agent}@t.test`, password: 'x', role_id: roleId, parent_id: null, transaction_password: OWN_TXN },
+      { id: rival, name: `pr-${rival}`, email: `pr${rival}@t.test`, password: 'x', role_id: roleId, parent_id: null, transaction_password: OWN_TXN },
     ]);
-    await models.StaffBalances.create({ staff_id: agent, inr: '10000' });
-    await models.StaffBalances.create({ staff_id: rival, inr: '0' });
+    await models.StaffCredits.create({ staff_id: agent, inr: '10000' });
+    await models.StaffCredits.create({ staff_id: rival, inr: '0' });
   });
 
   t.after(async () => {
     for (const id of created) {
       await models.CreditsLedger.destroy({ where: { user_id: String(id) } });
+      await models.WalletHistory.destroy({ where: { uid: id } });
       await models.StaffTransfers.destroy({
         where: { [require('sequelize').Op.or]: [{ from_id: id }, { to_id: id }] },
       });
@@ -116,7 +116,7 @@ test('players against a database', async (t) => {
     await models.StaffTransfers.destroy({
       where: { [require('sequelize').Op.or]: [{ from_id: agent }, { to_id: agent }] },
     });
-    await models.StaffBalances.destroy({ where: { staff_id: [agent, rival] } });
+    await models.StaffCredits.destroy({ where: { staff_id: [agent, rival] } });
     await models.Staff.destroy({ where: { id: [agent, rival] } });
     if (connection) await connection.close();
   });
@@ -125,7 +125,7 @@ test('players against a database', async (t) => {
   const asRival = { id: rival, permissions: ['*'] };
 
   const balanceOf = async (staffId) => {
-    const row = await models.StaffBalances.findOne({ where: { staff_id: staffId }, raw: true });
+    const row = await models.StaffCredits.findOne({ where: { staff_id: staffId }, raw: true });
     return money.toDecimalString(money.toMinor(row?.inr ?? '0'));
   };
 
@@ -137,6 +137,7 @@ test('players against a database', async (t) => {
       username: `p${newId()}`,
       password: 'correct-horse-battery',
       initialBalance: '2500',
+      transactionPassword: OWN_TXN,
     });
     created.push(Number(player.id));
 
@@ -149,6 +150,53 @@ test('players against a database', async (t) => {
       await balanceOf(agent),
       money.toDecimalString(money.toMinor(before) - money.toMinor('2500'))
     );
+
+    // The player's Ledger tab: one TRANSFER_IN, tied to the staff transfer.
+    const ledger = await models.CreditsLedger.findAll({ where: { user_id: String(player.id) }, raw: true });
+    assert.equal(ledger.length, 1, 'the opening balance is on the player ledger');
+    assert.equal(ledger[0].reason, 'TRANSFER_IN');
+    assert.equal(ledger[0].description, 'Opening balance');
+    assert.equal(money.toDecimalString(money.toMinor(ledger[0].amount)), '2500.00000000');
+    assert.equal(money.toDecimalString(money.toMinor(ledger[0].closing)), '2500.00000000');
+    const meta = typeof ledger[0].meta === 'string' ? JSON.parse(ledger[0].meta) : ledger[0].meta;
+    assert.equal(meta.refType, 'STAFF_TRANSFER');
+    const transfer = await models.StaffTransfers.findByPk(meta.refId, { raw: true });
+    assert.equal(transfer.note, 'Opening balance');
+    assert.equal(Number(transfer.to_id), Number(player.id));
+    const history = await models.WalletHistory.findAll({ where: { uid: player.id }, raw: true });
+    assert.equal(history.length, 1);
+    assert.equal(history[0].operation, 'credit');
+  });
+
+  await t.test('an unfunded creation writes no ledger row', async () => {
+    const player = await service.create({ actor: asAgent, username: `p${newId()}`, password: 'correct-horse-battery' });
+    created.push(Number(player.id));
+    assert.equal(await models.CreditsLedger.count({ where: { user_id: String(player.id) } }), 0);
+  });
+
+  await t.test('every admin-created player (any parent) is created WITHOUT a referral code — affiliate is direct-only', async () => {
+    const player = await service.create({ actor: asAgent, username: `p${newId()}`, password: 'correct-horse-battery' });
+    created.push(Number(player.id));
+    assert.equal(player.referralCode, null);
+    const row = await models.Users.findOne({ where: { id: player.id }, raw: true });
+    assert.equal(row.referalcode, null);
+    assert.equal(row.referral_link, null);
+
+    const houseRoleId = (await models.Roles.findOne({ where: { level: 3 }, raw: true }))?.id;
+    if (!houseRoleId) return;
+    const house = newId();
+    await models.Staff.create({ id: house, name: `ph-${house}`, email: `ph${house}@t.test`, password: 'x', role_id: houseRoleId, parent_id: null });
+    let housePlayer;
+    try {
+      housePlayer = await service.create({ actor: { id: house, permissions: ['*'] }, username: `p${newId()}`, password: 'correct-horse-battery' });
+      assert.equal(housePlayer.referralCode, null, 'a house-owned player is a child user too — no code');
+    } finally {
+      if (housePlayer) {
+        await models.Credits.destroy({ where: { uid: housePlayer.id } });
+        await models.Users.destroy({ where: { id: housePlayer.id } });
+      }
+      await models.Staff.destroy({ where: { id: house } });
+    }
   });
 
   await t.test('the password is HASHED and password2 is left empty', async () => {
@@ -176,11 +224,79 @@ test('players against a database', async (t) => {
           username: `p${newId()}`,
           password: 'correct-horse-battery',
           initialBalance: '999999',
+          transactionPassword: OWN_TXN,
         }),
-      (err) => err.code === 'PLAYERS_INSUFFICIENT_FUNDS'
+      (err) => err.code === 'INSUFFICIENT_FUNDS' && err.status === 422
     );
 
     assert.equal(await balanceOf(rival), before, 'nothing moved');
+  });
+
+  await t.test('a funded creation under a DESCENDANT is refused: only the direct parent funds a player', async () => {
+    const child = newId();
+    await models.Staff.create({ id: child, name: `pc-${child}`, email: `pc${child}@t.test`, password: 'x', role_id: roleId, parent_id: agent });
+    try {
+      const before = await balanceOf(agent);
+      const username = `p${newId()}`;
+      await assert.rejects(
+        () => service.create({
+          actor: asAgent, username, password: 'correct-horse-battery', parentId: child,
+          initialBalance: '100', transactionPassword: OWN_TXN,
+        }),
+        (err) => err.code === 'PLAYERS_NOT_PERMITTED' && err.status === 403
+      );
+      assert.equal(await balanceOf(agent), before, 'nothing moved');
+      assert.equal(await models.Users.count({ where: { name: username } }), 0);
+
+      // Unfunded, under the same descendant, is fine.
+      const player = await service.create({ actor: asAgent, username: `p${newId()}`, password: 'correct-horse-battery', parentId: child });
+      created.push(Number(player.id));
+      await models.Users.update({ parent_staff_id: agent }, { where: { id: player.id } });
+    } finally {
+      await models.Staff.destroy({ where: { id: child } });
+    }
+  });
+
+  await t.test('an AGENT-TREE funded creation needs the transaction password; a refusal moves nothing', async () => {
+    /**
+     * Same rule as `POST /admin/staff/transfer`: an agent-tree session (or
+     * anyone without `wallet:adjust`) funding a player out of its own float
+     * must give its transaction password. Without this check the opening
+     * balance was a second-factor-free way to move float.
+     */
+    const TXN = 'agent txn password';
+    await models.Staff.update({ transaction_password: await hashPassword(TXN, 4) }, { where: { id: agent } });
+    const asTreeAgent = { id: agent, level: 6, permissions: ['users:write', 'wallet:credit'] };
+    try {
+      for (const [transactionPassword, code] of [
+        [undefined, 'TXN_PASSWORD_REQUIRED'],
+        ['not the password', 'TXN_PASSWORD_INVALID'],
+      ]) {
+        const before = await balanceOf(agent);
+        const username = `p${newId()}`;
+        await assert.rejects(
+          () => service.create({
+            actor: asTreeAgent, username, password: 'correct-horse-battery', initialBalance: '300', transactionPassword,
+          }),
+          (err) => err.code === code
+        );
+        assert.equal(await balanceOf(agent), before, 'nothing moved');
+        assert.equal(await models.Users.count({ where: { name: username } }), 0, 'no player was created');
+      }
+
+      const before = await balanceOf(agent);
+      const player = await service.create({
+        actor: asTreeAgent, username: `p${newId()}`, password: 'correct-horse-battery', initialBalance: '300', transactionPassword: TXN,
+      });
+      created.push(Number(player.id));
+      assert.equal(await balanceOf(agent), money.toDecimalString(money.toMinor(before) - money.toMinor('300')));
+
+      // An UNFUNDED creation moves no money and needs no second factor.
+      const unfunded = await service.create({ actor: asTreeAgent, username: `p${newId()}`, password: 'correct-horse-battery' });
+      created.push(Number(unfunded.id));
+    } finally {
+      await models.Staff.update({ transaction_password: OWN_TXN }, { where: { id: agent } });
+    }
   });
 
   await t.test('a negative opening balance is refused', async () => {
@@ -195,27 +311,6 @@ test('players against a database', async (t) => {
         }),
       (err) => err.code === 'PLAYERS_NOT_PERMITTED'
     );
-  });
-
-  await t.test('a player cannot be re-parented outside the caller\'s tree', async () => {
-    /**
-     * Legacy wrote `parent_staff_id` straight from the body with no check, so
-     * an agent could hand any player they could see to any staff id at all.
-     */
-    const player = await service.create({
-      actor: asAgent,
-      username: `p${newId()}`,
-      password: 'correct-horse-battery',
-    });
-    created.push(Number(player.id));
-
-    await assert.rejects(
-      () => service.update({ actor: asAgent, playerId: player.id, parentId: rival }),
-      (err) => err.code === 'PLAYERS_CANNOT_REPARENT_OUTSIDE_TREE'
-    );
-
-    const row = await models.Users.findOne({ where: { id: player.id }, raw: true });
-    assert.equal(String(row.parent_staff_id), String(agent));
   });
 
   await t.test('an agent cannot edit a rival\'s player', async () => {
@@ -256,6 +351,7 @@ test('players against a database', async (t) => {
       username: `p${newId()}`,
       password: 'correct-horse-battery',
       initialBalance: '750',
+      transactionPassword: OWN_TXN,
     });
     const playerId = Number(player.id);
     created.push(playerId);
@@ -279,8 +375,12 @@ test('players against a database', async (t) => {
     assert.equal(result.balanceReturned, '750.00000000');
 
     // ── the record survives ──
-    const ledger = await models.CreditsLedger.count({ where: { user_id: String(playerId) } });
+    const ledger = await models.CreditsLedger.count({
+      where: { user_id: String(playerId), description: 'must survive an account closure' },
+    });
     assert.equal(ledger, 1, 'THE LEDGER ROW IS STILL THERE');
+    const reasons = (await models.CreditsLedger.findAll({ where: { user_id: String(playerId) }, raw: true })).map((r) => r.reason).sort();
+    assert.deepEqual(reasons, ['BET_PAYOUT', 'TRANSFER_IN', 'TRANSFER_OUT'], 'opening balance in, closing return out');
 
     const transfers = await models.StaffTransfers.count({
       where: { [require('sequelize').Op.or]: [{ from_id: playerId }, { to_id: playerId }] },

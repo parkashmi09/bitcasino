@@ -5,7 +5,8 @@ const { money } = require('@ibitplay/common');
 
 const errors = require('./locks.errors');
 const { LOCK_FIELDS } = require('./locks.constants');
-const { descendantIds } = require('../staff-directory/staffDirectory.service');
+const { directSources, cascadeUpdate } = require('./lockSources');
+const { descendantIds, visibleStaffIds } = require('../staff-directory/staffDirectory.service');
 
 /**
  * Locks, and the public referral lookup.
@@ -35,7 +36,7 @@ class LocksService {
     if (userId && staffId) throw errors.AMBIGUOUS_TARGET();
 
     return this.db.transaction(async (transaction) => {
-      const tree = await descendantIds(this.models, actor.id, { logger: this.logger });
+      const tree = await visibleStaffIds(this.models, actor.id, { logger: this.logger });
 
       if (userId) return this.#lockPlayer({ actor, userId, changes, tree, transaction });
       return this.#lockAgentTree({ actor, staffId, changes, tree, transaction });
@@ -52,11 +53,11 @@ class LocksService {
   async #lockPlayer({ actor, userId, changes, tree, transaction }) {
     const seesUnassigned = tree.map(Number).includes(1);
 
-    const [affected] = await this.models.Users.update(changes, {
+    const [affected] = await this.models.Users.update({ ...changes, lock_sources: directSources(changes) }, {
       where: {
         id: userId,
         ...(seesUnassigned
-          ? { [Op.or]: [{ parent_staff_id: tree }, { parent_staff_id: null }] }
+          ? { [Op.or]: [{ parent_staff_id: tree }, { parent_staff_id: null, is_demo: false }] }
           : { parent_staff_id: tree }),
       },
       transaction,
@@ -96,13 +97,26 @@ class LocksService {
     }
 
     const subtree = await descendantIds(this.models, staffId, { logger: this.logger });
+    const below = subtree.filter((id) => Number(id) !== Number(staffId));
 
-    const [agentsAffected] = await this.models.Staff.update(changes, {
-      where: { id: subtree },
-      transaction,
-    });
+    /**
+     * The named agent is changed DIRECTLY; everything beneath it by CASCADE,
+     * which records (or removes) this agent as the reason for the lock — so
+     * unlocking it lifts only the locks it imposed, never one set on a child
+     * directly or held by another ancestor. See `lockSources.js`.
+     */
+    const [self] = await this.models.Staff.update(
+      { ...changes, lock_sources: directSources(changes) },
+      { where: { id: staffId }, transaction }
+    );
 
-    const [playersAffected] = await this.models.Users.update(changes, {
+    const cascade = cascadeUpdate(changes, staffId);
+    const [beneath] = below.length
+      ? await this.models.Staff.update(cascade, { where: { id: below }, transaction })
+      : [0];
+    const agentsAffected = self + beneath;
+
+    const [playersAffected] = await this.models.Users.update(cascade, {
       where: { parent_staff_id: subtree },
       transaction,
     });
@@ -157,14 +171,14 @@ class LocksService {
    * ─────────────────────────────────────────────────────────────────────
    */
   async userTransfers({ actor, userId, limit = 50, offset = 0 }) {
-    const tree = await descendantIds(this.models, actor.id, { logger: this.logger });
+    const tree = await visibleStaffIds(this.models, actor.id, { logger: this.logger });
     const seesUnassigned = tree.map(Number).includes(1);
 
     const player = await this.models.Users.findOne({
       where: {
         id: userId,
         ...(seesUnassigned
-          ? { [Op.or]: [{ parent_staff_id: tree }, { parent_staff_id: null }] }
+          ? { [Op.or]: [{ parent_staff_id: tree }, { parent_staff_id: null, is_demo: false }] }
           : { parent_staff_id: tree }),
       },
       attributes: ['id', 'name'],

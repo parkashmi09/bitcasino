@@ -1,6 +1,7 @@
 'use strict';
 
 const { EVENTS, AUDIENCE } = require('@ibitplay/socket');
+const { assertPlayerCapability } = require('@ibitplay/auth');
 
 const { RakebackService } = require('./rakeback.service');
 
@@ -29,9 +30,11 @@ function register({ on, deps }) {
     limit: { windowMs: 60_000, max: 60 },
     handle: async (_payload, context) => {
       try {
+        // Rakeback is a promotion: not for agent-tree players.
+        await assertPlayerCapability(context.userId, 'promotions');
         return ok(await service.amount({ userId: context.userId }));
       } catch (error) {
-        if (error.code?.startsWith('RAKEBACK_')) return refuse(error);
+        if (error.code?.startsWith('RAKEBACK_') || error.code === 'PROMOTIONS_NOT_FOR_AGENT_USERS') return refuse(error);
         throw error;
       }
     },
@@ -64,9 +67,11 @@ function register({ on, deps }) {
     limit: { windowMs: 60_000, max: 10 },
     handle: async (_payload, context) => {
       try {
+        // Rakeback is a promotion: not for agent-tree players.
+        await assertPlayerCapability(context.userId, 'promotions');
         return ok(await service.claim({ userId: context.userId }));
       } catch (error) {
-        if (error.code?.startsWith('RAKEBACK_')) return refuse(error);
+        if (error.code?.startsWith('RAKEBACK_') || error.code === 'PROMOTIONS_NOT_FOR_AGENT_USERS') return refuse(error);
         if (error.code === 'WALLET_INSUFFICIENT_FUNDS') return refuse(error);
         throw error;
       }

@@ -38,6 +38,15 @@ module.exports = function adminRoutes(deps) {
   router.get('/', canRead, validate(v.allDetails), ctrl.allDetails);
   router.get('/statement', canRead, validate(v.transferStatement), ctrl.transferStatement);
   router.get('/exposure/sports', canRead, ctrl.netExposure);
+  /**
+   * The caller's OWN float — balance, credit line and what is available — for
+   * the money dialogs. Any wallet grant reads it; it takes no account id.
+   */
+  router.get(
+    '/float',
+    auth.requireAnyPermission(PERMISSIONS.WALLET_CREDIT, PERMISSIONS.WALLET_DEBIT, PERMISSIONS.WALLET_ADJUST, PERMISSIONS.USERS_READ),
+    ctrl.myFloat
+  );
 
   // ── Settings ────────────────────────────────────────────────────────
   router.post(
@@ -85,7 +94,7 @@ module.exports = function adminRoutes(deps) {
     canAdjust,
     validate(v.setCreditLimit),
     audit('account.credit-limit', (req) => ({
-      targetType: 'USER',
+      targetType: req.body.accountType === 'staff' ? 'STAFF' : 'USER',
       targetId: req.body.accountId,
       details: { creditLimit: req.body.creditLimit },
     })),

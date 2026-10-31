@@ -121,7 +121,27 @@ test('casino bet history', async (t) => {
   }
 
   /** A player owned by a staff member, with one in-house bet. */
-  const seedPlayer = async (staffId, { profit = '10', amount = '20' } = {}) => {
+  /**
+   * A player with one round of history.
+   *
+   * ── THE ROUND IS SETTLED, AND THAT MATTERS ──────────────────────────────
+   *
+   * `result` was never set here, which made every seeded row an OPEN round —
+   * and `activity()`, `recentGames()` and `liveFeed()` all filter on
+   * `result IS NOT NULL AND result::text <> '"refunded"'`, because an open or
+   * voided round is not a public result. So those three saw nothing this
+   * helper produced and were passing vacuously; the live-feed test only
+   * noticed because it asserts `rows.length > 0` before checking that no
+   * player id leaks.
+   *
+   * The value only has to be non-null and not the `"refunded"` marker — the
+   * WIN/LOSS/PUSH split comes from `profit` via `classify()`, not from here.
+   * Pass `result: null` to seed a round that is still open.
+   */
+  const seedPlayer = async (
+    staffId,
+    { profit = '10', amount = '20', result = { settled: true } } = {}
+  ) => {
     const uid = newUid();
     await models.Bets.destroy({ where: { uid } });
     await models.Users.destroy({ where: { id: uid } });
@@ -141,6 +161,7 @@ test('casino bet history', async (t) => {
       profit,
       coin: 'usdt',
       game: 'dice',
+      result,
       created: new Date(),
     });
     return uid;
@@ -185,6 +206,42 @@ test('casino bet history', async (t) => {
     const result = await service.list({ page: 1, limit: 200, staffId: ROOT });
 
     assert.ok(result.total >= 2);
+  });
+
+  await t.test("the root operator asking about ONE player gets that player's rounds only", async () => {
+    // Root used to short-circuit to "everything" and drop the userId, so a
+    // player's detail page listed the whole platform's rounds under their id.
+    const mine = await seedPlayer(STAFF_A);
+    const other = await seedPlayer(STAFF_B);
+
+    const service = build();
+    const listed = await service.listForUser({ page: 1, limit: 200, staffId: ROOT, userId: mine });
+    assert.ok(listed.rows.length >= 1);
+    assert.ok(listed.rows.every((r) => Number(r.user_id) === Number(mine)), 'only the asked player');
+    assert.ok(!listed.rows.some((r) => Number(r.user_id) === Number(other)));
+
+    const filtered = await service.list({ page: 1, limit: 200, staffId: ROOT, userId: mine });
+    assert.ok(filtered.rows.every((r) => Number(r.user_id) === Number(mine)));
+
+    const counted = await service.betWinCount({ staffId: ROOT, userId: mine });
+    assert.equal(counted.bets, 1, "one seeded round, not the platform's total");
+  });
+
+  await t.test('a per-player route about a player outside the tree is a 404, not an empty 200', async () => {
+    const theirs = await seedPlayer(STAFF_B);
+    const mine = await seedPlayer(STAFF_A);
+    const service = build();
+
+    for (const call of [
+      () => service.listForUser({ page: 1, limit: 50, staffId: STAFF_A, userId: theirs }),
+      () => service.betWinCount({ staffId: STAFF_A, userId: theirs }),
+    ]) {
+      await assert.rejects(call, (err) => err.status === 404 && /PLAYER_NOT_IN_YOUR_TREE/.test(err.code));
+    }
+
+    // In-tree still answers.
+    const own = await service.betWinCount({ staffId: STAFF_A, userId: mine });
+    assert.equal(own.bets, 1);
   });
 
   await t.test('the root id is configuration, not the literal 1', async () => {
@@ -249,6 +306,12 @@ test('casino bet history', async (t) => {
       stats.totals.wins + stats.totals.losses + stats.totals.pushes,
       'the three add up to the total — which is what legacy could not guarantee'
     );
+
+    // The USDT view: every converted day adds up to its totals, and nothing is lost unless named.
+    const { usdt } = stats;
+    const sum = usdt.days.reduce((n, d) => n + d.bets, 0);
+    assert.equal(sum, usdt.totals.bets, 'the days add up to the USDT totals');
+    if (!usdt.unconverted.length) assert.equal(usdt.totals.bets, stats.totals.bets, 'every bet is in the USDT view');
   });
 
   await t.test('wins, losses and pushes always sum to the total', async () => {
@@ -407,6 +470,28 @@ test('casino bet history', async (t) => {
     }
   });
 
+  await t.test('simulated rounds (result.fake) stay off the live feed and top wins', async () => {
+    // QA tooling writes `{"fake": true}` rounds straight into `bets` (game
+    // `qa40-sim`, ₹25,00,000 stakes); they filled the public ticker and board.
+    const fakeUid = await seedPlayer(STAFF_A, { amount: '9999999', profit: '99999999', result: { qa40: true, fake: true } });
+    const realUid = await seedPlayer(STAFF_A, { profit: '15' });
+    // A refunded-style scalar result and an array result must not trip the filter.
+    const arrayUid = await seedPlayer(STAFF_A, { profit: '12', result: [1, 2, 3] });
+
+    const live = await build().liveFeed({ limit: 50 });
+    const refs = live.map((r) => r.reference);
+    assert.ok(!refs.includes(String(fakeUid)), 'the fake round is not on the ticker');
+    assert.ok(refs.includes(String(realUid)), 'a real round still is');
+    assert.ok(refs.includes(String(arrayUid)), 'so is one whose result is an array');
+
+    const top = await build().topWins({ limit: 50, game: 'dice' });
+    const topRefs = top.map((r) => r.reference);
+    assert.ok(!topRefs.includes(String(fakeUid)), 'the fake win is not on the board');
+
+    // The row is still there for staff: nothing is deleted.
+    assert.equal(await models.Bets.count({ where: { uid: fakeUid } }), 1);
+  });
+
   // ══════════════════════════════════════════════════════════════════════
   //  Analytics
   // ══════════════════════════════════════════════════════════════════════
@@ -530,5 +615,113 @@ test('casino bet history', async (t) => {
 
     assert.equal(result.totals.total, 0);
     assert.deepEqual(result.topUsers, []);
+  });
+  // ══════════════════════════════════════════════════════════════════════
+  //  The raw tables, against their REAL columns
+  // ══════════════════════════════════════════════════════════════════════
+
+  await t.test('bets_2m is read by its own columns, scoped by uid as a string', async () => {
+    /**
+     * `bets_2m` has `uid VARCHAR, value, amount, sessionid, status, cointype`
+     * — no id, no created, no profit. The `bets` query ordered by `id`,
+     * filtered on `created` and compared uid to numbers: 500 every time.
+     */
+    const mine = await seedPlayer(STAFF_A);
+    const theirs = await seedPlayer(STAFF_B);
+    const session = `bh2m-${mine}`;
+    await models.Bets2m.destroy({ where: { uid: [String(mine), String(theirs)] } });
+    await models.Bets2m.create({ uid: String(mine), value: '2', amount: '12.5', sessionid: session, status: 'won', cointype: 'usdt' });
+    await models.Bets2m.create({ uid: String(theirs), value: '2', amount: '7', sessionid: `bh2m-${theirs}`, status: 'lost', cointype: 'usdt' });
+
+    const result = await build().houseBets({
+      table: 'bets_2m', staffId: STAFF_A, from: '2020-01-01', to: '2099-01-01', page: 1, limit: 200,
+    });
+    const users = result.rows.map((r) => r.userId);
+    assert.ok(users.includes(String(mine)), 'my player\'s row is there');
+    assert.ok(!users.includes(String(theirs)), 'another tree\'s row is not');
+
+    const row = result.rows.find((r) => r.userId === String(mine));
+    assert.equal(row.sessionId, session);
+    assert.equal(Number(row.amount), 12.5);
+    assert.equal(row.user, `bh-${mine}`);
+    assert.equal(row.coin, 'usdt');
+
+    await models.Bets2m.destroy({ where: { uid: [String(mine), String(theirs)] } });
+  });
+
+  await t.test('transaction_live / transaction_slot / luckysports scope on user_code', async () => {
+    /**
+     * These tables have `user_code` (the player id as a string) and no
+     * `user_id` / `created_at`; reading those columns was a 500.
+     */
+    const mine = await seedPlayer(STAFF_A);
+    const theirs = await seedPlayer(STAFF_B);
+    const codes = [String(mine), String(theirs)];
+
+    for (const model of [models.TransactionLive, models.TransactionSlot]) {
+      await model.destroy({ where: { user_code: codes } });
+      await model.create({ user_code: String(mine), bet_money: 40, win_money: 55, txn_id: `t-${mine}`, type: 'bet', game_code: 'g1', provider_code: 'p1' });
+      await model.create({ user_code: String(theirs), bet_money: 9, win_money: 0, txn_id: `t-${theirs}`, type: 'bet' });
+    }
+
+    for (const table of ['live', 'slot']) {
+      const result = await build().rawTransactions({
+        table, staffId: STAFF_A, from: '2020-01-01', to: '2099-01-01', page: 1, limit: 200,
+      });
+      const users = result.rows.map((r) => r.userId);
+      assert.ok(users.includes(String(mine)), `${table}: my player's row is there`);
+      assert.ok(!users.includes(String(theirs)), `${table}: another tree's row is not`);
+      const row = result.rows.find((r) => r.userId === String(mine));
+      assert.equal(Number(row.bet), 40);
+      assert.equal(Number(row.win), 55);
+      assert.equal(row.txnId, `t-${mine}`);
+    }
+
+    const lucky = await build().luckySports({ staffId: STAFF_A, userId: mine, page: 1, limit: 50 });
+    assert.equal(lucky.total, 1);
+    assert.equal(lucky.rows[0].user, `bh-${mine}`);
+
+    for (const model of [models.TransactionLive, models.TransactionSlot]) {
+      await model.destroy({ where: { user_code: codes } });
+    }
+  });
+  await t.test('channel: Direct Users / Agent Users tabs split every listing', async () => {
+    // Direct = parent_staff_id NULL (site signup), agent = an agent's player.
+    const direct = await seedPlayer(null);
+    const agent = await seedPlayer(STAFF_A);
+    const service = build();
+    const ids = (r, key = 'user_id') => r.rows.map((x) => String(x[key]));
+
+    const d = await service.list({ page: 1, limit: 200, staffId: ROOT, channel: 'direct' });
+    assert.ok(ids(d).includes(String(direct)) && !ids(d).includes(String(agent)), 'direct tab: only direct');
+    const a = await service.list({ page: 1, limit: 200, staffId: ROOT, channel: 'agent' });
+    assert.ok(ids(a).includes(String(agent)) && !ids(a).includes(String(direct)), 'agent tab: only agent');
+    const all = await service.list({ page: 1, limit: 200, staffId: ROOT });
+    assert.ok(ids(all).includes(String(direct)) && ids(all).includes(String(agent)), 'no channel = both, as before');
+
+    // One player + the wrong tab = nothing; a non-root tree has no direct users.
+    assert.equal((await service.list({ page: 1, limit: 50, staffId: ROOT, userId: direct, channel: 'agent' })).total, 0);
+    assert.equal((await service.list({ page: 1, limit: 50, staffId: STAFF_A, channel: 'direct' })).total, 0);
+    assert.ok((await service.stats({ staffId: ROOT, userId: direct, channel: 'direct' })).totals.bets >= 1);
+
+    const hb = await service.houseBets({ table: 'bets', staffId: ROOT, channel: 'direct', page: 1, limit: 200 });
+    assert.ok(ids(hb, 'userId').includes(String(direct)) && !ids(hb, 'userId').includes(String(agent)));
+
+    // VARCHAR player columns (bets_2m.uid, transaction_live.user_code) take the ::text subquery.
+    await models.Bets2m.destroy({ where: { uid: [String(direct), String(agent)] } });
+    await models.Bets2m.create({ uid: String(direct), value: '2', amount: '3', sessionid: `bhch-${direct}`, status: 'won', cointype: 'usdt' });
+    await models.Bets2m.create({ uid: String(agent), value: '2', amount: '4', sessionid: `bhch-${agent}`, status: 'won', cointype: 'usdt' });
+    const b2 = await service.houseBets({ table: 'bets_2m', staffId: ROOT, channel: 'agent', page: 1, limit: 200 });
+    assert.ok(ids(b2, 'userId').includes(String(agent)) && !ids(b2, 'userId').includes(String(direct)));
+    await models.Bets2m.destroy({ where: { uid: [String(direct), String(agent)] } });
+
+    await models.TransactionLive.destroy({ where: { user_code: [String(direct), String(agent)] } });
+    await models.TransactionLive.create({ user_code: String(direct), bet_money: 5, win_money: 0, txn_id: `ch-${direct}`, type: 'bet' });
+    const live = await service.rawTransactions({ table: 'live', staffId: ROOT, channel: 'direct', page: 1, limit: 200 });
+    assert.ok(ids(live, 'userId').includes(String(direct)));
+    await models.TransactionLive.destroy({ where: { user_code: [String(direct), String(agent)] } });
+
+    await models.Bets.destroy({ where: { uid: [direct, agent] } });
+    await models.Users.destroy({ where: { id: [direct, agent] } });
   });
 });

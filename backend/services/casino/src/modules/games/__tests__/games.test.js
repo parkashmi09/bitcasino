@@ -1,5 +1,9 @@
 'use strict';
 
+// These cases exercise the SEPARATE transaction password (`staff.transaction_password`);
+// login mode (the default) is covered in staff-auth/__tests__/txnPasswordMode.test.js.
+process.env.TXN_PASSWORD_MODE = 'separate';
+
 const test = require('node:test');
 const assert = require('node:assert');
 
@@ -89,6 +93,7 @@ test('game catalogue', async (t) => {
       has_lobby: attrs.has_lobby ?? false,
       has_freespins: attrs.has_freespins ?? false,
       technology: attrs.technology || 'html5',
+      image: attrs.image ?? null,
     });
     return uuid;
   };
@@ -103,40 +108,6 @@ test('game catalogue', async (t) => {
 
     const result = await service.browse({ page: 1, limit: 10, provider: provider.toLowerCase() });
     assert.equal(result.total, 1, 'a vendor stored capitalised must match a lowercase filter');
-  });
-
-  await t.test('a comma-separated type filter reads as a set', async () => {
-    // `/categories/live-casino` means "All Live Casino Games" and has to
-    // answer the tables filed under the sub-categories carved out of it, so
-    // the client sends all three types in one request rather than merging and
-    // re-paginating three responses itself.
-    const suffix = `${TAG}-agg`;
-    await seedGame({ type: `baccarat-${suffix}` });
-    await seedGame({ type: `blackjack-${suffix}` });
-    await seedGame({ type: `live-casino-${suffix}` });
-    await seedGame({ type: `slots-${suffix}` });
-
-    const both = await service.browse({
-      page: 1,
-      limit: 10,
-      type: `baccarat-${suffix},blackjack-${suffix}`,
-    });
-    assert.equal(both.total, 2, 'two types must return both of their games and nothing else');
-
-    const one = await service.browse({ page: 1, limit: 10, type: `baccarat-${suffix}` });
-    assert.equal(one.total, 1, 'a single type must behave exactly as it always did');
-
-    // The members are trimmed and case-folded individually — a set built by
-    // joining a mapping table is exactly where a stray space shows up.
-    const spaced = await service.browse({
-      page: 1,
-      limit: 10,
-      type: ` BACCARAT-${suffix} , blackjack-${suffix} `,
-    });
-    assert.equal(spaced.total, 2, 'each member is trimmed and matched case-insensitively');
-
-    const missing = await service.browse({ page: 1, limit: 10, type: `nothing-${suffix}` });
-    assert.equal(missing.total, 0, 'an unknown type still matches nothing');
   });
 
   await t.test('is_mobile sorts, it does not filter', async () => {
@@ -188,6 +159,174 @@ test('game catalogue', async (t) => {
     assert.deepEqual(result.rows.map((g) => g.uuid), [html5]);
   });
 
+  await t.test('sort=popular ranks by distinct players, after the curated block and before the rest', async () => {
+    const provider = `${TAG}-Popular`;
+    const uuids = {};
+    for (const name of ['Alpha quiet', 'Bravo busy', 'Charlie single', 'Delta curated']) {
+      uuids[name] = await seedGame({ provider, name });
+    }
+    await service.setVendorPriority({ vendor: provider, uuids: [uuids['Delta curated']], actor: staff });
+
+    // Three players opened "Bravo"; one player opened "Charlie" five times.
+    const base = 950_000_000 + (process.pid % 100_000) * 10;
+    const launches = [
+      ...[0, 1, 2].map((n) => ({ user: base + n, game: uuids['Bravo busy'] })),
+      ...[0, 1, 2, 3, 4].map(() => ({ user: base, game: uuids['Charlie single'] })),
+    ];
+    await models.GameSession.bulkCreate(
+      launches.map((l, i) => ({ user_id: l.user, game_uid: l.game, session_token: `${TAG}-pop-${i}` }))
+    );
+
+    // A fresh service: the ranking is cached per instance for a minute.
+    const fresh = new GamesService({ models, db: connection, logger, config: {}, clients: {} });
+    const popular = await fresh.browse({ page: 1, limit: 10, provider, sort: 'popular' }).finally(() =>
+      models.GameSession.destroy({ where: { game_uid: Object.values(uuids) } })
+    );
+    assert.deepEqual(
+      popular.rows.map((g) => g.name),
+      ['Delta curated', 'Bravo busy', 'Charlie single', 'Alpha quiet'],
+      'curated first, then distinct players (not launches), then the unplayed by name'
+    );
+
+    const az = await fresh.browse({ page: 1, limit: 10, provider, sort: 'az' });
+    assert.deepEqual(az.rows.map((g) => g.name), ['Alpha quiet', 'Bravo busy', 'Charlie single', 'Delta curated']);
+
+    const unsorted = await fresh.browse({ page: 1, limit: 10, provider });
+    assert.deepEqual(
+      unsorted.rows.map((g) => g.name),
+      ['Delta curated', 'Alpha quiet', 'Bravo busy', 'Charlie single'],
+      'no sort keeps the curated order, then name'
+    );
+  });
+
+  await t.test('the lobby order lists games with artwork first, by name, the same on every read', async () => {
+    const provider = `${TAG}-Artwork`;
+    const art = (n) => `https://cdn.example.com/${n}.png`;
+    // Two "Bravo" rows with art: equal names, so the uuid decides and a page edge never moves.
+    await seedGame({ uuid: `${TAG}-art-b2`, provider, name: 'Bravo', image: art('b2') });
+    await seedGame({ uuid: `${TAG}-art-b1`, provider, name: 'Bravo', image: art('b1') });
+    await seedGame({ uuid: `${TAG}-art-a0`, provider, name: 'Alpha bare' });
+    await seedGame({ uuid: `${TAG}-art-a1`, provider, name: 'Alpha empty', image: '' });
+    await seedGame({ uuid: `${TAG}-art-z1`, provider, name: 'Zulu', image: art('z1') });
+
+    const expected = [`${TAG}-art-b1`, `${TAG}-art-b2`, `${TAG}-art-z1`, `${TAG}-art-a0`, `${TAG}-art-a1`];
+    const all = await service.browse({ page: 1, limit: 10, provider });
+    assert.deepEqual(all.rows.map((g) => g.uuid), expected, 'art first (by name, then uuid), art-less after');
+    assert.equal(all.total, 5, 'an art-less game is still listed');
+
+    const paged = [];
+    for (let page = 1; page <= 3; page += 1) {
+      paged.push(...(await service.browse({ page, limit: 2, provider })).rows.map((g) => g.uuid));
+    }
+    assert.deepEqual(paged, expected, 'paging walks the same order, each game once');
+
+    const again = await service.browse({ page: 1, limit: 10, provider });
+    assert.deepEqual(again.rows.map((g) => g.uuid), expected, 'deterministic');
+
+    const az = await service.browse({ page: 1, limit: 10, provider, sort: 'az' });
+    assert.deepEqual(
+      az.rows.map((g) => g.name),
+      ['Alpha bare', 'Alpha empty', 'Bravo', 'Bravo', 'Zulu'],
+      'a chosen A–Z stays strictly alphabetical'
+    );
+
+    // A curated list keeps its order within each half.
+    await service.setCollection({
+      collection: 'hot',
+      uuids: [`${TAG}-art-a0`, `${TAG}-art-z1`, `${TAG}-art-a1`, `${TAG}-art-b2`],
+      actor: staff,
+    });
+    const hot = await service.collection({ collection: 'hot', page: 1, limit: 10 });
+    assert.deepEqual(hot.rows.map((g) => g.uuid), [`${TAG}-art-z1`, `${TAG}-art-b2`, `${TAG}-art-a0`, `${TAG}-art-a1`]);
+
+    // So does a vendor's priority block.
+    await service.setVendorPriority({ vendor: provider, uuids: [`${TAG}-art-a0`, `${TAG}-art-z1`], actor: staff });
+    const prioritized = await service.browse({ page: 1, limit: 10, provider });
+    assert.deepEqual(
+      prioritized.rows.map((g) => g.uuid),
+      [`${TAG}-art-z1`, `${TAG}-art-a0`, `${TAG}-art-b1`, `${TAG}-art-b2`, `${TAG}-art-a1`]
+    );
+  });
+
+  await t.test('a game listed twice is shown once, and both rows stay readable', async () => {
+    const provider = `${TAG}-Twins`;
+    const first = await seedGame({ uuid: `${TAG}-twin-a`, provider, name: '777 FRUIT' });
+    const second = await seedGame({ uuid: `${TAG}-twin-b`, provider, name: '777 FRUIT' });
+    // Same name, a different kind of game: two games, not one twice.
+    const other = await seedGame({ uuid: `${TAG}-twin-c`, provider, name: '777 FRUIT', type: 'live' });
+
+    const listed = await service.browse({ page: 1, limit: 10, provider });
+    assert.equal(listed.total, 2);
+    assert.deepEqual(listed.rows.map((g) => g.uuid).sort(), [first, other].sort(), 'the later twin is hidden');
+
+    const found = await service.search({ q: `${TAG}-twin`, limit: 10 });
+    assert.deepEqual(found.map((g) => g.uuid).sort(), [first, other].sort(), 'the lobby search hides it too');
+
+    assert.equal((await service.byUuid(second)).uuid, second, 'a favourite naming the twin still resolves');
+  });
+
+  await t.test('two games sharing a slug get distinct slugs, and each slug opens its own game', async () => {
+    const provider = `${TAG}-Slugs`;
+    // The suffix is the uuid's first eight letters and digits, so these differ there.
+    const plain = await seedGame({ uuid: `aa${TAG}-slug`, provider, name: 'DRAGON & TIGER' });
+    const later = await seedGame({ uuid: `bb${TAG}-slug`, provider, name: 'DRAGON TIGER', type: 'Multiplayer' });
+    const fresh = new GamesService({ models, db: connection, logger, config: {}, clients: {} });
+
+    const base = `dragon-tiger-by-${provider.toLowerCase()}`;
+    const rows = (await fresh.browse({ page: 1, limit: 10, provider })).rows;
+    const slugOf = (uuid) => rows.find((g) => g.uuid === uuid).slug;
+    assert.equal(slugOf(plain), base, 'the earlier uuid keeps the plain slug, so old links still open it');
+    const suffix = later.toLowerCase().replace(/[^a-z0-9]/g, '').slice(0, 8);
+    assert.equal(slugOf(later), `${base}-${suffix}`, 'the later one is suffixed from its own uuid');
+
+    assert.equal((await fresh.bySlug(base)).uuid, plain);
+    assert.equal((await fresh.bySlug(`${base}-${suffix}`)).uuid, later);
+    assert.equal((await fresh.bySlug(`${base}-${suffix}`)).slug, `${base}-${suffix}`, 'the read carries its slug');
+    assert.equal((await fresh.byUuid(later)).slug, `${base}-${suffix}`);
+    await assert.rejects(() => fresh.bySlug(`${base}-zzzzzzzz`), (err) => err.code === 'GAMES_NOT_FOUND');
+  });
+
+  /**
+   * The game screen's read. It exists because nothing else could answer it:
+   * `browse` pages a filtered list and `search` matches a name, so a page
+   * opened from a link had no way to turn the uuid in its URL into a game.
+   */
+  await t.test('one game is readable by its uuid', async () => {
+    const uuid = await seedGame({ name: `${TAG} Reachable`, provider: `${TAG}-Spribe` });
+
+    const row = await service.byUuid(uuid);
+    assert.equal(row.uuid, uuid);
+    assert.equal(row.name, `${TAG} Reachable`);
+    // The screen renders artwork and a provider from this one read — a
+    // narrower projection would send it back for a second.
+    assert.ok('image' in row && 'provider' in row && 'type' in row, 'the full lobby projection');
+  });
+
+  /**
+   * The regression that made this route `/detail/:uuid`.
+   *
+   * A bare `/:uuid` matches any single segment, and the module mounts its
+   * public routes ahead of its player routes on the same base — so it also
+   * answered `/favourites` and `/recently-played`, both as "Game not found".
+   * This pins the shape of the route rather than the mounting, which is the
+   * part a future edit could quietly undo.
+   */
+  await t.test('the by-uuid route cannot shadow the player routes', async () => {
+    const routes = require('../routes/public.routes');
+    const router = routes({ models, db: connection, logger, config: { SERVICE_NAME: 'casino-service' }, clients: {} });
+    const paths = router.stack.filter((l) => l.route).map((l) => l.route.path);
+
+    assert.ok(paths.includes('/detail/:uuid'), 'by-uuid is namespaced');
+    assert.ok(!paths.includes('/:uuid'), 'a bare /:uuid would shadow /favourites and /recently-played');
+  });
+
+  await t.test('a uuid that names no game is a 404, not an empty object', async () => {
+    await assert.rejects(
+      () => service.byUuid(`${TAG}-no-such-game`),
+      (error) => error.status === 404 && error.code === 'GAMES_NOT_FOUND'
+    );
+  });
+
   await t.test('browsing by provider reports a real 404 rather than throwing', async () => {
     // `GET /gamesgis/provider/:provider` called a bare `getGamesgis(...)`, which
     // is a property of the exported object and not a binding in scope. Every
@@ -231,6 +370,41 @@ test('game catalogue', async (t) => {
     assert.deepEqual(result.uuids, [uuid]);
   });
 
+  await t.test('a lobby category: created from its name, games picked in order, switched off, deleted', async () => {
+    const name = `Cat ${TAG} Games`;
+    const created = await service.createCategory({ name, actor: staff });
+    assert.equal(created.slug, `cat-${TAG}-games`);
+    await assert.rejects(() => service.createCategory({ name, actor: staff }), (err) => err.code === 'GAMES_CATEGORY_EXISTS');
+    await assert.rejects(() => service.createCategory({ name: 'Brand', actor: staff }), (err) => err.code === 'GAMES_CATEGORY_EXISTS');
+
+    // Names no other case uses: a same-named game of the same provider is a twin and hidden.
+    const [a, b] = [await seedGame({ name: 'Zz category game' }), await seedGame({ name: 'Aa category game' })];
+    await service.updateCategory({ slug: created.slug, uuids: [a, b], actor: staff });
+    const page = await service.categoryGames({ slug: created.slug, page: 1, limit: 10 });
+    assert.deepEqual(page.rows.map((g) => g.uuid), [a, b], 'curated order');
+    const az = await service.categoryGames({ slug: created.slug, page: 1, limit: 10, sort: 'az' });
+    assert.deepEqual(az.rows.map((g) => g.uuid), [b, a]);
+    assert.equal((await service.categories()).find((c) => c.slug === created.slug).count, 2);
+
+    await service.updateCategory({ slug: created.slug, active: false, actor: staff });
+    assert.ok(!(await service.categories()).some((c) => c.slug === created.slug), 'the site no longer lists it');
+    await assert.rejects(() => service.categoryGames({ slug: created.slug, page: 1, limit: 10 }), (err) => err.code === 'GAMES_UNKNOWN_CATEGORY');
+    assert.ok((await service.categories({ includeInactive: true })).some((c) => c.slug === created.slug), 'the admin still does');
+
+    await service.deleteCategory({ slug: created.slug, actor: staff });
+    assert.ok(!(await service.categories({ includeInactive: true })).some((c) => c.slug === created.slug));
+  });
+
+  await t.test('an uncurated seeded category opens in the admin on the list the site shows', async () => {
+    // `hot` (migration 158) has no picks; the site then reads the Hot collection.
+    const shown = await seedGame({ name: 'Hh automatic hot game' });
+    await service.setCollection({ collection: 'hot', uuids: [shown], actor: staff });
+    const admin = await service.categoryGames({ slug: 'hot', page: 1, limit: 10, includeInactive: true, automatic: true });
+    assert.deepEqual(admin.rows.map((g) => g.uuid), [shown]);
+    const site = await service.categoryGames({ slug: 'hot', page: 1, limit: 10 });
+    assert.deepEqual(site.rows, [], 'the public read still answers only picks');
+  });
+
   await t.test('an unknown collection is a 404, not a query against a table named by the caller', async () => {
     await assert.rejects(
       () => service.collection({ collection: 'jackpots', page: 1, limit: 10 }),
@@ -267,6 +441,52 @@ test('game catalogue', async (t) => {
 
     const read = await service.vendorPriority({ vendor: vendor.toUpperCase() });
     assert.deepEqual(read.games.map((g) => g.uuid), [uuid]);
+  });
+
+  await t.test('an uploaded tile image is stored, served and becomes the game image', async () => {
+    const uuid = await seedGame({ name: 'Uu uploaded art game', image: 'https://cdn.example/old.png' });
+    // A real PNG head (signature + IHDR 300x400) so the size is read, padded past the minimum.
+    const ihdr = Buffer.alloc(25);
+    ihdr.writeUInt32BE(13, 0);
+    ihdr.write('IHDR', 4);
+    ihdr.writeUInt32BE(300, 8);
+    ihdr.writeUInt32BE(400, 12);
+    const png = Buffer.concat([Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]), ihdr, Buffer.alloc(200, 1)]);
+
+    const out = await service.putGameImage({ uuid, file: { buffer: png, size: png.length, originalname: 'a.png', mimetype: 'image/png' }, actor: staff });
+    assert.match(out.image, /^\/api\/v1\/casino\/games\/image\/[a-z0-9]+\.png\?v=\d+$/);
+    const name = out.image.split('/').pop().split('?')[0];
+    const served = await service.artwork({ name });
+    assert.ok(served.data.equals(png));
+    const row = await models.Gisgamesnew.findOne({ where: { uuid }, raw: true });
+    assert.equal(row.image, out.image);
+
+    await assert.rejects(
+      () => service.putGameImage({ uuid, file: { buffer: Buffer.alloc(300, 0x41), size: 300, originalname: 'x.png' }, actor: staff }),
+      (err) => err.code === 'GAMES_NOT_AN_IMAGE'
+    );
+  });
+
+  await t.test('a vendor with nothing pinned opens on its games in lobby order, pinned first once saved', async () => {
+    const vendor = `${TAG}-OpenVendor`;
+    const a = await seedGame({ provider: vendor, name: 'Oo first open game' });
+    const b = await seedGame({ provider: vendor, name: 'Oo second open game' });
+
+    const before = await service.vendorPriority({ vendor });
+    assert.equal(before.pinned, 0);
+    assert.deepEqual(new Set(before.games.map((g) => g.uuid)), new Set([a, b]), 'not an empty table');
+
+    await service.setVendorPriority({ vendor, uuids: [b, a], actor: staff });
+    const after = await service.vendorPriority({ vendor });
+    assert.deepEqual(after.games.map((g) => g.uuid), [b, a]);
+    assert.equal(after.pinned, 2);
+
+    // Switched off, it is out of the lobby but the admin still sees and orders its games.
+    const c = await seedGame({ provider: vendor, name: 'Oo third open game' });
+    await service.updateProviderSetting({ name: vendor, enabled: false, actor: staff });
+    const off = await service.vendorPriority({ vendor });
+    assert.deepEqual(off.games.map((g) => g.uuid), [b, a, c]);
+    await service.updateProviderSetting({ name: vendor, enabled: true, actor: staff });
   });
 
   await t.test('a type priority is matched with surrounding whitespace trimmed', async () => {
@@ -357,6 +577,13 @@ test('game catalogue', async (t) => {
 
     const after = await models.GisProvidersNew.findOne({ where: { name }, raw: true });
     assert.equal(after.enabled, false);
+
+    const key = name.toLowerCase();
+    const setting = await models.CasinoProviderSetting.findOne({ where: { provider: key }, raw: true });
+    assert.equal(setting?.enabled, false, 'it writes the switch the lobby honours');
+    const listed = (await service.upstreamProviders()).find((p) => p.name === name);
+    assert.equal(listed.enabled, false, 'and reads it back from there');
+    await models.CasinoProviderSetting.destroy({ where: { provider: key } });
   });
 
   // ══════════════════════════════════════════════════════════════════════

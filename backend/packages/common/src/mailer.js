@@ -16,7 +16,7 @@ const nodemailer = require('nodemailer');
  *
  *     const transporter = nodemailer.createTransport({
  *       host: 'smtpout.secureserver.net', port: 465, secure: true,
- *       auth: { user: 'support@camelbit.games', pass: 'camelbit@123' },
+ *       auth: { user: '<redacted, see backend/docs/ROTATION.md>', pass: '<redacted, see backend/docs/ROTATION.md>' },
  *     });
  *
  * That password is in the repository history and must be rotated. A new TCP
@@ -76,6 +76,12 @@ class Mailer {
   async send({ to, subject, html, text, from }) {
     if (!this.configured) {
       this.logger?.warn({ to: redact(to), subject }, 'SMTP is not configured — email NOT sent');
+      // rainbet: local preview (MAIL_DRY_RUN) — the message as text and its links, never in production.
+      if (this.config.MAIL_DRY_RUN === true && process.env.NODE_ENV !== 'production') {
+        const body = String(text || html || '').replace(/<style[\s\S]*?<\/style>/gi, ' ').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+        const links = [...String(html || '').matchAll(/href="([^"]+)"/g)].map((m) => m[1].replace(/&amp;/g, '&'));
+        this.logger?.info({ mailPreview: { to, subject, body: body.slice(0, 2000), links } }, 'MAIL_DRY_RUN preview');
+      }
       return { sent: false, error: 'SMTP is not configured' };
     }
 

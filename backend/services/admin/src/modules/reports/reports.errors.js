@@ -13,7 +13,6 @@ module.exports = defineErrors('REPORTS', {
    */
   PLAYER_NOT_FOUND: { status: 404, message: 'Player not found' },
 
-  AGENT_NOT_FOUND: { status: 404, message: 'Agent not found' },
 
   BAD_RANGE: { status: 400, message: '`from` must not be after `to`' },
 

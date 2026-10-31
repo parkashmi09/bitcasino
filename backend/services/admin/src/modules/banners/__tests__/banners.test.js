@@ -188,6 +188,23 @@ test('banners against a database', async (t) => {
     assert.ok(image.data.equals(JPEG));
   });
 
+  await t.test('an edit WITHOUT a file keeps the image and replaces the copy', async () => {
+    // The Replace form says "leave empty to keep the current one".
+    const type = newType();
+    await service.putBanner({ staff, type, title: 'Old', subtitle: 'Gone soon', file: asFile(PNG) });
+    const out = await service.putBanner({ staff, type, title: 'New', ctaLabel: 'Go', ctaHref: '/casino' });
+
+    assert.equal(out.title, 'New');
+    assert.equal(out.subtitle, null, 'copy not sent is blanked, as with a full upload');
+    assert.deepEqual(out.cta, { label: 'Go', href: '/casino' });
+    const image = await service.imageBytes({ key: type });
+    assert.ok(image.data.equals(PNG), 'the bytes are untouched');
+  });
+
+  await t.test('a NEW placement without a file is still a 400', async () => {
+    await assert.rejects(service.putBanner({ staff, type: newType(), title: 'x' }), (err) => err.code === 'BANNERS_NO_FILE');
+  });
+
   await t.test('who uploaded it is recorded', async () => {
     // Legacy could not record this: the route had no authentication, so there
     // was nobody to record.
@@ -208,6 +225,22 @@ test('banners against a database', async (t) => {
     assert.equal('base64' in found, false);
     assert.equal('image_data' in found, false);
     assert.equal(found.byteSize, PNG.length, 'the size is reported without the bytes');
+  });
+
+  await t.test('a mode lists only its own placements (agent- prefix = agent mode)', async () => {
+    const direct = newType();
+    const agent = `agent-${newType()}`;
+    await service.putBanner({ staff, type: direct, file: asFile(PNG) });
+    await service.putBanner({ staff, type: agent, file: asFile(PNG) });
+
+    const types = async (mode) => (await service.list({ mode })).rows.map((r) => r.type);
+    assert.ok((await types('agent')).includes(agent));
+    assert.ok(!(await types('agent')).includes(direct));
+    assert.ok((await types('direct')).includes(direct));
+    assert.ok(!(await types('direct')).includes(agent));
+    const both = (await service.list({})).rows;
+    assert.equal(both.find((r) => r.type === agent).mode, 'agent');
+    assert.equal(both.find((r) => r.type === direct).mode, 'direct');
   });
 
   await t.test('the binary listing base64-encodes them', async () => {

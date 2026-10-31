@@ -755,7 +755,7 @@ accident of the port.
 | 5 | `protectStaff` present on some routes and absent on siblings in the same router | `mannualsettlement/`, `sportsapi/`, `peerTrade/` |
 | 6 | Duplicate route declaration — the second silently never runs | `peerTrade/routes.js` `POST /admin/p2p/sell-release/:orderId` × 2 |
 | 7 | `index.js` is 236 KB in one file with ~120 inline handlers | `legacy/index.js` |
-| 8 | Firebase admin service-account **private key committed to the repo** | `legacy/bitcoinjito-e3078-firebase-adminsdk-*.json` |
+| 8 | Firebase admin service-account **private key committed to the repo** | `legacy/<redacted, see backend/docs/ROTATION.md>-*.json` |
 | 9 | `.env` with live values committed | `legacy/.env` |
 | 10 | CORS origin list hard-coded across five domains in source | `legacy/index.js:8` |
 | 11 | Unbounded list endpoints — no pagination cap on admin bet/transaction lists | `sportsmain/`, `bethistory/`, `reports/` |

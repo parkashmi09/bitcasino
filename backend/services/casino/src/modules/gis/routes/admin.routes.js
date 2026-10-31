@@ -1,8 +1,8 @@
 'use strict';
 
 const { Router } = require('express');
-const { validate } = require('@ibitplay/common');
-const { PERMISSIONS } = require('@ibitplay/auth');
+const { validate, noBody } = require('@ibitplay/common');
+const { PERMISSIONS, denyAgentTree } = require('@ibitplay/auth');
 
 const v = require('../gis.validators');
 const { buildGisService } = require('../gis.factory');
@@ -41,22 +41,24 @@ module.exports = function adminRoutes(deps) {
 
   const canRead = auth.requirePermission(PERMISSIONS.CASINO_READ);
   const canManage = auth.requirePermission(PERMISSIONS.CASINO_MANAGE);
+  // Freespin campaigns and vouchers are promotions: refused to the agent tree.
+  const houseOnly = denyAgentTree();
 
   // ── Freespin campaigns ──────────────────────────────────────────────
   /** @legacy POST /api/gis/freespins/set */
-  router.post('/freespins', canManage, validate(v.setFreespin), ctrl.setFreespin);
+  router.post('/freespins', houseOnly, canManage, validate(v.setFreespin), ctrl.setFreespin);
   /** @legacy GET /api/gis/freespins/get */
-  router.get('/freespins', canRead, validate(v.freespinId), ctrl.getFreespin);
+  router.get('/freespins', houseOnly, canRead, validate(v.freespinId), ctrl.getFreespin);
   /** @legacy POST /api/gis/freespins/cancel */
-  router.post('/freespins/cancel', canManage, validate(v.cancelFreespin), ctrl.cancelFreespin);
+  router.post('/freespins/cancel', houseOnly, canManage, validate(v.cancelFreespin), ctrl.cancelFreespin);
 
   // ── Free vouchers ───────────────────────────────────────────────────
   /** @legacy POST /api/gis/freevouchers/set */
-  router.post('/vouchers', canManage, validate(v.setVoucher), ctrl.setVoucher);
+  router.post('/vouchers', houseOnly, canManage, validate(v.setVoucher), ctrl.setVoucher);
   /** @legacy GET /api/gis/freevouchers/get */
-  router.get('/vouchers', canRead, validate(v.voucherId), ctrl.getVoucher);
+  router.get('/vouchers', houseOnly, canRead, validate(v.voucherId), ctrl.getVoucher);
   /** @legacy POST /api/gis/freevouchers/cancel */
-  router.post('/vouchers/cancel', canManage, validate(v.cancelVoucher), ctrl.cancelVoucher);
+  router.post('/vouchers/cancel', houseOnly, canManage, validate(v.cancelVoucher), ctrl.cancelVoucher);
 
   // ── Catalogue ───────────────────────────────────────────────────────
   /**
@@ -66,12 +68,25 @@ module.exports = function adminRoutes(deps) {
    * POST rather than GET: this writes hundreds of rows and takes minutes. A GET
    * that mutates is one browser prefetch away from running itself.
    */
-  router.post('/sync/games', canManage, ctrl.syncGames);
+  router.post('/sync/games', noBody(), canManage, ctrl.syncGames);
   /** @legacy GET /api/gis/sync/providersnew */
-  router.post('/sync/providers', canManage, ctrl.syncProviders);
+  router.post('/sync/providers', noBody(), canManage, ctrl.syncProviders);
 
-  /** @legacy GET /api/gis/self-validate */
-  router.get('/self-validate', canRead, ctrl.selfValidate);
+  /**
+   * @legacy GET /api/gis/self-validate
+   *
+   * Not a read: it makes a live call to the provider with the merchant
+   * credentials (and a provider failure comes back as a 502). It used to sit
+   * on `casino:read`, which SUPER_MASTER holds, so the agent tree could fire
+   * provider calls at will. It is an integration check for the house: the
+   * catalogue-write grant, and refused to the agent tree outright.
+   */
+  router.get(
+    '/self-validate',
+    denyAgentTree({ code: 'INTEGRATION_CHECK_HOUSE_ONLY', message: 'Integration checks are not available to agent accounts' }),
+    canManage,
+    ctrl.selfValidate
+  );
 
   return router;
 };

@@ -6,16 +6,18 @@
  * ═════════════════════════════════════════════════════════════════════════
  * WHY THIS IS A BOOT CHECK AND NOT A RUNBOOK
  *
- * Every item below was already correct in the code. `exposeStack` is derived
- * from `NODE_ENV !== 'production'`, HSTS is switched on the same way, rate
+ * Every item below was already correct in the code. HSTS is derived from
+ * `NODE_ENV !== 'production'`, rate
  * limiting has a master switch documented as "never false in any environment
  * reachable from the internet". The controls exist; what did not exist was
  * anything that NOTICED when a deployment inherited the wrong value.
  *
  * The `.env` in this repository ships `NODE_ENV=development`. Deployed as-is,
- * that one line turns off HSTS, returns stack traces in every 5xx body, and
- * disables the production CORS check — three findings from one variable
- * nobody had to touch to get wrong.
+ * that one line turns off HSTS and disables the production CORS check — two
+ * findings from one variable nobody had to touch to get wrong. (It used to
+ * return stack traces in every 5xx body too; those now need an explicit
+ * ERROR_EXPOSE_STACK=true and are never sent in production — see
+ * `stackExposure` in middleware/errorHandler.js.)
  *
  * A misconfiguration that fails at boot costs one deploy. The same
  * misconfiguration discovered later costs whatever it leaked in between. So

@@ -1,7 +1,7 @@
 'use strict';
 
 const express = require('express');
-const { createApp, createLogger, NotFoundError } = require('@ibitplay/common');
+const { createApp, createLogger, NotFoundError, PROVIDER_CALLBACK_PREFIXES } = require('@ibitplay/common');
 
 const config = require('./config');
 const { createProxy } = require('./proxy');
@@ -9,6 +9,8 @@ const { stripHeaders } = require('./middleware/stripHeaders');
 const { verifyToken } = require('./middleware/verifyToken');
 const { buildLegacyRewriter } = require('./legacyRoutes');
 const { createHealthAggregator } = require('./health');
+const { createApiEncryption } = require('./apiEncryption');
+const { createMaintenanceGate } = require('./middleware/maintenance');
 
 /**
  * The single public entry point.
@@ -60,6 +62,8 @@ const ROUTES = [
   { prefix: '/api/v1/admin/sports', service: 'sports' },
   { prefix: '/api/v1/admin', service: 'admin' },
   { prefix: '/api/v1/user', service: 'user' },
+  // socket.io's HTTP long-polling (the WebSocket upgrade is wsProxy.js).
+  { prefix: '/socket.io', service: 'user' },
   { prefix: '/api/v1/casino', service: 'casino' },
   { prefix: '/api/v1/sports', service: 'sports' },
 ];
@@ -75,6 +79,7 @@ function buildApp() {
   const logger = createLogger({ name: config.SERVICE_NAME, level: config.LOG_LEVEL, pretty: config.LOG_PRETTY });
 
   const routes = express.Router();
+  const encryption = createApiEncryption({ config, logger });
 
   // ── Health, before auth: an orchestrator has no token ────────────────
   routes.use(createHealthAggregator({ targets: TARGETS, config, logger }));
@@ -96,6 +101,9 @@ function buildApp() {
 
   // ── 3. Legacy compatibility ─────────────────────────────────────────
   routes.use(buildLegacyRewriter({ logger }));
+
+  // ── 3b. Whitelabel copy switched off by its parent site ─────────────
+  if (config.WHITELABEL_MODE) routes.use(createMaintenanceGate({ config, logger }));
 
   // ── 4. Endpoint index ───────────────────────────────────────────────
   routes.get('/api/v1', (_req, res) => {
@@ -120,6 +128,7 @@ function buildApp() {
         name: `${route.service}-service`,
         timeoutMs: config.GATEWAY_PROXY_TIMEOUT_MS,
         logger,
+        encryption,
       })
     );
   }
@@ -132,9 +141,12 @@ function buildApp() {
     // The proxy pipes request bodies straight through. Parsing here would
     // consume the stream and force every upload through the gateway's heap.
     parseBody: false,
+    // Provider wallet callbacks: signed, and metered per route in casino-service.
+    rateLimitSkipPrefixes: PROVIDER_CALLBACK_PREFIXES,
   });
 
   app.locals.logger = logger;
+  app.locals.encryption = encryption;
   return app;
 }
 

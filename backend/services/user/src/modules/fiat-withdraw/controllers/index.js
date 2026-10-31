@@ -23,9 +23,14 @@ function createControllers({ service }) {
     }),
 
     /** @legacy POST /updateFiatWithdrawStatus */
-    updateStatus: asyncHandler(async (req, res) =>
-      response.ok(res, await service.updateStatus(req.body, req.staff))
-    ),
+    updateStatus: asyncHandler(async (req, res) => {
+      const { transactionPassword, ...body } = req.body;
+      await service.wallet.checkTransactionPassword(req.staff.id, transactionPassword, {
+        required: true,
+        executiveId: req.staff.executiveId ?? null,
+      });
+      return response.ok(res, await service.updateStatus(body, req.staff));
+    }),
   };
 }
 

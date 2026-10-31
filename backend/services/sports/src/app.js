@@ -10,6 +10,8 @@ const {
   internalAuth,
 } = require('@ibitplay/common');
 
+const { mssports } = require('./lib/mssports');
+
 /**
  * Assemble the sports-service HTTP app.
  *
@@ -30,6 +32,8 @@ function buildApp(container) {
       serviceName: config.SERVICE_NAME,
       checks: {
         database: () => db.ping(),
+        // The mssports pool (schema mssports) — the one bets and settlement run on.
+        mssports: () => mssports().sequelize.authenticate(),
       },
     })
   );

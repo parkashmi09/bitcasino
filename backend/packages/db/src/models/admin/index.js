@@ -8,6 +8,7 @@ module.exports = {
   AdminConfigurations: require('./AdminConfigurations'),
   Banners: require('./Banners'),
   Blogs: require('./Blogs'),
+  Promotions: require('./Promotions'),
   ExecutiveActivityLogs: require('./ExecutiveActivityLogs'),
   Executives: require('./Executives'),
   Roles: require('./Roles'),

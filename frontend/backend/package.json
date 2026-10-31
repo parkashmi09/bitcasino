@@ -1,0 +1,59 @@
+{
+  "name": "ibitplay",
+  "version": "1.0.0",
+  "private": true,
+  "description": "iBitPlay backend \u2014 microservices platform (Express + Sequelize + PostgreSQL)",
+  "workspaces": [
+    "packages/*",
+    "services/*",
+    "gateway"
+  ],
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "scripts": {
+    "setup": "node scripts/setup.js",
+    "setup:demo": "node scripts/setup.js --demo",
+    "setup:fresh": "node scripts/setup.js --fresh",
+    "dev": "node scripts/dev.js",
+    "dev:test": "RATE_LIMIT_ENABLED=false node scripts/dev.js",
+    "start": "node scripts/dev.js",
+    "db:create": "node packages/db/src/cli.js create",
+    "db:migrate": "node packages/db/src/cli.js migrate",
+    "db:migrate:undo": "node packages/db/src/cli.js migrate:undo",
+    "db:status": "node packages/db/src/cli.js status",
+    "db:seed": "node packages/db/src/cli.js seed",
+    "db:seed:data": "node scripts/seed-data.js",
+    "db:seed:demo": "node scripts/seed-data.js --demo",
+    "db:seed:list": "node scripts/seed-data.js --list",
+    "db:verify": "node packages/db/src/cli.js verify",
+    "db:generate-models": "node packages/db/tools/generate-models.js",
+    "test": "node --test --test-concurrency=1 \"packages/*/__tests__/*.test.js\" \"services/*/src/modules/**/__tests__/*.test.js\" \"gateway/src/__tests__/*.test.js\"",
+    "start:user": "node services/user/src/index.js",
+    "start:admin": "node services/admin/src/index.js",
+    "start:casino": "node services/casino/src/index.js",
+    "start:sports": "node services/sports/src/index.js",
+    "start:gateway": "node gateway/src/index.js",
+    "start:sports-worker": "node services/sports/src/worker.js",
+    "dev:mono": "node scripts/dev-mono.js",
+    "verify:security": "node tools/verify-security.js",
+    "verify:security:all": "node tools/verify-security.js --all",
+    "verify:modules": "node tools/verify-modules.js",
+    "verify:authz": "node tools/verify-authz.js",
+    "verify:internal-acl": "node tools/verify-internal-acl.js",
+    "db:grants": "node tools/db-grants.js",
+    "db:grants:check": "node tools/db-grants.js --check",
+    "verify:routes": "node tools/route-inventory.js --report",
+    "docs:api": "node tools/api-surface.js",
+    "verify:api-docs": "node tools/api-surface.js --check",
+    "verify:frontend": "node tools/verify-frontend-routes.js",
+    "verify:models": "node tools/verify-models.js",
+    "verify:sockets": "node tools/socket-inventory.js --list",
+    "verify:secrets": "node tools/check-secrets.js",
+    "exposures:rebuild": "node scripts/rebuild-exposures.js"
+  },
+  "dependencies": {
+    "dotenv": "^17.4.2",
+    "ioredis": "^6.0.0"
+  }
+}

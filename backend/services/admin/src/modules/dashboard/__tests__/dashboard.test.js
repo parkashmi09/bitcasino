@@ -60,14 +60,33 @@ test('dashboard against a database', async (t) => {
   }
 
   const { models } = connection;
-  const service = new DashboardService({ models, db: connection, logger, config: {} });
+
+  /**
+   * The platform owner, standing in for staff 1.
+   *
+   * The test database has no staff 1, so the owner is a test staff member
+   * named as the root through `ROOT_STAFF_ID` — the same seam the user and
+   * casino services use. Every figure on the dashboard is scoped to the
+   * caller's tree now, and the root's tree is the whole site, direct signups
+   * included, which is what these older tests assert against.
+   */
+  const agentRoleId = (await models.Roles.findOne({ where: { level: 6 }, raw: true }))?.id;
+  assert.ok(agentRoleId, 'the test database needs a level-6 (agent) role');
+  const ownerId = newId();
+  const owner = { id: ownerId };
+  const service = new DashboardService({ models, db: connection, logger, config: { ROOT_STAFF_ID: ownerId } });
 
   const player = newId();
   /** A currency with no row in `exchangerate` — the case legacy dropped. */
   const ORPHAN_CURRENCY = 'ZZZ';
 
   t.before(async () => {
-    await models.FiatDeposits.destroy({ where: { user_id: String(player) } });
+    await models.Staff.destroy({ where: { id: ownerId } });
+    await models.Staff.create({
+      id: ownerId, name: `d-owner-${ownerId}`, email: `o${ownerId}@t.test`, password: 'x', role_id: agentRoleId, parent_id: null,
+    });
+    // A run cut off before its cleanup leaves these behind, and the totals would count them twice.
+    await models.FiatDeposits.destroy({ where: { currency: ['TESTCOIN', ORPHAN_CURRENCY] } });
     await models.Users.destroy({ where: { id: player } });
 
     await models.Users.create({ id: player, name: `d-${player}`, password: 'x', status: 'active' });
@@ -101,11 +120,12 @@ test('dashboard against a database', async (t) => {
     await models.FiatDeposits.destroy({ where: { user_id: String(player) } });
     await models.Users.destroy({ where: { id: player } });
     await models.Exchangerate.destroy({ where: { currency: 'TESTCOIN' } });
+    await models.Staff.destroy({ where: { id: ownerId } });
     if (connection) await connection.close();
   });
 
   await t.test('a rate is applied exactly, not through a float', async () => {
-    const overview = await service.overview();
+    const overview = await service.overview({ actor: owner });
     const converted = overview.deposits.lifetime.byCurrency.find((c) => c.currency === 'TESTCOIN');
 
     assert.ok(converted, 'the deposit is counted');
@@ -126,7 +146,7 @@ test('dashboard against a database', async (t) => {
      * figure was smaller with nothing to say so.
      * ═══════════════════════════════════════════════════════════════════
      */
-    const overview = await service.overview();
+    const overview = await service.overview({ actor: owner });
     const orphan = overview.deposits.lifetime.unconverted.find((u) => u.currency === ORPHAN_CURRENCY);
 
     assert.ok(orphan, 'the unconvertible deposit is listed');
@@ -145,7 +165,7 @@ test('dashboard against a database', async (t) => {
      * lifetime total is marked to today and moves as rates move. Legacy said
      * nothing about this on a figure labelled "total deposits".
      */
-    const overview = await service.overview();
+    const overview = await service.overview({ actor: owner });
     assert.equal(overview.valuation.currency, 'USD');
     assert.match(overview.valuation.note, /marked to today/i);
   });
@@ -157,7 +177,7 @@ test('dashboard against a database', async (t) => {
      * morning was not counted; one who registered last week and never returned
      * was.
      */
-    const stats = await service.userStats();
+    const stats = await service.userStats({ actor: owner });
 
     assert.equal('activeUsers30d' in stats, false, 'the misleading name is gone');
     assert.equal(typeof stats.registeredLast30Days, 'number');
@@ -168,7 +188,7 @@ test('dashboard against a database', async (t) => {
 
   await t.test('an unknown player has no team rather than a crash', async () => {
     await assert.rejects(
-      () => service.memberTeam({ userId: 999_999_999 }),
+      () => service.memberTeam({ actor: owner, userId: 999_999_999 }),
       (err) => err.code === 'DASHBOARD_PLAYER_NOT_FOUND'
     );
   });
@@ -176,7 +196,7 @@ test('dashboard against a database', async (t) => {
   await t.test("today's list carries no wallet addresses or transaction ids", async () => {
     // Legacy's `SELECT * FROM deposits` returned every column to an
     // unauthenticated caller.
-    const today = await service.today({ kind: 'both', limit: 10, offset: 0 });
+    const today = await service.today({ actor: owner, kind: 'both', limit: 10, offset: 0 });
 
     for (const row of today.rows) {
       assert.equal('address' in row, false);
@@ -196,7 +216,7 @@ test('dashboard against a database', async (t) => {
      * of lie this module keeps unwinding, so a windowed request answers all
      * three and says which window it was given.
      */
-    const wide = await service.overview({ from: new Date(0), to: new Date() });
+    const wide = await service.overview({ actor: owner, from: new Date(0), to: new Date() });
 
     assert.ok(wide.range, 'the window is echoed back');
     assert.ok(wide.deposits.range, 'the windowed figure is present');
@@ -204,14 +224,14 @@ test('dashboard against a database', async (t) => {
     assert.equal(wide.deposits.range.usd, wide.deposits.lifetime.usd, 'a window of all time equals lifetime');
 
     // An unwindowed request must not grow the key.
-    const plain = await service.overview();
+    const plain = await service.overview({ actor: owner });
     assert.equal(plain.range, null);
     assert.equal('range' in plain.deposits, false);
   });
 
   await t.test('a window that excludes everything reports zero, not lifetime', async () => {
     const past = new Date('2000-01-01T00:00:00Z');
-    const empty = await service.overview({ from: new Date('1999-01-01T00:00:00Z'), to: past });
+    const empty = await service.overview({ actor: owner, from: new Date('1999-01-01T00:00:00Z'), to: past });
 
     assert.equal(empty.deposits.range.usd, '0.00000000');
     assert.equal(empty.deposits.range.count, 0);
@@ -226,23 +246,64 @@ test('dashboard against a database', async (t) => {
      * reader opened from a total never contained the rows behind it. These
      * seeded rows are in `fiat_deposits` — one of the four — and must appear.
      */
-    const page = await service.movements({ kind: 'deposits', userId: player, limit: 50, offset: 0 });
+    const page = await service.movements({ actor: owner, kind: 'deposits', userId: player, limit: 50, offset: 0 });
 
     assert.equal(page.total, 2, 'both seeded deposits are found');
     assert.ok(page.rows.every((r) => r.source === 'bank_deposit'));
     assert.ok(page.rows.every((r) => r.sourceLabel === 'Bank deposit'), 'the row names where it came from');
 
     // The totals on the drill-down match the headline for the same filter.
-    const overview = await service.overview();
+    const overview = await service.overview({ actor: owner });
     const seeded = overview.deposits.lifetime.byCurrency.find((c) => c.currency === 'TESTCOIN');
     const drilled = page.totals.byCurrency.find((c) => c.currency === 'TESTCOIN');
     assert.equal(drilled.usd, seeded.usd);
   });
 
+  await t.test('an F2Pay deposit is in the drill-down and the headline total; a pending one is not', async () => {
+    const ref = `F2D-${player}`;
+    await models.F2payDeposits.bulkCreate([
+      { user_id: player, mch_order_no: ref, amount: '40', currency: 'TESTCOIN', status: 'Success' },
+      { user_id: player, mch_order_no: `${ref}-P`, amount: '7', currency: 'TESTCOIN', status: 'Pending' },
+    ]);
+    try {
+      const page = await service.movements({ actor: owner, kind: 'deposits', userId: player, source: 'f2pay_deposit', limit: 50, offset: 0 });
+      assert.equal(page.total, 1, 'only the paid one');
+      assert.deepEqual([page.rows[0].sourceLabel, page.rows[0].amount, page.rows[0].currency], ['F2Pay deposit', '40.00000000', 'TESTCOIN']);
+
+      // One row per source: the bank's 100 and F2Pay's 40, each at 2.5.
+      const overview = await service.overview({ actor: owner });
+      const testcoin = overview.deposits.lifetime.byCurrency.filter((c) => c.currency === 'TESTCOIN');
+      assert.ok(testcoin.some((c) => c.amount === '40.00000000' && c.usd === '100.00000000'), JSON.stringify(testcoin));
+    } finally {
+      await models.F2payDeposits.destroy({ where: { mch_order_no: [ref, `${ref}-P`] } });
+    }
+  });
+
+  await t.test('a bank withdrawal is withdrawn when Approved or Paid', async () => {
+    // Since ebfcdc0 a bank withdrawal goes In Queue → Approved → Paid; legacy
+    // rows stop at Approved. cc354f8 dropped Approved, so legacy payouts left
+    // these totals. Each row has one status, so each is counted once.
+    await models.FiatWithdrawals.destroy({ where: { uid: player } });
+    const row = (amount, status) => ({
+      uid: player, amount, status, currency: 'TESTCOIN', account_holder_name: 'Test', date: new Date(),
+    });
+    await models.FiatWithdrawals.bulkCreate([row('100', 'Approved'), row('40', 'Paid'), row('7', 'In Queue'), row('9', 'Rejected')]);
+
+    try {
+      const page = await service.movements({ actor: owner, kind: 'withdrawals', userId: player, limit: 50, offset: 0 });
+      assert.equal(page.total, 2);
+      assert.deepEqual(page.rows.map((r) => Number(r.amount)).sort((a, b) => a - b), [40, 100]);
+      const coin = page.totals.byCurrency.find((c) => c.currency === 'TESTCOIN');
+      assert.equal(coin.amount, '140.00000000');
+    } finally {
+      await models.FiatWithdrawals.destroy({ where: { uid: player } });
+    }
+  });
+
   await t.test('an unconvertible row is null, not zero', async () => {
     // A row worth an unknown amount and a row worth nothing are different
     // facts; the gap is already reported separately under `unconverted`.
-    const page = await service.movements({ kind: 'deposits', userId: player, limit: 50, offset: 0 });
+    const page = await service.movements({ actor: owner, kind: 'deposits', userId: player, limit: 50, offset: 0 });
 
     const orphan = page.rows.find((r) => r.currency === ORPHAN_CURRENCY);
     assert.equal(orphan.usd, null);
@@ -255,7 +316,7 @@ test('dashboard against a database', async (t) => {
   await t.test('a drill-down row carries no bank account or screenshot path', async () => {
     // `fiat_deposits` holds an account number, an IFSC code and the path to a
     // photograph of the transfer. None of it is a dashboard's business.
-    const page = await service.movements({ kind: 'both', userId: player, limit: 50, offset: 0 });
+    const page = await service.movements({ actor: owner, kind: 'both', userId: player, limit: 50, offset: 0 });
 
     for (const row of page.rows) {
       for (const leaked of ['account_number', 'ifsc_code', 'screenshot_path', 'upi_id', 'wallet', 'transaction_id']) {
@@ -267,6 +328,7 @@ test('dashboard against a database', async (t) => {
 
   await t.test('a movement window filters the rows too', async () => {
     const none = await service.movements({
+      actor: owner,
       kind: 'deposits',
       userId: player,
       from: new Date('1999-01-01T00:00:00Z'),
@@ -281,7 +343,7 @@ test('dashboard against a database', async (t) => {
   });
 
   await t.test('registrations list the players behind the count', async () => {
-    const page = await service.registrations({ search: `d-${player}`, limit: 10, offset: 0 });
+    const page = await service.registrations({ actor: owner, search: `d-${player}`, limit: 10, offset: 0 });
 
     assert.equal(page.total, 1);
     assert.equal(page.rows[0].id, String(player));
@@ -303,4 +365,160 @@ test('dashboard against a database', async (t) => {
     assert.equal(v.movements.query.safeParse(backwards).success, false);
     assert.equal(v.overview.query.safeParse({}).success, true);
   });
+
+  // The tree scoping, against the same connection (it is shared, and closed
+  // by this test's `after`).
+  await scopeTests(t, connection, logger);
 });
+
+/**
+ * Every dashboard figure is DIRECT USERS ONLY (no parent), and only the
+ * root's tree sees them. Players with a parent are agent clients — the
+ * "Agent System" tab — and never appear here.
+ *
+ * Confirmed live: an agent's dashboard showed the site's totals, and the
+ * registrations and movements drill-downs named every player on the site.
+ * The scope is the same `visibleStaffIds` the reports and the player
+ * directory use.
+ */
+async function scopeTests(t, conn, logger) {
+  const { models } = conn;
+  const agentRole = (await models.Roles.findOne({ where: { level: 6 }, raw: true }))?.id;
+  const adminRole = (await models.Roles.findOne({ where: { level: 2 }, raw: true }))?.id
+    ?? (await models.Roles.findOne({ where: { level: 1 }, raw: true }))?.id;
+  assert.ok(agentRole && adminRole, 'the test database needs an agent role and an admin role');
+
+  /**
+   * master ── agentA ── playerA      (agentA's tree, and the master's)
+   * agentB ── playerB                (a rival tree)
+   * playerD                          (a direct signup — nobody's tree but the root's)
+   * owner                            (the root, via ROOT_STAFF_ID)
+   * admin                            (back office — its own subtree only, which is empty)
+   */
+  const master = newId();
+  const agentA = newId();
+  const agentB = newId();
+  const ownerId = newId();
+  const adminId = newId();
+  const staffIds = [master, agentA, agentB, ownerId, adminId];
+  const playerA = newId();
+  const playerB = newId();
+  const playerD = newId();
+  const playerX = newId(); // a demo user (the Demo button): direct, but never on the admin
+  const players = [playerA, playerB, playerD, playerX];
+  const tag = `scope-${process.pid}-${playerA}`;
+
+  const service = new DashboardService({ models, db: conn, logger, config: { ROOT_STAFF_ID: ownerId } });
+
+  const cleanup = async () => {
+    await models.FiatDeposits.destroy({ where: { user_id: players.map(String) } });
+    await models.Users.destroy({ where: { id: players } });
+    await models.Staff.destroy({ where: { id: staffIds } });
+  };
+
+  await (async () => {
+    await cleanup();
+    await models.Staff.bulkCreate([
+      { id: master, name: `m-${master}`, email: `m${master}@t.test`, password: 'x', role_id: agentRole, parent_id: null },
+      { id: agentA, name: `a-${agentA}`, email: `a${agentA}@t.test`, password: 'x', role_id: agentRole, parent_id: master },
+      { id: agentB, name: `b-${agentB}`, email: `b${agentB}@t.test`, password: 'x', role_id: agentRole, parent_id: null },
+      { id: ownerId, name: `o-${ownerId}`, email: `o${ownerId}@t.test`, password: 'x', role_id: agentRole, parent_id: null },
+      { id: adminId, name: `ad-${adminId}`, email: `ad${adminId}@t.test`, password: 'x', role_id: adminRole, parent_id: null },
+    ]);
+    await models.Users.bulkCreate([
+      { id: playerA, name: `${tag}-a`, email: `${tag}-a@t.test`, password: 'x', status: 'active', parent_staff_id: agentA },
+      { id: playerB, name: `${tag}-b`, email: `${tag}-b@t.test`, password: 'x', status: 'active', parent_staff_id: agentB },
+      { id: playerD, name: `${tag}-d`, email: `${tag}-d@t.test`, password: 'x', status: 'active', parent_staff_id: null },
+      { id: playerX, name: `${tag}-x`, email: `${tag}-x@t.test`, password: 'x', status: 'active', parent_staff_id: null, is_demo: true },
+    ]);
+    // Currencies with no rate, so each player's deposit is identifiable in
+    // the `unconverted` list of a headline figure.
+    await models.FiatDeposits.bulkCreate(
+      [[playerA, 'SCPA'], [playerB, 'SCPB'], [playerD, 'SCPD'], [playerX, 'SCPX']].map(([uid, currency]) => ({
+        user_id: String(uid), amount: '10', currency, status: 'approved', account_holder_name: 'T', created_at: new Date(),
+      }))
+    );
+  })();
+
+  try {
+
+  const currencies = (overview) => new Set(overview.deposits.lifetime.unconverted.map((u) => u.currency));
+  const regIds = async (actor) =>
+    (await service.registrations({ actor, search: tag, limit: 50, offset: 0 })).rows.map((r) => r.id).sort();
+
+  await t.test('an agent sees no figures here — their players are clients, not direct users', async () => {
+    const overview = await service.overview({ actor: { id: agentA } });
+    assert.equal(overview.users.total, 0);
+    const seen = currencies(overview);
+    for (const c of ['SCPA', 'SCPB', 'SCPD']) assert.equal(seen.has(c), false, `${c} is not counted`);
+
+    const stats = await service.userStats({ actor: { id: agentA } });
+    assert.equal(stats.total, 0);
+  });
+
+  await t.test('registrations list only direct users, and only to the root', async () => {
+    assert.deepEqual(await regIds({ id: agentA }), []);
+    assert.deepEqual(await regIds({ id: agentB }), []);
+    assert.deepEqual(await regIds({ id: master }), []);
+    // A player with a parent is never on the Direct Users tab, not even the root's.
+    assert.deepEqual(await regIds({ id: ownerId }), [String(playerD)]);
+  });
+
+  await t.test('movements show only direct users, even when a client is named', async () => {
+    const direct = await service.movements({ actor: { id: ownerId }, kind: 'deposits', userId: playerD, limit: 50, offset: 0 });
+    assert.ok(direct.rows.length >= 1);
+    assert.ok(direct.rows.every((r) => r.userId === String(playerD)));
+    assert.equal(direct.rows[0].user.email, `${tag}-d@t.test`);
+
+    const client = await service.movements({ actor: { id: ownerId }, kind: 'deposits', userId: playerA, limit: 50, offset: 0 });
+    assert.equal(client.total, 0);
+    assert.equal(client.rows.length, 0);
+
+    const agent = await service.movements({ actor: { id: agentA }, kind: 'deposits', limit: 50, offset: 0 });
+    assert.equal(agent.total, 0);
+  });
+
+  await t.test('a client player’s team is not found; a direct user’s is', async () => {
+    await assert.rejects(
+      () => service.memberTeam({ actor: { id: ownerId }, userId: playerA }),
+      (err) => err.code === 'DASHBOARD_PLAYER_NOT_FOUND' && err.status === 404
+    );
+    await assert.rejects(
+      () => service.memberTeam({ actor: { id: agentA }, userId: playerD }),
+      (err) => err.code === 'DASHBOARD_PLAYER_NOT_FOUND' && err.status === 404
+    );
+    const own = await service.memberTeam({ actor: { id: ownerId }, userId: playerD });
+    assert.equal(own.owner, `${tag}-d`);
+  });
+
+  await t.test('the root sees the direct users only; an admin outside the root’s tree sees nothing', async () => {
+    // Only the Super Admin widens to the root's tree (the Addaplay rule): this
+    // Admin is scoped to its own subtree, which holds no direct users.
+    assert.deepEqual(await regIds({ id: adminId }), []);
+
+    const seen = currencies(await service.overview({ actor: { id: ownerId } }));
+    assert.ok(seen.has('SCPD'), 'the direct user’s deposit is counted');
+    assert.equal(seen.has('SCPA'), false, 'a client’s deposit is not');
+    assert.equal(seen.has('SCPB'), false, 'a client’s deposit is not');
+  });
+
+  await t.test('a demo user is in no list, count or figure, not even the root’s', async () => {
+    // `registrations list only direct users` above already holds the root to [playerD].
+    const overview = await service.overview({ actor: { id: ownerId } });
+    assert.equal(currencies(overview).has('SCPX'), false, 'the demo user’s money is not counted');
+    const moves = await service.movements({ actor: { id: ownerId }, kind: 'deposits', userId: playerX, limit: 50, offset: 0 });
+    assert.equal(moves.total, 0);
+    await assert.rejects(
+      () => service.memberTeam({ actor: { id: ownerId }, userId: playerX }),
+      (err) => err.code === 'DASHBOARD_PLAYER_NOT_FOUND'
+    );
+  });
+
+  await t.test('no caller is an empty dashboard, not the whole site', async () => {
+    assert.deepEqual(await regIds(undefined), []);
+    assert.equal((await service.overview({})).users.total, 0);
+  });
+  } finally {
+    await cleanup();
+  }
+}

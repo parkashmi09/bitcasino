@@ -1,7 +1,8 @@
 'use strict';
 
 const { Router } = require('express');
-const { response, asyncHandler, createRateLimiter } = require('@ibitplay/common');
+const { response, asyncHandler, createRateLimiter, noBody, noQuery } = require('@ibitplay/common');
+const { denyAgentPlayer } = require('@ibitplay/auth');
 
 const { RakebackService } = require('../rakeback.service');
 
@@ -19,6 +20,8 @@ const { RakebackService } = require('../rakeback.service');
 module.exports = function userRoutes(deps) {
   const service = new RakebackService(deps);
   const router = Router();
+  // Agent-tree players (owner at staff level 4–6) have no promotions.
+  router.use(denyAgentPlayer('promotions'));
 
   const claimLimiter = createRateLimiter({
     name: 'rakeback-claim',
@@ -30,12 +33,14 @@ module.exports = function userRoutes(deps) {
   /** @legacy SOCKET 4d0779dab780d8b773e7h6fl9jxd7hm7 (C.RAKEBACK_AMOUNT) */
   router.get(
     '/',
+    noQuery(),
     asyncHandler(async (req, res) => response.ok(res, await service.amount({ userId: req.user.id })))
   );
 
   /** @legacy SOCKET k2089ht7ae660578ed9gffgh8hkk7vxj (C.ADD_RAKEBACK) */
   router.post(
     '/claim',
+    noBody(),
     claimLimiter,
     asyncHandler(async (req, res) => response.ok(res, await service.claim({ userId: req.user.id })))
   );

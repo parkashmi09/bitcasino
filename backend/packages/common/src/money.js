@@ -60,16 +60,6 @@ function toMinor(value, { field = 'amount' } = {}) {
  * side of the boundary the caller is on. Anything validating input keeps using
  * `toMinor` and keeps rejecting.
  *
- * ── THE ONE WRITE THAT USES IT ──────────────────────────────────────────
- *
- * `in-house/engine/gameEngine.js` `settle()`, for the game's PROFIT only. The
- * twenty in-house games compute payouts in JS floats because that arithmetic
- * was ported as-is, so `stake * payout - stake` reaches the engine as
- * `"0.09999999999999964"`. That is a float artefact of a value that is
- * exactly 0.1 in decimal — not a caller sending more precision than they
- * should — and refusing it voided winning rounds. The call site carries the
- * full reasoning.
- *
  * Rounds half away from zero, so a balance is never reported as more than it is
  * in one direction and less in the other.
  * ═════════════════════════════════════════════════════════════════════════

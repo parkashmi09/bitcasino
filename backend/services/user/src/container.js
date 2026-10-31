@@ -1,10 +1,12 @@
 'use strict';
 
-const { createLogger, ServiceClient, Mailer, resolveInternalKey } = require('@ibitplay/common');
-const { createAuthMiddleware } = require('@ibitplay/auth');
+const { createLogger, ServiceClient, resolveInternalKey, configureEntitlements, configureCurrencyRegistry, sitePolicy } = require('@ibitplay/common');
+const { SiteMailer } = require('./lib/siteMailer');
+const { createAuthMiddleware, configureAgentPlayers } = require('@ibitplay/auth');
 const db = require('@ibitplay/db');
 
 const config = require('./config');
+const { configureNotifier } = require('./modules/notifications/notifyPlayer');
 
 /**
  * The user-service container.
@@ -63,6 +65,7 @@ async function createContainer({ logger: injectedLogger } = {}) {
 
   const auth = createAuthMiddleware({
     config,
+    loadSession: (id) => connection.models.AuthSession.findByPk(id, { attributes: ['revoked_at'], raw: true }),
     loadUser: async (userId) => {
       const user = await connection.models.Users.findByPk(userId, {
         attributes: ['id', 'status', 'is_locked', 'system_locked', 'bet_status'],
@@ -82,9 +85,34 @@ async function createContainer({ logger: injectedLogger } = {}) {
    * One pooled transport for the process. Legacy built a fresh one per request
    * with the SMTP password in the source — see `packages/common/src/mailer.js`.
    */
-  const mailer = new Mailer({ config, logger });
+  // .env SMTP when complete, else the sender saved in site admin → Site Config → Email (lib/siteMailer.js).
+  const mailer = new SiteMailer({ config, logger, clients });
 
-  return {
+  // The owner's plan, asked of admin-service and cached 15 s — see
+  // `packages/common/src/entitlements.js`.
+  configureEntitlements({ clients, logger, config });
+  // The coin registry (names, networks, switches), asked of admin-service and
+  // cached 5 s — see `packages/common/src/currencyRegistry.js`.
+  configureCurrencyRegistry({ clients, logger, config });
+
+  // Players owned by the agent tree (staff levels 4–6) get no promotions, vault
+  // or deposits — `packages/auth/src/agentPlayers.js`. Owner and staff level are
+  // each cached briefly, so a guarded route is not a lookup per request.
+  const agentPlayers = configureAgentPlayers({
+    loadOwnerStaffId: async (userId) => {
+      const row = await connection.models.Users.findByPk(userId, { attributes: ['parent_staff_id'], raw: true });
+      return row?.parent_staff_id ?? null;
+    },
+    loadIsDemo: async (userId) => {
+      const row = await connection.models.Users.findByPk(userId, { attributes: ['is_demo'], raw: true });
+      return Boolean(row?.is_demo);
+    },
+    loadStaff: (staffId) => clients.admin.get(`/internal/admin/staff-directory/staff/${staffId}`),
+    // The owner's business model, read live: on b2b no player gets promotions (agentPlayers.js).
+    loadBusinessModel: () => sitePolicy.readPolicy(connection.models, 'business_model'),
+  });
+
+  const container = {
     config,
     logger,
     db: connection,
@@ -92,10 +120,17 @@ async function createContainer({ logger: injectedLogger } = {}) {
     clients,
     mailer,
     auth,
+    agentPlayers,
     async close() {
       await connection.close();
     },
   };
+
+  /* Player notifications (deposit approved, VIP level-up, …) go through this
+     container; `io` is read lazily, once `attachSockets` sets it. */
+  configureNotifier(container);
+
+  return container;
 }
 
 module.exports = { createContainer };

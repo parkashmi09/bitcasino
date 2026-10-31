@@ -39,6 +39,11 @@ const CHECKS = [
     why: 'A staff token proves identity, not authority. 8 route files once had no grant at all.',
   },
   {
+    name: 'Player and staff validators refuse unknown keys',
+    tool: 'verify-strict-validators.js',
+    why: 'zod strips unknown keys silently: claim-all ran on {"x":1} and ?userId= answered 200.',
+  },
+  {
     name: 'Inter-service ACL matches the call graph',
     tool: 'verify-internal-acl.js',
     why: 'A widened ACL is a silent loss of containment; a narrowed one 403s a money path.',

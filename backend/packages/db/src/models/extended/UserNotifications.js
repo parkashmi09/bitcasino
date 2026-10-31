@@ -30,6 +30,11 @@ module.exports = (sequelize) => {
       /** Whether the push actually reached a device, and why not. */
       delivered: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: false, field: 'delivered' },
       delivery_error: { type: DataTypes.TEXT, allowNull: true, field: 'delivery_error' },
+      /** One row per event for player notifications (migration 072); null for broadcasts. */
+      dedupe_key: { type: DataTypes.STRING(160), allowNull: true, field: 'dedupe_key' },
+      /** One staff send's rows share it (migration 144); null for player event notifications. */
+      send_id: { type: DataTypes.UUID, allowNull: true, field: 'send_id' },
+      sent_by: { type: DataTypes.BIGINT, allowNull: true, field: 'sent_by' },
       created_at: { type: DataTypes.DATE, allowNull: false, field: 'created_at' },
     },
     {

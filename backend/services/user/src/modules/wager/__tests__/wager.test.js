@@ -74,7 +74,12 @@ test('the wager listing carries the money', async (t) => {
   }
 
   const { models } = connection;
-  const service = new WagerService({ models, db: connection, logger });
+  // Staff listings are scoped to the caller's tree; this admin client answers
+  // that the caller's tree contains the platform root, i.e. the whole site.
+  const service = new WagerService({
+    models, db: connection, logger, clients: { admin: { get: async () => ({ ids: [1] }) } },
+  });
+  const root = { id: 1 };
 
   const player = newUid();
   const name = `wager-test-${player}`;
@@ -133,7 +138,8 @@ test('the wager listing carries the money', async (t) => {
     ]);
 
     await models.Userwager.destroy({ where: { uid: player } });
-    await models.Userwager.create({ uid: player, wager: '900' });
+    // USD: `userwager` is counted in USD (stakes converted when counted).
+    await models.Userwager.create({ uid: player, wager: '27' });
   });
 
   t.after(async () => {
@@ -150,13 +156,13 @@ test('the wager listing carries the money', async (t) => {
      * platform's own multiplier, so it answers about its own players by
      * default — but `channel` is a filter, not a hard-coded `WHERE`.
      */
-    const direct = await service.listMultipliers({ search: name, limit: 50, offset: 0 });
+    const direct = await service.listMultipliers({ staff: root, search: name, limit: 50, offset: 0 });
     assert.deepEqual(direct.rows.map((r) => r.userId), [player]);
 
-    const all = await service.listMultipliers({ search: name, channel: 'all', limit: 50, offset: 0 });
+    const all = await service.listMultipliers({ staff: root, search: name, channel: 'all', limit: 50, offset: 0 });
     assert.deepEqual(all.rows.map((r) => r.userId).sort(), [player, agentPlayer].sort());
 
-    const agent = await service.listMultipliers({ search: name, channel: 'agent', limit: 50, offset: 0 });
+    const agent = await service.listMultipliers({ staff: root, search: name, channel: 'agent', limit: 50, offset: 0 });
     assert.deepEqual(agent.rows.map((r) => r.userId), [agentPlayer]);
 
     // `count` drives the pager — a filtered listing whose total counts the
@@ -166,15 +172,17 @@ test('the wager listing carries the money', async (t) => {
   });
 
   await t.test('a row carries deposits, target, wagered and the percentage', async () => {
-    const { rows } = await service.listMultipliers({ search: name, limit: 50, offset: 0 });
+    const { rows } = await service.listMultipliers({ staff: root, search: name, limit: 50, offset: 0 });
     assert.equal(rows.length, 1);
 
     const row = rows[0];
-    assert.equal(row.totalDeposited, '1500.00000000', 'the pending deposit is not counted');
-    assert.equal(row.target, '4500.00000000', '1500 at 3x');
-    assert.equal(row.wagered, '900.00000000');
-    assert.equal(row.remaining, '3600.00000000');
-    assert.equal(row.percentage, '20.00');
+    // ₹1,500 approved at the test rate 0.012 = $18; the target is USD because
+    // `userwager` is USD. The pending ₹9,000 is not counted.
+    assert.equal(row.totalDeposited, '18.00000000', 'the pending deposit is not counted');
+    assert.equal(row.target, '54.00000000', '$18 at 3x');
+    assert.equal(row.wagered, '27.00000000');
+    assert.equal(row.remaining, '27.00000000');
+    assert.equal(row.percentage, '50.00');
     assert.equal(row.met, false);
   });
 
@@ -184,7 +192,7 @@ test('the wager listing carries the money', async (t) => {
      * the operator sees one figure on the list and another on the detail and
      * has no way to tell which is real.
      */
-    const { rows } = await service.listMultipliers({ search: name, limit: 50, offset: 0 });
+    const { rows } = await service.listMultipliers({ staff: root, search: name, limit: 50, offset: 0 });
     const progress = await service.getProgress(player);
 
     assert.equal(rows[0].totalDeposited, progress.totalDeposited);
@@ -197,9 +205,27 @@ test('the wager listing carries the money', async (t) => {
   await t.test('a player who has deposited nothing is complete, not a divide by zero', async () => {
     await models.FiatDeposits.destroy({ where: { user_id: player } });
 
-    const { rows } = await service.listMultipliers({ search: name, limit: 50, offset: 0 });
+    const { rows } = await service.listMultipliers({ staff: root, search: name, limit: 50, offset: 0 });
     assert.equal(rows[0].target, '0.00000000');
     assert.equal(rows[0].percentage, '100.00');
     assert.equal(rows[0].met, true, 'and it agrees with getProgress');
+  });
+
+  await t.test('every deposit rail raises the rollover, not only manual fiat (and 2.5x stays 2.5x)', async () => {
+    // A ₹1,000 UPI / gateway pay-in (pay_in_transactions, status 1) — before, only fiat_deposits counted.
+    await connection.sequelize.query(
+      `INSERT INTO pay_in_transactions (user_id, transaction_id, out_trade_no, currency, amount, status)
+       VALUES (:uid, :tx, :tx, 'INR', 1000, 1)`,
+      { replacements: { uid: player, tx: `wt-${player}` } }
+    );
+    try {
+      await models.Users.update({ wager_multiplier: '2.5' }, { where: { id: player } });
+      const progress = await service.getProgress(player);
+      assert.equal(progress.totalDeposited, '12.00000000', '₹1,000 at 0.012');
+      assert.equal(progress.target, '30.00000000', '$12 × 2.5 — not × 3');
+    } finally {
+      await connection.sequelize.query('DELETE FROM pay_in_transactions WHERE user_id = :uid', { replacements: { uid: player } });
+      await models.Users.update({ wager_multiplier: '3' }, { where: { id: player } });
+    }
   });
 });

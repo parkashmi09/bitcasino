@@ -1,89 +1,60 @@
 'use strict';
 
+const path = require('path');
+
 /**
- * Settlement module manifest.
+ * Settlement: manual settle for the owner, and the two workers that settle automatically.
  *
- * This is the whole contract between a module and its host process. The module
- * declares what it is and which audiences it serves; the host decides where
- * that lands and what each audience must prove.
+ *   controllers/          manualSettleController (mssports `mannualSettle/controller.js`)
+ *   services/             settlementQueue (job rows + Redis wake), autoVoid, voidAuditService,
+ *                         sportsMarketVoidService, sportsVoidService, sportsCommissionService
+ *   workers/results       polls the results API every 2 s, queues `sports_event_settlement_jobs`
+ *                         (TENEXCH pm2 undefined-sports-results-cron, newjobv2.js)
+ *   workers/settlement    claims jobs and pays out: Wallets, credits_ledger, point_ledger chain,
+ *                         commission (TENEXCH pm2 undefined-sports-settlement-worker, settlementv2.js)
  *
- * Because nothing here names a port, a prefix or a guard, the same folder runs
- * unchanged in three places:
+ * The settlement worker must run as EXACTLY ONE process (`WORKER_MODE=1`) — its duplicate-payout
+ * protection assumes it (mssports PENDING_WORK A4). src/worker.js runs one of each.
  *
- *   - sports-service          (microservices mode)
- *   - the combined app        (modular-monolith mode, `npm run dev:mono`)
- *   - the sports worker       (routers ignored, `jobs` mounted instead)
- *
- * Replaces `legacy/mannualsettlement/` — see `docs/MICROSERVICES-BLUEPRINT.md`
- * §3.4 for the full old-path -> new-path table.
+ * Routes are mssports' `/api/internalsettle`, under `/api/v1/admin/sports/internalsettle`; the
+ * gateway keeps the TENEXCH paths. Owner only — mssports' `requireOwner` on every route.
  */
+const LOG_DIR = () => require('../../config').MSSPORTS_LOG_DIR;
+
 module.exports = {
   name: 'settlement',
   service: 'sports',
-  basePath: '/settlement',
-
-  /** Database domains this module reads or writes. */
-  models: ['sports', 'core'],
+  basePath: '/internalsettle',
 
   routers: {
-    user: require('./routes/user.routes'),
     admin: require('./routes/admin.routes'),
-    internal: require('./routes/internal.routes'),
   },
 
-  /**
-   * Automatic settlement, ported from the two standalone legacy crons.
-   *
-   * These run in the SPORTS WORKER, not in the HTTP service — `worker.js`
-   * collects `jobs` from every module and the HTTP service ignores them.
-   *
-   *   settlement:results  60s  legacy/sportsmain/cron/job.js
-   *                            open/manual bets → result feed → queue a job
-   *   settlement:payout   60s  legacy/sportsmain/cron/settlement.js
-   *                            queue → resolve winner → pay, close, clear exposure
-   *
-   * Two jobs and not one because that is the shape the queue table encodes:
-   * the scanner decides WHAT is settleable and stamps `SportsBet.job_id`, the
-   * payout worker is the only thing that moves money. A bet with no `job_id` is
-   * invisible to settlement — which is the state every open bet was in until
-   * these were wired up, since neither cron survived the service split.
-   *
-   * NOT `immediate`: unlike the feed pair, nothing here is a cache warm-up, and
-   * a settlement pass firing during boot — before the process is known healthy
-   * — is a poor trade for sixty seconds.
-   */
-  jobs: [
+  // The environment TENEXCH's pm2 ecosystem gave each worker (secrets and hosts come from .env).
+  workers: [
     {
-      name: 'settlement:results',
-      intervalMs: require('../../config').SPORTS_RESULT_POLL_MS,
-      run: (container) => runOnce('results', container),
+      name: 'results',
+      script: path.join(__dirname, 'workers/results/results.worker.mjs'),
+      maxRestarts: 10,
+      env: () => ({
+        DEBUG: '0', SETTLEMENT_VERSION: 'v2',
+        API_TIMEOUT_MS: '40000', MAX_CONCURRENT_API: '3', RESULTS_POLL_MS: '2000',
+        RESULT_CACHE_MS: '1500', SCAN_WRITE_MS: '60000', SUMMARY_KEEP_PER_EVENT: '5',
+        SUMMARY_RETENTION_DAYS: '7', BET_CACHE_TTL_DAYS: '14',
+        RESULTS_CRON_LOG_DIR: LOG_DIR(),
+      }),
     },
     {
-      name: 'settlement:payout',
-      intervalMs: require('../../config').SPORTS_SETTLEMENT_INTERVAL_MS,
-      run: (container) => runOnce('payout', container),
+      // ONE instance only — duplicate-settlement protection assumes it.
+      name: 'settlement',
+      script: path.join(__dirname, 'workers/settlement/settlement.worker.mjs'),
+      maxRestarts: 10,
+      env: () => ({
+        DEBUG: '1', WORKER_MODE: '1', SETTLEMENT_VERSION: 'v2',
+        API_TIMEOUT_MS: '15000', SETTLE_POLL_MS: '3000', SETTLE_BATCH_LIMIT: '100',
+        SETTLE_REQUEUE_MS: '20000', SETTLE_STUCK_MS: '180000', RESULT_CACHE_MS: '2500',
+        LEDGER_ZERO_ROWS: '0', SETTLEMENT_LOG_DIR: LOG_DIR(),
+      }),
     },
   ],
 };
-
-/**
- * Build each job's closure ONCE and reuse it across ticks.
- *
- * Not a micro-optimisation: both closures own a `ResultsClient`, and that
- * client holds the shared rate-limit clock and the concurrency queue. Rebuilding
- * it per tick — which is what calling the factory inside `run` would do — resets
- * `lastApiCallAt` every minute and hands the provider an unthrottled burst.
- */
-const built = new Map();
-
-function runOnce(which, container) {
-  if (!built.has(which)) {
-    built.set(
-      which,
-      which === 'results'
-        ? require('./settlement.results.job').createResultsJob(container)
-        : require('./settlement.payout.job').createPayoutJob(container)
-    );
-  }
-  return built.get(which)();
-}

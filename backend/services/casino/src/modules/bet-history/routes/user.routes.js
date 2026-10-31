@@ -1,10 +1,11 @@
 'use strict';
 
 const { Router } = require('express');
-const { validate, response, asyncHandler } = require('@ibitplay/common');
+const { validate, response, asyncHandler, noQuery } = require('@ibitplay/common');
 
 const v = require('../betHistory.validators');
 const { BetHistoryService } = require('../betHistory.service');
+const errors = require('../betHistory.errors');
 
 /**
  * A player's own casino history.
@@ -46,6 +47,7 @@ module.exports = function userRoutes(deps) {
    */
   router.get(
     '/stats',
+    noQuery(),
     asyncHandler(async (req, res) =>
       response.ok(res, await service.playerStats({ userId: req.user.id }))
     )
@@ -61,6 +63,49 @@ module.exports = function userRoutes(deps) {
     asyncHandler(async (req, res) =>
       response.ok(res, await service.myTimedRounds({ ...req.query, userId: req.user.id }))
     )
+  );
+
+  /**
+   * The games this player last played — the "Continue Playing" row.
+   *
+   * Companion to `casino/games/recently-played`, not a replacement: that route
+   * covers provider games and is permanently empty for in-house ones, because
+   * nothing in the engine writes to `gis_recently_played`. See the service.
+   */
+  router.get(
+    '/recent-games',
+    validate(v.recentGames),
+    asyncHandler(async (req, res) =>
+      response.ok(res, await service.recentGames({ ...req.query, userId: req.user.id }))
+    )
+  );
+
+  /** Where the caller sits on the contest board — gap 7. */
+  router.get(
+    '/leaderboard/me',
+    validate(v.myPosition),
+    asyncHandler(async (req, res) =>
+      response.ok(res, await service.myPosition({ ...req.query, userId: req.user.id }))
+    )
+  );
+
+  /**
+   * ONE bet — gap 18. LAST, and that is load-bearing: `:betId` would otherwise
+   * swallow `/stats` and `/timed-rounds` and answer them as bet ids.
+   *
+   * 404 when the row is not the caller's, which is the same answer as "no such
+   * bet" — see `myBet` for why the ownership test is in the query rather than
+   * a comparison after it.
+   */
+  router.get(
+    '/:betId',
+    noQuery(),
+    validate(v.myBet),
+    asyncHandler(async (req, res) => {
+      const bet = await service.myBet({ userId: req.user.id, betId: req.params.betId });
+      if (!bet) throw errors.BET_NOT_FOUND({ betId: req.params.betId });
+      return response.ok(res, bet);
+    })
   );
 
   return router;

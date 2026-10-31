@@ -2,10 +2,13 @@
 
 const { Router } = require('express');
 const { validate } = require('@ibitplay/common');
-const { PERMISSIONS } = require('@ibitplay/auth');
+const { PERMISSIONS, denyAgentTree, denyDirectUsers } = require('@ibitplay/auth');
 
 const v = require('../dashboard.validators');
+const statsV = require('../dashboardStats.validators');
 const { DashboardService } = require('../dashboard.service');
+const { DashboardStatsService } = require('../dashboardStats.service');
+const { createStatsControllers } = require('../controllers/stats');
 const { createControllers } = require('../controllers');
 
 /**
@@ -18,9 +21,13 @@ const { createControllers } = require('../controllers');
  */
 module.exports = function adminRoutes(deps) {
   const ctrl = createControllers({ service: new DashboardService(deps) });
+  // Direct Users tab: only players with no parent (agent clients are on Agent System).
+  const stats = createStatsControllers({ service: new DashboardStatsService({ ...deps, directOnly: true }) });
 
   const router = Router();
   const canRead = deps.auth.requirePermission(PERMISSIONS.REPORTS_READ);
+
+  router.use(denyDirectUsers());
 
   /** @legacy GET /api/admin/dashboard */
   router.get('/', canRead, validate(v.overview), ctrl.overview);
@@ -41,11 +48,24 @@ module.exports = function adminRoutes(deps) {
   router.get('/movements', canRead, validate(v.movements), ctrl.movements);
   router.get('/registrations', canRead, validate(v.registrations), ctrl.registrations);
 
+  /**
+   * The charts: per-bucket money, registrations, casino and sports figures,
+   * and the top games and sports, over a bounded window. Scoped to the
+   * caller's tree like everything else here.
+   */
+  router.get('/stats/series', canRead, validate(statsV.series), stats.series);
+  router.get('/stats/top', canRead, validate(statsV.top), stats.top);
+
   /** @legacy GET /total-deposits, /total-withdrawals */
   router.get('/totals', canRead, validate(v.lifetime), ctrl.lifetime);
 
-  /** @legacy GET /api/members/:uid */
-  router.get('/members/:userId', canRead, validate(v.memberTeam), ctrl.memberTeam);
+  /**
+   * @legacy GET /api/members/:uid
+   *
+   * A player's referral (affiliate) team and commissions — a promotion, so the
+   * agent tree is refused (PROMOTIONS_NOT_FOR_AGENTS).
+   */
+  router.get('/members/:userId', denyAgentTree(), canRead, validate(v.memberTeam), ctrl.memberTeam);
 
   return router;
 };

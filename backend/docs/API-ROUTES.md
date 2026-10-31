@@ -601,9 +601,9 @@ attaches and the shape the handler answers with. Regenerate with
 
 | | |
 | --- | ---: |
-| Routes mounted | 589 |
-| Modules | 66 |
-| Answering outside the envelope | 55 |
+| Routes mounted | 779 |
+| Modules | 83 |
+| Answering outside the envelope | 49 |
 
 **Guard** is the audience the loader mounted the router under, plus anything
 the route adds. `public` carries no token. `player` and `staff` carry one.
@@ -625,7 +625,7 @@ listed per route: they are thrown from the service layer, so a module's whole
 error catalogue is reachable from every route in it, and the catalogues are at
 the end of this appendix.
 
-### admin-service — :4002 (129 routes)
+### admin-service — :4002 (217 routes)
 
 #### `access`
 
@@ -633,11 +633,11 @@ the end of this appendix.
 |---|---|---|---|
 | `GET` | `/api/v1/admin/access/activity` | `staff` + `audit:read` | `200` `[…]` + `meta.pagination` |
 | `GET` | `/api/v1/admin/access/executives` | `staff` + `staff:read` | `200` `[…]` + `meta.pagination` |
-| `POST` | `/api/v1/admin/access/executives` | `staff` + `roles:manage` | `201` `service.createExecutive(…)` |
-| `PATCH` | `/api/v1/admin/access/executives/:executiveId` | `staff` + `roles:manage` | `200` `service.updateExecutive(…)` |
+| `POST` | `/api/v1/admin/access/executives` | `staff` + `roles:manage | staff:write` | `201` `service.createExecutive(…)` |
+| `PATCH` | `/api/v1/admin/access/executives/:executiveId` | `staff` + `roles:manage | staff:write` | `200` `service.updateExecutive(…)` |
 | `GET` | `/api/v1/admin/access/executives/:executiveId/activity` | `staff` + `audit:read` | `200` `[…]` + `meta.pagination` |
-| `PATCH` | `/api/v1/admin/access/executives/:executiveId/password` | `staff` + `roles:manage` | `200` `service.resetPassword(…)` |
-| `PATCH` | `/api/v1/admin/access/executives/:executiveId/status` | `staff` + `roles:manage` | `200` `service.setStatus(…)` |
+| `PATCH` | `/api/v1/admin/access/executives/:executiveId/password` | `staff` + `roles:manage | staff:write` | `200` `service.resetPassword(…)` |
+| `PATCH` | `/api/v1/admin/access/executives/:executiveId/status` | `staff` + `roles:manage | staff:write` | `200` `service.setStatus(…)` |
 | `GET` | `/api/v1/admin/access/marketing-users` | `staff` + `staff:read` | `200` `[…]` + `meta.pagination` |
 | `POST` | `/api/v1/admin/access/marketing-users` | `staff` + `roles:manage` | `201` `service.createExecutive(…)` |
 | `PATCH` | `/api/v1/admin/access/marketing-users/:executiveId/password` | `staff` + `roles:manage` | `200` `service.resetPassword(…)` |
@@ -676,6 +676,26 @@ the end of this appendix.
 | `PATCH` | `/api/v1/admin/blogs/:id` | `staff` + `config:write` | `200` `service.update(…)` |
 | `DELETE` | `/api/v1/admin/blogs/slug/:slug` | `staff` + `config:write` | `200` `service.remove(…)` |
 
+#### `branding`
+
+| Method | Path | Guard | Response |
+|---|---|---|---|
+| `GET` | `/api/v1/admin/branding/asset/:file` | `public` | **raw** `Content-Type: image.contentType` · **raw** `res.end(…)` |
+| `GET` | `/api/v1/admin/branding/public` | `public` + rate-limited | `200` `store.view(…)` |
+| `GET` | `/api/v1/admin/branding` | `staff` + `config:read` | `200` `{ ...store.view(current.branding ?? null, , managedBy, source }` |
+
+#### `currencies`
+
+| Method | Path | Guard | Response |
+|---|---|---|---|
+| `GET` | `/api/v1/admin/currencies/:code/image` | `public` | **raw** `Content-Type: image.contentType` · **raw** `res.end(…)` |
+| `GET` | `/api/v1/admin/currencies/owner` | `public` + rate-limited | `200` `service.ownerList(…)` |
+| `GET` | `/api/v1/admin/currencies/public` | `public` + rate-limited | `200` `service.publicList(…)` |
+| `GET` | `/api/v1/admin/currencies` | `staff` + `config:read` | `200` `service.list(…)` |
+| `PUT` | `/api/v1/admin/currencies/:code` | `staff` + `config:write` | `200` `service.update(…)` |
+| `POST` | `/api/v1/admin/currencies/:code/image` | `staff` + `config:write` | `200` `service.setImage(…)` |
+| `GET` | `/internal/admin/currencies` | `internal` | `200` `service.list(…)` |
+
 #### `dashboard`
 
 | Method | Path | Guard | Response |
@@ -684,9 +704,30 @@ the end of this appendix.
 | `GET` | `/api/v1/admin/dashboard/members/:userId` | `staff` + `reports:read` | `200` `service.memberTeam(…)` |
 | `GET` | `/api/v1/admin/dashboard/movements` | `staff` + `reports:read` | `200` `[…]` + `meta.pagination` |
 | `GET` | `/api/v1/admin/dashboard/registrations` | `staff` + `reports:read` | `200` `[…]` + `meta.pagination` |
+| `GET` | `/api/v1/admin/dashboard/stats/series` | `staff` + `reports:read` | `200` `service.series(…)` |
+| `GET` | `/api/v1/admin/dashboard/stats/top` | `staff` + `reports:read` | `200` `service.top(…)` |
 | `GET` | `/api/v1/admin/dashboard/today` | `staff` + `reports:read` | `200` `[…]` + `meta.pagination` |
 | `GET` | `/api/v1/admin/dashboard/totals` | `staff` + `reports:read` | `200` `service.lifetimeTotals(…)` |
 | `GET` | `/api/v1/admin/dashboard/user-stats` | `staff` + `reports:read` | `200` `service.userStats(…)` |
+
+#### `entitlements`
+
+| Method | Path | Guard | Response |
+|---|---|---|---|
+| `POST` | `/api/v1/admin/entitlements/refresh` | `public` | `200` `req.get(…)` |
+| `GET` | `/api/v1/admin/entitlements` | `staff` + `config:read` | `200` `entitlements.getEntitlements(…)` |
+| `GET` | `/internal/admin/entitlements` | `internal` | `200` `entitlements.getEntitlements(…)` |
+
+#### `features`
+
+| Method | Path | Guard | Response |
+|---|---|---|---|
+| `GET` | `/api/v1/admin/features/public` | `public` + rate-limited | `200` `service.publicList(…)` |
+| `GET` | `/api/v1/admin/features` | `staff` + `config:read` | `200` `service.list(…)` |
+| `PUT` | `/api/v1/admin/features/:feature` | `staff` + `config:write` | `200` `service.update(…)` |
+| `POST` | `/api/v1/admin/features/:feature/test` | `staff` + `config:write` | `200` `service.test(…)` |
+| `GET` | `/api/v1/admin/features/catalogue` | `staff` + `config:read` | `200` `service.catalogue(…)` |
+| `PUT` | `/api/v1/admin/features/template` | `staff` + `config:write` | — |
 
 #### `locks`
 
@@ -704,10 +745,13 @@ the end of this appendix.
 | `POST` | `/api/v1/admin/accounts/credit-limit` | `staff` + `wallet:adjust` | `200` `service.setCreditLimit(…)` |
 | `POST` | `/api/v1/admin/accounts/exposure-limit` | `staff` + `users:write` | `200` `service.setExposureLimit(…)` |
 | `GET` | `/api/v1/admin/accounts/exposure/sports` | `staff` + `users:read` | `200` `service.netExposure(…)` |
+| `GET` | `/api/v1/admin/accounts/float` | `staff` + `wallet:credit | wallet:debit | wallet:adjust | users:read` | `200` `service.myFloat(…)` |
 | `POST` | `/api/v1/admin/accounts/password` | `staff` + `users:write` | `200` `service.setPassword(…)` |
 | `POST` | `/api/v1/admin/accounts/refill` | `staff` + `wallet:adjust` | `201` `service.refill(…)` |
 | `GET` | `/api/v1/admin/accounts/statement` | `staff` + `users:read` | `200` `[…]` + `meta.pagination` |
 | `POST` | `/api/v1/admin/accounts/status` | `staff` + `users:lock` | `200` `service.setStatus(…)` |
+| `GET` | `/internal/admin/accounts/float/:staffId` | `internal` | `200` `service.myFloat(…)` |
+| `POST` | `/internal/admin/accounts/player-adjust` | `internal` | `200` `service.adjustPlayer(…)` |
 
 #### `marketing`
 
@@ -728,9 +772,10 @@ the end of this appendix.
 | `GET` | `/api/v1/admin/notifications/devices` | `staff` + `users:read` | `200` `[…]` + `meta.pagination` |
 | `GET` | `/api/v1/admin/notifications/history/:userId` | `staff` + `users:read` | `200` `[…]` + `meta.pagination` |
 | `POST` | `/api/v1/admin/notifications/send` | `staff` + `config:write` | `202` `service.sendToUser(…)` |
-| `GET` | `/api/v1/admin/notifications/unread/:userId` | `staff` + `users:read` | `200` `service.unreadCount(…)` |
+| `GET` | `/api/v1/admin/notifications/unread/:userId` | `staff` + `users:read` | `200` `service.staffUnreadCount(…)` |
 | `POST` | `/internal/admin/notifications/devices` | `internal` | `201` `service.registerDevice(…)` |
-| `GET` | `/internal/admin/notifications/history` | `internal` | `200` `[…]` + `meta.pagination` |
+| `GET` | `/internal/admin/notifications/history` | `internal` | `200` `{ rows, total, limit, offset }` |
+| `PUT` | `/internal/admin/notifications/player` | `internal` | `200` `service.notifyPlayer(…)` |
 | `POST` | `/internal/admin/notifications/read` | `internal` | `200` `service.markRead(…)` |
 | `GET` | `/internal/admin/notifications/unread` | `internal` | `200` `service.unreadCount(…)` |
 
@@ -742,18 +787,74 @@ the end of this appendix.
 | `DELETE` | `/api/v1/admin/players/:playerId` | `staff` + `users:write` | `200` `service.close(…)` |
 | `PATCH` | `/api/v1/admin/players/:playerId` | `staff` + `users:write` | `200` `service.update(…)` |
 
+#### `promotions`
+
+| Method | Path | Guard | Response |
+|---|---|---|---|
+| `GET` | `/api/v1/admin/promotions` | `public` | `200` `[…]` + `meta.pagination` |
+| `GET` | `/api/v1/admin/promotions/:id` | `public` | `200` `service.byId(…)` |
+| `GET` | `/api/v1/admin/promotions/:id/image` | `public` | **raw** `Content-Type: image.contentType` · **raw** `res.send(…)` |
+| `GET` | `/api/v1/admin/promotions/sidebar` | `public` | `200` `service.sidebar(…)` |
+| `GET` | `/api/v1/admin/promotions/slug/:segment/:slug` | `public` | `200` `service.bySlug(…)` |
+| `POST` | `/api/v1/admin/promotions` | `staff` + `config:write` | `201` `service.create(…)` |
+| `DELETE` | `/api/v1/admin/promotions/:id` | `staff` + `config:write` | `200` `service.remove(…)` |
+| `PATCH` | `/api/v1/admin/promotions/:id` | `staff` + `config:write` | `200` `service.update(…)` |
+| `DELETE` | `/api/v1/admin/promotions/slug/:segment/:slug` | `staff` + `config:write` | `200` `service.remove(…)` |
+
+#### `push`
+
+| Method | Path | Guard | Response |
+|---|---|---|---|
+| `GET` | `/api/v1/admin/push/images/:file` | `public` | **raw** `Content-Type: image.contentType` · **raw** `res.end(…)` |
+| `GET` | `/api/v1/admin/push/prompt` | `public` | `200` `service.publicPrompt(…)` |
+| `GET` | `/api/v1/admin/push/campaigns` | `staff` + `config:read` | `200` `[…]` + `meta.pagination` |
+| `POST` | `/api/v1/admin/push/campaigns` | `staff` + `config:write` | — |
+| `DELETE` | `/api/v1/admin/push/campaigns/:id` | `staff` + `config:write` | — |
+| `GET` | `/api/v1/admin/push/campaigns/:id` | `staff` + `config:read` | — |
+| `PUT` | `/api/v1/admin/push/campaigns/:id` | `staff` + `config:write` | — |
+| `POST` | `/api/v1/admin/push/campaigns/:id/cancel` | `staff` + `config:write` | — |
+| `POST` | `/api/v1/admin/push/campaigns/:id/schedule` | `staff` + `config:write` | — |
+| `POST` | `/api/v1/admin/push/campaigns/:id/send` | `staff` + `config:write` | — |
+| `POST` | `/api/v1/admin/push/campaigns/:id/test` | `staff` + `config:write` | — |
+| `POST` | `/api/v1/admin/push/images` | `staff` + `config:write` | — |
+| `POST` | `/api/v1/admin/push/preview` | `staff` + `config:read` | — |
+| `GET` | `/api/v1/admin/push/settings` | `staff` + `config:read` | — |
+| `PUT` | `/api/v1/admin/push/settings` | `staff` + `config:write` | — |
+| `GET` | `/api/v1/admin/push/status` | `staff` + `config:read` | — |
+| `GET` | `/api/v1/admin/push/templates` | `staff` + `config:read` | — |
+| `DELETE` | `/api/v1/admin/push/templates/:kind` | `staff` + `config:write` | — |
+| `PUT` | `/api/v1/admin/push/templates/:kind` | `staff` + `config:write` | — |
+| `POST` | `/api/v1/admin/push/test` | `staff` + `config:write` | — |
+
 #### `reports`
 
 | Method | Path | Guard | Response |
 |---|---|---|---|
 | `GET` | `/api/v1/admin/reports/agent-users` | `staff` + `reports:read` | `200` `service.agentUsers(…)` |
 | `GET` | `/api/v1/admin/reports/balance-sheet/:userId` | `staff` + `reports:read` | `200` `service.balanceSheet(…)` |
+| `GET` | `/api/v1/admin/reports/finance-stats` | `staff` + `reports:read` | `200` `finance.stats(…)` |
+| `GET` | `/api/v1/admin/reports/geo-stats` | `staff` + `reports:read` | `200` `service.geoStats(…)` |
+| `GET` | `/api/v1/admin/reports/ip-tracker` | `staff` + `reports:read` | `200` `[…]` + `meta.pagination` |
+| `GET` | `/api/v1/admin/reports/ip-tracker/shared` | `staff` + `reports:read` | `200` `[…]` + `meta.pagination` |
 | `GET` | `/api/v1/admin/reports/player-sheet/:uid` | `staff` + `reports:read` | **raw** `Content-Type: application/pdf` · **raw** `streamed to res` |
+| `GET` | `/api/v1/admin/reports/player-stats` | `staff` + `reports:read` | `200` `players.overview(…)` |
 | `GET` | `/api/v1/admin/reports/players` | `staff` + `reports:read` | `200` `[…]` + `meta.pagination` |
 | `GET` | `/api/v1/admin/reports/players/:userId` | `staff` + `reports:read` | `200` `service.playerReport(…)` |
+| `GET` | `/api/v1/admin/reports/players/:userId/stats` | `staff` + `reports:read` | `200` `players.forPlayer(…)` |
+| `GET` | `/api/v1/admin/reports/players/:userId/status-stats` | `staff` + `reports:read` | `200` `service.forPlayer(…)` |
 | `GET` | `/api/v1/admin/reports/players/export` | `staff` + `reports:read` | **raw** `Content-Type: text/csv; charset=utf-8` · **raw** `res.send(…)` |
+| `GET` | `/api/v1/admin/reports/pnl-stats/breakdown` | `staff` + `reports:read` | `200` `pnl.breakdown(…)` |
+| `GET` | `/api/v1/admin/reports/pnl-stats/summary` | `staff` + `reports:read` | `200` `pnl.summary(…)` |
+| `GET` | `/api/v1/admin/reports/reward-stats/affiliate` | `staff` + `reports:read` | — |
+| `GET` | `/api/v1/admin/reports/reward-stats/bonus` | `staff` + `reports:read` | — |
+| `GET` | `/api/v1/admin/reports/reward-stats/bonus-balances` | `staff` + `reports:read | users:read | wallet:read` | — |
+| `GET` | `/api/v1/admin/reports/reward-stats/tips` | `staff` + `reports:read` | — |
+| `GET` | `/api/v1/admin/reports/reward-stats/vault` | `staff` + `reports:read` | — |
+| `GET` | `/api/v1/admin/reports/reward-stats/vip` | `staff` + `reports:read` | — |
 | `GET` | `/api/v1/admin/reports/staff-risk/:staffId` | `staff` + `reports:read` | `200` `service.staffRisk(…)` |
 | `GET` | `/api/v1/admin/reports/user-risk/:userId` | `staff` + `reports:read` | `200` `service.userRisk(…)` |
+| `GET` | `/api/v1/admin/reports/user-status-stats` | `staff` + `reports:read` | `200` `service.overview(…)` |
+| `GET` | `/api/v1/admin/reports/wager-stats` | `staff` + `reports:read` | `200` `wager.stats(…)` |
 
 #### `site-config`
 
@@ -765,14 +866,29 @@ the end of this appendix.
 | `GET` | `/api/v1/admin/site-config/email` | `staff` + `config:read` | `200` `service.emailSettings(…)` |
 | `PUT` | `/api/v1/admin/site-config/email` | `staff` + `config:write` | `200` `service.updateEmailSettings(…)` |
 | `POST` | `/api/v1/admin/site-config/email/test` | `staff` + `config:write` | `200` `service.sendTestEmail(…)` |
-| `GET` | `/api/v1/admin/site-config/global` | `staff` + `config:read` | `200` `service.globalSettings(…)` |
+| `GET` | `/api/v1/admin/site-config/global` | `staff` + `config:read` | `200` `flags` |
 | `PUT` | `/api/v1/admin/site-config/global` | `staff` + `config:write` | `200` `service.updateGlobalSettings(…)` |
+| `GET` | `/api/v1/admin/site-config/referral-unlocks` | `staff` + `config:read` | `200` `service.referralUnlockSettings(…)` |
+| `PUT` | `/api/v1/admin/site-config/referral-unlocks` | `staff` + `config:write` | `200` `service.updateReferralUnlockSettings(…)` |
+| `GET` | `/api/v1/admin/site-config/rewards` | `staff` + `config:read` | `200` `service.rewardCurrencies(…)` |
+| `PUT` | `/api/v1/admin/site-config/rewards` | `staff` + `config:write` | `200` `service.updateRewardCurrencies(…)` |
+| `GET` | `/api/v1/admin/site-config/settings` | `staff` + `config:read` | `200` `service.operatorSettings(…)` |
+| `PUT` | `/api/v1/admin/site-config/settings` | `staff` + `config:write` | `200` `service.updateOperatorSettings(…)` |
 | `GET` | `/api/v1/admin/site-config/sports` | `staff` + `config:read` | `200` `service.sportsEnabled(…)` |
 | `PUT` | `/api/v1/admin/site-config/sports` | `staff` + `config:write` | `200` `service.setSportsEnabled(…)` |
+| `GET` | `/api/v1/admin/site-config/tips` | `staff` + `config:read` | `200` `service.tipSettings(…)` |
+| `PUT` | `/api/v1/admin/site-config/tips` | `staff` + `config:write` | `200` `service.updateTipSettings(…)` |
 | `GET` | `/api/v1/admin/site-config/user/:userId` | `staff` + `config:read` | `200` `service.userSettings(…)` |
 | `PUT` | `/api/v1/admin/site-config/user/:userId` | `staff` + `config:write` | `200` `service.updateUserSettings(…)` |
+| `GET` | `/api/v1/admin/site-config/welcome-bonuses` | `staff` + `config:read` | `200` `service.welcomeBonusSettings(…)` |
+| `PUT` | `/api/v1/admin/site-config/welcome-bonuses` | `staff` + `config:write` | `200` `service.updateWelcomeBonusSettings(…)` |
 | `GET` | `/internal/admin/site-config/affiliate` | `internal` | `200` `service.affiliateSettings(…)` |
+| `GET` | `/internal/admin/site-config/public` | `internal` | `200` `{ flags, features }` |
+| `GET` | `/internal/admin/site-config/rewards` | `internal` | `200` `service.rewardCurrencies(…)` |
+| `GET` | `/internal/admin/site-config/settings` | `internal` | `200` `Object.fromEntries(…)` |
 | `GET` | `/internal/admin/site-config/sports` | `internal` | `200` `service.sportsEnabled(…)` |
+| `GET` | `/internal/admin/site-config/tips` | `internal` | `200` `service.tipSettings(…)` |
+| `GET` | `/internal/admin/site-config/welcome-bonuses` | `internal` | `200` `service.welcomeBonusSettings(…)` |
 
 #### `staff`
 
@@ -788,11 +904,11 @@ the end of this appendix.
 | `GET` | `/api/v1/admin/staff/:staffId/whatsapp-ref` | `staff` + `staff:read` | `200` `service.whatsappRef(…)` |
 | `GET` | `/api/v1/admin/staff/analytics/:staffId` | `staff` + `staff:read` | `200` `service.analytics(…)` |
 | `POST` | `/api/v1/admin/staff/bulk-status` | `staff` + `staff:write` | `200` `service.bulkStatus(…)` |
-| `PATCH` | `/api/v1/admin/staff/password` | `staff` + `staff:read` | `200` `service.changePassword(…)` |
+| `PATCH` | `/api/v1/admin/staff/password` | `staff` | `200` `service.changePassword(…)` |
 | `GET` | `/api/v1/admin/staff/players` | `staff` + `staff:read` | `200` `[…]` + `meta.pagination` |
 | `GET` | `/api/v1/admin/staff/rollup/:staffId` | `staff` + `staff:read` | `200` `service.rollup(…)` |
 | `GET` | `/api/v1/admin/staff/transactions` | `staff` + `staff:read` | `200` `[…]` + `meta.pagination` |
-| `POST` | `/api/v1/admin/staff/transfer` | `staff` + `wallet:adjust` | `201` `service.transfer(…)` |
+| `POST` | `/api/v1/admin/staff/transfer` | `staff` + `wallet:adjust | wallet:credit | wallet:debit` | `201` `service.transfer(…)` |
 | `GET` | `/api/v1/admin/staff/transfers` | `staff` + `staff:read` | `200` `[…]` + `meta.pagination` |
 | `GET` | `/api/v1/admin/staff/transfers/:staffId` | `staff` + `staff:read` | `200` `[…]` + `meta.pagination` |
 | `GET` | `/api/v1/admin/staff/transfers/summary` | `staff` + `staff:read` | `200` `service.transferSummary(…)` |
@@ -810,6 +926,9 @@ the end of this appendix.
 | `POST` | `/api/v1/admin/auth/2fa/confirm` | `staff` + self-only + rate-limited | `200` `service.confirmTwoFactor(…)` |
 | `POST` | `/api/v1/admin/auth/2fa/disable` | `staff` + self-only + rate-limited | `200` `service.disableTwoFactor(…)` |
 | `POST` | `/api/v1/admin/auth/logout` | `staff` + self-only | `200` `service.logout(…)` |
+| `GET` | `/api/v1/admin/auth/transaction-password` | `staff` + self-only | `200` `{ set, mode }` |
+| `POST` | `/api/v1/admin/auth/transaction-password` | `staff` + self-only + rate-limited | `200` `txn.setTransactionPassword(…)` |
+| `POST` | `/internal/admin/auth/transaction-password/check` | `internal` | `200` `response.ok(…)` |
 | `GET` | `/internal/admin/auth/verify` | `internal` | `200` `{ active, staff }` |
 
 #### `staff-directory`
@@ -817,6 +936,7 @@ the end of this appendix.
 | Method | Path | Guard | Response |
 |---|---|---|---|
 | `GET` | `/internal/admin/staff-directory/staff/:staffId` | `internal` | `200` `resolveStaff(…)` |
+| `GET` | `/internal/admin/staff-directory/staff/:staffId/access` | `internal` | `200` `{ staffId, blocked, ...(block ? { blockedBy: block.staffId,  }` |
 | `GET` | `/internal/admin/staff-directory/staff/:staffId/betlock` | `internal` | `200` `response.ok(…)` |
 | `POST` | `/internal/admin/staff-directory/staff/:staffId/betlock` | `internal` | `200` `setBetLock(…)` |
 | `GET` | `/internal/admin/staff-directory/staff/:staffId/betlock/list` | `internal` | `200` `response.ok(…)` |
@@ -836,7 +956,7 @@ the end of this appendix.
 | `GET` | `/api/v1/admin/statements/user/:userId/pdf` | `staff` + `reports:read` | **raw** `Content-Type: application/pdf` · **raw** `streamed to res` |
 | `GET` | `/api/v1/admin/statements/user/:userId/statement` | `staff` + `reports:read` | `200` `service.userStatement(…)` |
 
-### casino-service — :4003 (112 routes)
+### casino-service — :4003 (142 routes)
 
 #### `aggregators`
 
@@ -850,8 +970,14 @@ the end of this appendix.
 
 | Method | Path | Guard | Response |
 |---|---|---|---|
+| `GET` | `/api/v1/casino/bet-history/activity` | `public` | `200` `service.activity(…)` |
+| `GET` | `/api/v1/casino/bet-history/leaderboard` | `public` | `200` `service.leaderboard(…)` |
 | `GET` | `/api/v1/casino/bet-history/live` | `public` | `200` `service.liveFeed(…)` |
+| `GET` | `/api/v1/casino/bet-history/top-wins` | `public` | `200` `service.topWins(…)` |
 | `GET` | `/api/v1/casino/bet-history` | `player` | `200` `[…]` + `meta.pagination` |
+| `GET` | `/api/v1/casino/bet-history/:betId` | `player` | `200` `service.myBet(…)` |
+| `GET` | `/api/v1/casino/bet-history/leaderboard/me` | `player` | `200` `service.myPosition(…)` |
+| `GET` | `/api/v1/casino/bet-history/recent-games` | `player` | `200` `service.recentGames(…)` |
 | `GET` | `/api/v1/casino/bet-history/stats` | `player` | `200` `service.playerStats(…)` |
 | `GET` | `/api/v1/casino/bet-history/timed-rounds` | `player` | `200` `service.myTimedRounds(…)` |
 | `GET` | `/api/v1/admin/casino/bet-history/analytics` | `staff` + `reports:read` | `200` `service.analytics(…)` |
@@ -865,6 +991,8 @@ the end of this appendix.
 | `GET` | `/internal/casino/bet-history/player/:userId/bets` | `internal` | `200` `{ bets }` |
 | `GET` | `/internal/casino/bet-history/player/:userId/bets/:betId` | `internal` | `200` `{ bet }` |
 | `GET` | `/internal/casino/bet-history/player/:userId/chart` | `internal` | `200` `{ chart }` |
+| `GET` | `/internal/casino/bet-history/player/:userId/profile-stats` | `internal` | `200` `response.ok(…)` |
+| `GET` | `/internal/casino/bet-history/player/:userId/stats` | `internal` | `200` `service.playerStats(…)` |
 | `GET` | `/internal/casino/bet-history/recent` | `internal` | `200` `{ bets }` |
 | `GET` | `/internal/casino/bet-history/top-winners` | `internal` | `200` `{ winners }` |
 
@@ -888,10 +1016,17 @@ the end of this appendix.
 |---|---|---|---|
 | `GET` | `/api/v1/casino/games` | `public` | `200` `[…]` + `meta.pagination` |
 | `GET` | `/api/v1/casino/games/collections/:collection` | `public` | `200` `[…]` + `meta.pagination` |
+| `GET` | `/api/v1/casino/games/detail/:uuid` | `public` | `200` `service.byUuid(…)` |
 | `GET` | `/api/v1/casino/games/provider/:provider` | `public` | `200` `[…]` + `meta.pagination` |
 | `GET` | `/api/v1/casino/games/providers` | `public` | `200` `service.listProviders(…)` |
+| `GET` | `/api/v1/casino/games/providers/:name/logo` | `public` | **raw** `Content-Type: image.contentType` · **raw** `res.end(…)` |
 | `GET` | `/api/v1/casino/games/search` | `public` | `200` `service.search(…)` |
+| `GET` | `/api/v1/casino/games/slug/:slug` | `public` | `200` `service.bySlug(…)` |
 | `GET` | `/api/v1/casino/games/stats` | `public` | `200` `service.stats(…)` |
+| `GET` | `/api/v1/casino/games/favourites` | `player` | `200` `service.favourites(…)` |
+| `DELETE` | `/api/v1/casino/games/favourites/:gameRef` | `player` | `200` `service.removeFavourite(…)` |
+| `PUT` | `/api/v1/casino/games/favourites/:gameRef` | `player` | `200` `service.addFavourite(…)` |
+| `POST` | `/api/v1/casino/games/launch` | `player` | `201` `response.created(…)` |
 | `GET` | `/api/v1/casino/games/recently-played` | `player` | `200` `service.recentlyPlayed(…)` |
 | `PUT` | `/api/v1/admin/casino/games/catalogue/:uuid/image` | `staff` + `casino:manage` | `200` `service.updateImage(…)` |
 | `GET` | `/api/v1/admin/casino/games/catalogue/search` | `staff` + `casino:read` | `200` `service.search(…)` |
@@ -899,6 +1034,11 @@ the end of this appendix.
 | `PUT` | `/api/v1/admin/casino/games/collections/:collection` | `staff` + `casino:manage` | `200` `service.setCollection(…)` |
 | `GET` | `/api/v1/admin/casino/games/priority/:vendor` | `staff` + `casino:read` | `200` `service.vendorPriority(…)` |
 | `PUT` | `/api/v1/admin/casino/games/priority/:vendor` | `staff` + `casino:manage` | `200` `service.setVendorPriority(…)` |
+| `GET` | `/api/v1/admin/casino/games/provider-settings` | `staff` + `casino:read` | `200` `service.providerSettingsList(…)` |
+| `PATCH` | `/api/v1/admin/casino/games/provider-settings/:name` | `staff` + `casino:manage` | `200` `service.updateProviderSetting(…)` |
+| `DELETE` | `/api/v1/admin/casino/games/provider-settings/:name/logo` | `staff` + `casino:manage` | `200` `service.removeProviderLogo(…)` |
+| `GET` | `/api/v1/admin/casino/games/provider-settings/:name/logo` | `staff` + `casino:read` | **raw** `Content-Type: image.contentType` · **raw** `res.end(…)` |
+| `PUT` | `/api/v1/admin/casino/games/provider-settings/:name/logo` | `staff` + `casino:manage` | `200` `service.putProviderLogo(…)` |
 | `GET` | `/api/v1/admin/casino/games/providers` | `staff` + `casino:read` | `200` `service.upstreamProviders(…)` |
 | `PUT` | `/api/v1/admin/casino/games/providers` | `staff` + `casino:manage` | `200` `service.setUpstreamProviders(…)` |
 | `GET` | `/api/v1/admin/casino/games/type-priority/:type` | `staff` + `casino:read` | `200` `service.typePriority(…)` |
@@ -913,18 +1053,19 @@ the end of this appendix.
 | Method | Path | Guard | Response |
 |---|---|---|---|
 | `POST` | `/api/v1/casino/gis/callback/transactions` | `public` + rate-limited | **raw** `res.json(…)` |
-| `POST` | `/api/v1/casino/gis/launch-demo` | `public` + rate-limited | `201` `service.launchDemo(…)` |
 | `GET` | `/api/v1/casino/gis/freespins/bets` | `player` | `200` `service.freespinBets(…)` |
+| `GET` | `/api/v1/casino/gis/freespins/mine` | `player` | `200` `service.listMyFreespins(…)` |
 | `GET` | `/api/v1/casino/gis/game-tags` | `player` | `200` `service.gameTags(…)` |
 | `GET` | `/api/v1/casino/gis/jackpots` | `player` | `200` `service.jackpots(…)` |
 | `POST` | `/api/v1/casino/gis/launch` | `player` | `201` `service.launch(…)` |
+| `POST` | `/api/v1/casino/gis/launch-demo` | `player` | `201` `service.launchDemo(…)` |
 | `GET` | `/api/v1/casino/gis/limits` | `player` | `200` `service.limits(…)` |
 | `GET` | `/api/v1/casino/gis/limits/freespin` | `player` | `200` `service.freespinLimits(…)` |
 | `GET` | `/api/v1/casino/gis/lobby` | `player` | `200` `service.lobby(…)` |
 | `GET` | `/api/v1/admin/casino/gis/freespins` | `staff` + `casino:read` | `200` `service.getFreespin(…)` |
 | `POST` | `/api/v1/admin/casino/gis/freespins` | `staff` + `casino:manage` | `201` `service.setFreespin(…)` |
 | `POST` | `/api/v1/admin/casino/gis/freespins/cancel` | `staff` + `casino:manage` | `200` `service.cancelFreespin(…)` |
-| `GET` | `/api/v1/admin/casino/gis/self-validate` | `staff` + `casino:read` | `200` `service.selfValidate(…)` |
+| `GET` | `/api/v1/admin/casino/gis/self-validate` | `staff` + `casino:manage` | `200` `service.selfValidate(…)` |
 | `POST` | `/api/v1/admin/casino/gis/sync/games` | `staff` + `casino:manage` | `200` `service.syncGames(…)` |
 | `POST` | `/api/v1/admin/casino/gis/sync/providers` | `staff` + `casino:manage` | `200` `service.syncProviders(…)` |
 | `GET` | `/api/v1/admin/casino/gis/vouchers` | `staff` + `casino:read` | `200` `service.getVoucher(…)` |
@@ -947,6 +1088,7 @@ the end of this appendix.
 | Method | Path | Guard | Response |
 |---|---|---|---|
 | `POST` | `/api/v1/casino/js-games/v1/bet-callback` | `public` + rate-limited | **raw** `res.json(…)` |
+| `GET` | `/api/v1/casino/js-games/v1/collections/:collection` | `public` | `200` `[…]` + `meta.pagination` |
 | `GET` | `/api/v1/casino/js-games/v1/games` | `public` | `200` `[…]` + `meta.pagination` |
 | `GET` | `/api/v1/casino/js-games/v1/games/search` | `public` | `200` `[…]` + `meta.pagination` |
 | `POST` | `/api/v1/casino/js-games/v2/bet-callback` | `public` + rate-limited | **raw** `res.json(…)` |
@@ -955,8 +1097,15 @@ the end of this appendix.
 | `POST` | `/api/v1/casino/js-games/v1/launch` | `player` | `201` `service.launchV1(…)` |
 | `GET` | `/api/v1/casino/js-games/v2/history` | `player` | `200` `service.historyV2(…)` |
 | `POST` | `/api/v1/casino/js-games/v2/launch` | `player` | `201` `service.launchV2(…)` |
+| `PUT` | `/api/v1/admin/casino/js-games/v1/catalogue/:gameUid/icon` | `staff` + `casino:manage` | `200` `service.updateIcon(…)` |
+| `GET` | `/api/v1/admin/casino/js-games/v1/catalogue/search` | `staff` + `casino:read` | `200` `service.search(…)` |
+| `GET` | `/api/v1/admin/casino/js-games/v1/collections` | `staff` + `casino:read` | `200` `service.collectionList(…)` |
+| `GET` | `/api/v1/admin/casino/js-games/v1/curation/:scope/:key` | `staff` + `casino:read` | `200` `service.read(…)` |
+| `PUT` | `/api/v1/admin/casino/js-games/v1/curation/:scope/:key` | `staff` + `casino:manage` | `200` `service.write(…)` |
 | `POST` | `/api/v1/admin/casino/js-games/v1/transactions` | `staff` + `casino:read` | `200` `service.transactionsV1(…)` |
 | `POST` | `/api/v1/admin/casino/js-games/v1/transfer` | `staff` + `wallet:credit` | `200` `service.transferV1(…)` |
+| `GET` | `/api/v1/admin/casino/js-games/v1/types` | `staff` + `casino:read` | `200` `service.typeList(…)` |
+| `GET` | `/api/v1/admin/casino/js-games/v1/vendors` | `staff` + `casino:read` | `200` `service.vendorList(…)` |
 | `GET` | `/api/v1/admin/casino/js-games/v2/history` | `staff` + `casino:read` | `200` `service.historyAllV2(…)` |
 
 #### `seamless`
@@ -988,6 +1137,7 @@ the end of this appendix.
 
 | Method | Path | Guard | Response |
 |---|---|---|---|
+| `GET` | `/internal/casino/wager/race-points` | `internal` | `200` `race.racePoints(…)` |
 | `GET` | `/internal/casino/wager/turnover/:userId` | `internal` | `200` `service.turnover(…)` |
 
 #### `x-casino`
@@ -1010,7 +1160,7 @@ the end of this appendix.
 | `GET` | `/api/v1/casino/x-gaming/games/search` | `public` | `200` `[…]` + `meta.pagination` |
 | `GET` | `/api/v1/casino/x-gaming/vendors` | `public` | `200` `service.vendors(…)` |
 
-### sports-service — :4004 (74 routes)
+### sports-service — :4004 (83 routes)
 
 #### `bet-admin`
 
@@ -1032,96 +1182,105 @@ the end of this appendix.
 
 | Method | Path | Guard | Response |
 |---|---|---|---|
-| `GET` | `/api/v1/sports/bets` | `player` | `200` `[…]` + `meta.pagination` |
-| `POST` | `/api/v1/sports/bets` | `player` | **raw** `res.json(…)` · **raw** `res.json(…)` |
-| `GET` | `/api/v1/sports/bets/exposures` | `player` | `200` `service.exposures(…)` |
-| `GET` | `/api/v1/sports/bets/open-count` | `player` | `200` `service.openCount(…)` |
-| `GET` | `/api/v1/sports/bets/open/:matchId` | `player` | `200` `service.openBets(…)` |
-| `GET` | `/api/v1/sports/bets/summary` | `player` | `200` `service.summary(…)` |
+| `GET` | `/api/v1/sports/user/bet-result/:client_ref` | `public` | — |
+| `POST` | `/api/v1/sports/user/cancel-bet` | `public` | — |
+| `GET` | `/api/v1/sports/user/cricket/matched-bets/all` | `public` | — |
+| `GET` | `/api/v1/sports/user/cricket/sports-bets/user` | `public` | — |
+| `GET` | `/api/v1/sports/user/cricket/user-open-bets` | `public` | — |
+| `GET` | `/api/v1/sports/user/cricket/user-open-bets-grouped` | `public` | — |
+| `GET` | `/api/v1/sports/user/fancy-bets` | `public` | — |
+| `POST` | `/api/v1/sports/user/matchexposures/match` | `public` | — |
+| `POST` | `/api/v1/sports/user/place` | `public` | — |
+| `POST` | `/api/v1/sports/user/place-combined` | `public` | — |
 
-#### `catalogue`
-
-| Method | Path | Guard | Response |
-|---|---|---|---|
-| `GET` | `/api/v1/sports/catalogue/sports` | `public` | `200` `service.listSports(…)` |
-| `GET` | `/api/v1/admin/sports/catalogue/fancy` | `staff` + `sports:read` | `200` `[…]` + `meta.pagination` |
-| `POST` | `/api/v1/admin/sports/catalogue/fancy` | `staff` + `sports:manage` | `200` `service.setFancyStatus(…)` |
-| `DELETE` | `/api/v1/admin/sports/catalogue/fancy/:marketId` | `staff` + `sports:manage` | `200` `service.removeFancyControl(…)` |
-| `POST` | `/api/v1/admin/sports/catalogue/fancy/bulk` | `staff` + `sports:manage` | `200` `service.bulkSetFancyStatus(…)` |
-| `GET` | `/api/v1/admin/sports/catalogue/fancy/event/:eventId` | `staff` + `sports:read` | `200` `service.fancyControlsForEvent(…)` |
-| `GET` | `/api/v1/admin/sports/catalogue/sports` | `staff` + `sports:read` | `200` `service.listSports(…)` |
-| `POST` | `/api/v1/admin/sports/catalogue/sports` | `staff` + `sports:manage` | `201` `service.addSport(…)` |
-| `DELETE` | `/api/v1/admin/sports/catalogue/sports/:id` | `staff` + `sports:manage` | `200` `service.removeSport(…)` |
-| `GET` | `/api/v1/admin/sports/catalogue/sports/:id` | `staff` + `sports:read` | `200` `service.getSport(…)` |
-| `PUT` | `/api/v1/admin/sports/catalogue/sports/:id` | `staff` + `sports:manage` | `200` `service.updateSport(…)` |
-
-#### `feed`
+#### `odds-events`
 
 | Method | Path | Guard | Response |
 |---|---|---|---|
-| `GET` | `/api/v1/sports/feed/events` | `public` | `200` `service.eventsBySport(…)` |
-| `GET` | `/api/v1/sports/feed/events/by-series` | `public` | `200` `service.eventsBySeries(…)` |
-| `GET` | `/api/v1/sports/feed/events/details` | `public` | `200` `service.eventDetails(…)` |
-| `GET` | `/api/v1/sports/feed/events/list` | `public` | `200` `service.eventList(…)` |
-| `GET` | `/api/v1/sports/feed/inplay` | `public` | `200` `service.inplay(…)` |
-| `GET` | `/api/v1/sports/feed/inplay/all` | `public` | `200` `service.allInplay(…)` |
-| `GET` | `/api/v1/sports/feed/inplay/game/:gameId` | `public` | `200` `service.inplayByGame(…)` |
-| `GET` | `/api/v1/sports/feed/live/data` | `public` | `200` `service.liveSportsData(…)` |
-| `GET` | `/api/v1/sports/feed/live/match` | `public` | `200` `service.liveSportsDataById(…)` |
-| `GET` | `/api/v1/sports/feed/live/result` | `public` | `200` `service.liveResult(…)` |
-| `GET` | `/api/v1/sports/feed/live/scorecard` | `public` | `200` `service.scorecard(…)` |
-| `GET` | `/api/v1/sports/feed/live/stream` | `public` | `200` `service.liveStream(…)` |
-| `GET` | `/api/v1/sports/feed/markets/details` | `public` | `200` `service.marketDetails(…)` |
-| `GET` | `/api/v1/sports/feed/markets/fancy` | `public` | `200` `service.bookmakerFancy(…)` |
-| `GET` | `/api/v1/sports/feed/markets/ids` | `public` | `200` `service.marketIdsV1(…)` |
-| `GET` | `/api/v1/sports/feed/markets/ids/v2` | `public` | `200` `service.marketIdsV2(…)` |
-| `GET` | `/api/v1/sports/feed/markets/line` | `public` | `200` `service.lineMarket(…)` |
-| `GET` | `/api/v1/sports/feed/markets/odds` | `public` | `200` `service.marketOdds(…)` |
-| `GET` | `/api/v1/sports/feed/matches` | `public` | `200` `service.allMatches(…)` |
-| `GET` | `/api/v1/sports/feed/matches/:gameId` | `public` | `200` `service.matchesByGame(…)` |
-| `GET` | `/api/v1/sports/feed/matches/date/:dateType` | `public` | `200` `service.matchesByDate(…)` |
-| `GET` | `/api/v1/sports/feed/matches/date/:dateType/:gameId` | `public` | `200` `service.matchesByDateAndGame(…)` |
-| `GET` | `/api/v1/sports/feed/results/event` | `public` | `200` `service.eventResult(…)` |
-| `GET` | `/api/v1/sports/feed/results/list` | `public` | `200` `service.eventListResult(…)` |
-| `GET` | `/api/v1/sports/feed/series` | `public` | `200` `service.series(…)` |
-| `GET` | `/api/v1/sports/feed/sports` | `public` | `200` `service.allSportIds(…)` |
-
-#### `results`
-
-| Method | Path | Guard | Response |
-|---|---|---|---|
-| `GET` | `/api/v1/sports/results/fancy` | `player` | `200` `[…]` + `meta.pagination` |
-| `GET` | `/api/v1/sports/results/markets` | `player` | `200` `[…]` + `meta.pagination` |
-| `GET` | `/api/v1/admin/sports/results/fancy` | `staff` + `sports:read` | `200` `[…]` + `meta.pagination` |
-| `GET` | `/api/v1/admin/sports/results/markets` | `staff` + `sports:read` | `200` `[…]` + `meta.pagination` |
-| `GET` | `/api/v1/admin/sports/results/markets/user/:userId` | `staff` + `sports:read` | `200` `[…]` + `meta.pagination` |
+| `GET` | `/api/v1/sports/user/all/sports/events` | `public` | — |
+| `GET` | `/api/v1/sports/user/all/sports/tree` | `public` | — |
+| `GET` | `/api/v1/sports/user/bet-limits/:event_id` | `public` | — |
+| `GET` | `/api/v1/sports/user/betting-config` | `public` | — |
+| `GET` | `/api/v1/sports/user/buttonlist` | `public` | — |
+| `POST` | `/api/v1/sports/user/cricket/all-data` | `public` | — |
+| `POST` | `/api/v1/sports/user/cricket/get-match-private-data` | `public` | — |
+| `POST` | `/api/v1/sports/user/cricket/get-sport-data-by-id` | `public` | — |
+| `POST` | `/api/v1/sports/user/cricket/market-list` | `public` | — |
+| `POST` | `/api/v1/sports/user/cricket/score-card` | `public` | — |
+| `GET` | `/api/v1/sports/user/cricket/score-url` | `public` | — |
+| `GET` | `/api/v1/sports/user/stake-button-values` | `public` | — |
+| `POST` | `/api/v1/sports/user/stake-button-values` | `public` | — |
+| `POST` | `/api/v1/sports/user/updatebuttonlist` | `public` | — |
+| `GET` | `/api/v1/sports/user/v1/sports-gamedetailPrivate` | `public` | — |
+| `GET` | `/api/v1/sports/user/v1/sports-get_latest_events` | `public` | — |
+| `GET` | `/api/v1/sports/user/virtual/cricketv-cards` | `public` | — |
+| `GET` | `/api/v1/sports/user/virtual/event-media` | `public` | — |
 
 #### `settlement`
 
 | Method | Path | Guard | Response |
 |---|---|---|---|
-| `GET` | `/api/v1/sports/settlement/my-settled-bets` | `player` | `200` `[…]` + `meta.pagination` |
-| `POST` | `/api/v1/admin/sports/settlement/declare-result` | `staff` + `sports:settle` | **raw** `res.json(…)` |
-| `GET` | `/api/v1/admin/sports/settlement/fancy-matches` | `staff` + `wallet:read` | **raw** `res.json({ success, data })` |
-| `GET` | `/api/v1/admin/sports/settlement/mo-matches` | `staff` + `wallet:read` | **raw** `res.json({ success, data })` |
-| `GET` | `/api/v1/admin/sports/settlement/open-bets` | `staff` + `wallet:read` | **raw** `res.json({ success, data })` |
-| `GET` | `/api/v1/admin/sports/settlement/settled-bets` | `staff` + `wallet:read` | **raw** `res.json({ success, data })` |
-| `GET` | `/api/v1/admin/sports/settlement/settled-markets` | `staff` + `wallet:read` | **raw** `res.json({ success, data })` |
-| `POST` | `/api/v1/admin/sports/settlement/void-bet` | `staff` + `sports:settle` | **raw** `res.json({ success, message, ...result })` |
-| `POST` | `/api/v1/admin/sports/settlement/void-bet/post-settlement` | `staff` + `sports:void-settled` | **raw** `res.json({ success, message, ...result })` |
-| `POST` | `/api/v1/admin/sports/settlement/void-market` | `staff` + `sports:settle` | **raw** `res.json({ success, message, count, ...result })` |
-| `POST` | `/api/v1/admin/sports/settlement/void-market/post-settlement` | `staff` + `sports:void-settled` | **raw** `res.json({ success, message, ...result })` |
-| `GET` | `/internal/sports/settlement/pending-markets` | `internal` | `200` `service.listMarketMatches(…)` |
-| `POST` | `/internal/sports/settlement/settle-market` | `internal` | `200` `service.declareResult(…)` |
-| `GET` | `/internal/sports/settlement/settled-markets` | `internal` | **raw** `res.json({ success, data })` |
+| `POST` | `/api/v1/admin/sports/internalsettle/declareresult` | `staff` + self-only | — |
+| `GET` | `/api/v1/admin/sports/internalsettle/fanmatches` | `staff` + self-only | — |
+| `GET` | `/api/v1/admin/sports/internalsettle/momatches` | `staff` + self-only | — |
+| `GET` | `/api/v1/admin/sports/internalsettle/open-bets` | `staff` + self-only | — |
+| `GET` | `/api/v1/admin/sports/internalsettle/settled-bets` | `staff` + self-only | — |
+| `GET` | `/api/v1/admin/sports/internalsettle/settled-markets` | `staff` + self-only | — |
+| `POST` | `/api/v1/admin/sports/internalsettle/void` | `staff` + self-only | — |
+| `POST` | `/api/v1/admin/sports/internalsettle/void-bet-after-settlement` | `staff` + self-only | — |
+| `POST` | `/api/v1/admin/sports/internalsettle/void-market-after-settlement` | `staff` + self-only | — |
+| `POST` | `/api/v1/admin/sports/internalsettle/void-single-bet` | `staff` + self-only | — |
+
+#### `sports-config`
+
+| Method | Path | Guard | Response |
+|---|---|---|---|
+| `POST` | `/api/v1/admin/sports/config/betlock/bulk-toggle-market-lock` | `staff` + self-only | — |
+| `GET` | `/api/v1/admin/sports/config/betlock/market-locks/:event_id` | `staff` + self-only | — |
+| `POST` | `/api/v1/admin/sports/config/betlock/toggle-market-lock` | `staff` + self-only | — |
+| `GET` | `/api/v1/admin/sports/config/betting-config/auto-void` | `staff` + self-only | — |
+| `PUT` | `/api/v1/admin/sports/config/betting-config/auto-void` | `staff` + self-only | — |
+| `GET` | `/api/v1/admin/sports/config/betting-config/auto-void/links` | `staff` + self-only | — |
+| `POST` | `/api/v1/admin/sports/config/betting-config/auto-void/links` | `staff` + self-only | — |
+| `DELETE` | `/api/v1/admin/sports/config/betting-config/auto-void/links/:id` | `staff` + self-only | — |
+| `PUT` | `/api/v1/admin/sports/config/betting-config/auto-void/links/:id` | `staff` + self-only | — |
+| `GET` | `/api/v1/admin/sports/config/betting-config/auto-void/tracker` | `staff` + self-only | — |
+| `POST` | `/api/v1/admin/sports/config/betting-config/bet-limits/event` | `staff` + self-only | — |
+| `GET` | `/api/v1/admin/sports/config/betting-config/bet-limits/event/:event_id` | `staff` + self-only | — |
+| `DELETE` | `/api/v1/admin/sports/config/betting-config/bet-limits/event/:id` | `staff` + self-only | — |
+| `GET` | `/api/v1/admin/sports/config/betting-config/bet-limits/inplay` | `staff` + self-only | — |
+| `DELETE` | `/api/v1/admin/sports/config/betting-config/buffer/sports` | `staff` + self-only | — |
+| `GET` | `/api/v1/admin/sports/config/betting-config/buffer/sports` | `staff` + self-only | — |
+| `POST` | `/api/v1/admin/sports/config/betting-config/buffer/sports` | `staff` + self-only | — |
+| `POST` | `/api/v1/admin/sports/config/betting-config/buffer/sports/bulk` | `staff` + self-only | — |
+| `DELETE` | `/api/v1/admin/sports/config/betting-config/max-odds/sports` | `staff` + self-only | — |
+| `GET` | `/api/v1/admin/sports/config/betting-config/max-odds/sports` | `staff` + self-only | — |
+| `POST` | `/api/v1/admin/sports/config/betting-config/max-odds/sports` | `staff` + self-only | — |
+| `GET` | `/api/v1/admin/sports/config/betting-config/virtual-limits` | `staff` + self-only | — |
+| `PUT` | `/api/v1/admin/sports/config/betting-config/virtual-limits` | `staff` + self-only | — |
+| `DELETE` | `/api/v1/admin/sports/config/commission-config/sports` | `staff` + self-only | — |
+| `GET` | `/api/v1/admin/sports/config/commission-config/sports` | `staff` + self-only | — |
+| `POST` | `/api/v1/admin/sports/config/commission-config/sports` | `staff` + self-only | — |
+| `POST` | `/api/v1/admin/sports/config/commission-config/sports/bulk` | `staff` + self-only | — |
+| `GET` | `/api/v1/admin/sports/config/sports-lock/get/:targetId` | `staff` + self-only | — |
+| `POST` | `/api/v1/admin/sports/config/sports-lock/update` | `staff` + self-only | — |
+
+#### `statement`
+
+| Method | Path | Guard | Response |
+|---|---|---|---|
+| `POST` | `/api/v1/sports/user/account-statement-v2` | `public` | — |
+| `POST` | `/api/v1/sports/user/account-statement-v2/bets` | `public` | — |
 
 #### `wager-report`
 
 | Method | Path | Guard | Response |
 |---|---|---|---|
+| `GET` | `/internal/sports/wager/player/:userId/profile-stats` | `internal` | `200` `service.profileStats(…)` |
+| `GET` | `/internal/sports/wager/race-points` | `internal` | `200` `service.racePoints(…)` |
 | `GET` | `/internal/sports/wager/turnover/:userId` | `internal` | `200` `service.turnover(…)` |
 
-### user-service — :4001 (274 routes)
+### user-service — :4001 (337 routes)
 
 #### `affiliate`
 
@@ -1142,19 +1301,31 @@ the end of this appendix.
 | `GET` | `/api/v1/admin/user/affiliate/teams/:owner/members` | `staff` + `reports:read` | `200` `[…]` + `meta.pagination` |
 | `GET` | `/api/v1/admin/user/affiliate/top` | `staff` + `reports:read` | `200` `service.topAffiliates(…)` |
 | `POST` | `/api/v1/admin/user/affiliate/unlock` | `staff` + `config:write` | `200` `service.unlockFor(…)` |
+| `POST` | `/internal/user/affiliate/on-wager` | `internal` | `200` `service.onWager(…)` |
 
 #### `auth`
 
 | Method | Path | Guard | Response |
 |---|---|---|---|
+| `POST` | `/api/v1/user/auth/forgot-password` | `public` + rate-limited | `200` `service.requestPasswordReset(…)` |
 | `POST` | `/api/v1/user/auth/login` | `public` + rate-limited | `200` `service.login(…)` |
 | `POST` | `/api/v1/user/auth/refresh` | `public` | `200` `service.refresh(…)` |
 | `POST` | `/api/v1/user/auth/register` | `public` + rate-limited | `201` `service.registerAndSignIn(…)` |
-| `POST` | `/api/v1/user/auth/reset-password` | `public` + rate-limited | `200` `service.resetPasswordWithCode(…)` |
+| `POST` | `/api/v1/user/auth/reset-password` | `public` + rate-limited | `200` `service.completePasswordReset(…)` |
 | `POST` | `/api/v1/user/auth/change-password` | `player` | `200` `{ ...result, message }` |
 | `POST` | `/api/v1/user/auth/logout` | `player` | `200` `service.logout(…)` |
 | `GET` | `/api/v1/user/auth/me` | `player` | `200` `service.me(…)` |
 | `GET` | `/api/v1/user/auth/sessions` | `player` | `200` `service.listSessions(…)` |
+| `DELETE` | `/api/v1/user/auth/sessions/:sessionId` | `player` | `200` `service.revokeSession(…)` |
+
+#### `bank-accounts`
+
+| Method | Path | Guard | Response |
+|---|---|---|---|
+| `GET` | `/api/v1/user/bank-accounts` | `player` | `200` `service.list(…)` |
+| `POST` | `/api/v1/user/bank-accounts` | `player` | `201` `service.add(…)` |
+| `DELETE` | `/api/v1/user/bank-accounts/:id` | `player` | `200` `service.remove(…)` |
+| `PUT` | `/api/v1/user/bank-accounts/:id/default` | `player` | `200` `service.setDefault(…)` |
 
 #### `bank-details`
 
@@ -1171,6 +1342,7 @@ the end of this appendix.
 
 | Method | Path | Guard | Response |
 |---|---|---|---|
+| `GET` | `/api/v1/user/bonus/first-deposit` | `public` | `200` `service.overview(…)` |
 | `GET` | `/api/v1/user/bonus` | `player` | `200` `service.overview(…)` |
 | `POST` | `/api/v1/user/bonus/claim/:type` | `player` | `200` `service.claim(…)` |
 | `GET` | `/api/v1/user/bonus/codes` | `player` | `200` `[…]` + `meta.pagination` |
@@ -1181,7 +1353,7 @@ the end of this appendix.
 | `POST` | `/api/v1/user/bonus/redeem` | `player` | `200` `service.redeemCode(…)` |
 | `GET` | `/api/v1/admin/user/bonus/awards` | `staff` + `reports:read` | `200` `[…]` + `meta.pagination` |
 | `GET` | `/api/v1/admin/user/bonus/codes` | `staff` + `reports:read` | `200` `[…]` + `meta.pagination` |
-| `POST` | `/api/v1/admin/user/bonus/codes` | `staff` + `config:write` | `201` `service.createCode(…)` |
+| `POST` | `/api/v1/admin/user/bonus/codes` | `staff` + `config:write | redeem:write` | `201` `service.createCode(…)` |
 | `GET` | `/api/v1/admin/user/bonus/dashboard` | `staff` + `reports:read` | `200` `service.adminDashboard(…)` |
 | `GET` | `/api/v1/admin/user/bonus/events` | `staff` + `reports:read` | `200` `[…]` + `meta.pagination` |
 | `POST` | `/api/v1/admin/user/bonus/events` | `staff` + `config:write` | `201` `service.createEvent(…)` |
@@ -1196,7 +1368,7 @@ the end of this appendix.
 | `POST` | `/api/v1/admin/user/bonus/records` | `staff` + `config:write` | `201` `service.createRecord(…)` |
 | `PUT` | `/api/v1/admin/user/bonus/records` | `staff` + `config:write` | `200` `service.updateRecord(…)` |
 | `GET` | `/api/v1/admin/user/bonus/users` | `staff` + `reports:read` | `200` `service.listUserIds(…)` |
-| `GET` | `/api/v1/admin/user/bonus/users/:userId` | `staff` + `reports:read` | `200` `service.overview(…)` |
+| `GET` | `/api/v1/admin/user/bonus/users/:userId` | `staff` + `reports:read` | `200` `service.overviewForStaff(…)` |
 
 #### `club`
 
@@ -1248,6 +1420,7 @@ the end of this appendix.
 | `POST` | `/api/v1/user/crypto/ccpayment/callback` | `public` | **raw** `res.send(…)` |
 | `GET` | `/api/v1/user/crypto/chains` | `public` | `200` `service.chains(…)` |
 | `GET` | `/api/v1/user/crypto/coins` | `public` | `200` `service.coinDetails(…)` |
+| `GET` | `/api/v1/user/crypto/networks` | `public` | `200` `{ coin, networks }` · `200` `response.ok(…)` |
 | `GET` | `/api/v1/user/crypto/inr-history` | `player` | `200` `[…]` + `meta.pagination` |
 | `POST` | `/api/v1/admin/user/crypto/inr-deposits` | `staff` + `deposits:approve` | `201` `service.recordInrDeposit(…)` |
 
@@ -1338,6 +1511,7 @@ the end of this appendix.
 | `POST` | `/api/v1/user/gift-cards/activate` | `player` | `201` `service.activate(…)` |
 | `POST` | `/api/v1/user/gift-cards/claim` | `player` | `200` `service.claim(…)` |
 | `GET` | `/api/v1/user/gift-cards/claimed` | `player` | `200` `[…]` + `meta.pagination` |
+| `POST` | `/api/v1/user/gift-cards/redeem` | `player` | `201` `service.redeem(…)` |
 | `GET` | `/api/v1/admin/user/gift-cards` | `staff` + `reports:read` | `200` `[…]` + `meta.pagination` |
 | `POST` | `/api/v1/admin/user/gift-cards` | `staff` + `config:write` | `201` `service.create(…)` |
 | `DELETE` | `/api/v1/admin/user/gift-cards/:id` | `staff` + `config:write` | `200` `service.remove(…)` |
@@ -1355,6 +1529,21 @@ the end of this appendix.
 | `GET` | `/api/v1/admin/user/kyc/applications` | `staff` + `wallet:read` | `200` `[…]` + `meta.pagination` |
 | `GET` | `/api/v1/admin/user/kyc/documents/:kycId/:field` | `staff` + `wallet:read` | **raw** `Content-Type: contentType` · **raw** `res.send(…)` |
 | `PUT` | `/api/v1/admin/user/kyc/review` | `staff` + `users:write` | `200` `service.review(…)` |
+
+#### `medals`
+
+| Method | Path | Guard | Response |
+|---|---|---|---|
+| `GET` | `/api/v1/user/medals` | `player` | `200` `service.forPlayer(…)` |
+
+#### `notifications`
+
+| Method | Path | Guard | Response |
+|---|---|---|---|
+| `GET` | `/api/v1/user/notifications` | `player` | `200` `rows` |
+| `POST` | `/api/v1/user/notifications/:id/read` | `player` | `200` `result?.data ?? result` |
+| `POST` | `/api/v1/user/notifications/read-all` | `player` | `200` `result?.data ?? result` |
+| `GET` | `/api/v1/user/notifications/unread-count` | `player` | `200` `service.unreadCount(…)` |
 
 #### `p2p`
 
@@ -1405,21 +1594,42 @@ the end of this appendix.
 | `GET` | `/api/v1/admin/user/payments/users/:userId/orders` | `staff` + `deposits:read` | `200` `[…]` + `meta.pagination` |
 | `POST` | `/api/v1/admin/user/payments/utr-repair` | `staff` + `deposits:approve` | `200` `service.repairUtr(…)` |
 
+#### `player-bonuses`
+
+| Method | Path | Guard | Response |
+|---|---|---|---|
+| `GET` | `/api/v1/user/bonus-balance` | `player` | `200` `service.summary(…)` |
+| `GET` | `/api/v1/admin/user/bonus-balance` | `staff` + `reports:read | users:read | wallet:read` | `200` `{ ...result, limit, offset }` |
+| `POST` | `/api/v1/admin/user/bonus-balance/:id/forfeit` | `staff` + `wallet:adjust` | `200` `service.forfeit(…)` |
+| `GET` | `/api/v1/admin/user/bonus-balance/users/:userId` | `staff` + `reports:read | users:read | wallet:read` | `200` `service.listForPlayer(…)` |
+
 #### `preferences`
 
 | Method | Path | Guard | Response |
 |---|---|---|---|
 | `GET` | `/api/v1/user/preferences` | `player` | `200` `service.get(…)` |
 | `PATCH` | `/api/v1/user/preferences` | `player` | `200` `service.update(…)` |
+| `POST` | `/internal/user/preferences/site-config` | `internal` | `200` `{ pushed, reason }` · `200` `{ pushed, clients }` |
+
+#### `presence`
+
+| Method | Path | Guard | Response |
+|---|---|---|---|
+| `GET` | `/api/v1/user/presence` | `public` | `200` `service.count(…)` |
 
 #### `profile`
 
 | Method | Path | Guard | Response |
 |---|---|---|---|
+| `GET` | `/api/v1/user/profile/:userId/medals` | `public` + rate-limited | `200` `medals.forPublic(…)` |
+| `GET` | `/api/v1/user/profile/:userId/public` | `public` + rate-limited | `200` `service.publicProfile(…)` |
 | `GET` | `/api/v1/user/profile/verify-referral/:referralCode` | `public` + rate-limited | `200` `service.verifyReferralCode(…)` |
 | `GET` | `/api/v1/user/profile` | `player` | `200` `service.get(…)` |
 | `PUT` | `/api/v1/user/profile` | `player` | `200` `service.update(…)` |
+| `POST` | `/api/v1/user/profile/change-email` | `player` | `200` `service.changeEmail(…)` |
 | `GET` | `/api/v1/user/profile/referral` | `player` | `200` `service.getReferral(…)` |
+| `GET` | `/api/v1/user/profile/stats` | `player` | `200` `stats.forPlayer(…)` |
+| `GET` | `/api/v1/user/profile/turnover` | `player` | `200` `turnover.forPlayer(…)` |
 
 #### `psp`
 
@@ -1430,12 +1640,40 @@ the end of this appendix.
 | `GET` | `/api/v1/user/psp/:provider/status/:reference` | `player` | `200` `service.getStatus(…)` |
 | `GET` | `/api/v1/admin/user/psp/:provider/status/:reference` | `staff` + `deposits:read` | `200` `service.getStatus(…)` |
 
+#### `race`
+
+| Method | Path | Guard | Response |
+|---|---|---|---|
+| `GET` | `/api/v1/user/race` | `public` | `200` `service.listConfigs(…)` |
+| `GET` | `/api/v1/user/race/:type/leaderboard` | `public` | `200` `service.leaderboard(…)` |
+| `GET` | `/api/v1/user/race/history` | `public` | `200` `service.history(…)` |
+| `GET` | `/api/v1/user/race/rewards` | `player` | `200` `[…]` + `meta.pagination` |
+| `POST` | `/api/v1/user/race/rewards/:rewardId/claim` | `player` + rate-limited | `200` `service.claim(…)` |
+| `GET` | `/api/v1/admin/user/race/boats` | `staff` + `reports:read` | `200` `service.listBoats(…)` |
+| `POST` | `/api/v1/admin/user/race/boats` | `staff` + `config:write` | `201` `service.addBoat(…)` |
+| `DELETE` | `/api/v1/admin/user/race/boats/:id` | `staff` + `config:write` | `200` `service.removeBoat(…)` |
+| `PUT` | `/api/v1/admin/user/race/boats/:id` | `staff` + `config:write` | `200` `service.updateBoat(…)` |
+| `GET` | `/api/v1/admin/user/race/config/:type` | `staff` + `reports:read` | `200` `service.getConfig(…)` |
+| `PUT` | `/api/v1/admin/user/race/config/:type` | `staff` + `config:write` | `200` `service.updateConfig(…)` |
+| `GET` | `/api/v1/admin/user/race/leaderboard/:type` | `staff` + `reports:read` | `200` `service.leaderboard(…)` |
+| `GET` | `/api/v1/admin/user/race/races` | `staff` + `reports:read` | `200` `[…]` + `meta.pagination` |
+| `POST` | `/api/v1/admin/user/race/races/:id/cancel` | `staff` + `config:write` | `200` `service.cancel(…)` |
+| `POST` | `/api/v1/admin/user/race/races/:id/settle` | `staff` + `config:write` | `200` `service.settle(…)` |
+| `GET` | `/api/v1/admin/user/race/rewards` | `staff` + `reports:read` | `200` `[…]` + `meta.pagination` |
+
 #### `rakeback`
 
 | Method | Path | Guard | Response |
 |---|---|---|---|
 | `GET` | `/api/v1/user/rakeback` | `player` | `200` `service.amount(…)` |
 | `POST` | `/api/v1/user/rakeback/claim` | `player` + rate-limited | `200` `service.claim(…)` |
+| `POST` | `/internal/user/rakeback/accrue` | `internal` | `200` `service.accrue(…)` |
+
+#### `region`
+
+| Method | Path | Guard | Response |
+|---|---|---|---|
+| `GET` | `/api/v1/user/region` | `public` + rate-limited | `200` `service.visitor(…)` |
 
 #### `spin-wheel`
 
@@ -1464,6 +1702,17 @@ the end of this appendix.
 | `GET` | `/api/v1/user/swap/history` | `player` | `200` `[…]` + `meta.pagination` |
 | `GET` | `/api/v1/admin/user/swap/history` | `staff` + `wallet:read` | `200` `[…]` + `meta.pagination` |
 | `GET` | `/api/v1/admin/user/swap/history/:userId` | `staff` + `wallet:read` | `200` `[…]` + `meta.pagination` |
+
+#### `tip`
+
+| Method | Path | Guard | Response |
+|---|---|---|---|
+| `GET` | `/api/v1/user/tip/history` | `player` | `200` `service.history(…)` |
+| `POST` | `/api/v1/user/tip/send` | `player` | `201` `service.send(…)` |
+| `GET` | `/api/v1/user/tip/settings` | `player` | `200` `service.getSettings(…)` |
+| `PATCH` | `/api/v1/user/tip/settings` | `player` | `200` `service.updateSettings(…)` |
+| `GET` | `/api/v1/user/tip/users` | `player` | `200` `service.searchUsers(…)` |
+| `GET` | `/api/v1/admin/user/tip/list` | `staff` + `reports:read` | `200` `service.adminList(…)` |
 
 #### `transaction-history`
 
@@ -1510,17 +1759,29 @@ the end of this appendix.
 | `GET` | `/api/v1/admin/user/vault/stats` | `staff` + `reports:read` | `200` `service.stats(…)` |
 | `GET` | `/api/v1/admin/user/vault/users` | `staff` + `reports:read` | `200` `[…]` + `meta.pagination` |
 
+#### `vip`
+
+| Method | Path | Guard | Response |
+|---|---|---|---|
+| `GET` | `/api/v1/user/vip/levels` | `public` | `200` `service.levels(…)` |
+| `GET` | `/api/v1/user/vip` | `player` | `200` `service.standing(…)` |
+| `POST` | `/internal/user/vip/award-periodic` | `internal` | `200` `userId ? await service.awardPeriodic({ userId…` |
+| `POST` | `/internal/user/vip/on-wager` | `internal` | `200` `service.onWager(…)` |
+
 #### `wager`
 
 | Method | Path | Guard | Response |
 |---|---|---|---|
 | `GET` | `/api/v1/user/wager/progress` | `player` | `200` `service.getProgress(…)` |
+| `GET` | `/api/v1/user/wager/tasks` | `player` | `200` `service.getTasks(…)` |
 | `GET` | `/api/v1/admin/user/wager` | `staff` + `users:read` | `200` `[…]` + `meta.pagination` |
 | `GET` | `/api/v1/admin/user/wager/:userId` | `staff` + `users:read` | `200` `service.getProgress(…)` |
 | `POST` | `/api/v1/admin/user/wager/:userId` | `staff` + `users:write` | `200` `service.setForUser(…)` |
 | `POST` | `/api/v1/admin/user/wager/:userId/lock` | `staff` + `users:write` | `200` `service.setLock(…)` |
 | `POST` | `/api/v1/admin/user/wager/bulk/multiplier` | `staff` + `users:write` | `200` `service.setForAll(…)` |
 | `GET` | `/api/v1/admin/user/wager/common` | `staff` + `users:read` | `200` `{ multiplier }` |
+| `POST` | `/internal/user/wager/record` | `internal` | `200` `service.record(…)` |
+| `POST` | `/internal/user/wager/reverse` | `internal` | `200` `service.reverse(…)` |
 
 #### `wallet`
 
@@ -1532,15 +1793,31 @@ the end of this appendix.
 | `GET` | `/api/v1/user/wallet/ledger` | `player` | `200` `[…]` + `meta.pagination` |
 | `GET` | `/api/v1/admin/user/wallet/:userId/balances` | `staff` + `wallet:read` | `200` `{ userId, balances }` |
 | `GET` | `/api/v1/admin/user/wallet/:userId/history` | `staff` + `wallet:read` | **raw** `res.json({ history, count })` |
-| `GET` | `/api/v1/admin/user/wallet/:userId/reconcile` | `staff` + `wallet:adjust` | `200` `service.reconcile(…)` |
-| `POST` | `/api/v1/admin/user/wallet/adjust` | `staff` + `wallet:credit | wallet:debit` | `200` `service.adminAdjust(…)` |
+| `GET` | `/api/v1/admin/user/wallet/:userId/reconcile` | `staff` + `wallet:adjust` | `200` `req.query.currency ? await service.reconcile(…` |
+| `POST` | `/api/v1/admin/user/wallet/adjust` | `staff` + `wallet:credit | wallet:debit` | `200` `service.agentAdjust(…)` · `200` `service.adminAdjust(…)` |
 | `GET` | `/api/v1/admin/user/wallet/balances` | `staff` + `wallet:read` | `200` `[…]` + `meta.pagination` |
 | `GET` | `/internal/user/wallet/balance/:userId` | `internal` | `200` `currency ? { userId, currency, balance: await…` |
 | `POST` | `/internal/user/wallet/credit` | `internal` | `200` `service.credit(…)` |
 | `POST` | `/internal/user/wallet/debit` | `internal` | `200` `service.debit(…)` |
-| `GET` | `/internal/user/wallet/reconcile/:userId` | `internal` | `200` `service.reconcile(…)` |
+| `GET` | `/internal/user/wallet/reconcile/:userId` | `internal` | `200` `req.query.currency ? await service.reconcile(…` |
 | `POST` | `/internal/user/wallet/rollback` | `internal` | `200` `service.rollback(…)` |
 | `POST` | `/internal/user/wallet/transfer` | `internal` | `200` `service.transfer(…)` |
+
+#### `withdraw-requirements`
+
+| Method | Path | Guard | Response |
+|---|---|---|---|
+| `GET` | `/api/v1/user/withdrawals/requirements` | `player` | `200` `requirements.evaluate(…)` |
+
+#### `withdrawal-whitelist`
+
+| Method | Path | Guard | Response |
+|---|---|---|---|
+| `GET` | `/api/v1/user/withdrawals/whitelist` | `player` | `200` `service.list(…)` |
+| `POST` | `/api/v1/user/withdrawals/whitelist` | `player` | `201` `service.add(…)` |
+| `DELETE` | `/api/v1/user/withdrawals/whitelist/:id` | `player` | `200` `service.remove(…)` |
+| `PATCH` | `/api/v1/user/withdrawals/whitelist/:id` | `player` | `200` `service.rename(…)` |
+| `PUT` | `/api/v1/user/withdrawals/whitelist/enforcement` | `player` | `200` `service.setEnforcement(…)` |
 
 ### Error catalogues
 
@@ -1559,16 +1836,18 @@ the service layer, so a code is reachable from any route in its module.
 | `403` | `ACCESS_NOT_PERMITTED` | Your role does not permit that |
 | `403` | `ACCESS_TRANSACTION_PASSWORD_REQUIRED` | This action requires your transaction password |
 
-#### `ACCOUNTS` — admin/lords (6)
+#### `ACCOUNTS` — admin/lords (8)
 
 | Status | Code | Message |
 |---:|---|---|
 | `404` | `ACCOUNTS_NOT_IN_YOUR_TREE` | Account not found |
 | `404` | `ACCOUNTS_NOT_FOUND` | Account not found |
 | `403` | `ACCOUNTS_TRANSACTION_PASSWORD_REQUIRED` | This action requires your transaction password |
-| `402` | `ACCOUNTS_INSUFFICIENT_FUNDS` | There is not enough in your balance to cover this |
 | `422` | `ACCOUNTS_REFILL_TOO_LARGE` | That amount exceeds the single-refill limit |
 | `422` | `ACCOUNTS_CANNOT_ACT_ON_SELF` | An account cannot do that to itself |
+| `422` | `ACCOUNTS_FLOAT_CURRENCY_ONLY` | Agent balance moves are in INR only |
+| `422` | `ACCOUNTS_PLAYER_CREDIT_NOT_SUPPORTED` | Players cannot be given a credit limit |
+| `409` | `ACCOUNTS_IDEMPOTENCY_CONFLICT` | This request key was already used with a different amount |
 
 #### `AFFILIATE` — user/affiliate (10)
 
@@ -1585,7 +1864,7 @@ the service layer, so a code is reachable from any route in its module.
 | `409` | `AFFILIATE_NOTHING_TO_CLAIM` | You have no rewards to claim |
 | `404` | `AFFILIATE_NOT_YOUR_REWARD` | Reward not found |
 
-#### `AUTH` — user/auth (15)
+#### `AUTH` — user/auth (17)
 
 | Status | Code | Message |
 |---:|---|---|
@@ -1593,17 +1872,27 @@ the service layer, so a code is reachable from any route in its module.
 | `403` | `AUTH_ACCOUNT_LOCKED` | This account is locked. Contact support. |
 | `403` | `AUTH_ACCOUNT_INACTIVE` | This account is not active |
 | `429` | `AUTH_TOO_MANY_ATTEMPTS` | Too many failed sign-in attempts. Try again later. |
+| `422` | `AUTH_REFERRAL_CODE_INVALID` | That referral code does not match any player. Check it, or leave it empty. |
 | `401` | `AUTH_SESSION_NOT_FOUND` | Session has expired. Please sign in again. |
 | `401` | `AUTH_SESSION_REVOKED` | This session was signed out |
 | `401` | `AUTH_REFRESH_TOKEN_REUSED` | This session has been ended for security reasons. Please sign in again. |
 | `401` | `AUTH_TWO_FACTOR_REQUIRED` | A two-factor code is required |
 | `401` | `AUTH_TWO_FACTOR_INVALID` | The two-factor code is incorrect |
-| `401` | `AUTH_CURRENT_PASSWORD_INCORRECT` | Your current password is incorrect |
+| `403` | `AUTH_CURRENT_PASSWORD_INCORRECT` | Your current password is incorrect |
 | `422` | `AUTH_PASSWORD_REUSED` | The new password must be different from the current one |
 | `501` | `AUTH_PROVIDER_NOT_AVAILABLE` | That sign-in method is not available |
 | `400` | `AUTH_RESET_TOKEN_INVALID` | That reset link is not valid or has expired |
 | `409` | `AUTH_ALREADY_REGISTERED` | That username or email is already registered |
+| `404` | `AUTH_DEVICE_NOT_FOUND` | That device is not signed in |
 | `500` | `AUTH_REGISTRATION_FAILED` | That account could not be created |
+
+#### `BANK_ACCOUNTS` — user/bank-accounts (3)
+
+| Status | Code | Message |
+|---:|---|---|
+| `404` | `BANK_ACCOUNTS_NOT_FOUND` | No such saved account |
+| `409` | `BANK_ACCOUNTS_ALREADY_SAVED` | That account is already saved |
+| `422` | `BANK_ACCOUNTS_TOO_MANY` | You have reached the maximum number of saved accounts |
 
 #### `BANK_DETAILS` — user/bank-details (3)
 
@@ -1633,18 +1922,12 @@ the service layer, so a code is reachable from any route in its module.
 | `404` | `BET_ADMIN_USER_NOT_FOUND` | Player not found |
 | `404` | `BET_ADMIN_NOT_IN_YOUR_TREE` | Player not found |
 
-#### `BETS` — sports/bets (8)
+#### `BETHISTORY` — casino/bet-history (2)
 
 | Status | Code | Message |
 |---:|---|---|
-| `403` | `BETS_BETTING_LOCKED` | Sports betting is not available on this account |
-| `404` | `BETS_MARKET_NOT_FOUND` | That market is not open for betting |
-| `422` | `BETS_SELECTION_NOT_IN_MARKET` | That selection is not part of this market |
-| `409` | `BETS_ODDS_REJECTED` | The price has changed — please review and place the bet again |
-| `422` | `BETS_STAKE_OUT_OF_RANGE` | That stake is outside the limits for this market |
-| `422` | `BETS_PAYOUT_TOO_LARGE` | That bet would exceed the maximum payout allowed on a single bet |
-| `402` | `BETS_INSUFFICIENT_FUNDS` | There is not enough in your balance to cover this bet |
-| `404` | `BETS_BET_NOT_FOUND` | Bet not found |
+| `404` | `BETHISTORY_BET_NOT_FOUND` | No such bet |
+| `404` | `BETHISTORY_PLAYER_NOT_IN_YOUR_TREE` | Player not found |
 
 #### `BLOGS` — admin/blogs (9)
 
@@ -1676,6 +1959,12 @@ the service layer, so a code is reachable from any route in its module.
 | `404` | `BONUS_NO_GAME_COUNTERS` | This account has no bonus counter record yet |
 | `404` | `BONUS_EVENT_NOT_FOUND` | No such bonus log entry |
 
+#### `BONUS` — user/player-bonuses (1)
+
+| Status | Code | Message |
+|---:|---|---|
+| `409` | `BONUS_FORFEIT_REQUIRED` | You have an active bonus. Withdrawing now forfeits it — confirm to continue. |
+
 #### `CATALOGUE` — casino/catalogue (5)
 
 | Status | Code | Message |
@@ -1685,15 +1974,6 @@ the service layer, so a code is reachable from any route in its module.
 | `502` | `CATALOGUE_UPSTREAM_REFUSED` | The game provider refused that request |
 | `404` | `CATALOGUE_GAME_NOT_FOUND` | No such game |
 | `403` | `CATALOGUE_PLAYER_LOCKED` | That account cannot play casino games |
-
-#### `CATALOGUE` — sports/catalogue (4)
-
-| Status | Code | Message |
-|---:|---|---|
-| `404` | `CATALOGUE_SPORT_NOT_FOUND` | No such sport configuration |
-| `409` | `CATALOGUE_SPORT_EXISTS` | That sport is already configured |
-| `404` | `CATALOGUE_FANCY_CONTROL_NOT_FOUND` | No such fancy market control |
-| `422` | `CATALOGUE_NOTHING_TO_UPDATE` | Give at least one field to change |
 
 #### `CLUB` — user/club (15)
 
@@ -1729,7 +2009,7 @@ the service layer, so a code is reachable from any route in its module.
 | `422` | `CLUBCAST_IMAGE_TYPE_NOT_ALLOWED` | Banners must be a JPEG, PNG or WebP image |
 | `409` | `CLUBCAST_TOO_MANY_BANNERS` | This club already has the maximum number of banners |
 
-#### `CRYPTO` — user/crypto (5)
+#### `CRYPTO` — user/crypto (6)
 
 | Status | Code | Message |
 |---:|---|---|
@@ -1737,9 +2017,10 @@ the service layer, so a code is reachable from any route in its module.
 | `422` | `CRYPTO_UNSUPPORTED_COIN` | That coin is not one this platform holds |
 | `502` | `CRYPTO_PROVIDER_ERROR` | The payment provider rejected the request |
 | `503` | `CRYPTO_NOT_CONFIGURED` | The crypto payment provider is not configured |
+| `503` | `CRYPTO_PROVIDER_DISABLED` | The crypto payment provider is not configured |
 | `404` | `CRYPTO_PLAYER_NOT_FOUND` | Player not found |
 
-#### `CRYPTO_WITHDRAW` — user/crypto-withdraw (10)
+#### `CRYPTO_WITHDRAW` — user/crypto-withdraw (14)
 
 | Status | Code | Message |
 |---:|---|---|
@@ -1748,11 +2029,31 @@ the service layer, so a code is reachable from any route in its module.
 | `409` | `CRYPTO_WITHDRAW_TERMINAL` | This withdrawal has already been settled and cannot be changed |
 | `422` | `CRYPTO_WITHDRAW_UNSUPPORTED_COIN` | That currency cannot be withdrawn |
 | `422` | `CRYPTO_WITHDRAW_INVALID_AMOUNT` | That amount is not valid |
+| `422` | `CRYPTO_WITHDRAW_NETWORK_UNAVAILABLE` | That network is not available for this coin |
 | `422` | `CRYPTO_WITHDRAW_INVALID_ADDRESS` | Enter a wallet address |
 | `404` | `CRYPTO_WITHDRAW_PLAYER_NOT_FOUND` | Player not found |
 | `401` | `CRYPTO_WITHDRAW_PASSWORD_INCORRECT` | Your password is wrong |
 | `403` | `CRYPTO_WITHDRAW_ACCOUNT_LOCKED` | That account cannot withdraw |
+| `403` | `CRYPTO_WITHDRAW_WITHDRAW_COOLDOWN` | Withdrawals are paused for 24 hours after a password change |
+| `422` | `CRYPTO_WITHDRAW_BELOW_MINIMUM` | The amount is below the minimum withdrawal |
+| `403` | `CRYPTO_WITHDRAW_KYC_REQUIRED` | Verify your identity before withdrawing |
 | `422` | `CRYPTO_WITHDRAW_INSUFFICIENT_BALANCE` | Your credit is not enough |
+
+#### `CURRENCIES` — admin/currencies (11)
+
+| Status | Code | Message |
+|---:|---|---|
+| `404` | `CURRENCIES_NOT_FOUND` | No coin with that code |
+| `404` | `CURRENCIES_NO_IMAGE` | That coin has no image |
+| `409` | `CURRENCIES_RETIRED` | A retired coin cannot be switched on |
+| `400` | `CURRENCIES_UNKNOWN_NETWORK` | That network is not one of this coin’s networks |
+| `403` | `CURRENCIES_HOUSE_ONLY` | Coins are managed by the house, not agent accounts |
+| `400` | `CURRENCIES_NO_FILE` | No image was uploaded |
+| `415` | `CURRENCIES_NOT_AN_IMAGE` | That file is not a PNG, SVG or WebP image |
+| `415` | `CURRENCIES_FORMAT_REFUSED` | That image format is not accepted for a coin (PNG, SVG or WebP) |
+| `415` | `CURRENCIES_UNSAFE_SVG` | That SVG carries script, external references or other active content |
+| `413` | `CURRENCIES_TOO_LARGE` |  |
+| `400` | `CURRENCIES_TOO_SMALL` | That upload is too small to be an image — it may have been truncated |
 
 #### `DASHBOARD` — admin/dashboard (2)
 
@@ -1784,24 +2085,29 @@ the service layer, so a code is reachable from any route in its module.
 | `403` | `EMAIL_RECIPIENT_NOT_ALLOWED` | Messages may only be sent to registered players |
 | `422` | `EMAIL_TOO_MANY_RECIPIENTS` | Too many recipients for one send |
 
-#### `EXCHANGE_RATE` — user/exchange-rate (4)
+#### `EXCHANGE_RATE` — user/exchange-rate (5)
 
 | Status | Code | Message |
 |---:|---|---|
 | `404` | `EXCHANGE_RATE_RATE_NOT_FOUND` | No exchange rate is configured for this currency |
 | `409` | `EXCHANGE_RATE_RATE_ALREADY_EXISTS` | An exchange rate already exists for this currency |
 | `422` | `EXCHANGE_RATE_INVALID_RATE` | The rate must be greater than zero |
+| `409` | `EXCHANGE_RATE_OWNER_MANAGED` | This rate is set by the platform owner and cannot be changed here |
 | `409` | `EXCHANGE_RATE_RATE_IN_USE` | This currency still holds player balances and cannot be removed |
 
-#### `FEED` — sports/feed (5)
+#### `FEATURES` — admin/features (9)
 
 | Status | Code | Message |
 |---:|---|---|
-| `404` | `FEED_GAME_NOT_FOUND` | No data for that sport right now |
-| `422` | `FEED_INVALID_DATE_RANGE` | That is not a date range this endpoint understands |
-| `501` | `FEED_PROVIDER_NOT_CONFIGURED` | This feature needs a sports data provider that is not configured |
-| `502` | `FEED_UPSTREAM_ERROR` | The sports data provider rejected the request |
-| `504` | `FEED_UNREACHABLE` | The sports data provider did not respond |
+| `404` | `FEATURES_UNKNOWN_FEATURE` | There is no such feature in the catalogue |
+| `422` | `FEATURES_UNKNOWN_VARIANT` | That feature has no such variant |
+| `422` | `FEATURES_UNKNOWN_TEMPLATE` | There is no such site template |
+| `422` | `FEATURES_UNEXPECTED_FIELD` | That field does not belong to this variant |
+| `422` | `FEATURES_MISSING_FIELD` | This variant needs a value that was not given |
+| `422` | `FEATURES_INVALID_FIELD` | A value does not have the shape this variant expects |
+| `409` | `FEATURES_NOT_ENABLED` | The feature is not switched on for this site |
+| `422` | `FEATURES_NOT_TESTABLE` | This feature has no connection test |
+| `502` | `FEATURES_PROVIDER_FAILED` | The provider refused the request |
 
 #### `FIAT_DEPOSIT` — user/fiat-deposit (8)
 
@@ -1816,7 +2122,7 @@ the service layer, so a code is reachable from any route in its module.
 | `409` | `FIAT_DEPOSIT_DUPLICATE_TRANSACTION` | A deposit with this transaction reference already exists |
 | `422` | `FIAT_DEPOSIT_REJECTION_REASON_REQUIRED` | A reason is required when rejecting a deposit |
 
-#### `FIAT_WITHDRAW` — user/fiat-withdraw (7)
+#### `FIAT_WITHDRAW` — user/fiat-withdraw (8)
 
 | Status | Code | Message |
 |---:|---|---|
@@ -1827,8 +2133,9 @@ the service layer, so a code is reachable from any route in its module.
 | `422` | `FIAT_WITHDRAW_UPI_OR_IFSC_REQUIRED` | For INR withdrawals, either an IFSC code or a UPI id is required |
 | `422` | `FIAT_WITHDRAW_BELOW_MINIMUM` | The amount is below the minimum withdrawal |
 | `403` | `FIAT_WITHDRAW_KYC_REQUIRED` | Identity verification must be completed before withdrawing |
+| `403` | `FIAT_WITHDRAW_WITHDRAW_COOLDOWN` | Withdrawals are paused for 24 hours after a password change |
 
-#### `GAMES` — casino/games (8)
+#### `GAMES` — casino/games (16)
 
 | Status | Code | Message |
 |---:|---|---|
@@ -1838,7 +2145,15 @@ the service layer, so a code is reachable from any route in its module.
 | `422` | `GAMES_COLLECTION_TOO_LARGE` | A collection may not hold more than 5000 games |
 | `422` | `GAMES_UNKNOWN_GAMES` | Some of the supplied game uuids do not exist |
 | `422` | `GAMES_IMAGE_URL_INVALID` | Game image must be an absolute http(s) URL |
+| `422` | `GAMES_TOO_MANY_FAVOURITES` | You have reached the maximum of 500 favourite games |
 | `422` | `GAMES_VENDOR_REQUIRED` | A vendor is required |
+| `403` | `GAMES_PROVIDER_DISABLED` | This game provider is not available right now |
+| `404` | `GAMES_LOGO_NOT_FOUND` | No logo for this provider |
+| `400` | `GAMES_NO_FILE` | No image was uploaded |
+| `415` | `GAMES_NOT_AN_IMAGE` | That file is not a PNG, JPEG or WebP image |
+| `415` | `GAMES_FORMAT_REFUSED` | That image format is not accepted here |
+| `413` | `GAMES_TOO_LARGE` | A provider logo may not exceed 1 MB |
+| `400` | `GAMES_TOO_SMALL` | That upload is too small to be an image — it may have been truncated |
 | `422` | `GAMES_TYPE_REQUIRED` | A game type is required |
 
 #### `GIFTCARD` — user/gift-cards (12)
@@ -1896,6 +2211,15 @@ the service layer, so a code is reachable from any route in its module.
 | `409` | `INHOUSE_ROUND_ALREADY_OPEN` | You already have a round of that game open |
 | `404` | `INHOUSE_NO_OPEN_ROUND` | You have no round of that game open |
 
+#### `JSCURATION` — casino/js-games (4)
+
+| Status | Code | Message |
+|---:|---|---|
+| `404` | `JSCURATION_COLLECTION_NOT_FOUND` | No such collection |
+| `404` | `JSCURATION_SCOPE_NOT_FOUND` | No such curation scope |
+| `422` | `JSCURATION_UNKNOWN_GAMES` | Some of those games are not in the catalogue |
+| `422` | `JSCURATION_LIST_TOO_LARGE` | That list is longer than a curated list may be |
+
 #### `JSGAMES` — casino/js-games (8)
 
 | Status | Code | Message |
@@ -1944,6 +2268,12 @@ the service layer, so a code is reachable from any route in its module.
 | `400` | `MARKETING_RANGE_TOO_LARGE` |  |
 | `503` | `MARKETING_NO_EXCHANGE_RATES` | Exchange rates are unavailable, so deposit volume cannot be computed |
 
+#### `MEDALS` — user/medals (1)
+
+| Status | Code | Message |
+|---:|---|---|
+| `404` | `MEDALS_USER_NOT_FOUND` | Account not found |
+
 #### `NOTIFICATIONS` — admin/notifications (4)
 
 | Status | Code | Message |
@@ -1952,6 +2282,12 @@ the service layer, so a code is reachable from any route in its module.
 | `422` | `NOTIFICATIONS_NO_DEVICES` | That player has no registered device |
 | `501` | `NOTIFICATIONS_PUSH_NOT_CONFIGURED` | Push delivery is not configured |
 | `422` | `NOTIFICATIONS_BROADCAST_TOO_LARGE` | That broadcast would reach more devices than a single send allows |
+
+#### `OWNER` — admin/features (1)
+
+| Status | Code | Message |
+|---:|---|---|
+| `403` | `OWNER_MANAGED` | This setting is managed by the platform |
 
 #### `P2P` — user/p2p (25)
 
@@ -2001,14 +2337,13 @@ the service layer, so a code is reachable from any route in its module.
 | `403` | `PAYORDER_KYC_REQUIRED` | Identity verification is required before withdrawing |
 | `503` | `PAYORDER_WITHDRAWALS_DISABLED` | Automatic withdrawals are currently disabled |
 
-#### `PLAYERS` — admin/players (7)
+#### `PLAYERS` — admin/players (6)
 
 | Status | Code | Message |
 |---:|---|---|
 | `404` | `PLAYERS_NOT_FOUND` | Player not found |
 | `409` | `PLAYERS_ALREADY_EXISTS` | That username or email is already in use |
 | `403` | `PLAYERS_NOT_PERMITTED` | You may not do that |
-| `422` | `PLAYERS_INSUFFICIENT_FUNDS` | Not enough balance to fund that account |
 | `409` | `PLAYERS_ALREADY_CLOSED` | That account is already closed |
 | `400` | `PLAYERS_NOTHING_TO_UPDATE` | No changes were supplied |
 | `403` | `PLAYERS_CANNOT_REPARENT_OUTSIDE_TREE` | A player may only be moved to an account inside your own tree |
@@ -2035,6 +2370,20 @@ the service layer, so a code is reachable from any route in its module.
 | `400` | `PROFILE_EMAIL_UNCHANGED` | That is already the email address on this account |
 | `404` | `PROFILE_NOT_FOUND` | Not found |
 
+#### `PROMOTIONS` — admin/promotions (9)
+
+| Status | Code | Message |
+|---:|---|---|
+| `404` | `PROMOTIONS_NOT_FOUND` | Promotion not found |
+| `400` | `PROMOTIONS_NO_FILE` | No image was uploaded |
+| `415` | `PROMOTIONS_NOT_AN_IMAGE` | That file is not a PNG, JPEG or WebP image |
+| `415` | `PROMOTIONS_FORMAT_REFUSED` | That image format is not accepted here |
+| `413` | `PROMOTIONS_TOO_LARGE` |  |
+| `400` | `PROMOTIONS_TOO_SMALL` | That upload is too small to be an image — it may have been truncated |
+| `409` | `PROMOTIONS_SLUG_TAKEN` | A promotion with that address already exists in this segment |
+| `400` | `PROMOTIONS_NOTHING_TO_UPDATE` | The request changed nothing |
+| `404` | `PROMOTIONS_NO_IMAGE` | That promotion has no image |
+
 #### `PSP` — user/psp (10)
 
 | Status | Code | Message |
@@ -2050,12 +2399,47 @@ the service layer, so a code is reachable from any route in its module.
 | `502` | `PSP_PROVIDER_ERROR` | The payment provider rejected the request |
 | `504` | `PSP_PROVIDER_UNREACHABLE` | The payment provider did not respond |
 
-#### `RAKEBACK` — user/rakeback (3)
+#### `PUSH` — admin/push (17)
+
+| Status | Code | Message |
+|---:|---|---|
+| `404` | `PUSH_NOT_FOUND` | Campaign not found |
+| `404` | `PUSH_IMAGE_NOT_FOUND` | Image not found |
+| `404` | `PUSH_TEMPLATE_NOT_FOUND` | No such push template |
+| `404` | `PUSH_NOT_IN_YOUR_TREE` | Player not found |
+| `409` | `PUSH_BAD_STATE` | The campaign cannot do that in its current status |
+| `403` | `PUSH_AUDIENCE_NOT_ALLOWED` | Only a top-level operator may target OneSignal segments, tag filters or every subscriber |
+| `422` | `PUSH_AUDIENCE_EMPTY` | Nobody in that audience |
+| `422` | `PUSH_AUDIENCE_TOO_LARGE` | That audience is larger than one campaign may reach |
+| `501` | `PUSH_PUSH_NOT_CONFIGURED` | OneSignal is not ready: switch on the OneSignal variant with an App ID and App API key |
+| `422` | `PUSH_BAD_URL` | That URL cannot be used in a push |
+| `422` | `PUSH_SEND_AT_PAST` | The schedule time must be in the future |
+| `502` | `PUSH_PROVIDER_FAILED` | OneSignal refused the send |
+| `422` | `PUSH_NO_FILE` | No image was uploaded (field "image") |
+| `413` | `PUSH_TOO_LARGE` | A push image may be at most 1 MB |
+| `422` | `PUSH_TOO_SMALL` | That file is too small to be an image |
+| `415` | `PUSH_FORMAT_REFUSED` | That image format is not accepted |
+| `415` | `PUSH_NOT_AN_IMAGE` | Only PNG, JPEG, WebP or GIF images are accepted |
+
+#### `RACE` — user/race (7)
+
+| Status | Code | Message |
+|---:|---|---|
+| `404` | `RACE_NOT_CONFIGURED` | That race has not been set up |
+| `404` | `RACE_NOT_RUNNING` | That race is not currently running |
+| `503` | `RACE_NO_ACTIVE_RACE` | No race window is open right now — please try again shortly |
+| `404` | `RACE_REWARD_NOT_FOUND` | That race reward does not exist |
+| `409` | `RACE_ALREADY_CLAIMED` | That race reward has already been claimed |
+| `422` | `RACE_INVALID_CONFIG` | That race configuration is not valid |
+| `409` | `RACE_NOT_OPEN` | That race is no longer open |
+
+#### `RAKEBACK` — user/rakeback (4)
 
 | Status | Code | Message |
 |---:|---|---|
 | `409` | `RAKEBACK_NOTHING_TO_CLAIM` |  |
 | `404` | `RAKEBACK_USER_NOT_FOUND` | Player not found |
+| `422` | `RAKEBACK_ACCRUAL_NOT_POSITIVE` | A rakeback accrual must be a positive amount |
 | `409` | `RAKEBACK_CLAIM_IN_PROGRESS` | A rakeback claim is already being processed |
 
 #### `REPORTS` — admin/reports (6)
@@ -2069,40 +2453,17 @@ the service layer, so a code is reachable from any route in its module.
 | `400` | `REPORTS_UNSUPPORTED_CURRENCY` | No balance sheet is kept in that currency |
 | `413` | `REPORTS_EXPORT_TOO_LARGE` | That export covers more rows than one file may carry — narrow the range or filter |
 
-#### `RESULTS` — sports/results (2)
-
-| Status | Code | Message |
-|---:|---|---|
-| `503` | `RESULTS_VISIBILITY_UNAVAILABLE` | Could not determine which accounts you may report on |
-| `404` | `RESULTS_NOT_IN_YOUR_TREE` | Player not found |
-
-#### `SETTLEMENT` — sports/settlement (14)
-
-| Status | Code | Message |
-|---:|---|---|
-| `404` | `SETTLEMENT_MARKET_NOT_FOUND` | No market found for the given match and market type |
-| `404` | `SETTLEMENT_BET_NOT_FOUND` | Open bet not found — it may already have been settled or voided |
-| `404` | `SETTLEMENT_LEDGER_ENTRY_NOT_FOUND` | Settlement entry not found |
-| `404` | `SETTLEMENT_NO_SETTLED_ENTRIES` | No settled entries found for this market |
-| `409` | `SETTLEMENT_NO_OPEN_BETS` | This market has no open bets to settle |
-| `409` | `SETTLEMENT_MARKET_ALREADY_SETTLED` | This market has already been settled |
-| `409` | `SETTLEMENT_BET_ALREADY_CLOSED` | This bet is no longer open |
-| `409` | `SETTLEMENT_ALREADY_VOIDED` | This market has already been voided after settlement |
-| `409` | `SETTLEMENT_SETTLEMENT_IN_PROGRESS` | Settlement is already running for this market — retry in a moment |
-| `409` | `SETTLEMENT_VOID_WINDOW_EXPIRED` | The void window for this market has expired |
-| `422` | `SETTLEMENT_SELECTION_REQUIRED` | This market type settles per selection, so a selection name is required |
-| `422` | `SETTLEMENT_RESULT_REQUIRED` | A winner (market result) or a run value (fancy result) is required |
-| `422` | `SETTLEMENT_PAYOUT_EXCEEDS_LIMIT` | The calculated payout exceeds the configured maximum for a single market |
-| `502` | `SETTLEMENT_REFUND_FAILED` | The stake refund could not be completed — no balances were changed |
-
-#### `SITE_CONFIG` — admin/site-config (4)
+#### `SITE_CONFIG` — admin/site-config (7)
 
 | Status | Code | Message |
 |---:|---|---|
 | `409` | `SITE_CONFIG_NOT_CONFIGURED` | There is no site configuration row to update |
+| `409` | `SITE_CONFIG_REWARD_CURRENCY_FIXED` | Rewards are paid in the site's reward currency, which the platform owner sets |
 | `422` | `SITE_CONFIG_NO_ALERT_INBOX` | Set a notification email address before sending a test |
 | `400` | `SITE_CONFIG_NOTHING_TO_UPDATE` | Give at least one setting this endpoint can change |
 | `403` | `SITE_CONFIG_PLAYER_NOT_IN_YOUR_TREE` | That player is not in your tree |
+| `422` | `SITE_CONFIG_UNKNOWN_SETTING` | That is not a setting this site keeps |
+| `422` | `SITE_CONFIG_INVALID_SETTING` | That value is not allowed for this setting |
 
 #### `SOCIAL` — user/social (9)
 
@@ -2118,7 +2479,7 @@ the service layer, so a code is reachable from any route in its module.
 | `422` | `SOCIAL_CANNOT_MESSAGE_SELF` | You cannot message yourself |
 | `422` | `SOCIAL_TOO_MANY_FRIENDS` | You have reached the maximum number of friends |
 
-#### `SPIN` — user/spin-wheel (6)
+#### `SPIN` — user/spin-wheel (7)
 
 | Status | Code | Message |
 |---:|---|---|
@@ -2127,6 +2488,7 @@ the service layer, so a code is reachable from any route in its module.
 | `503` | `SPIN_INVALID_WEIGHTS` | The spin wheel is not correctly configured |
 | `404` | `SPIN_SLICE_NOT_FOUND` | That wheel segment does not exist |
 | `429` | `SPIN_COOLDOWN_ACTIVE` | You cannot spin again yet |
+| `403` | `SPIN_NOT_ELIGIBLE` | No spin is available right now |
 | `403` | `SPIN_DEPOSIT_REQUIRED` | A qualifying deposit is required before spinning again |
 
 #### `SPORTSBOOK` — casino/sportsbook (9)
@@ -2143,18 +2505,21 @@ the service layer, so a code is reachable from any route in its module.
 | `403` | `SPORTSBOOK_SPORTSBOOK_LOCKED` | Sportsbook play is locked on this account |
 | `404` | `SPORTSBOOK_USER_NOT_FOUND` | Player not found |
 
-#### `STAFF` — admin/staff (9)
+#### `STAFF` — admin/staff (12)
 
 | Status | Code | Message |
 |---:|---|---|
 | `404` | `STAFF_NOT_FOUND` | Staff account not found |
 | `404` | `STAFF_NOT_IN_YOUR_TREE` | Staff account not found |
 | `404` | `STAFF_PLAYER_NOT_IN_YOUR_TREE` | Player not found |
-| `402` | `STAFF_INSUFFICIENT_FUNDS` | There is not enough in that balance to cover this transfer |
 | `422` | `STAFF_CANNOT_TRANSFER_TO_SELF` | An account cannot transfer to itself |
 | `409` | `STAFF_CANNOT_DELETE_WITH_DESCENDANTS` | This account still has accounts beneath it |
 | `409` | `STAFF_CANNOT_DELETE_WITH_BALANCE` | This account still holds a balance — move it first |
 | `403` | `STAFF_NOT_PERMITTED` | Your role does not permit that |
+| `403` | `STAFF_LEVEL_NOT_BELOW` | You can only manage accounts below your own level |
+| `403` | `STAFF_LEVEL_NOT_DIRECT_CHILD` | You can only create the level directly below your own |
+| `422` | `STAFF_UNKNOWN_ROLE` | No such role |
+| `403` | `STAFF_PASSWORD_CHANGE_REQUIRED` | Set a new password before doing anything else |
 | `400` | `STAFF_OLD_PASSWORD_WRONG` | The current password is not correct |
 
 #### `STAFF_AUTH` — admin/staff-auth (10)
@@ -2181,7 +2546,7 @@ the service layer, so a code is reachable from any route in its module.
 | `400` | `STATEMENTS_RANGE_REQUIRED` | An agent statement needs a date range |
 | `400` | `STATEMENTS_RANGE_TOO_LARGE` |  |
 
-#### `SWAP` — user/swap (5)
+#### `SWAP` — user/swap (6)
 
 | Status | Code | Message |
 |---:|---|---|
@@ -2189,7 +2554,31 @@ the service layer, so a code is reachable from any route in its module.
 | `402` | `SWAP_INSUFFICIENT_BALANCE` | Insufficient balance for this swap |
 | `409` | `SWAP_RATE_UNAVAILABLE` | No exchange rate is available for one of these currencies |
 | `422` | `SWAP_AMOUNT_TOO_SMALL` | The amount is too small to convert into the target currency |
+| `422` | `SWAP_CURRENCY_DISABLED` | That coin is switched off and cannot be swapped into |
 | `403` | `SWAP_SWAP_DISABLED` | Swapping is currently disabled |
+
+#### `TEMPLATE` — admin/features (1)
+
+| Status | Code | Message |
+|---:|---|---|
+| `403` | `TEMPLATE_OWNER_ONLY` | The site template is set by the platform |
+
+#### `TIP` — user/tip (12)
+
+| Status | Code | Message |
+|---:|---|---|
+| `404` | `TIP_USER_NOT_FOUND` | No player with that username |
+| `400` | `TIP_SELF` | You cannot tip yourself |
+| `400` | `TIP_DISABLED_BY_RECIPIENT` | This player does not accept tips |
+| `400` | `TIP_RECIPIENT_UNAVAILABLE` | This player cannot receive tips |
+| `403` | `TIP_SENDER_BLOCKED` | Your account cannot send tips |
+| `400` | `TIP_INSUFFICIENT_BALANCE` | Insufficient balance for this tip |
+| `400` | `TIP_MIN_AMOUNT` | The amount is below the minimum tip |
+| `429` | `TIP_RATE_LIMITED` | Too many tips — try again later |
+| `400` | `TIP_OVER_PER_TIP_LIMIT` | This tip is above the largest tip allowed |
+| `400` | `TIP_OVER_DAILY_LIMIT` | This tip would go over your daily tip limit |
+| `403` | `TIP_WAGER_REQUIRED` | You need to wager more before you can send tips |
+| `400` | `TIP_NO_RATE` | Tips in this currency are not available right now |
 
 #### `TWOFA` — user/twofa (5)
 
@@ -2198,10 +2587,10 @@ the service layer, so a code is reachable from any route in its module.
 | `409` | `TWOFA_ALREADY_ENABLED` | Two-factor authentication is already enabled |
 | `409` | `TWOFA_NOT_INITIATED` | Start two-factor setup before verifying a code |
 | `409` | `TWOFA_NOT_ENABLED` | Two-factor authentication is not enabled on this account |
-| `401` | `TWOFA_INVALID_CODE` | That code is not correct |
-| `401` | `TWOFA_PASSWORD_REQUIRED` | Your account password is required to disable two-factor authentication |
+| `403` | `TWOFA_INVALID_CODE` | That code is not correct |
+| `403` | `TWOFA_PASSWORD_REQUIRED` | Your account password is required to disable two-factor authentication |
 
-#### `VAULT` — user/vault (9)
+#### `VAULT` — user/vault (11)
 
 | Status | Code | Message |
 |---:|---|---|
@@ -2214,6 +2603,8 @@ the service layer, so a code is reachable from any route in its module.
 | `402` | `VAULT_INSUFFICIENT_BALANCE` | Insufficient balance to move into the vault |
 | `422` | `VAULT_BELOW_MINIMUM` | The amount is below the vault minimum |
 | `409` | `VAULT_LOCK_PERIOD_IN_USE` | This lock period has open deposits and cannot be removed |
+| `409` | `VAULT_EARLY_WITHDRAWAL_NOT_ALLOWED` | Early withdrawal is not available for this deposit |
+| `409` | `VAULT_EARLY_WITHDRAWAL_FORBIDDEN` | This deposit is already matured — withdraw without the early-exit penalty |
 
 #### `WAGER` — user/wager (3)
 
@@ -2223,7 +2614,7 @@ the service layer, so a code is reachable from any route in its module.
 | `409` | `WAGER_MULTIPLIER_LOCKED` | This account has a locked wagering multiplier and was not changed |
 | `422` | `WAGER_INVALID_MULTIPLIER` | The multiplier must be between 0 and 100 |
 
-#### `WALLET` — user/wallet (19)
+#### `WALLET` — user/wallet (21)
 
 | Status | Code | Message |
 |---:|---|---|
@@ -2231,7 +2622,9 @@ the service layer, so a code is reachable from any route in its module.
 | `422` | `WALLET_NEGATIVE_AMOUNT` | Amount must be greater than zero |
 | `422` | `WALLET_AMOUNT_TOO_LARGE` | Amount exceeds the maximum permitted for a single transaction |
 | `404` | `WALLET_WALLET_NOT_FOUND` | No wallet exists for this player |
+| `404` | `WALLET_PLAYER_NOT_IN_YOUR_TREE` | Player not found |
 | `422` | `WALLET_UNSUPPORTED_CURRENCY` | This currency is not supported |
+| `422` | `WALLET_CURRENCY_RETIRED` | This currency has been retired and can no longer be credited |
 | `422` | `WALLET_IDEMPOTENCY_KEY_REQUIRED` | An Idempotency-Key is required for this operation |
 | `409` | `WALLET_IDEMPOTENCY_CONFLICT` | This idempotency key was already used with different parameters |
 | `404` | `WALLET_LEDGER_ENTRY_NOT_FOUND` | The referenced transaction does not exist |
@@ -2246,6 +2639,15 @@ the service layer, so a code is reachable from any route in its module.
 | `422` | `WALLET_RAIN_PLAYER_COUNT` | That is more players than one rain may reach |
 | `422` | `WALLET_RAIN_NOT_ENOUGH_PLAYERS` | Not enough recent chatters to rain on |
 | `422` | `WALLET_UNKNOWN_ROOM` | No such chat room |
+
+#### `WHITELIST` — user/withdrawal-whitelist (4)
+
+| Status | Code | Message |
+|---:|---|---|
+| `404` | `WHITELIST_ADDRESS_NOT_FOUND` | No such address |
+| `409` | `WHITELIST_ALREADY_WHITELISTED` | That address is already on your whitelist |
+| `422` | `WHITELIST_EMPTY_WHITELIST` | Add an address before turning whitelist-only withdrawals on |
+| `422` | `WHITELIST_TOO_MANY_ADDRESSES` | You have reached the maximum number of saved addresses |
 
 #### `XCASINO` — casino/x-casino (15)
 

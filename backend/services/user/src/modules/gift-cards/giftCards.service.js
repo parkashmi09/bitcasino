@@ -1,12 +1,15 @@
 'use strict';
 
+const { createRewardMoney } = require('../../lib/rewardMoney');
 const { Op, fn, col } = require('sequelize');
 const { money } = require('@ibitplay/common');
+const { afterBonus } = require('../notifications/notifyPlayer');
 
 const errors = require('./giftCards.errors');
 const { STATUS, DEPOSIT_SOURCES } = require('./giftCards.constants');
 const { WalletService } = require('../wallet/wallet.service');
 const { REASON } = require('../wallet/wallet.constants');
+const { ownerWhere, withChannel } = require('../directory/playerScope');
 
 /**
  * Gift cards — a promotional credit a player unlocks by depositing, wagering,
@@ -49,6 +52,23 @@ class GiftCardsService {
     this.clients = clients;
     this.config = config;
     this.wallet = new WalletService(deps);
+    /**
+     * A gift card is an operator-entered, fixed-value voucher in the site's
+     * REWARD currency (owner-chosen; USDT by default): `amount` is paid as
+     * entered, in that currency. Its deposit condition is entered in the same
+     * unit and converted to USD here, because deposits are measured in USD.
+     */
+    this.rewardMoney = deps.rewardMoney ?? createRewardMoney(deps);
+  }
+
+  /** Resolve the reward currency once per call, for the synchronous shapers. */
+  async #primeCurrency() {
+    this.currencyLabel = await this.rewardMoney.currency();
+  }
+
+  /** The card's deposit condition (reward currency) in USD; null with no rate. */
+  async #requiredUsd(card) {
+    return this.rewardMoney.toUsd(String(card.deposit_amount ?? '0'), await this.rewardMoney.currency());
   }
 
   // ══════════════════════════════════════════════════════════════════════
@@ -77,6 +97,7 @@ class GiftCardsService {
       amount: input.amount,
     });
 
+    await this.#primeCurrency();
     return this.#shape(card.get({ plain: true }));
   }
 
@@ -92,6 +113,7 @@ class GiftCardsService {
       offset,
       raw: true,
     });
+    await this.#primeCurrency();
     return { total: count, rows: rows.map((r) => this.#shape(r)) };
   }
 
@@ -118,14 +140,24 @@ class GiftCardsService {
   async findByKey({ uniqueKey }) {
     const card = await this.models.GiftCards.findOne({ where: { unique_key: uniqueKey }, raw: true });
     if (!card) throw errors.NOT_FOUND({ uniqueKey });
+    await this.#primeCurrency();
     return this.#shape(card);
   }
 
-  /** @legacy GET /giftCard/admin/analytics */
-  async analytics() {
+  /**
+   * @legacy GET /giftCard/admin/analytics
+   *
+   * The cards themselves are site configuration and every reader sees them.
+   * The activations and claims are PLAYERS' rows, so those counts cover only
+   * the caller's tree — they were site-wide to any staff with `reports:read`.
+   */
+  async analytics({ staff } = {}) {
+    const mine = await ownerWhere(this, staff?.id, 'user_id');
+
     const [cards, byStatus, byCard] = await Promise.all([
       this.models.GiftCards.count(),
       this.models.UserGiftCards.findAll({
+        where: mine,
         attributes: ['status', [fn('COUNT', col('id')), 'count']],
         group: ['status'],
         raw: true,
@@ -138,6 +170,7 @@ class GiftCardsService {
        * say the promotion is working without saying which promotion.
        */
       this.models.UserGiftCards.findAll({
+        where: mine,
         attributes: ['gift_card_id', 'status', [fn('COUNT', col('id')), 'count']],
         group: ['gift_card_id', 'status'],
         raw: true,
@@ -183,10 +216,10 @@ class GiftCardsService {
     };
   }
 
-  /** @legacy GET /giftCard/admin/records */
-  async records({ status, userId, limit = 50, offset = 0 }) {
+  /** @legacy GET /giftCard/admin/records — the caller's tree only. */
+  async records({ staff, status, userId, channel, limit = 50, offset = 0 }) {
     const { rows, count } = await this.models.UserGiftCards.findAndCountAll({
-      where: { ...(status ? { status } : {}), ...(userId ? { user_id: userId } : {}) },
+      where: withChannel({ ...(status ? { status } : {}), ...(await ownerWhere(this, staff?.id, 'user_id', userId)) }, 'user_id', channel),
       order: [['id', 'DESC']],
       limit,
       offset,
@@ -286,7 +319,7 @@ class GiftCardsService {
     if (!card.deposit_status) return { status: true, message: 'No deposit required' };
 
     try {
-      const result = await this.#checkDeposit({ userId, from, to, requiredUsd: card.deposit_amount, ctx });
+      const result = await this.#checkDeposit({ userId, from, to, requiredUsd: (await this.#requiredUsd(card)) ?? card.deposit_amount, ctx });
       return result.met
         ? { status: true, message: 'Deposit requirement met', amountUSD: this.#num(result.usd) }
         : { status: false, message: 'No single deposit transaction meets the required amount' };
@@ -362,6 +395,26 @@ class GiftCardsService {
   }
 
   /**
+   * Activate by code: the player types the card's key instead of picking it
+   * from the list. An unknown key and a targeted card meant for someone else
+   * answer the same NOT_FOUND, so the box can't be used to probe which keys
+   * exist.
+   */
+  async redeem({ userId, code }) {
+    const card = await this.models.GiftCards.findOne({ where: { unique_key: code }, raw: true });
+    if (!card) throw errors.NOT_FOUND({});
+    if (!card.all_user_status) {
+      const assigned = await this.models.UserGiftCards.findOne({
+        where: { user_id: userId, gift_card_id: card.id }, raw: true,
+      });
+      if (!assigned) throw errors.NOT_FOUND({});
+    }
+    const result = await this.activate({ userId, giftCardId: card.id });
+    await this.#primeCurrency();
+    return { ...result, card: this.#shape(card) };
+  }
+
+  /**
    * @legacy POST /giftCard/claim
    *
    * Check the conditions, then take the card in one atomic step and pay.
@@ -381,7 +434,7 @@ class GiftCardsService {
     const to = this.#conditionEnd(card, activation);
 
     if (card.deposit_status) {
-      const deposit = await this.#checkDeposit({ userId, from, to, requiredUsd: card.deposit_amount });
+      const deposit = await this.#checkDeposit({ userId, from, to, requiredUsd: (await this.#requiredUsd(card)) ?? card.deposit_amount });
       if (!deposit.met) throw errors.DEPOSIT_CONDITION_UNMET({ required: String(card.deposit_amount), deposit });
     }
 
@@ -392,6 +445,8 @@ class GiftCardsService {
     }
 
     const amount = money.toDecimalString(money.toMinor(card.amount ?? '0'));
+
+    const rewardCurrency = await this.rewardMoney.currency();
 
     return this.db.transaction(async (transaction) => {
       /**
@@ -412,9 +467,8 @@ class GiftCardsService {
       const movement = await this.wallet.credit(
         {
           userId,
-          // Gift cards are denominated in USD; the platform's USD balance is
-          // `usdt`, which is what legacy credited.
-          currency: 'USDT',
+          // Paid as entered, in the site's reward currency (see constructor).
+          currency: rewardCurrency,
           amount,
           reason: REASON.BONUS,
           // Derived from the activation row, so a retry cannot pay twice even
@@ -432,8 +486,8 @@ class GiftCardsService {
         'Gift card claimed'
       );
 
-      return { giftCardId, status: STATUS.CLAIMED, amount, currency: 'USDT', newBalance: movement.newBalance };
-    });
+      return { giftCardId, status: STATUS.CLAIMED, amount, currency: rewardCurrency, newBalance: movement.newBalance };
+    }).then(afterBonus(userId, (r) => ({ key: `giftcard:${activation.id}`, title: 'Gift card claimed', amount: r.amount, currency: r.currency })));
   }
 
   /** @legacy GET /giftCard/user/:userId/claimed */
@@ -694,6 +748,7 @@ class GiftCardsService {
   async #cardsById(ids) {
     if (!ids.length) return new Map();
     const cards = await this.models.GiftCards.findAll({ where: { id: [...new Set(ids)] }, raw: true });
+    await this.#primeCurrency();
     return new Map(cards.map((c) => [String(c.id), this.#shape(c)]));
   }
 
@@ -734,7 +789,8 @@ class GiftCardsService {
       uniqueKey: card.unique_key,
       description: card.description,
       amount: money.toDecimalString(money.toMinor(card.amount ?? '0')),
-      currency: 'USDT',
+      // The site's reward currency, resolved by `#primeCurrency` before shaping.
+      currency: this.currencyLabel ?? 'USDT',
       periodDays: card.period_days,
       endDate: card.end_date,
       depositRequired: Boolean(card.deposit_status),

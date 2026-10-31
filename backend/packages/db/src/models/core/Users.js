@@ -175,7 +175,7 @@ module.exports = (sequelize) => {
       field: "bonus_type",
     },
     wager_multiplier: {
-      type: DataTypes.INTEGER,
+      type: DataTypes.DECIMAL(6, 2), // migration 138 (was INTEGER: 2.5 was stored as 3)
       allowNull: true,
       defaultValue: "3",
       field: "wager_multiplier",
@@ -222,6 +222,18 @@ module.exports = (sequelize) => {
       defaultValue: false,
       field: "system_locked",
     },
+    // migration 161-demo-users: the Demo button's throwaway account, and when its session ends.
+    is_demo: {
+      type: DataTypes.BOOLEAN,
+      allowNull: false,
+      defaultValue: false,
+      field: "is_demo",
+    },
+    demo_expires_at: {
+      type: DataTypes.DATE,
+      allowNull: true,
+      field: "demo_expires_at",
+    },
     gt: {
       type: DataTypes.DECIMAL,
       allowNull: true,
@@ -240,7 +252,7 @@ module.exports = (sequelize) => {
       field: "last_ip",
     },
     last_login_at: {
-      type: 'TIMESTAMP',
+      type: DataTypes.DATE, // timestamptz (migration 083)
       allowNull: true,
       field: "last_login_at",
     },

@@ -1,5 +1,12 @@
 # Credential rotation
 
+> **Redacted on 2026-10-10.** The literal values that used to be quoted in this
+> file, in other docs and in code comments are replaced with `<redacted>`.
+> They **remain in git history** (and in `legacy/`, every clone and every
+> backup), so redaction protects nothing on its own: each one **MUST be rotated
+> at the issuing provider**. `npm run verify:secrets` still detects the old
+> values — `tools/check-secrets.js` now stores only their SHA-256 hashes.
+
 Every secret below is **committed in `legacy/`**. That means it is in the git
 history, in every clone anyone has ever made, and in every backup of this
 repository. Removing it from the working tree does not un-leak it — each one has
@@ -12,11 +19,11 @@ Ordered by what an attacker gets, not by effort.
 
 ---
 
-## 1. The player JWT secret — `"keyboardca4ever"`
+## 1. The player JWT secret — `"<redacted>"`
 
 ```js
 // legacy/Users/Rule.js
-let token = jwt.sign({ id: user_id, username: result.name }, "keyboardca4ever", { expiresIn: 129600 });
+let token = jwt.sign({ id: user_id, username: result.name }, "<redacted>", { expiresIn: 129600 });
 ```
 
 **Anyone holding this repository can mint a session token for any player id.**
@@ -51,7 +58,7 @@ backups — which is exactly why the passwords themselves must change.
 
 ## 3. The Firebase service-account key
 
-Committed as `bitcoinjito-e3078-firebase-adminsdk-*.json`.
+Committed as `<redacted>-*.json`.
 
 Grants push to **every device the project knows about** and read access to the
 project's data. Combined with `GET /firebase/allToken`, which returned every FCM
@@ -62,7 +69,7 @@ new key. Do not just rotate the key — the account id is compromised too.
 
 ---
 
-## 4. `SECREATEkEYCASINO` — `'Hja934U1nz'`
+## 4. `SECREATEkEYCASINO` — `'<redacted>'`
 
 The XGaming / GamingHub360 callback signature.
 
@@ -79,8 +86,8 @@ cannot fix the leaked key.
 ## 5. The nexus aggregator credentials
 
 ```js
-agent_code:  "Skyla_USD",
-agent_token: "83eb5e7c8f7a1852f61692442a5ead9c",
+agent_code:  "<redacted>",
+agent_token: "<redacted>",
 ```
 
 In three handlers. This is the account the platform plays through — the same
@@ -95,8 +102,8 @@ playing through the old account.
 ## 6. CCPayment — app id and secret
 
 ```js
-const appId     = "mvEYJASPV187Zjxu";
-const appSecret = "48e60e26e298f7bb6023209f9c48b91c";
+const appId     = "<redacted>";
+const appSecret = "<redacted>";
 ```
 
 Signs deposit webhooks. Anyone with this repository can sign a deposit.
@@ -106,7 +113,7 @@ Signs deposit webhooks. Anyone with this repository can sign a deposit.
 
 ---
 
-## 7. The support mailbox — `support@camelbit.games` / `camelbit@123`
+## 7. The support mailbox — `<redacted>` / `<redacted>`
 
 Hardcoded in the nodemailer transport. Password-reset mail originates from it,
 so control of the mailbox is control of every account that can be reset through
@@ -122,8 +129,8 @@ Same vendor, two accounts, both hard-coded:
 
 | Account | Where | Merchant id |
 | --- | --- | --- |
-| Casino | `legacy/gis/controller.js` | `9088a8210aa9be9c224e9ae5efdc9976` |
-| Sportsbook (staging) | `legacy/sportsbook/controller.js` | `856e1604085918d11aa5663ebd546bf7` |
+| Casino | `legacy/gis/controller.js` | `<redacted>` |
+| Sportsbook (staging) | `legacy/sportsbook/controller.js` | `<redacted>` |
 
 The casino key is the more urgent of the two: it signs our outbound calls **and
 verifies their wallet callbacks to us**, so it is both an outbound credential
@@ -144,7 +151,7 @@ with `undefined`, which would produce a stable, guessable signature.
 ```js
 // legacy/Slots/API/evo.js
 const PID      = 3064;
-const TOKEN    = "fb216c4fead6630de2551643267d5ab0";
+const TOKEN    = "<redacted>";
 const CALLBACK = "http://api-transfer-wallet.8provider.com/callback_handler";
 ```
 
@@ -166,8 +173,8 @@ this repository uses these values — but the account is live.
 
 | Secret | Where | Opens |
 | --- | --- | --- |
-| `KjEukDNWN6hH3hTLUHSQZm` | `legacy/index.js` `SECRET_KEY` | Seamless wallet callbacks |
-| `f51e33b6-9c24-42b2-98d2-954fc765f78d` | EkQR | UPI deposit callbacks |
+| `<redacted>` | `legacy/index.js` `SECRET_KEY` | Seamless wallet callbacks |
+| `<redacted>` | EkQR | UPI deposit callbacks |
 | WayPay / A-Pay / CricPay keys | `legacy/.env` | Payment gateways |
 | Slotegrator, jsGames v1/v2 | `legacy/index.js` | Casino aggregators |
 | `bit_wyusjkwiyu` | `legacy/.env` | Database user |

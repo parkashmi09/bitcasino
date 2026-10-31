@@ -1,5 +1,9 @@
 'use strict';
 
+const { RETIRED_CURRENCIES, isRetiredCurrency, BUILTIN_CURRENCIES, isCustomCurrencyCode } = require('@ibitplay/common');
+
+const errors = require('./wallet.errors');
+
 /**
  * Wallet vocabulary.
  *
@@ -37,15 +41,64 @@ const CURRENCY_COLUMN = Object.freeze({
   MATIC: 'matic',
   SC: 'sc',
   MVR: 'mvr',
+  // Retired (see RETIRED_CURRENCIES below): still a column, still readable
+  // and debitable, never credited.
   BJB: 'bjb',
   AED: 'aed',
   NPR: 'npr',
   PKR: 'pkr',
   EUR: 'eur',
   BDT: 'bdt',
+  // Migration 151: F2Pay's Indonesian deposits are paid and held in IDR.
+  IDR: 'idr',
 });
 
-const SUPPORTED_CURRENCIES = Object.freeze(Object.keys(CURRENCY_COLUMN));
+/**
+ * Every code that has a column — including retired coins. For READS (a
+ * balance, a statement filter) and DEBITS, which a retired balance still allows.
+ */
+const KNOWN_CURRENCIES = Object.freeze(Object.keys(CURRENCY_COLUMN));
+
+/**
+ * The coins a client may pick: every column except the retired ones. This is
+ * what validators expose and what anything that CREDITS a wallet accepts.
+ */
+const SUPPORTED_CURRENCIES = Object.freeze(
+  KNOWN_CURRENCIES.filter((code) => !RETIRED_CURRENCIES.includes(code))
+);
+
+/**
+ * Custom coins (migration 065): a code the platform owner created through the
+ * owner panel. It has no `credits` column — its balance is a row in
+ * `wallet_balances` — so it is NOT in the allow-list above, and never becomes a
+ * column name. Validators accept any well-formed code beyond the built-in ones;
+ * the repository then requires a `currencies` row with `builtin = false` for it
+ * (else `WALLET_UNSUPPORTED_CURRENCY`), so an invented code moves nothing.
+ *
+ * `BUILTIN_CURRENCIES` in @ibitplay/common is the same list as `CURRENCY_COLUMN`
+ * (asserted by the wallet tests) — the services that refuse custom coins read it.
+ */
+const isCustomCurrency = (currency) => isCustomCurrencyCode(currency);
+
+/** Any code a wallet may hold: a built-in column, or a well-formed custom code. */
+const isWalletCurrency = (currency) => {
+  const code = String(currency ?? '').trim().toUpperCase();
+  return Object.prototype.hasOwnProperty.call(CURRENCY_COLUMN, code) || isCustomCurrencyCode(code);
+};
+
+/**
+ * Throw `WALLET_CURRENCY_RETIRED` if `currency` may not be credited.
+ *
+ * Called by the repository's credit, so every credit path — `wallet.credit`,
+ * transfers, the swap's credit leg — goes through it. A reversal of an earlier
+ * debit (`rollback`) is the one exception: it restores money that was already
+ * there rather than paying anything new.
+ */
+function assertCreditable(currency) {
+  if (isRetiredCurrency(currency)) {
+    throw errors.CURRENCY_RETIRED({ currency: String(currency).toUpperCase() });
+  }
+}
 
 /**
  * Turn a currency code into a column name, or throw.
@@ -95,6 +148,10 @@ const REASON = Object.freeze({
   // Promotions
   BONUS: 'BONUS',
   BONUS_REVERSAL: 'BONUS_REVERSAL',
+
+  // Peer-to-peer tips (modules/tip): one row on each side of the transfer.
+  TIP_SENT: 'TIP_SENT',
+  TIP_RECEIVED: 'TIP_RECEIVED',
 });
 
 /** Reasons that ADD money. Anything else removes it. */
@@ -107,6 +164,7 @@ const CREDIT_REASONS = Object.freeze([
   REASON.ADMIN_CREDIT,
   REASON.TRANSFER_IN,
   REASON.BONUS,
+  REASON.TIP_RECEIVED,
 ]);
 
 /**
@@ -128,7 +186,14 @@ const PERMISSION = Object.freeze({
 
 module.exports = {
   CURRENCY_COLUMN,
+  BUILTIN_CURRENCIES,
+  isCustomCurrency,
+  isWalletCurrency,
+  KNOWN_CURRENCIES,
   SUPPORTED_CURRENCIES,
+  RETIRED_CURRENCIES,
+  isRetiredCurrency,
+  assertCreditable,
   resolveColumn,
   OPERATION,
   REASON,

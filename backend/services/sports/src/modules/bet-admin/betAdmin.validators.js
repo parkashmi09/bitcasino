@@ -2,7 +2,7 @@
 
 const { z } = require('@ibitplay/common');
 
-const { GAME_TYPES, BET_STATUS } = require('../bets/bets.constants');
+const { GAME_TYPES, BET_STATUS } = require('./bets.constants');
 
 const id = z.coerce.number().int().positive();
 
@@ -11,7 +11,7 @@ const providerId = z.string().trim().min(1).max(64).regex(/^[A-Za-z0-9._:-]+$/);
 const paging = z.object({
   limit: z.coerce.number().int().min(1).max(200).default(50),
   offset: z.coerce.number().int().min(0).default(0),
-});
+}).strict();
 
 const range = {
   from: z.coerce.date().optional(),
@@ -30,7 +30,7 @@ const listBets = {
 };
 
 const ticker = {
-  query: z.object({ limit: z.coerce.number().int().min(1).max(200).default(50) }),
+  query: z.object({ limit: z.coerce.number().int().min(1).max(200).default(50) }).strict(),
 };
 
 const betsByUser = { query: paging.extend(range) };

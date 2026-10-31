@@ -7,7 +7,9 @@ const db = require('@ibitplay/db');
 const { createLogger, money } = require('@ibitplay/common');
 
 const { BonusService } = require('../bonus.service');
+const { configureAgentPlayers, resetAgentPlayers } = require('@ibitplay/auth');
 const { vipLevelFor, VIP_LEVELS } = require('@ibitplay/common');
+const { BONUS_TYPES } = require('../bonus.constants');
 
 /**
  * Bonuses: the claim, the VIP gate, and the ladder itself.
@@ -48,19 +50,43 @@ test('bonus', async (t) => {
     const whale = vipLevelFor('999999999999999');
 
     assert.equal(whale.level, top.level);
-    assert.equal(whale.card, 'diamond');
+    assert.equal(whale.card, 'eternal');
   });
 
-  await t.test('a player who has never wagered is VIP 0, not VIP 1', async () => {
+  await t.test('below the first band is VIP 0, not VIP 1', async () => {
+    // hash.game's ladder starts at 1,000 (Bronze I) — a player who has wagered a
+    // little is a Beginner, and the first band has to be earned.
     assert.equal(vipLevelFor('0').level, 0);
-    assert.equal(vipLevelFor('1').level, 1);
+    assert.equal(vipLevelFor('999').level, 0);
+    assert.equal(vipLevelFor('1000').level, 1);
   });
 
   await t.test('band boundaries land on the right side', async () => {
-    assert.equal(vipLevelFor('99').level, 1);
-    assert.equal(vipLevelFor('100').level, 2);
-    assert.equal(vipLevelFor('199').level, 2);
-    assert.equal(vipLevelFor('200').level, 3);
+    assert.equal(vipLevelFor('999').level, 0);   // Beginner
+    assert.equal(vipLevelFor('1000').level, 1);  // Bronze I
+    assert.equal(vipLevelFor('2999').level, 1);
+    assert.equal(vipLevelFor('3000').level, 2);  // Bronze II
+  });
+
+  await t.test('every band names itself, using the reference names', async () => {
+    // The VIP page prints `name` verbatim, so a wrong one is a wrong rank
+    // shown to a player. hash.game's names: Roman numerals, Beginner below the ladder.
+    const named = (w) => vipLevelFor(w).name;
+    assert.equal(named('0'), 'Beginner');
+    assert.equal(named('1000'), 'Bronze I');
+    assert.equal(named('30000'), 'Silver I');
+    assert.equal(named('25000000'), 'Diamond I');
+    assert.equal(named('10000000000'), 'Eternal X');
+    assert.equal(VIP_LEVELS.length, 33);
+    assert.equal(new Set(VIP_LEVELS.map((b) => b.name)).size, 33, 'names must be unique');
+  });
+
+  await t.test('the bonus gates sit on the ranks the reference publishes', async () => {
+    // hash.game: "Users must have a VIP Level of 1 or higher to receive bonus" —
+    // all three open at Bronze I (1,000). Level NUMBERS, so they move with the ladder.
+    assert.equal(vipLevelFor('1000').level, BONUS_TYPES.daily.minVipLevel);
+    assert.equal(vipLevelFor('1000').level, BONUS_TYPES.weekly.minVipLevel);
+    assert.equal(vipLevelFor('1000').level, BONUS_TYPES.monthly.minVipLevel);
   });
 
   await t.test('a wager with thousands separators parses', async () => {
@@ -68,6 +94,7 @@ test('bonus', async (t) => {
     // NaN, which would make every player VIP 0.
     assert.equal(vipLevelFor('29,000').level, vipLevelFor('29000').level);
     assert.ok(vipLevelFor('29,000').level > 0);
+    assert.equal(vipLevelFor('1,234,567.89').level, vipLevelFor('1234567.89').level);
   });
 
   // ══════════════════════════════════════════════════════════════════════
@@ -102,6 +129,9 @@ test('bonus', async (t) => {
     db: connection,
     logger,
     config: { SERVICE_NAME: 'user-service' },
+    // Staff reads are scoped to the caller's tree; this admin client answers
+    // that the caller's tree contains the platform root, i.e. the whole site.
+    clients: { admin: { get: async () => ({ ids: [1] }) } },
   });
 
   /** A player at a given VIP level, with a bonus record. */
@@ -113,7 +143,7 @@ test('bonus', async (t) => {
     await connection.models.Users.destroy({ where: { id: uid } });
 
     await connection.models.Users.create({ id: uid, name: `bonus-${uid}`, password: 'x', status: 'active' });
-    await connection.models.Credits.create({ uid, bjb: '0' });
+    await connection.models.Credits.create({ uid, usdt: '0' });
     await connection.models.Userwager.create({ uid, wager });
     await service.createRecord({ userId: uid, name: `bonus-${uid}` });
   };
@@ -129,9 +159,10 @@ test('bonus', async (t) => {
       is_unclaimable: false,
     });
 
+  /* Bonuses are paid in USDT — the cash column — so that is what to read. */
   const bonusBalance = async (uid) => {
     const row = await connection.models.Credits.findOne({ where: { uid }, raw: true });
-    return money.toDecimalString(money.toMinor(row?.bjb ?? '0'));
+    return money.toDecimalString(money.toMinor(row?.usdt ?? '0'));
   };
 
   await t.test('two simultaneous claims pay ONCE — legacy paid twice', async () => {
@@ -155,7 +186,7 @@ test('bonus', async (t) => {
     // Legacy computed eligibility in `/api/bonuses` and checked nothing in the
     // claim handler, so a player shown "not eligible" could claim anyway.
     const uid = newUid();
-    await seed(uid, { wager: '5' }); // VIP 1 — below the daily threshold of 20
+    await seed(uid, { wager: '5' }); // VIP 0 — below Bronze 1, the daily gate
     await award(uid, 'daily', '50');
 
     const view = await service.overview({ userId: uid });
@@ -170,14 +201,26 @@ test('bonus', async (t) => {
     assert.equal(await bonusBalance(uid), '0.00000000');
   });
 
-  await t.test('each bonus type has its own VIP threshold', async () => {
+  await t.test('Bronze I opens all three bonuses (hash.game)', async () => {
     const uid = newUid();
-    // VIP 20 exactly: daily (20) yes, weekly (25) and monthly (30) no.
-    await seed(uid, { wager: '29000' });
+    await seed(uid, { wager: '5000' });
 
     const view = await service.overview({ userId: uid });
-    assert.equal(view.vip.level, 20);
+    assert.equal(view.vip.level, 2);
+    assert.equal(view.vip.name, 'Bronze II');
     assert.equal(view.types.daily.eligible, true);
+    assert.equal(view.types.weekly.eligible, true);
+    assert.equal(view.types.monthly.eligible, true);
+  });
+
+  await t.test('a Beginner (below Bronze I) earns no bonus yet', async () => {
+    // hash.game: "Reach Bronze I to claim." 500 wagered is still Beginner.
+    const uid = newUid();
+    await seed(uid, { wager: '500' });
+
+    const view = await service.overview({ userId: uid });
+    assert.equal(view.vip.name, 'Beginner');
+    assert.equal(view.types.daily.eligible, false);
     assert.equal(view.types.weekly.eligible, false);
     assert.equal(view.types.monthly.eligible, false);
   });
@@ -358,7 +401,8 @@ test('bonus', async (t) => {
     assert.equal(await bonusBalance(uid), '12.50000000');
 
     // Legacy wrote NO ledger row for this — `UPDATE credits SET bjb = bjb + $1`
-    // and nothing else, so the grant appeared on no statement anywhere.
+    // and nothing else, so the grant appeared on no statement anywhere. The
+    // column has since moved to `usdt`; the ledger row is the part that matters.
     const ledger = await connection.models.CreditsLedger.count({ where: { user_id: String(uid) } });
     assert.equal(ledger, 1);
   });
@@ -406,6 +450,21 @@ test('bonus', async (t) => {
       () => service.grantBonusGame({ userId: uid, idempotencyKey: `grant-${uid}-none`, dailybonus: '5' }),
       (err) => err.code === 'BONUS_NO_GAME_COUNTERS' && err.status === 404
     );
+    assert.equal(await bonusBalance(uid), '0.00000000');
+  });
+
+  await t.test('a CHILD user (any parent) gets no bonus grant', async () => {
+    const uid = newUid();
+    await seed(uid);
+    configureAgentPlayers({ isAgentPlayer: async (id) => Number(id) === uid });
+    try {
+      await assert.rejects(
+        () => service.grantBonusGame({ userId: uid, idempotencyKey: `grant-${uid}-child`, dailybonus: '5' }),
+        (err) => err.code === 'PROMOTIONS_NOT_FOR_AGENT_USERS' && err.status === 403
+      );
+    } finally {
+      resetAgentPlayers();
+    }
     assert.equal(await bonusBalance(uid), '0.00000000');
   });
 
@@ -510,7 +569,7 @@ test('bonus', async (t) => {
     await seed(uid);
     await connection.models.Userwager.destroy({ where: { uid } });
 
-    const view = await service.adminDashboard({ userId: uid, limit: 200, offset: 0 });
+    const view = await service.adminDashboard({ staff: { id: 1 }, userId: uid, limit: 200, offset: 0 });
     const found = view.users.find((u) => String(u.userId) === String(uid));
 
     assert.ok(found, 'a player with no wager row must still appear');
@@ -529,7 +588,7 @@ test('bonus', async (t) => {
       userId: uid,
       idempotencyKey: `grant-${uid}-inject`,
       dailybonus: '3',
-      'bjb" = 999999, "dailybonus': '1',
+      'usdt" = 999999, "dailybonus': '1',
     });
 
     assert.equal(result.granted, '3.00000000');

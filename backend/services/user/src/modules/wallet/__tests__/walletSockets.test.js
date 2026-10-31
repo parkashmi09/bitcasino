@@ -129,12 +129,18 @@ test('tipping and rain', async (t) => {
 
     await models.Users.bulkCreate(everyone.map((id) => ({ id, name: `w${id}`, password: 'x', status: 'active' })));
     await models.Credits.bulkCreate(everyone.map((id) => ({ uid: id, inr: '0' })));
+    // Chat tips and rain go through the tip module, which applies the withdraw requirements
+    // (a tip is money out): the sender must be KYC Verified.
+    await models.UserKyc.destroy({ where: { user_id: everyone.map(String) } });
+    await models.UserKyc.create({ user_id: String(sender), status: 'Verified' });
 
     /**
      * `chat_global` has no `id` column — `sorter` is the NOT NULL numeric it
      * orders on, and it is what the rain recipient query reads.
      */
     await models.ChatGlobal.destroy({ where: { uid: everyone } });
+    await models.Tip.destroy({ where: { from_user_id: everyone } });
+    await models.Userconfig.destroy({ where: { uid: everyone } });
     let sorter = Date.now();
     for (const id of chatters) {
       await models.ChatGlobal.create({
@@ -155,6 +161,7 @@ test('tipping and rain', async (t) => {
     await new Promise((resolve) => httpServer.close(resolve));
 
     await models.ChatGlobal.destroy({ where: { uid: everyone } });
+    await models.UserKyc.destroy({ where: { user_id: everyone.map(String) } });
     for (const id of everyone) {
       await models.CreditsLedger.destroy({ where: { user_id: String(id) } });
       await models.Credits.destroy({ where: { uid: id } });
@@ -224,12 +231,12 @@ test('tipping and rain', async (t) => {
 
   await t.test('a tip to a name that does not exist is refused', async () => {
     const reply = await ask(client, EVENTS.SEND_TIP, { target: 'no-such-player', amount: '1', coin: 'INR' });
-    assert.equal(reply.error.code, 'WALLET_TIP_TARGET_NOT_FOUND');
+    assert.equal(reply.error.code, 'TIP_USER_NOT_FOUND');
   });
 
   await t.test('a tip to yourself is refused', async () => {
     const reply = await ask(client, EVENTS.SEND_TIP, { target: `w${sender}`, amount: '1', coin: 'INR' });
-    assert.equal(reply.error.code, 'WALLET_TIP_TO_SELF');
+    assert.equal(reply.error.code, 'TIP_SELF');
   });
 
   await t.test('the play-money currency cannot be tipped', async () => {
@@ -312,6 +319,46 @@ test('tipping and rain', async (t) => {
     assert.equal(reply.requested, 3);
     assert.equal(reply.players, 1, 'only one was affordable');
     assert.equal(await balanceOf(sender), '5.00000000');
+  });
+
+  // ══════════════════════════════════════════════════════════════════════
+  //  Chat tips follow the tip module's rules
+  // ══════════════════════════════════════════════════════════════════════
+
+  await t.test('a chat tip is a real tip: a tips row, and "Allow tips" is honoured', async () => {
+    await setBalance(sender, '100');
+    await setBalance(target, '0');
+
+    const reply = await ask(client, EVENTS.SEND_TIP, { target: `w${target}`, amount: '5', coin: 'INR' });
+    assert.equal(reply.status, true);
+    assert.ok(reply.tipId, 'the reply names the tip');
+    assert.equal(await models.Tip.count({ where: { id: reply.tipId, from_user_id: sender, to_user_id: target } }), 1);
+
+    // The recipient switches tips off: a chat tip no longer gets through it.
+    await models.Userconfig.upsert({ uid: target, tips_enabled: false });
+    try {
+      const refused = await ask(client, EVENTS.SEND_TIP, { target: `w${target}`, amount: '5', coin: 'INR' });
+      assert.equal(refused.status, false);
+      assert.equal(refused.error.code, 'TIP_DISABLED_BY_RECIPIENT');
+      assert.equal(await balanceOf(sender), '95.00000000');
+    } finally {
+      await models.Userconfig.upsert({ uid: target, tips_enabled: true });
+    }
+  });
+
+  await t.test('rain skips a chatter who turned tips off', async () => {
+    await setBalance(sender, '100');
+    for (const id of chatters) await setBalance(id, '0');
+    await models.Userconfig.upsert({ uid: chatters[0], tips_enabled: false });
+    try {
+      const reply = await ask(client, EVENTS.RAIN, { amount: '1', players: 2, room: 'global', coin: 'INR' });
+      assert.equal(reply.status, true);
+      assert.equal(reply.players, 2);
+      assert.equal(await balanceOf(chatters[0]), '0.00000000', 'the opted-out chatter got nothing');
+      assert.equal(await balanceOf(sender), '98.00000000');
+    } finally {
+      await models.Userconfig.upsert({ uid: chatters[0], tips_enabled: true });
+    }
   });
 
   // ══════════════════════════════════════════════════════════════════════

@@ -8,6 +8,8 @@ const {
   loadModules,
   mountModules,
   internalAuth,
+  PROVIDER_CALLBACK_PREFIXES,
+  createContentNotifier,
 } = require('@ibitplay/common');
 
 /** Assemble the casino-service HTTP app. Every route comes from a module under src/modules. */
@@ -30,6 +32,11 @@ function buildApp(container) {
       modules,
       deps: container,
       logger,
+      // rainbet: staff content writes → user-service → player sockets (contentPush.js).
+      onAdminWrite: createContentNotifier({
+        logger,
+        send: (content) => container.clients.user.post('/internal/user/preferences/site-config', { content }),
+      }),
       guards: {
         public: [],
         user: [auth.authenticate(), auth.requireActive()],
@@ -42,7 +49,9 @@ function buildApp(container) {
     })
   );
 
-  const app = createApp({ serviceName: config.SERVICE_NAME, config, logger, routes });
+  // Provider wallet callbacks skip the per-IP global bucket (one provider, every player's bets);
+  // each callback route has its own limiter and checks the provider's signature.
+  const app = createApp({ serviceName: config.SERVICE_NAME, config, logger, routes, rateLimitSkipPrefixes: PROVIDER_CALLBACK_PREFIXES });
   app.locals.modules = modules;
   return app;
 }

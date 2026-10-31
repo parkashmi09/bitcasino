@@ -22,8 +22,20 @@ const TEST_DB = process.env.TEST_DB_NAME || 'ibitplay_test';
 let connection;
 let vault;
 
-let nextUid = 980_000_000 + Math.floor(process.pid % 100_000) * 1000;
-const newUid = () => (nextUid += 1);
+// Every uid this file hands out falls in [UID_FLOOR, UID_CEIL). The vault
+// tables are shared with every earlier run, and `accrueDailyInterest` scans
+// active deposits in id order with a batch limit — so leftovers from old runs
+// would crowd a new deposit out of the batch. The file cleans up after itself
+// and, on start, clears what a crashed run left in this range.
+const UID_FLOOR = 980_000_000;
+const UID_CEIL = UID_FLOOR + 100_000 * 1000 + 1000;
+let nextUid = UID_FLOOR + Math.floor(process.pid % 100_000) * 1000;
+const usedUids = new Set();
+const newUid = () => {
+  nextUid += 1;
+  usedUids.add(nextUid);
+  return nextUid;
+};
 
 test('vault', async (t) => {
   const logger = createLogger({ name: 'vault-test', level: 'silent' });
@@ -47,8 +59,28 @@ test('vault', async (t) => {
     return;
   }
 
+  const { Op } = require('sequelize');
+  const purgeVaultRows = async (userid) => {
+    const m = connection.models;
+    await m.VaultInterestHistory.destroy({ where: { userid } });
+    await m.VaultTransaction.destroy({ where: { userid } });
+    await m.VaultPro.destroy({ where: { userid } });
+  };
+
+  await purgeVaultRows({ [Op.gte]: UID_FLOOR, [Op.lt]: UID_CEIL });
+
   t.after(async () => {
-    if (connection) await connection.close();
+    if (!connection) return;
+    try {
+      const uids = [...usedUids];
+      if (uids.length) {
+        await purgeVaultRows(uids);
+        await connection.models.Credits.destroy({ where: { uid: uids } });
+        await connection.models.Users.destroy({ where: { id: uids } });
+      }
+    } finally {
+      await connection.close();
+    }
   });
 
   vault = new VaultService({
@@ -56,6 +88,9 @@ test('vault', async (t) => {
     db: connection,
     logger,
     config: { SERVICE_NAME: 'user-service', VAULT_MINIMUM: '1' },
+    // Staff reads are scoped to the caller's tree; this admin client answers
+    // that the caller's tree contains the platform root, i.e. the whole site.
+    clients: { admin: { get: async () => ({ ids: [1] }) } },
   });
 
   // Two terms: one long, one that has already matured (0 days).
@@ -221,6 +256,8 @@ test('vault', async (t) => {
     assert.equal(data.deposits.length, 2);
     assert.equal(data.deposits[0].locked, true);
     assert.ok(data.deposits[0].daysRemaining > 0);
+    assert.equal(typeof data.deposits[0].earlyPayout, 'string');
+    assert.doesNotThrow(() => JSON.stringify(data));
   });
 
   await t.test('a rate change does not reprice an open deposit', async () => {
@@ -257,5 +294,77 @@ test('vault', async (t) => {
     );
 
     assert.equal(await balanceOf(uid), '1000.00000000');
+  });
+
+  await t.test('daily interest accrues once per calendar day', async () => {
+    const uid = newUid();
+    await seed(uid, '1000');
+
+    const deposit = await vault.transferIn({ userId: uid, coin: 'INR', amount: '365', lockPeriod: 't30' });
+
+    const first = await vault.accrueDailyInterest({ limit: 50 });
+    assert.ok(first.accruedDeposits >= 1);
+
+    const row = await connection.models.VaultPro.findByPk(deposit.depositId, { raw: true });
+    assert.ok(money.gt(row.vaultBalance, '365'));
+
+    const history = await connection.models.VaultInterestHistory.findAll({
+      where: { deposit_id: deposit.depositId },
+      raw: true,
+    });
+    assert.equal(history.length, 1);
+    // The history row holds the same decimal amount the balance grew by, not minor units.
+    assert.equal(
+      money.toDecimalString(money.toMinor(String(history[0].interest))),
+      money.toDecimalString(money.subtract(row.vaultBalance, '365'))
+    );
+
+    const second = await vault.accrueDailyInterest({ limit: 50 });
+    assert.equal(second.accruedDeposits, 0);
+  });
+
+  await t.test('early withdrawal forfeits interest and applies a principal penalty', async () => {
+    await connection.models.VaultLockRate.update(
+      { early_penalty_rate: '10' },
+      { where: { lock_period: 't30' } }
+    );
+
+    const uid = newUid();
+    await seed(uid, '1000');
+
+    const deposit = await vault.transferIn({ userId: uid, coin: 'INR', amount: '100', lockPeriod: 't30' });
+    await connection.models.VaultPro.update(
+      { vaultBalance: '110' },
+      { where: { id: deposit.depositId } }
+    );
+
+    const out = await vault.transferOut({
+      userId: uid,
+      depositId: deposit.depositId,
+      coin: 'INR',
+      early: true,
+    });
+
+    assert.equal(out.amount, '90.00000000', '100 principal minus 10% penalty');
+    assert.equal(out.forfeitedInterest, '10.00000000');
+    assert.equal(await balanceOf(uid), '990.00000000');
+  });
+
+  await t.test('admin stats and user list match the dashboard shape', async () => {
+    const uid = newUid();
+    await seed(uid, '1000');
+    await vault.transferIn({ userId: uid, coin: 'INR', amount: '50', lockPeriod: 't30' });
+
+    const stats = await vault.stats({ staff: { id: 1 } });
+    assert.ok(typeof stats.totalUsers === 'number');
+    assert.ok(typeof stats.totalBalance === 'number');
+    assert.ok(typeof stats.todayInterest === 'number');
+
+    const { rows } = await vault.listVaultUsers({ staff: { id: 1 }, limit: 10, offset: 0 });
+    assert.ok(rows.length >= 1);
+    const row = rows.find((r) => r.userid === uid);
+    assert.ok(row);
+    assert.equal(row.name, `vault-${uid}`);
+    assert.ok(typeof row.locked === 'boolean');
   });
 });

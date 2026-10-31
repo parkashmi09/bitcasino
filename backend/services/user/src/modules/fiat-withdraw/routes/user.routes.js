@@ -1,7 +1,8 @@
 'use strict';
 
 const { Router } = require('express');
-const { validate } = require('@ibitplay/common');
+const { validate, refuseCustomCurrencies } = require('@ibitplay/common');
+const { denyAgentPlayer } = require('@ibitplay/auth');
 
 const v = require('../fiatWithdraw.validators');
 const { FiatWithdrawService } = require('../fiatWithdraw.service');
@@ -13,7 +14,12 @@ module.exports = function userRoutes(deps) {
 
   const router = Router();
 
-  router.post('/', validate(v.create), ctrl.create);
+  // Custom coins (owner-created, no provider behind them) never reach this module: CURRENCY_NOT_SUPPORTED_FOR_WITHDRAWAL.
+
+  router.use(refuseCustomCurrencies('WITHDRAWAL'));
+
+  // Agent-tree players are paid out by their agent — no withdrawal rail. History stays readable.
+  router.post('/', denyAgentPlayer('withdraw'), validate(v.create), ctrl.create);
   router.get('/', validate(v.listMine), ctrl.listMine);
 
   return router;

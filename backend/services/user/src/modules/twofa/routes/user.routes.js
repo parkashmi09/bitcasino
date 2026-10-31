@@ -1,7 +1,7 @@
 'use strict';
 
 const { Router } = require('express');
-const { validate, createRateLimiter } = require('@ibitplay/common');
+const { validate, createRateLimiter, noBody, noQuery } = require('@ibitplay/common');
 
 const v = require('../twofa.validators');
 const { TwoFactorService } = require('../twofa.service');
@@ -29,8 +29,8 @@ module.exports = function userRoutes(deps) {
     enabled: deps.config.RATE_LIMIT_ENABLED !== false,
   });
 
-  router.get('/status', ctrl.status);
-  router.post('/enable', ctrl.beginSetup);
+  router.get('/status', noQuery(), ctrl.status);
+  router.post('/enable', noBody(), ctrl.beginSetup);
   router.post('/setup-verify', codeLimiter, validate(v.verifyCode), ctrl.completeSetup);
   router.post('/verify', codeLimiter, validate(v.verifyCode), ctrl.verify);
   router.post('/disable', codeLimiter, validate(v.disable), ctrl.disable);

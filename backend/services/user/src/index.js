@@ -1,5 +1,9 @@
 'use strict';
 
+// Outbound calls prefer IPv4: payment gateways whitelist the server's IPv4 (F2Pay answered
+// "2400:…::1 not in payin ip white list" when Node picked the IPv6 route).
+require('dns').setDefaultResultOrder('ipv4first');
+
 const { startServer } = require('@ibitplay/common');
 
 const config = require('./config');

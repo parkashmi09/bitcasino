@@ -55,8 +55,71 @@ const MESSAGE = Object.freeze({
 const V1_CURRENCIES = Object.freeze({ INR: 'INR', BDT: 'BDT', USDT: 'USDT', IDR: 'USDT' });
 const V2_CURRENCIES = Object.freeze({ INR: 'INR', USDT: 'USDT', USD: 'USDT' });
 
-/** v2's transaction vocabulary. */
-const V2_TYPE = Object.freeze({ BET: 'bet', WIN: 'win', LOSS: 'loss' });
+/**
+ * v2's settlement vocabulary — the nine shapes the provider distinguishes.
+ *
+ * ── THE CALLBACK CARRIES TWO AMOUNTS, NOT A TYPE ─────────────────────────
+ *
+ * The provider sends `bet_amount` and `win_amount` and leaves the naming to
+ * us. The port's first pass read a `transaction_type` off the body and
+ * refused anything outside `bet|win|loss`, which meant every genuine callback
+ * was rejected before it reached the ledger — the field is not sent.
+ *
+ * Both amounts can be NEGATIVE. That is a correction: the provider reversing
+ * a round it settled wrongly, and it is the reason there are nine names rather
+ * than three. They are the provider's own, kept verbatim so a row in our table
+ * can be matched against a row in theirs during a dispute.
+ */
+const V2_SETTLEMENT = Object.freeze({
+  BET: 'bet',
+  WIN: 'win',
+  LOSS: 'loss',
+  BET_RESULT: 'bet_result',
+  BET_WITH_NEGATIVE_RESULT: 'bet_with_negative_result',
+  NEGATIVE_RESULT: 'negative_result',
+  NEGATIVE_BET_WITH_WIN: 'negative_bet_with_win',
+  NEGATIVE_BET: 'negative_bet',
+  NEGATIVE_BET_WITH_NEGATIVE_RESULT: 'negative_bet_with_negative_result',
+});
+
+/**
+ * Name a settlement from its two amounts.
+ *
+ * The name is a LABEL. It decides nothing about the money — the balance always
+ * moves by `win - bet`, computed by the caller — but it decides the second half
+ * of the idempotency key, which is why it is a pure function of the amounts and
+ * not of anything the message can assert.
+ *
+ * `bet` and `win` are bigints in minor units, so the comparisons are exact.
+ */
+function settlementType(bet, win) {
+  if (bet > 0n) {
+    if (win > 0n) return V2_SETTLEMENT.BET_RESULT;
+    if (win === 0n) return V2_SETTLEMENT.BET;
+    return V2_SETTLEMENT.BET_WITH_NEGATIVE_RESULT;
+  }
+  if (bet === 0n) {
+    if (win > 0n) return V2_SETTLEMENT.WIN;
+    if (win === 0n) return V2_SETTLEMENT.LOSS;
+    return V2_SETTLEMENT.NEGATIVE_RESULT;
+  }
+  if (win > 0n) return V2_SETTLEMENT.NEGATIVE_BET_WITH_WIN;
+  if (win === 0n) return V2_SETTLEMENT.NEGATIVE_BET;
+  return V2_SETTLEMENT.NEGATIVE_BET_WITH_NEGATIVE_RESULT;
+}
+
+/**
+ * The settlements that count as "this round was staked".
+ *
+ * A payout is only legitimate if one of these already exists for the round —
+ * see `#requireBetForWin`. `bet_result` is included because a round that
+ * settled stake and payout in ONE message has still been staked.
+ */
+const V2_STAKED_TYPES = Object.freeze([
+  V2_SETTLEMENT.BET,
+  V2_SETTLEMENT.BET_RESULT,
+  V2_SETTLEMENT.BET_WITH_NEGATIVE_RESULT,
+]);
 
 /**
  * Rakeback accrued on a bet, as a fraction of the stake.
@@ -79,4 +142,23 @@ const V2_TYPE = Object.freeze({ BET: 'bet', WIN: 'win', LOSS: 'loss' });
  */
 const RAKEBACK_RATE = '0.002';
 
-module.exports = { CODE, MESSAGE, V1_CURRENCIES, V2_CURRENCIES, V2_TYPE, RAKEBACK_RATE };
+/**
+ * The currencies rakeback is already denominated in.
+ *
+ * The rate is "0.2% of the stake in USD terms", and v2 settles in three
+ * currencies: USDT and USD are USD terms already, INR is not. Anything else
+ * accrues nothing rather than accruing a wrong number — see `#accrueRakeback`.
+ */
+const RAKEBACK_USD_CURRENCIES = Object.freeze(['USDT', 'USD']);
+
+module.exports = {
+  CODE,
+  MESSAGE,
+  V1_CURRENCIES,
+  V2_CURRENCIES,
+  V2_SETTLEMENT,
+  V2_STAKED_TYPES,
+  settlementType,
+  RAKEBACK_RATE,
+  RAKEBACK_USD_CURRENCIES,
+};

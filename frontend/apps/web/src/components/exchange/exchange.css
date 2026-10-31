@@ -1,0 +1,107 @@
+/* The exchange kit's stylesheet. Almost everything is Tailwind utilities on the markup, built
+ * from the @theme tokens in src/index.css; this file holds only what a utility cannot say:
+ * the price-change flash, the suspended overlay's label, and the stepper input's spinner reset.
+ *
+ * CASCADE: this file is unlayered and therefore beats every utility (frontend/CLAUDE.md, "plain
+ * CSS outranks Tailwind"). So nothing here sets `display`, colour or size on an element whose
+ * markup also sets them with a utility — each rule below targets a class used for nothing else.
+ */
+
+/* Back/lay colours are the @theme tokens in index.css (`--color-back`, `-hover`, `-muted`,
+   `--color-lay`…), used as `bg-back` / `hover:bg-back-hover` / `text-lay` utilities. */
+
+/* A price cell. `position` only: the box itself is utilities. Tap-safe — no double-tap zoom
+   delay and no grey iOS highlight over the colour. */
+.exch-odds {
+  position: relative;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* index.css dims EVERY `button:disabled` to .4 (unlayered, so no utility can undo it). A locked
+   price cell already says so with "—" on layer5, and a dimmed one reads as broken — so cells
+   opt out, and the "disabled but priced" state takes its own, lighter dim. */
+.exch-odds:disabled {
+  opacity: 1;
+  cursor: default;
+}
+.exch-odds.is-disabled {
+  opacity: 0.6;
+}
+
+/* THE FLASH IS AN OVERLAY, NOT A COLOUR CHANGE ON THE BOX, so a price update never moves a
+   pixel: a pseudo-element over the cell fades from a bright wash to nothing. Up is a light wash,
+   down a dark one, which reads on both the blue and the pink. */
+.exch-odds::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  opacity: 0;
+}
+
+.exch-odds.is-flash-up::after {
+  background-color: #fff;
+  animation: exch-flash 0.6s ease-out;
+}
+
+.exch-odds.is-flash-down::after {
+  background-color: #10161a;
+  animation: exch-flash 0.6s ease-out;
+}
+
+@keyframes exch-flash {
+  0% { opacity: 0.55; }
+  100% { opacity: 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .exch-odds.is-flash-up::after,
+  .exch-odds.is-flash-down::after {
+    animation-duration: 0.01s;
+  }
+}
+
+/* The stake/odds field: a bare <input> inside the site's `.input` box. Number spinners off. */
+.exch-num::-webkit-outer-spin-button,
+.exch-num::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+.exch-num {
+  -moz-appearance: textfield;
+  appearance: textfield;
+}
+
+/* The suspended overlay sits over the price cells only; its label is the feed's own word. A
+   diagonal hatch under the label is how the site draws a locked surface elsewhere (the disabled
+   game tile), so the row reads as locked rather than merely dimmed. */
+.exch-suspended {
+  background-image: repeating-linear-gradient(
+    -45deg,
+    rgb(var(--bulma) / 0.06) 0 0.375rem,
+    transparent 0.375rem 0.75rem
+  );
+}
+
+/* The placing-bet countdown bar — width animates over the server's bet delay. */
+.exch-delay-bar {
+  transform-origin: left center;
+  animation-name: exch-delay;
+  animation-timing-function: linear;
+  animation-fill-mode: both;
+}
+
+@keyframes exch-delay {
+  from { transform: scaleX(1); }
+  to { transform: scaleX(0); }
+}
+
+.exch-spin {
+  animation: exch-spin 0.8s linear infinite;
+}
+
+@keyframes exch-spin {
+  to { transform: rotate(360deg); }
+}

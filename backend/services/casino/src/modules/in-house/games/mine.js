@@ -116,4 +116,34 @@ function click({ state, selected, land, amount }) {
   return { bomb: false, profit: String(profit), selected: picked };
 }
 
-module.exports = { open, click, generateMines, ALLOWED_MINES, key: 'mine' };
+/**
+ * Cash out at whatever the last safe click set.
+ *
+ * ═════════════════════════════════════════════════════════════════════════
+ * WITHOUT THIS, MINES COULD BE OPENED AND PLAYED BUT NEVER CASHED OUT
+ *
+ * The stateful handler picks the settlement path by what the module exports:
+ *
+ *     const outcome = game.cashout
+ *       ? game.cashout({ amount: round.amount, steps: round.steps, profit: round.profit })
+ *       : game.play({ ... });
+ *
+ * Mines exported neither. `game.play` was `undefined`, so a `cashout` command
+ * threw `TypeError: game.play is not a function` — caught by the wrapper as an
+ * unexpected failure and answered `HANDLER_FAILED`. The round stayed OPEN, so
+ * the next `play` was refused `INHOUSE_ROUND_ALREADY_OPEN` and the player was
+ * locked out of the game with their stake still in it.
+ *
+ * `profit` rather than `steps × something`, because that is what `click` has
+ * already been writing to the round: legacy's `setBonus` recomputes
+ * `(amount × mines) / 10` on every safe click instead of accumulating, so the
+ * stored figure IS the cash-out value. Tower accumulates and its `cashout`
+ * multiplies by `steps`; the two games differ here and the difference is
+ * legacy's, kept.
+ * ═════════════════════════════════════════════════════════════════════════
+ */
+function cashout({ profit }) {
+  return { profit: String(profit ?? '0'), isWinner: true };
+}
+
+module.exports = { open, click, cashout, generateMines, ALLOWED_MINES, key: 'mine' };

@@ -2,10 +2,15 @@
 
 const crypto = require('crypto');
 
-const { money } = require('@ibitplay/common');
+const { Op } = require('sequelize');
+const { money, entitlements } = require('@ibitplay/common');
+const { assertPlayerCapability } = require('@ibitplay/auth');
 
 const errors = require('./spinWheel.errors');
 const { CODE_SOURCE, CODE_STATUS, DEPOSIT_SOURCES, CODE_LENGTH } = require('./spinWheel.constants');
+const { ownerWhere, withChannel } = require('../directory/playerScope');
+const { createRewardMoney } = require('../../lib/rewardMoney');
+const { DEFAULT_MAX_BONUS } = require('./spinWheelBonus.service');
 
 /**
  * The spin wheel — a weighted draw that issues a deposit-bonus code.
@@ -40,11 +45,17 @@ const { CODE_SOURCE, CODE_STATUS, DEPOSIT_SOURCES, CODE_LENGTH } = require('./sp
  * ─────────────────────────────────────────────────────────────────────────
  */
 class SpinWheelService {
-  constructor({ models, db, logger, config }) {
+  constructor(deps) {
+    const { models, db, logger, config, clients } = deps;
     this.models = models;
     this.db = db;
     this.logger = logger;
     this.config = config;
+    this.clients = clients;
+    // The minimum deposit is in the reward currency; deposits are converted into it.
+    this.rewardMoney = deps.rewardMoney ?? createRewardMoney(deps);
+    /** The owner's spin-wheel options (when a spin is granted), defaults filled in. */
+    this.options = deps.spinWheelOptions ?? (() => entitlements.featureOptions('spin_wheel'));
   }
 
   // ══════════════════════════════════════════════════════════════════════
@@ -74,6 +85,9 @@ class SpinWheelService {
       ...(input.claimCooldownDays !== undefined ? { claim_cooldown_days: input.claimCooldownDays } : {}),
       ...(input.isActive !== undefined ? { is_active: input.isActive } : {}),
       ...(input.unlimitedSpin !== undefined ? { unlimited_spin: input.unlimitedSpin } : {}),
+      ...(input.maxBonus !== undefined ? { max_bonus: input.maxBonus } : {}),
+      ...(input.wagerMultiplier !== undefined ? { wager_multiplier: input.wagerMultiplier } : {}),
+      ...(input.bonusExpiryDays !== undefined ? { bonus_expiry_days: input.bonusExpiryDays } : {}),
     };
 
     if (!existing) {
@@ -82,6 +96,9 @@ class SpinWheelService {
         claim_cooldown_days: input.claimCooldownDays ?? 7,
         is_active: input.isActive ?? false,
         unlimited_spin: input.unlimitedSpin ?? false,
+        max_bonus: input.maxBonus ?? DEFAULT_MAX_BONUS,
+        wager_multiplier: input.wagerMultiplier ?? null,
+        bonus_expiry_days: input.bonusExpiryDays ?? 30,
       });
       return this.#shapeConfig(created.get({ plain: true }));
     }
@@ -176,9 +193,14 @@ class SpinWheelService {
    * "Reward" column with nothing to put in them. The player's name is joined
    * for the same reason: a claims list keyed only by numeric id cannot be read.
    */
-  async listClaims({ userId, limit = 50, offset = 0 }) {
+  async listClaims({ staff, userId, channel, limit = 50, offset = 0 }) {
+    // The caller's tree only: each claim names its player and their redeem code.
+    return this.#claims({ where: withChannel(await ownerWhere(this, staff?.id, 'user_id', userId), 'user_id', channel), limit, offset });
+  }
+
+  async #claims({ where, limit, offset }) {
     const { rows, count } = await this.models.SpinWheelClaims.findAndCountAll({
-      where: userId ? { user_id: userId } : {},
+      where,
       order: [['claimed_at', 'DESC']],
       limit,
       offset,
@@ -227,13 +249,50 @@ class SpinWheelService {
     if (!config?.isActive) return { slices: [], disabled: true };
 
     const rows = await this.models.SpinWheelSlices.findAll({ order: [['sort_order', 'ASC']], raw: true });
-    return { slices: rows.map((r) => this.#shapeSlice(r, { includeWeight: false })), disabled: false };
+    return {
+      slices: rows.map((r) => this.#shapeSlice(r, { includeWeight: false })),
+      disabled: false,
+      // A won code is added to the next deposit, up to this, in this currency.
+      maxBonus: money.format(config.maxBonus),
+      currency: await this.rewardMoney.currency(),
+    };
   }
 
-  /** @legacy GET /api/spinwin/user/eligibility */
+  /**
+   * @legacy GET /api/spinwin/user/eligibility
+   *
+   * A refusal carries `code` (DISABLED | COOLDOWN_ACTIVE | DEPOSIT_REQUIRED, the same words as the
+   * spin's error codes) for the client to branch on; `reason` is the human sentence and gets
+   * reworded. `minDeposit` is trimmed for display ("100", not "100.00000000").
+   */
   async eligibility({ userId }) {
+    const [result, activeBonus] = await Promise.all([this.#eligibility(userId), this.#activeBonus(userId)]);
+    return { ...result, activeBonus };
+  }
+
+  /**
+   * The player's unused spin code, as the wallet's hint shows it: `{ pct, maxBonus, currency }`, or
+   * null. Applied automatically to their next credited deposit (SpinWheelBonusService).
+   */
+  async #activeBonus(userId) {
+    const code = await this.models.Redeembonus.findOne({
+      where: { userid: userId, source: CODE_SOURCE, status: CODE_STATUS.ACTIVE },
+      order: [['createdat', 'DESC']],
+      attributes: ['bonus_pct'],
+      raw: true,
+    });
+    if (!code || !(Number(code.bonus_pct) > 0)) return null;
     const config = await this.getConfig();
-    if (!config?.isActive) return { eligible: false, reason: 'The spin wheel is currently disabled' };
+    return {
+      pct: money.format(String(code.bonus_pct)),
+      maxBonus: money.format(config?.maxBonus ?? DEFAULT_MAX_BONUS),
+      currency: await this.rewardMoney.currency(),
+    };
+  }
+
+  async #eligibility(userId) {
+    const config = await this.getConfig();
+    if (!config?.isActive) return { eligible: false, code: 'DISABLED', reason: 'The spin wheel is currently disabled' };
 
     const last = await this.models.SpinWheelClaims.findOne({
       where: { user_id: userId },
@@ -241,27 +300,75 @@ class SpinWheelService {
       raw: true,
     });
 
-    // The first spin is free — no deposit needed.
-    if (!last) return { eligible: true, firstSpin: true, nextEligibleAt: null };
+    return this.#decide({ userId, config, options: await this.options(), last });
+  }
 
-    if (config.unlimitedSpin) return { eligible: true, firstSpin: false, nextEligibleAt: null };
+  /**
+   * May this player spin now? One rule for `eligibility` and `spin`, driven by the owner's
+   * options (featureOptions.js, owner panel only; the defaults are the long-standing behaviour):
+   *
+   *   grant_on_registration   no spin yet: the first spin is free.
+   *   grant_on_first_deposit  the first qualifying deposit earns one spin, no cooldown, as long as
+   *                           the player has not spun since that deposit landed.
+   *   grant_on_every_deposit  after the cooldown, a qualifying deposit made AFTER the player's last
+   *                           spin earns the next one. A deposit from before that spin was already
+   *                           "used" by it (or predates it) and earns nothing; a player who has
+   *                           never spun may use any qualifying deposit.
+   *
+   * The admin's `unlimitedSpin` skips the cooldown (and, once a player has spun, the deposit), as
+   * before; it never invents a grant the owner switched off for a player who has not spun.
+   */
+  async #decide({ userId, config, options, last, transaction }) {
+    if (!last && options.grant_on_registration) return { eligible: true, firstSpin: true, nextEligibleAt: null };
+    if (last && config.unlimitedSpin) return { eligible: true, firstSpin: false, nextEligibleAt: null };
 
-    const nextEligibleAt = this.#nextEligibleAt(last.claimed_at, config.claimCooldownDays);
-    if (nextEligibleAt > new Date()) {
-      return { eligible: false, reason: 'Cooldown active', nextEligibleAt };
+    const needsDeposit = options.grant_on_first_deposit || options.grant_on_every_deposit;
+    const deposit = needsDeposit ? await this.#qualifyingDeposit(userId, config.minDeposit, { transaction }) : null;
+
+    if (options.grant_on_first_deposit && deposit) {
+      const spunSince = await this.models.SpinWheelClaims.count({
+        where: { user_id: userId, claimed_at: { [Op.gte]: deposit.at } },
+        transaction,
+      });
+      if (!spunSince) return { eligible: true, firstSpin: false, depositAmount: deposit.amount, nextEligibleAt: null };
     }
 
-    const deposit = await this.#firstDeposit(userId);
-    if (!deposit) return { eligible: false, reason: 'Make a deposit to spin again', nextEligibleAt };
-    if (money.lt(deposit.amount, config.minDeposit)) {
-      return {
-        eligible: false,
-        reason: `A deposit of at least ${config.minDeposit} is required`,
-        nextEligibleAt,
-      };
+    const nextEligibleAt = last ? this.#nextEligibleAt(last.claimed_at, config.claimCooldownDays) : null;
+    // Only a deposit that landed after the last spin earns the next one.
+    const sinceLastSpin = Boolean(last);
+
+    if (options.grant_on_every_deposit) {
+      if (nextEligibleAt && !config.unlimitedSpin && nextEligibleAt > new Date()) {
+        return { eligible: false, code: 'COOLDOWN_ACTIVE', reason: 'Cooldown active', nextEligibleAt };
+      }
+      const fresh = last && deposit
+        ? await this.#qualifyingDeposit(userId, config.minDeposit, { after: new Date(last.claimed_at), transaction })
+        : deposit;
+      if (fresh) return { eligible: true, firstSpin: false, depositAmount: fresh.amount, nextEligibleAt };
+
+      return this.#depositRequired({ config, nextEligibleAt, sinceLastSpin });
     }
 
-    return { eligible: true, firstSpin: false, depositAmount: deposit.amount, nextEligibleAt };
+    if (needsDeposit && !deposit) return this.#depositRequired({ config, nextEligibleAt, sinceLastSpin: false });
+
+    return { eligible: false, code: 'NOT_ELIGIBLE', reason: 'No spin is available right now', nextEligibleAt: null };
+  }
+
+  /** The DEPOSIT_REQUIRED refusal; `sinceLastSpin` says the deposit must come after the last spin. */
+  async #depositRequired({ config, nextEligibleAt, sinceLastSpin }) {
+    const minDeposit = money.format(config.minDeposit);
+    const currency = await this.rewardMoney.currency();
+    return {
+      eligible: false,
+      code: 'DEPOSIT_REQUIRED',
+      reason: sinceLastSpin
+        ? `A deposit of at least ${minDeposit} ${currency} since your last spin is required`
+        : `A deposit of at least ${minDeposit} ${currency} is required`,
+      minDeposit,
+      currency,
+      sinceLastSpin,
+      nextEligibleAt,
+    };
   }
 
   /**
@@ -273,11 +380,14 @@ class SpinWheelService {
    * locked, so two simultaneous requests cannot both pass the cooldown.
    */
   async spin({ userId }) {
+    // The socket path (WHEELER) too, not only the HTTP route: no spins for an agent's player.
+    await assertPlayerCapability(userId, 'promotions');
     const config = await this.getConfig();
     if (!config?.isActive) throw errors.DISABLED();
 
     const slices = await this.models.SpinWheelSlices.findAll({ order: [['sort_order', 'ASC']], raw: true });
     if (!slices.length) throw errors.NO_SLICES();
+    const options = await this.options();
 
     return this.db.transaction(async (transaction) => {
       /**
@@ -287,10 +397,14 @@ class SpinWheelService {
        * until the first has committed its new claim row — and then reads it,
        * and fails the cooldown. Without it both read the same last claim.
        *
-       * A player with no history locks no rows, which is correct: their first
-       * spin is free and there is nothing to serialise against except the
-       * insert itself.
+       * A player with no history locks no rows, so concurrent first spins all
+       * passed and each left an ACTIVE code. The per-player advisory lock
+       * (released at commit) makes them wait; the read after it sees the claim.
        */
+      await this.db.sequelize.query('SELECT pg_advisory_xact_lock(hashtext(:key))', {
+        replacements: { key: `spin:${userId}` },
+        transaction,
+      });
       const last = await this.models.SpinWheelClaims.findOne({
         where: { user_id: userId },
         order: [['claimed_at', 'DESC']],
@@ -299,14 +413,11 @@ class SpinWheelService {
         raw: true,
       });
 
-      if (last && !config.unlimitedSpin) {
-        const nextEligibleAt = this.#nextEligibleAt(last.claimed_at, config.claimCooldownDays);
-        if (nextEligibleAt > new Date()) throw errors.COOLDOWN_ACTIVE({ nextEligibleAt });
-
-        const deposit = await this.#firstDeposit(userId);
-        if (!deposit || money.lt(deposit.amount, config.minDeposit)) {
-          throw errors.DEPOSIT_REQUIRED({ minimum: config.minDeposit });
-        }
+      const verdict = await this.#decide({ userId, config, options, last, transaction });
+      if (!verdict.eligible) {
+        if (verdict.code === 'COOLDOWN_ACTIVE') throw errors.COOLDOWN_ACTIVE({ nextEligibleAt: verdict.nextEligibleAt });
+        if (verdict.code === 'DEPOSIT_REQUIRED') throw errors.DEPOSIT_REQUIRED({ minimum: config.minDeposit });
+        throw errors.NOT_ELIGIBLE();
       }
 
       const winIndex = this.#draw(slices);
@@ -362,8 +473,12 @@ class SpinWheelService {
   }
 
   /** A player's own spin history. */
+  /**
+   * A player's own claims. Filtered by their id directly: going through `listClaims` with no
+   * staff scoped it to an empty tree, so "Your spins" was always empty.
+   */
   async myClaims({ userId, limit = 50, offset = 0 }) {
-    return this.listClaims({ userId, limit, offset });
+    return this.#claims({ where: { user_id: String(userId) }, limit, offset });
   }
 
   // ══════════════════════════════════════════════════════════════════════
@@ -435,31 +550,48 @@ class SpinWheelService {
   }
 
   /**
-   * The player's FIRST successful deposit, across every gateway.
+   * The player's earliest successful deposit that clears `minimum`, across every gateway, or null.
    *
-   * "First", not "largest" and not "most recent" — that is the legacy rule and
-   * it has a consequence worth stating: once a player has ever deposited above
-   * the minimum, they qualify for every future spin, because the figure being
-   * checked never changes. Whether that is intended is a product question; it
-   * is preserved here rather than quietly tightened.
+   * The minimum is an operator-entered amount, so it is in the site's REWARD currency (the
+   * `reward-currency` skill, rule 4). Each deposit is converted into that currency before it is
+   * compared: a raw compare let a 100 INR deposit (about one dollar) clear a minimum of 100 USDT.
+   * A deposit in a currency with no exchange rate cannot be priced, so it does not count.
+   *
+   * ANY qualifying deposit counts, not only the first one. The legacy rule read the FIRST deposit
+   * and compared that, so a player whose first deposit was below the minimum could never spin
+   * again however much they deposited later, while the wheel kept telling them "a deposit of at
+   * least N is required".
+   *
+   * `after` (the last spin's `claimed_at`): only a deposit that landed strictly later counts — the
+   * "spin on every deposit" rule. The landing time is compared in memory;
+   * every source column is `timestamptz` (crypto/apay since migration 083), so a deposit made
+   * minutes after a spin is never read as hours before it on a server whose clock is not UTC.
    */
-  async #firstDeposit(userId) {
+  async #qualifyingDeposit(userId, minimum, { after = null, transaction } = {}) {
     let earliest = null;
 
     for (const source of DEPOSIT_SOURCES) {
-      const row = await this.models[source.model].findOne({
+      const rows = await this.models[source.model].findAll({
         where: {
           [source.userColumn]: source.userIdIsText ? String(userId) : userId,
           status: source.successValues,
         },
         order: [['created_at', 'ASC']],
+        transaction,
         raw: true,
       });
-      if (!row) continue;
 
-      const at = new Date(row.created_at ?? 0);
-      if (!earliest || at < earliest.at) {
-        earliest = { at, amount: money.toDecimalString(money.toMinor(row.amount ?? '0')), source: source.provider };
+      for (const row of rows) {
+        const at = new Date(row[source.atColumn ?? 'created_at'] ?? row.created_at ?? 0);
+        if (after && !(at > after)) continue;
+
+        const currency = String(source.currency ?? row.currency ?? 'USDT').toUpperCase();
+        const amount = money.toDecimalString(money.toMinor(row.amount ?? '0'));
+        const priced = await this.rewardMoney.toReward(amount, currency);
+        if (!priced || money.lt(priced.amount, minimum)) continue;
+
+        if (!earliest || at < earliest.at) earliest = { at, amount, currency, source: source.provider };
+        break; // rows are oldest first: the first that qualifies is this source's earliest
       }
     }
 
@@ -479,6 +611,11 @@ class SpinWheelService {
       claimCooldownDays: Number(row.claim_cooldown_days ?? 0),
       isActive: Boolean(row.is_active),
       unlimitedSpin: Boolean(row.unlimited_spin),
+      // The most one code pays on one deposit, in the reward currency (migration 075).
+      maxBonus: money.toDecimalString(money.toMinor(row.max_bonus ?? DEFAULT_MAX_BONUS)),
+      // Migration 076: the spin bonus's wagering (null = the first-deposit multiplier) and expiry.
+      wagerMultiplier: row.wager_multiplier == null ? null : Number(row.wager_multiplier),
+      bonusExpiryDays: Number(row.bonus_expiry_days ?? 30),
     };
   }
 

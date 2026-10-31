@@ -30,5 +30,13 @@ module.exports = {
    */
   routers: {
     user: require('./routes/user.routes'),
+    /**
+     * Accrual, for the services that settle wagers.
+     *
+     * The accrual and the claim are two ends of one balance, so they live in
+     * one module behind one row lock. casino-service posting the figure it
+     * computed is the whole of the boundary — see `routes/internal.routes.js`.
+     */
+    internal: require('./routes/internal.routes'),
   },
 };

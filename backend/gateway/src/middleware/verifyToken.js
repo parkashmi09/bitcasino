@@ -43,7 +43,8 @@ function verifyToken({ config, logger }) {
       const payload = tokens.verify(raw, TOKEN_TYPES.ADMIN);
       req.headers['x-staff-id'] = String(payload.sub);
       if (payload.executiveId) req.headers['x-executive-id'] = String(payload.executiveId);
-      req.identity = { kind: 'staff', id: payload.sub };
+      // `readOnly`: a whitelabel preview session — the maintenance gate lets it through.
+      req.identity = { kind: 'staff', id: payload.sub, readOnly: payload.ro === true };
       return next();
     } catch {
       /* neither — fall through */

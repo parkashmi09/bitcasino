@@ -9,16 +9,7 @@ module.exports = defineErrors('PLAYERS', {
 
   NOT_PERMITTED: { status: 403, message: 'You may not do that' },
 
-  INSUFFICIENT_FUNDS: {
-    status: 422,
-    /**
-     * Reported from the ROW COUNT of a guarded UPDATE, not from a balance read
-     * taken beforehand. Legacy read the balance, compared in JavaScript, and
-     * then debited with no floor — two concurrent creations both passed the
-     * check and the agent went negative.
-     */
-    message: 'Not enough balance to fund that account',
-  },
+  // Overdraw is the shared 422 INSUFFICIENT_FUNDS — see `lords/staffFloat.js`.
 
   ALREADY_CLOSED: { status: 409, message: 'That account is already closed' },
 

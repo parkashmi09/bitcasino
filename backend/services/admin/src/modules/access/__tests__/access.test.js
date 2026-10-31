@@ -55,16 +55,16 @@ test('admin access', async (t) => {
     assert.equal(parse([]).success, false, 'a grant of nothing is not a grant');
   });
 
-  await t.test('a six-character password is refused', async () => {
-    // Legacy's minimum, on a login that carries staff authority.
+  await t.test('a seven-character password is refused', async () => {
+    // Under the 8-character floor, on a login that carries staff authority.
     const body = (password) =>
       v.createExecutive.body.safeParse({
         username: 'someone', password, permissions: [PERMISSIONS.REPORTS_READ],
       });
 
     assert.equal(body('abc123').success, false);
-    assert.equal(body('a'.repeat(11)).success, false);
-    assert.equal(body('a'.repeat(12)).success, true);
+    assert.equal(body('a'.repeat(7)).success, false);
+    assert.equal(body('a'.repeat(8)).success, true);
   });
 
   await t.test('lock and status are one shape, not two', async () => {
@@ -114,9 +114,14 @@ test('admin access', async (t) => {
 
   const seedStaff = async (id) => {
     await connection.sequelize.query(
-      `INSERT INTO roles (id, name, level) VALUES (:roleId, :name, 3) ON CONFLICT (id) DO NOTHING`,
+      `INSERT INTO roles (id, name, level) VALUES (:roleId, :name, 3) ON CONFLICT (id) DO UPDATE SET level = EXCLUDED.level`,
       { replacements: { roleId, name: `access-test-role-${roleId}` } }
     );
+    // Ids repeat across runs (they derive from the pid), and a previous run may
+    // have left accounts or players beneath this one. Detach them, or the
+    // delete trips `staff_parent_id_fkey` / `users_parent_staff_id_fkey`.
+    await connection.sequelize.query('UPDATE staff SET parent_id = NULL WHERE parent_id = :id', { replacements: { id } });
+    await connection.sequelize.query('UPDATE users SET parent_staff_id = NULL WHERE parent_staff_id = :id', { replacements: { id } });
     await connection.models.Executives.destroy({ where: { parent_staff_id: id } });
     await connection.models.Staff.destroy({ where: { id } });
     await connection.models.Staff.create({
@@ -327,5 +332,65 @@ test('admin access', async (t) => {
 
     const still = await service.getExecutive({ actor: actorFor(theirs, ['*']), executiveId: created.id });
     assert.equal(still.status, 'active');
+  });
+  await t.test('a master (staff:write, no roles:manage) mints an executive under itself, within its own grants', async () => {
+    const master = await seedStaff(newStaffId());
+    const held = [PERMISSIONS.USERS_READ, PERMISSIONS.STAFF_WRITE, PERMISSIONS.REPORTS_READ];
+    const actor = { id: master, level: 5, executiveId: null, permissions: held };
+
+    const created = await service.createExecutive({
+      actor, username: newUsername(), password: 'correct horse battery', permissions: [PERMISSIONS.REPORTS_READ],
+    });
+    assert.equal(Number(created.parentStaffId), master);
+
+    await assert.rejects(
+      () => service.createExecutive({
+        actor, username: newUsername(), password: 'correct horse battery', permissions: [PERMISSIONS.WALLET_CREDIT],
+      }),
+      (err) => err.code === 'ACCESS_PERMISSION_ESCALATION'
+    );
+  });
+
+  await t.test('an executive session cannot mint, re-grant, reset or lock sub-logins', async () => {
+    const staff = await seedStaff(newStaffId());
+    const owner = actorFor(staff, ['*']);
+    const created = await service.createExecutive({
+      actor: owner, username: newUsername(), password: 'correct horse battery', permissions: [PERMISSIONS.REPORTS_READ],
+    });
+    const asExecutive = { ...owner, executiveId: created.id };
+    const refused = (err) => err.code === 'ACCESS_NOT_PERMITTED' && err.status === 403;
+
+    await assert.rejects(() => service.createExecutive({
+      actor: asExecutive, username: newUsername(), password: 'correct horse battery', permissions: [PERMISSIONS.REPORTS_READ],
+    }), refused);
+    await assert.rejects(() => service.updateExecutive({
+      actor: asExecutive, executiveId: created.id, permissions: [PERMISSIONS.REPORTS_READ],
+    }), refused);
+    await assert.rejects(() => service.resetPassword({
+      actor: asExecutive, executiveId: created.id, password: 'correct horse battery',
+    }), refused);
+    await assert.rejects(() => service.setStatus({ actor: asExecutive, executiveId: created.id, status: 'locked' }), refused);
+  });
+
+  await t.test('an executive whose stored grant is unreadable sees NO permissions, not its parent\'s', async () => {
+    const staff = await seedStaff(newStaffId());
+    const exec = await connection.models.Executives.create({
+      username: newUsername(), password: 'x', parent_staff_id: staff, status: 'active', kind: 'executive',
+      permissions: 'Full platform control, infinite balance',
+    });
+    const me = await service.myPermissions({ actor: { id: staff, level: 3, executiveId: exec.id, permissions: [] } });
+    assert.deepEqual(me.permissions, []);
+
+    // And the guard every request goes through agrees — this is the path that
+    // used to hand the executive its parent's full authority.
+    const { resolveStaff } = require('../../staff-directory/staffDirectory.service');
+    const resolved = await resolveStaff(connection.models, staff, exec.id);
+    assert.deepEqual(resolved.permissions, []);
+
+    // A real `{authority: [...]}` grant (what createExecutive writes) is honoured.
+    await connection.models.Executives.update(
+      { permissions: { authority: [PERMISSIONS.REPORTS_READ] } }, { where: { id: exec.id } }
+    );
+    assert.deepEqual((await resolveStaff(connection.models, staff, exec.id)).permissions, [PERMISSIONS.REPORTS_READ]);
   });
 });

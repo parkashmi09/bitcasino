@@ -1,5 +1,9 @@
 'use strict';
 
+// These cases exercise the SEPARATE transaction password (`staff.transaction_password`);
+// login mode (the default) is covered in staff-auth/__tests__/txnPasswordMode.test.js.
+process.env.TXN_PASSWORD_MODE = 'separate';
+
 const test = require('node:test');
 const assert = require('node:assert');
 
@@ -107,7 +111,7 @@ test('admin account controls', async (t) => {
 
   const roleId = 9950 + (process.pid % 50);
 
-  const seedStaff = async (id, { inr = '0', parentId = null } = {}) => {
+  const seedStaff = async (id, { inr = '0', parentId = null, txnPassword = TXN_PASSWORD } = {}) => {
     await connection.sequelize.query(
       `INSERT INTO roles (id, name, level) VALUES (:roleId, :name, 3) ON CONFLICT (id) DO NOTHING`,
       { replacements: { roleId, name: `lords-role-${roleId}` } }
@@ -116,7 +120,17 @@ test('admin account controls', async (t) => {
     await connection.models.StaffHierarchy.destroy({
       where: { [Op.or]: [{ ancestor_id: id }, { descendant_id: id }] },
     });
-    await connection.models.StaffBalances.destroy({ where: { staff_id: id } });
+    await connection.models.StaffCredits.destroy({ where: { staff_id: id } });
+    // Ids come from the pid, so an earlier run can have left players / child staff under
+    // this same id — clear them first, or the delete below hits users_parent_staff_id_fkey.
+    const leftovers = await connection.models.Users.findAll({ where: { parent_staff_id: id }, attributes: ['id'], raw: true });
+    for (const { id: uid } of leftovers) {
+      await connection.models.Credits.destroy({ where: { uid } });
+      await connection.models.Users.destroy({ where: { id: uid } }).catch(() =>
+        connection.models.Users.update({ parent_staff_id: null }, { where: { id: uid } })
+      );
+    }
+    await connection.models.Staff.update({ parent_id: null }, { where: { parent_id: id } });
     await connection.models.Staff.destroy({ where: { id } });
 
     await connection.models.Staff.create({
@@ -127,12 +141,12 @@ test('admin account controls', async (t) => {
       // The operator's second factor, hashed. `verifyTransactionPassword`
       // handles both a hash and the legacy plaintext form, so this exercises
       // the hashed path.
-      transaction_password: await hashPassword(TXN_PASSWORD, 4),
+      transaction_password: txnPassword ? await hashPassword(txnPassword, 4) : null,
       role_id: roleId,
       parent_id: parentId,
       status: 'active',
     });
-    await connection.models.StaffBalances.create({ staff_id: id, inr });
+    await connection.models.StaffCredits.create({ staff_id: id, inr });
 
     const rows = [{ ancestor_id: id, descendant_id: id, depth: 0 }];
     if (parentId) {
@@ -167,7 +181,7 @@ test('admin account controls', async (t) => {
     return money.toDecimalString(money.toMinor(row?.inr ?? '0'));
   };
   const staffBalance = async (id) => {
-    const row = await connection.models.StaffBalances.findOne({ where: { staff_id: id }, raw: true });
+    const row = await connection.models.StaffCredits.findOne({ where: { staff_id: id }, raw: true });
     return money.toDecimalString(money.toMinor(row?.inr ?? '0'));
   };
 
@@ -181,6 +195,30 @@ test('admin account controls', async (t) => {
         transactionPassword: 'not it',
       }),
       (err) => err.code === 'ACCOUNTS_TRANSACTION_PASSWORD_REQUIRED' && err.status === 403
+    );
+
+    assert.equal(await playerBalance(player), '0.00000000');
+    assert.equal(await staffBalance(staff), '1000.00000000');
+  });
+
+  await t.test('no transaction password on the account says so, not "not valid"', async () => {
+    const staff = await seedStaff(newStaffId(), { inr: '1000', txnPassword: null });
+    const player = await seedPlayer(newUid(), staff, '0');
+
+    await assert.rejects(
+      () => service.refill({
+        actor: actorFor(staff), accountId: player, amount: '100',
+        transactionPassword: 'anything at all',
+      }),
+      (err) => err.code === 'TXN_PASSWORD_NOT_SET' && err.status === 403
+        && /ask an account above you/.test(err.message)
+    );
+    await assert.rejects(
+      () => service.setStatus({
+        actor: actorFor(staff), accountType: 'user', accountId: player,
+        status: 'suspended', transactionPassword: 'anything at all',
+      }),
+      (err) => err.code === 'TXN_PASSWORD_NOT_SET'
     );
 
     assert.equal(await playerBalance(player), '0.00000000');
@@ -216,7 +254,7 @@ test('admin account controls', async (t) => {
         actor: actorFor(staff), accountId: player, amount: '500',
         transactionPassword: TXN_PASSWORD,
       }),
-      (err) => err.code === 'ACCOUNTS_INSUFFICIENT_FUNDS' && err.status === 402
+      (err) => err.code === 'INSUFFICIENT_FUNDS' && err.status === 422
     );
 
     assert.equal(await staffBalance(staff), '100.00000000');
@@ -237,24 +275,87 @@ test('admin account controls', async (t) => {
     assert.equal(await staffBalance(staff), '0.00000000', 'never negative');
   });
 
-  await t.test('the platform owner issues funds without a balance', async () => {
+  await t.test('the platform owner refills its child player from the owner wallet', async () => {
+    // Migration 099: the owner's balance is in `credits` and a refill draws on it.
     const owner = await seedStaff(newStaffId(), { inr: '0' });
     const player = await seedPlayer(newUid(), owner, '0');
+    const actor = actorFor(owner, { canIssueFunds: true, level: 0 });
 
-    const result = await service.refill({
-      actor: actorFor(owner, { canIssueFunds: true, level: 0 }),
-      accountId: player, amount: '5000', transactionPassword: TXN_PASSWORD,
-    });
+    await assert.rejects(
+      () => service.refill({ actor, accountId: player, amount: '5000', transactionPassword: TXN_PASSWORD }),
+      (err) => err.code === 'INSUFFICIENT_FUNDS'
+    );
 
-    assert.equal(result.issued, true);
+    await connection.models.StaffCredits.update({ inr: '8000' }, { where: { staff_id: owner } });
+    const result = await service.refill({ actor, accountId: player, amount: '5000', transactionPassword: TXN_PASSWORD });
+
+    assert.equal(result.issued, false);
     assert.equal(await playerBalance(player), '5000.00000000');
-    assert.equal(await staffBalance(owner), '0.00000000');
+    assert.equal(await staffBalance(owner), '3000.00000000');
 
-    // And the transfer row says which it was.
     const row = await connection.models.StaffTransfers.findOne({
       where: { to_type: 'user', to_id: player }, order: [['id', 'DESC']], raw: true,
     });
-    assert.equal(row.transfer_type, 'issuance');
+    assert.equal(row.transfer_type, 'refill');
+  });
+
+  await t.test('the platform owner refilling a DIRECT user (no parent) pays from the Direct User balance, not credits', async () => {
+    const owner = await seedStaff(newStaffId(), { inr: '0' });
+    const player = await seedPlayer(newUid(), owner, '0');
+    await connection.models.Users.update({ parent_staff_id: null }, { where: { id: player } });
+    const actor = actorFor(owner, { canIssueFunds: true, level: 0 });
+    const directBalance = async () =>
+      String((await connection.models.StaffBalances.findOne({ where: { staff_id: owner }, raw: true }))?.inr ?? '0');
+
+    // No Direct User balance yet: refused, nothing moves.
+    await connection.models.StaffBalances.destroy({ where: { staff_id: owner } });
+    await assert.rejects(
+      () => service.refill({ actor, accountId: player, amount: '700', transactionPassword: TXN_PASSWORD }),
+      (err) => err.code === 'INSUFFICIENT_FUNDS' && err.details?.party === 'owner_direct'
+    );
+    assert.equal(await playerBalance(player), '0.00000000');
+
+    await connection.models.StaffBalances.create({ staff_id: owner, inr: '1000' });
+    const result = await service.refill({ actor, accountId: player, amount: '700', transactionPassword: TXN_PASSWORD });
+
+    assert.equal(result.issued, false);
+    assert.equal(await playerBalance(player), '700.00000000');
+    assert.equal(Number(await directBalance()), 300, 'paid from staff_balances');
+    assert.equal(await staffBalance(owner), '0.00000000', 'a direct user is not paid from the owner credits wallet');
+
+    const row = await connection.models.StaffTransfers.findOne({
+      where: { to_type: 'user', to_id: player }, order: [['id', 'DESC']], raw: true,
+    });
+    assert.equal(row.transfer_type, 'direct');
+
+    // Point ledger: the direct user's own history, as "Bank Deposite".
+    const wallet = await connection.models.Credits.findOne({ where: { uid: player }, attributes: ['id'], raw: true });
+    const [entry] = await connection.sequelize.query(
+      'SELECT event_type, delta FROM mssports.point_ledger WHERE wallet_id = :id ORDER BY id DESC LIMIT 1',
+      { replacements: { id: wallet.id }, type: 'SELECT' }
+    );
+    assert.equal(entry.event_type, 'Bank Deposite');
+    assert.equal(Number(entry.delta), 700);
+  });
+
+  await t.test('transfer statement: Direct Users | Agent Users tab (channel)', async () => {
+    const owner = await seedStaff(newStaffId(), { inr: '1000' });
+    const actor = actorFor(owner, { canIssueFunds: true, level: 0 });
+    const child = await seedPlayer(newUid(), owner, '0');
+    const direct = await seedPlayer(newUid(), owner, '0');
+    await connection.models.Users.update({ parent_staff_id: null }, { where: { id: direct } });
+    await connection.models.StaffBalances.destroy({ where: { staff_id: owner } });
+    await connection.models.StaffBalances.create({ staff_id: owner, inr: '100' });
+    await service.refill({ actor, accountId: child, amount: '10', transactionPassword: TXN_PASSWORD });
+    await service.refill({ actor, accountId: direct, amount: '20', transactionPassword: TXN_PASSWORD });
+
+    const toIds = async (channel) =>
+      (await service.transferStatement({ actor, accountType: 'staff', accountId: owner, channel, limit: 50, offset: 0 })).rows.map((r) => String(r.to?.id ?? r.toId ?? r.to_id));
+    const directIds = await toIds('direct');
+    const agentIds = await toIds('agent');
+    assert.ok(directIds.includes(String(direct)) && !directIds.includes(String(child)), JSON.stringify(directIds));
+    assert.ok(agentIds.includes(String(child)) && !agentIds.includes(String(direct)), JSON.stringify(agentIds));
+    assert.equal((await toIds(undefined)).length, directIds.length + agentIds.length, 'na bheja = dono');
   });
 
   await t.test('a refill above the ceiling is refused', async () => {
@@ -303,7 +404,20 @@ test('admin account controls', async (t) => {
 
     const row = await connection.models.Users.findByPk(player, { raw: true });
     assert.match(row.password, /^\$2[aby]\$/);
-    assert.ok(!row.password2, 'password2 must stay empty');
+    assert.equal(row.password2, null, 'password2 must stay NULL');
+  });
+
+  await t.test('a staff password reset forces a change at the next sign-in', async () => {
+    const staff = await seedStaff(newStaffId());
+    const child = await seedStaff(newStaffId(), { parentId: staff });
+
+    await service.setPassword({
+      actor: actorFor(staff), accountType: 'staff', accountId: child,
+      newPassword: 'a brand new long password', transactionPassword: TXN_PASSWORD,
+    });
+
+    const row = await connection.models.Staff.findByPk(child, { attributes: ['must_change_password'], raw: true });
+    assert.equal(row.must_change_password, true);
   });
 
   await t.test('locks can be set together, and not on yourself', async () => {

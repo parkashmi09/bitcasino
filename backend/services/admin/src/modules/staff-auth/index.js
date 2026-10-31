@@ -42,7 +42,7 @@
  * Not this module's routes, but found while reading them and too important to
  * leave in a commit message: `legacy/Users/Rule.js` signs PLAYER tokens with
  *
- *     jwt.sign({ id: user_id, username: result.name }, "keyboardca4ever", ...)
+ *     jwt.sign({ id: user_id, username: result.name }, "<redacted, see backend/docs/ROTATION.md>", ...)
  *
  * a hardcoded string, also present in `index.js`. Anyone holding this source
  * can mint a valid session for any player id. It is at the top of the rotation

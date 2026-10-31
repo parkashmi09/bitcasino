@@ -33,7 +33,7 @@ module.exports = (sequelize) => {
       field: "gift_card_id",
     },
     start_date: {
-      type: 'TIMESTAMP',
+      type: DataTypes.DATE, // timestamptz (migration 083)
       allowNull: false,
       defaultValue: DataTypes.NOW,
       field: "start_date",

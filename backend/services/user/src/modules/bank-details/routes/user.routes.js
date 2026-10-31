@@ -1,7 +1,8 @@
 'use strict';
 
 const { Router } = require('express');
-const { validate } = require('@ibitplay/common');
+const { validate, refuseCustomCurrencies, noQuery } = require('@ibitplay/common');
+const { denyAgentPlayer } = require('@ibitplay/auth');
 
 const v = require('../bankDetails.validators');
 const { BankDetailsService } = require('../bankDetails.service');
@@ -19,8 +20,14 @@ module.exports = function userRoutes(deps) {
 
   const router = Router();
 
-  router.get('/:coin_type', validate(v.coinParam), ctrl.listActive);
-  router.get('/:coin_type/:id/qr', validate(v.remove), ctrl.qrImage);
+  // Custom coins (owner-created, no provider behind them) never reach this module: CURRENCY_NOT_SUPPORTED_FOR_WITHDRAWAL.
+
+  router.use(refuseCustomCurrencies('WITHDRAWAL'));
+  // Where to send a deposit — agent-tree players have no deposit rail.
+  router.use(denyAgentPlayer('deposit'));
+
+  router.get('/:coin_type', validate(v.activeList), ctrl.listActive);
+  router.get('/:coin_type/:id/qr', noQuery(), validate(v.remove), ctrl.qrImage);
 
   return router;
 };

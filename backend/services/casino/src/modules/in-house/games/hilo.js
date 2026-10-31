@@ -75,4 +75,11 @@ function cashout({ profit }) {
   return { profit: String(profit ?? '0'), isWinner: true };
 }
 
-module.exports = { open, step, cashout, makeCards, key: 'hilo' };
+/**
+ * The card now showing — `result[next]`, which at open is the first one.
+ *
+ * The rest of `result` is the deck, and every value in it is a future card.
+ */
+const publicState = (state = {}) => ({ card: state.result?.[Number(state.next ?? 0)] ?? null });
+
+module.exports = { open, step, cashout, makeCards, publicState, key: 'hilo' };

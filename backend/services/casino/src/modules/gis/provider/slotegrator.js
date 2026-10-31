@@ -13,8 +13,8 @@ const crypto = require('crypto');
  * ── CREDENTIALS ──────────────────────────────────────────────────────────
  * The merchant id and key were hard-coded at the top of `legacy/gis/controller.js`:
  *
- *     const M_ID  = '9088a8210aa9be9c224e9ae5efdc9976';
- *     const M_KEY = '354d31484955a6e2fadc3545775d04a28f9c644e';
+ *     const M_ID  = '<redacted, see backend/docs/ROTATION.md>';
+ *     const M_KEY = '<redacted, see backend/docs/ROTATION.md>';
  *
  * They are in the repository history and must be rotated with Slotegrator. They
  * are configuration here, and an unconfigured client refuses rather than signing

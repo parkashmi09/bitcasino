@@ -1,12 +1,15 @@
 'use strict';
 
-const { money } = require('@ibitplay/common');
+const { Op, literal, QueryTypes } = require('sequelize');
+const { money, currencyRegistry, directLedger } = require('@ibitplay/common');
+const { assertPlayerCapability } = require('@ibitplay/auth');
 
 const errors = require('./swap.errors');
-const { feeRateFor } = require('./swap.constants');
+const { FEE_BY_CURRENCY, DEFAULT_FEE, FEE_CONFIG_KEY } = require('./swap.constants');
 const { WalletRepository } = require('../wallet/wallet.repository');
 const { ExchangeRateService } = require('../exchange-rate/exchangeRate.service');
-const { REASON } = require('../wallet/wallet.constants');
+const { REASON, CURRENCY_COLUMN } = require('../wallet/wallet.constants');
+const { ownerWhere, assertPlayerVisible, withChannel } = require('../directory/playerScope');
 
 /**
  * Internal currency swap.
@@ -44,11 +47,12 @@ const { REASON } = require('../wallet/wallet.constants');
  */
 class SwapService {
   constructor(deps) {
-    const { models, db, config, logger } = deps;
+    const { models, db, config, logger, clients } = deps;
     this.models = models;
     this.db = db;
     this.config = config;
     this.logger = logger;
+    this.clients = clients;
     this.wallet = new WalletRepository({ models, db });
     this.rates = new ExchangeRateService(deps);
   }
@@ -82,7 +86,16 @@ class SwapService {
    * @legacy POST /internalswap/swap
    */
   async swap({ userId, fromCurrency, toCurrency, amount }) {
+    // Agent-tree players cannot swap (SWAP_NOT_FOR_AGENT_USERS). The HTTP route
+    // refuses them first; this covers every other caller — the
+    // SUBMIT_NEW_SWAP socket in particular.
+    await assertPlayerCapability(userId, 'swap');
     if (fromCurrency === toCurrency) throw errors.SAME_CURRENCY({ currency: fromCurrency });
+    // A coin switched off by the owner or the site (built-in or custom, 065)
+    // is not a swap target; a balance in one can still be swapped OUT.
+    if (!(await currencyRegistry.isEnabled(toCurrency))) {
+      throw errors.CURRENCY_DISABLED({ currency: toCurrency });
+    }
 
     const quote = await this.#quote({ fromCurrency, toCurrency, amount });
 
@@ -95,6 +108,9 @@ class SwapService {
 
       // The full amount leaves the wallet — the fee is retained by the house,
       // only the post-fee remainder is converted.
+      // Each update names itself on the direct player's statement (a bare update reads BALANCE_CHANGE).
+      const label = { userId, eventType: 'SWAP', category: directLedger.CATEGORY.TRANSFER, source: 'user-service', remark: `Swap ${fromCurrency} -> ${toCurrency}` };
+      await directLedger.directLedgerContext(this.db.sequelize, transaction, label);
       const debit = await this.wallet.debit(userId, fromCurrency, amount, transaction);
       if (!debit.ok) {
         throw errors.INSUFFICIENT_BALANCE({
@@ -108,6 +124,7 @@ class SwapService {
       const toBefore = money.fromStored(toLocked?.balance ?? '0');
 
       const convertedString = money.toDecimalString(quote.converted);
+      await directLedger.directLedgerContext(this.db.sequelize, transaction, label);
       const toAfter = await this.wallet.credit(userId, toCurrency, convertedString, transaction);
 
       // Both legs on the ledger, so summing it still reconciles per currency.
@@ -168,7 +185,7 @@ class SwapService {
         amountAfterFee: money.toDecimalString(quote.afterFee),
         newBalances: {
           [fromCurrency]: money.fromStored(debit.balance),
-          [toCurrency]: money.toDecimalString(money.toMinor(toAfter)),
+          [toCurrency]: money.fromStored(toAfter),
         },
         ledger: { out: outLedger.id, in: inLedger.id },
       };
@@ -181,15 +198,28 @@ class SwapService {
     if (!wallet) return {};
 
     const { uid, ...balances } = wallet;
+    const custom = await this.wallet.listCustomBalances(userId);
     return Object.fromEntries(
-      Object.entries(balances)
-        .map(([code, value]) => [code.toUpperCase(), money.toDecimalString(money.toMinor(value ?? '0'))])
+      [
+        ...Object.entries(balances)
+          // Coin columns only (`credits` also carries `credit_limit`).
+          .filter(([column]) => Object.prototype.hasOwnProperty.call(CURRENCY_COLUMN, column.toUpperCase()))
+          .map(([code, value]) => [code.toUpperCase(), money.fromStored(value ?? '0')]),
+        // Custom coins (065), from `wallet_balances`.
+        ...custom.map((row) => [row.code, money.fromStored(row.balance ?? '0')]),
+      ]
         // A swap screen only needs the currencies the player actually holds.
         .filter(([, value]) => money.gt(value, '0'))
     );
   }
 
   /** @legacy GET /internalswap/history/:uid */
+  /** One player's swaps, for a staff caller — the player must be in their tree. */
+  async listUserHistoryForStaff({ staff, userId, limit, offset }) {
+    await assertPlayerVisible(this, staff?.id, userId);
+    return this.listUserHistory({ userId, limit, offset });
+  }
+
   async listUserHistory({ userId, limit, offset }) {
     return this.models.SwapHistory.findAndCountAll({
       where: { uid: userId },
@@ -200,10 +230,101 @@ class SwapService {
     });
   }
 
-  /** @legacy GET /internalswap/history */
-  async listAllHistory({ userId, limit, offset }) {
+  /**
+   * @legacy GET /internalswap/history
+   *
+   * Scoped to the caller's tree — this listed every player's swaps to any
+   * staff member with `wallet:read`, agents included.
+   */
+  /** The swap fee every live coin pays, as a fraction ("0.01" is 1%): the Super Admin's, or the default. */
+  async getFee() {
+    const [row] = await this.db.sequelize.query('SELECT config_value FROM admin_configurations WHERE config_key = :key', {
+      replacements: { key: FEE_CONFIG_KEY },
+      type: QueryTypes.SELECT,
+    });
+    return { fee: row?.config_value ?? DEFAULT_FEE };
+  }
+
+  /** Sets the swap fee for every swap from now on; past swaps keep the fee stored on their row. */
+  async setFee({ fee }) {
+    await this.db.sequelize.query(
+      `INSERT INTO admin_configurations (config_key, config_value, last_updated) VALUES (:key, :fee, NOW())
+       ON CONFLICT (config_key) DO UPDATE SET config_value = EXCLUDED.config_value, last_updated = NOW()`,
+      { replacements: { key: FEE_CONFIG_KEY, fee } },
+    );
+    return this.getFee();
+  }
+
+  /**
+   * What the swap fees earned, in USDT: each fee at the USD rate its own swap used (USDT is 1 USD).
+   * The caller's tree, direct users by default (agent-tree players cannot swap).
+   */
+  async feeSummary({ staff, userId, channel = 'direct' }) {
+    const where = withChannel(await ownerWhere(this, staff?.id, 'uid', userId), 'uid', channel);
+    const fee = 'fee_amount * COALESCE(usd_rate_from, 0)';
+    const sum = (filter) => literal(`ROUND(COALESCE(SUM(${fee})${filter ? ` FILTER (WHERE ${filter})` : ''}, 0), 8)::text`);
+    const [row] = await this.models.SwapHistory.findAll({
+      where,
+      attributes: [
+        [literal('COUNT(*)::int'), 'swaps'],
+        [sum(null), 'feeUsdt'],
+        [sum("created_at >= date_trunc('day', NOW())"), 'todayUsdt'],
+        [sum("created_at >= date_trunc('month', NOW())"), 'monthUsdt'],
+      ],
+      raw: true,
+    });
+    return { swaps: row?.swaps ?? 0, feeUsdt: row?.feeUsdt ?? '0', todayUsdt: row?.todayUsdt ?? '0', monthUsdt: row?.monthUsdt ?? '0' };
+  }
+
+  /**
+   * The fee earnings day by day, newest first: swaps, the value swapped and the fee in USDT (each at
+   * its own swap's rate), and the fee as taken, coin by coin.
+   */
+  async feeHistory({ staff, userId, channel = 'direct', limit, offset }) {
+    const where = withChannel(await ownerWhere(this, staff?.id, 'uid', userId), 'uid', channel);
+    const day = literal("date_trunc('day', created_at)");
+    const [rows, total] = await Promise.all([
+      this.models.SwapHistory.findAll({
+        where,
+        attributes: [
+          [literal("to_char(date_trunc('day', created_at), 'YYYY-MM-DD')"), 'day'],
+          [literal('COUNT(*)::int'), 'swaps'],
+          [literal('ROUND(COALESCE(SUM(fee_amount * COALESCE(usd_rate_from, 0)), 0), 8)::text'), 'feeUsdt'],
+          [literal('ROUND(COALESCE(SUM(from_amount * COALESCE(usd_rate_from, 0)), 0), 8)::text'), 'volumeUsdt'],
+        ],
+        group: [day],
+        order: [[day, 'DESC']],
+        limit,
+        offset,
+        raw: true,
+      }),
+      this.models.SwapHistory.findAll({ where, attributes: [[literal("COUNT(DISTINCT date_trunc('day', created_at))::int"), 'n']], raw: true }),
+    ]);
+    // The same days' fees per coin, as the player paid them.
+    const coins = rows.length
+      ? await this.models.SwapHistory.findAll({
+          where: { ...where, [Op.and]: [...(where[Op.and] ?? []), literal(`to_char(date_trunc('day', created_at), 'YYYY-MM-DD') IN (${rows.map((r) => `'${r.day}'`).join(',')})`)] },
+          attributes: [
+            [literal("to_char(date_trunc('day', created_at), 'YYYY-MM-DD')"), 'day'],
+            'fee_currency',
+            [literal('ROUND(SUM(fee_amount), 8)::text'), 'fee'],
+          ],
+          group: [day, 'fee_currency'],
+          raw: true,
+        })
+      : [];
+    return {
+      rows: rows.map((r) => ({ ...r, fees: coins.filter((c) => c.day === r.day).map((c) => ({ currency: c.fee_currency, amount: c.fee })) })),
+      count: total[0]?.n ?? 0,
+    };
+  }
+
+  async listAllHistory({ staff, userId, currency, channel, limit, offset }) {
+    const where = withChannel(await ownerWhere(this, staff?.id, 'uid', userId), 'uid', channel);
+    // The site admin's currency filter: a swap out of OR into that coin.
+    if (currency) where[Op.or] = [{ from_currency: currency }, { to_currency: currency }];
     return this.models.SwapHistory.findAndCountAll({
-      where: userId ? { uid: userId } : undefined,
+      where,
       order: [['id', 'DESC']],
       limit,
       offset,
@@ -219,7 +340,7 @@ class SwapService {
    * source currency.
    */
   async #quote({ fromCurrency, toCurrency, amount }) {
-    const feeRate = feeRateFor(fromCurrency);
+    const feeRate = FEE_BY_CURRENCY[String(fromCurrency).toUpperCase()] ?? (await this.getFee()).fee;
 
     // percentOf works at scale 8, so a 0.15 rate is exact rather than 0.1499999.
     const feeAmount = money.percentOf(amount, money.toDecimalString(money.multiply(feeRate, '100')));

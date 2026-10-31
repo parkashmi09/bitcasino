@@ -4,8 +4,8 @@ const { Op, fn, col, literal } = require('sequelize');
 const { money } = require('@ibitplay/common');
 
 const errors = require('./betAdmin.errors');
-const { BET_STATUS } = require('../bets/bets.constants');
-const { worstCase } = require('../bets/exposure');
+const { BET_STATUS } = require('./bets.constants');
+const { worstCase } = require('./exposure');
 
 /**
  * Reporting on the book, and locking accounts out of it.
@@ -440,7 +440,7 @@ class BetAdminService {
 
     const users = await this.models.Users.findAll({
       where: includeUnassigned
-        ? { [Op.or]: [{ parent_staff_id: staffIds }, { parent_staff_id: null }] }
+        ? { [Op.or]: [{ parent_staff_id: staffIds }, { parent_staff_id: null, is_demo: false }] }
         : { parent_staff_id: staffIds },
       attributes: ['id'],
       raw: true,

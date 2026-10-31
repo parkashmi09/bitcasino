@@ -3,163 +3,128 @@
 /**
  * The VIP ladder, keyed on lifetime wager.
  *
- * Lifted verbatim from `legacy/bonus/calculateVip.js` — 75 bands, unchanged
- * boundaries. Extracted rather than retyped, so a transcription slip cannot
- * quietly move a player between levels.
+ * ═════════════════════════════════════════════════════════════════════════
+ * THE HASH.GAME LADDER (19 Oct 2026)
  *
- * ── TWO THINGS THE LEGACY VERSION GOT WRONG ──────────────────────────────
+ * 33 levels after Beginner, exactly as hash.game publishes them
+ * (`GET /api/game/support/vip-v2/config/`, 1 XP = $1 wagered): Bronze I–IV,
+ * Silver I–IV, Gold I–IV, Platinum I–IV, Diamond I–VII, Eternal I–X. The
+ * referral unlock table (`siteconfig.referral_unlock_tiers`) names these levels,
+ * so the two now agree. Names are editable in the site admin (VIP Club → Ladder,
+ * `vip_level_names`), and so are the thresholds (`vip_level_names.min_xp`,
+ * migration 133) — `resolveVipLadder` lays both over these defaults.
+ *
+ * It replaced a 41-level Wood…Diamond ladder (500 XP to 37,000,000), so every
+ * existing player's level moved with it: a level is a function of lifetime
+ * wager and nothing stored had to change. Level-up credits are keyed per level
+ * (`vip:level_up:<user>:<level>`), so a player who passes a level number they
+ * were already paid for is not paid again.
+ *
+ * ── LEVELS STAY NUMBERS ──────────────────────────────────────────────────
+ *
+ * The reference identifies levels by name (`BRONZE_1`). Here `level` is still
+ * an ordinal 1…41, because every caller compares it numerically —
+ * `bonus.service.js` gates on `vip.level >= spec.minVipLevel`, reports sort on
+ * it — and a string would break all of them silently. `name` carries the
+ * display form, so nothing downstream has to rebuild "Bronze 1" from a tier
+ * and an offset.
+ *
+ * ── TWO THINGS THE LEGACY VERSION GOT WRONG, STILL FIXED ─────────────────
  *
  * 1. IT NAMED THE FIELDS BACKWARDS. `getVipLevelDetails` returned
  *    `vipLevel: nextVip.level` and `previousVipLevel: vip.level` — so the
  *    field called vipLevel was the level the player had NOT reached yet, and
- *    the one they actually held was called previous. Every caller had to know
- *    this, and they did it inconsistently:
+ *    the one they actually held was called previous.
  *
- *      parseInt(vipDetails.previousVipLevel?.split(' ')[1]) || 0
- *
- * 2. A PLAYER ABOVE THE TOP BAND FELL TO ZERO. Past 99,999,999,999 the function
- *    returned `{ error: ... }` with no level field at all. The caller's
- *    `parseInt(undefined) || 0` then made them VIP 0 — so the platform's very
- *    biggest player would silently lose every bonus they qualified for. Here the
- *    top band is open-ended.
+ * 2. A PLAYER ABOVE THE TOP BAND FELL TO ZERO. Past the last band the function
+ *    returned `{ error: ... }` with no level field, and the caller's
+ *    `parseInt(undefined) || 0` made them VIP 0 — so the platform's biggest
+ *    player would silently lose every bonus they qualified for. The top band
+ *    is open-ended here.
+ * ═════════════════════════════════════════════════════════════════════════
  */
-
-/** Lifetime wager bands. `maxXp` on the final band is ignored — see below. */
-const VIP_LEVELS = Object.freeze([
-  { level:  1, minXp:           1, maxXp:          99, card: 'brownz' },
-  { level:  2, minXp:         100, maxXp:         199, card: 'brownz' },
-  { level:  3, minXp:         200, maxXp:         999, card: 'brownz' },
-  { level:  4, minXp:        1000, maxXp:        1999, card: 'brownz' },
-  { level:  5, minXp:        2000, maxXp:        2999, card: 'brownz' },
-  { level:  6, minXp:        3000, maxXp:        3999, card: 'brownz' },
-  { level:  7, minXp:        4000, maxXp:        4999, card: 'brownz' },
-  { level:  8, minXp:        5000, maxXp:        6999, card: 'silver' },
-  { level:  9, minXp:        7000, maxXp:        8999, card: 'silver' },
-  { level: 10, minXp:        9000, maxXp:       10999, card: 'silver' },
-  { level: 11, minXp:       11000, maxXp:       12999, card: 'silver' },
-  { level: 12, minXp:       13000, maxXp:       14999, card: 'silver' },
-  { level: 13, minXp:       15000, maxXp:       16999, card: 'silver' },
-  { level: 14, minXp:       17000, maxXp:       18999, card: 'silver' },
-  { level: 15, minXp:       19000, maxXp:       20999, card: 'silver' },
-  { level: 16, minXp:       21000, maxXp:       22999, card: 'silver' },
-  { level: 17, minXp:       23000, maxXp:       24999, card: 'silver' },
-  { level: 18, minXp:       25000, maxXp:       26999, card: 'silver' },
-  { level: 19, minXp:       27000, maxXp:       28999, card: 'silver' },
-  { level: 20, minXp:       29000, maxXp:       30999, card: 'silver' },
-  { level: 21, minXp:       31000, maxXp:       44999, card: 'silver' },
-  { level: 22, minXp:       45000, maxXp:       48999, card: 'gold' },
-  { level: 23, minXp:       49000, maxXp:       58999, card: 'gold' },
-  { level: 24, minXp:       59000, maxXp:       68999, card: 'gold' },
-  { level: 25, minXp:       69000, maxXp:       78999, card: 'gold' },
-  { level: 26, minXp:       79000, maxXp:       88999, card: 'gold' },
-  { level: 27, minXp:       89000, maxXp:       98999, card: 'gold' },
-  { level: 28, minXp:       99000, maxXp:      108999, card: 'gold' },
-  { level: 29, minXp:      109000, maxXp:      118999, card: 'gold' },
-  { level: 30, minXp:      119000, maxXp:      128999, card: 'gold' },
-  { level: 31, minXp:      129000, maxXp:      138999, card: 'gold' },
-  { level: 32, minXp:      139000, maxXp:      148999, card: 'gold' },
-  { level: 33, minXp:      149000, maxXp:      158999, card: 'gold' },
-  { level: 34, minXp:      159000, maxXp:      168999, card: 'gold' },
-  { level: 35, minXp:      169000, maxXp:      178999, card: 'gold' },
-  { level: 36, minXp:      179000, maxXp:      188999, card: 'gold' },
-  { level: 37, minXp:      189000, maxXp:      296999, card: 'gold' },
-  { level: 38, minXp:      297000, maxXp:      320999, card: 'platinum' },
-  { level: 39, minXp:      321000, maxXp:      376999, card: 'platinum' },
-  { level: 40, minXp:      377000, maxXp:      432999, card: 'platinum' },
-  { level: 41, minXp:      433000, maxXp:      488999, card: 'platinum' },
-  { level: 42, minXp:      489000, maxXp:      544999, card: 'platinum' },
-  { level: 43, minXp:      545000, maxXp:      600999, card: 'platinum' },
-  { level: 44, minXp:      601000, maxXp:      656999, card: 'platinum' },
-  { level: 45, minXp:      657000, maxXp:      712999, card: 'platinum' },
-  { level: 46, minXp:      713000, maxXp:      768999, card: 'platinum' },
-  { level: 47, minXp:      769000, maxXp:      824999, card: 'platinum' },
-  { level: 48, minXp:      825000, maxXp:      880999, card: 'platinum' },
-  { level: 49, minXp:      881000, maxXp:      936999, card: 'platinum' },
-  { level: 50, minXp:      937000, maxXp:      992999, card: 'platinum' },
-  { level: 51, minXp:      993000, maxXp:     1048999, card: 'platinum' },
-  { level: 52, minXp:     1049000, maxXp:     1104999, card: 'platinum' },
-  { level: 53, minXp:     1105000, maxXp:     1160999, card: 'platinum' },
-  { level: 54, minXp:     1161000, maxXp:     1216999, card: 'platinum' },
-  { level: 55, minXp:     1217000, maxXp:     1272999, card: 'platinum' },
-  { level: 56, minXp:     1273000, maxXp:     2368999, card: 'platinum' },
-  { level: 57, minXp:     2369000, maxXp:     2656999, card: 'platinum' },
-  { level: 58, minXp:     2657000, maxXp:     2944999, card: 'platinum' },
-  { level: 59, minXp:     2945000, maxXp:     3232999, card: 'platinum' },
-  { level: 60, minXp:     3233000, maxXp:     3520999, card: 'platinum' },
-  { level: 61, minXp:     3521000, maxXp:     3808999, card: 'platinum' },
-  { level: 62, minXp:     3809000, maxXp:     4096999, card: 'platinum' },
-  { level: 63, minXp:     4097000, maxXp:     4384999, card: 'platinum' },
-  { level: 64, minXp:     4385000, maxXp:     4672999, card: 'platinum' },
-  { level: 65, minXp:     4673000, maxXp:     4960999, card: 'platinum' },
-  { level: 66, minXp:     4961000, maxXp:     5249999, card: 'platinum' },
-  { level: 67, minXp:     5250000, maxXp:     5537999, card: 'platinum' },
-  { level: 68, minXp:     5538000, maxXp:     8576999, card: 'platinum' },
-  { level: 69, minXp:     8577000, maxXp:     9216999, card: 'platinum' },
-  { level: 70, minXp:     9217000, maxXp: 10872832999, card: 'diamond' },
-  { level: 71, minXp: 10872833000, maxXp: 12058624999, card: 'diamond' },
-  { level: 72, minXp: 12058625000, maxXp: 13058624999, card: 'diamond' },
-  { level: 73, minXp: 13058625000, maxXp: 14058624999, card: 'diamond' },
-  { level: 74, minXp: 14058625000, maxXp: 15058624999, card: 'diamond' },
-  { level: 75, minXp: 15058625000, maxXp: 99999999999, card: 'diamond' },
-]);
-
-const TOP = VIP_LEVELS[VIP_LEVELS.length - 1];
 
 /**
- * Which VIP level a lifetime wager buys.
- *
- * Takes a decimal STRING, not a number. The top bands run to eleven digits and
- * wagers carry eight decimal places, which together exceed what a double
- * represents exactly — comparing them as numbers puts players on the wrong side
- * of a boundary. `Number` is used only after the band is chosen, for the
- * progress percentage, where a rounding error is cosmetic.
- *
- * Below the first band is VIP 0: a player who has never wagered.
- *
- * Above the last band stays at the top level rather than falling off the end.
+ * The bands. `minXp` is the "XP required" figure the VIP page prints for that
+ * level; `maxXp` runs to one below the next band's floor. `maxXp` on the final
+ * band is ignored — see the open-ended branch in `vipLevelFor`.
  */
-function vipLevelFor(wager) {
-  const amount = Number.parseFloat(String(wager ?? '0').replace(/,/g, '')) || 0;
+const VIP_LEVELS = Object.freeze([
+  { level:  1, name: 'Bronze I',     card: 'bronze',   minXp:        1000, maxXp:           2999 },
+  { level:  2, name: 'Bronze II',    card: 'bronze',   minXp:        3000, maxXp:           6999 },
+  { level:  3, name: 'Bronze III',   card: 'bronze',   minXp:        7000, maxXp:          14999 },
+  { level:  4, name: 'Bronze IV',    card: 'bronze',   minXp:       15000, maxXp:          29999 },
 
-  if (amount < Number(VIP_LEVELS[0].minXp)) {
-    return {
-      level: 0,
-      card: 'brownz',
-      wager: String(wager ?? '0'),
-      nextLevel: VIP_LEVELS[0].level,
-      wagerToNextLevel: String(VIP_LEVELS[0].minXp),
-      progressPct: '0.00',
-    };
-  }
+  { level:  5, name: 'Silver I',     card: 'silver',   minXp:       30000, maxXp:          59999 },
+  { level:  6, name: 'Silver II',    card: 'silver',   minXp:       60000, maxXp:         119999 },
+  { level:  7, name: 'Silver III',   card: 'silver',   minXp:      120000, maxXp:         239999 },
+  { level:  8, name: 'Silver IV',    card: 'silver',   minXp:      240000, maxXp:         499999 },
 
-  // Open-ended at the top. Legacy returned an error object here, and its
-  // callers turned that into VIP 0.
-  if (amount >= Number(TOP.minXp)) {
-    return {
-      level: TOP.level,
-      card: TOP.card,
-      wager: String(wager ?? '0'),
-      nextLevel: null,
-      wagerToNextLevel: null,
-      progressPct: '100.00',
-    };
-  }
+  { level:  9, name: 'Gold I',       card: 'gold',     minXp:      500000, maxXp:         999999 },
+  { level: 10, name: 'Gold II',      card: 'gold',     minXp:     1000000, maxXp:        1999999 },
+  { level: 11, name: 'Gold III',     card: 'gold',     minXp:     2000000, maxXp:        3499999 },
+  { level: 12, name: 'Gold IV',      card: 'gold',     minXp:     3500000, maxXp:        5999999 },
 
-  const index = VIP_LEVELS.findIndex((v) => amount >= Number(v.minXp) && amount <= Number(v.maxXp));
-  const band = VIP_LEVELS[index];
-  const next = VIP_LEVELS[index + 1] ?? null;
+  { level: 13, name: 'Platinum I',   card: 'platinum', minXp:     6000000, maxXp:        8499999 },
+  { level: 14, name: 'Platinum II',  card: 'platinum', minXp:     8500000, maxXp:       10999999 },
+  { level: 15, name: 'Platinum III', card: 'platinum', minXp:    11000000, maxXp:       14999999 },
+  { level: 16, name: 'Platinum IV',  card: 'platinum', minXp:    15000000, maxXp:       24999999 },
 
-  const span = Number(band.maxXp) - Number(band.minXp) + 1;
-  const into = amount - Number(band.minXp);
+  { level: 17, name: 'Diamond I',    card: 'diamond',  minXp:    25000000, maxXp:       39999999 },
+  { level: 18, name: 'Diamond II',   card: 'diamond',  minXp:    40000000, maxXp:       64999999 },
+  { level: 19, name: 'Diamond III',  card: 'diamond',  minXp:    65000000, maxXp:      109999999 },
+  { level: 20, name: 'Diamond IV',   card: 'diamond',  minXp:   110000000, maxXp:      199999999 },
+  { level: 21, name: 'Diamond V',    card: 'diamond',  minXp:   200000000, maxXp:      399999999 },
+  { level: 22, name: 'Diamond VI',   card: 'diamond',  minXp:   400000000, maxXp:      999999999 },
+  { level: 23, name: 'Diamond VII',  card: 'diamond',  minXp:  1000000000, maxXp:     1499999999 },
 
-  return {
-    level: band.level,
-    card: band.card,
-    wager: String(wager ?? '0'),
-    nextLevel: next ? next.level : null,
-    wagerToNextLevel: next ? String(Number(band.maxXp) - amount + 1) : null,
-    progressPct: ((into / span) * 100).toFixed(2),
-  };
-}
+  { level: 24, name: 'Eternal I',    card: 'eternal',  minXp:  1500000000, maxXp:     2199999999 },
+  { level: 25, name: 'Eternal II',   card: 'eternal',  minXp:  2200000000, maxXp:     3199999999 },
+  { level: 26, name: 'Eternal III',  card: 'eternal',  minXp:  3200000000, maxXp:     4499999999 },
+  { level: 27, name: 'Eternal IV',   card: 'eternal',  minXp:  4500000000, maxXp:     5999999999 },
+  { level: 28, name: 'Eternal V',    card: 'eternal',  minXp:  6000000000, maxXp:     7199999999 },
+  { level: 29, name: 'Eternal VI',   card: 'eternal',  minXp:  7200000000, maxXp:     8299999999 },
+  { level: 30, name: 'Eternal VII',  card: 'eternal',  minXp:  8300000000, maxXp:     8999999999 },
+  { level: 31, name: 'Eternal VIII', card: 'eternal',  minXp:  9000000000, maxXp:     9499999999 },
+  { level: 32, name: 'Eternal IX',   card: 'eternal',  minXp:  9500000000, maxXp:     9999999999 },
+  { level: 33, name: 'Eternal X',    card: 'eternal',  minXp: 10000000000, maxXp: 99999999999999 },
+]);
 
-module.exports = { VIP_LEVELS, vipLevelFor };
+const { makeLadder } = require('./vipLadder');
+
+/**
+ * The platform ladder as a value. The arithmetic — open-ended top, string
+ * comparison, distance to the first band — lives in `vipLadder.js`, shared
+ * with every other ladder a site may choose (see `vipLadders.js`), so two
+ * ladders can never disagree about HOW a wager becomes a level, only about
+ * WHERE the bands sit.
+ *
+ * `bonusGates` are the reference platform's own: daily and weekly from
+ * Bronze 1 (1,000 lifetime wager), monthly from Silver 1 (10,000). See the
+ * note in `services/user/src/modules/bonus/bonus.constants.js`.
+ */
+const PLATFORM_LADDER = makeLadder({
+  key: 'platform',
+  label: 'Standard ladder — 33 levels, Bronze I to Eternal X',
+  bands: VIP_LEVELS,
+  unranked: { level: 0, name: 'Beginner', card: 'unranked' },
+  // hash.game: "Users must have a VIP Level of 1 or higher to receive bonus" (Bronze I).
+  bonusGates: { daily: 1, weekly: 1, monthly: 1 },
+});
+
+/** Level 0 — signed up, has not wagered enough to reach the first band. */
+const UNRANKED = PLATFORM_LADDER.unranked;
+
+/** `2` → `Bronze 1`. `0` and anything off the ladder → `Unranked`. */
+const vipLevelName = PLATFORM_LADDER.levelName;
+
+/**
+ * Which VIP level a lifetime wager buys, on the PLATFORM ladder.
+ *
+ * Callers that serve a site should prefer `resolveVipLadder(models)` from
+ * `vipLadders.js`, which honours the site's `vip` variant; this stays the
+ * default for anything that has no site context.
+ */
+const vipLevelFor = PLATFORM_LADDER.levelFor;
+
+module.exports = { VIP_LEVELS, UNRANKED, vipLevelName, vipLevelFor, PLATFORM_LADDER };

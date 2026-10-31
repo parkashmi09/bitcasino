@@ -129,6 +129,24 @@ test('the running balance is anchored on the live wallet', async (t) => {
     assert.equal(ledger.rows.length, 0);
     assert.equal(ledger.pagination.totalPages, 1);
   });
+
+  await t.test("a player's statement (anchor: events) opens at what the events held before the range", () => {
+    // A same-day account the events only partly explain: opening 0, not live − movements (2,275).
+    const events = [
+      event('2026-10-19T06:43:00Z', KIND.SWAP, '2475'),
+      event('2026-10-19T06:46:00Z', KIND.SPORTS, '-100'),
+    ];
+    const range = { from: '2026-09-19', to: '2026-10-19', page: 1, limit: 100, anchor: 'events' };
+    const ledger = buildLedger(events, '9999', range);
+    assert.equal(ledger.opening, '0.00000000');
+    assert.equal(ledger.closing, '2375.00000000');
+    assert.equal(ledger.rows[0].balance, '2375.00000000');
+    assert.equal(ledger.unexplained, '7624.00000000', 'the wallet drift is still reported');
+
+    const before = buildLedger([event('2026-09-01T06:00:00Z', KIND.BANK_DEPOSIT, '50'), ...events], '2425', range);
+    assert.equal(before.opening, '50.00000000');
+    assert.equal(before.closing, '2425.00000000');
+  });
 });
 
 test('range placement', async (t) => {
@@ -196,4 +214,112 @@ test('whose profit is it', async (t) => {
     assert.equal(view.total.headlineSports, '-1200.50000000');
     assert.equal(view.total.headlineCasino, '0.00000000');
   });
+});
+
+test('`unexplained` is the period: closing − opening − (in − out) − play', async (t) => {
+  const { periodUnexplained, periodPlay } = require('../ledger');
+
+  await t.test('a balanced week is zero even when the wallet holds money no event explains', () => {
+    /**
+     * The reported case (player 9346619383, 2026-10-03..09): the wallet holds
+     * 1000 that arrived by a path the statement does not read, then +2000,
+     * +3000 and −5000 inside the week. Opening 1000, closing 1000, in 5000,
+     * out 5000 — every figure adds up, yet the old `live − lifetimeNet`
+     * formula reported 1000.00 unexplained.
+     */
+    const events = [
+      event('2026-10-09T10:00:00Z', KIND.DEPOSIT_UPLINE, '2000'),
+      event('2026-10-09T10:01:00Z', KIND.DEPOSIT_UPLINE, '3000'),
+      event('2026-10-09T10:02:00Z', KIND.WITHDRAW_UPLINE, '-5000'),
+    ];
+    const ledger = buildLedger(events, '1000', { from: '2026-10-03', to: '2026-10-09' });
+    assert.equal(ledger.opening, '1000.00000000');
+    assert.equal(ledger.closing, '1000.00000000');
+    // The wallet drift is still visible, separately.
+    assert.equal(ledger.unexplained, '1000.00000000');
+
+    const unexplained = periodUnexplained({
+      opening: ledger.opening,
+      closing: ledger.closing,
+      totalIn: '5000',
+      totalOut: '5000',
+      play: periodPlay(ledger.inside),
+    });
+    assert.equal(unexplained, '0.00000000');
+  });
+
+  await t.test('in-period play is explained by the ledger, not reported as drift', () => {
+    const events = [
+      event('2026-10-04T10:00:00Z', KIND.DEPOSIT_UPLINE, '500'),
+      event('2026-10-05T10:00:00Z', KIND.SPORTS, '-120'),
+      event('2026-10-05T11:00:00Z', KIND.CASINO, '45.5'),
+    ];
+    const ledger = buildLedger(events, '425.5', { from: '2026-10-03', to: '2026-10-09' });
+    assert.equal(periodPlay(ledger.inside), '-74.50000000');
+    assert.equal(
+      periodUnexplained({
+        opening: ledger.opening, closing: ledger.closing, totalIn: '500', totalOut: '0', play: periodPlay(ledger.inside),
+      }),
+      '0.00000000'
+    );
+  });
+
+  await t.test('a movement no total accounts for is the difference', () => {
+    // closing − opening = 300, in − out = 200 → 100 unexplained.
+    assert.equal(
+      periodUnexplained({ opening: '1000', closing: '1300', totalIn: '250', totalOut: '50' }),
+      '100.00000000'
+    );
+  });
+});
+
+test('list queries accept `offset` beside `page` (the admin UI sends limit+offset)', async (t) => {
+  const v = require('../statements.validators');
+  const blogs = require('../../blogs/blogs.validators');
+
+  await t.test('GET /admin/statements/user/:id/bets?limit=50&offset=0 is not a 422', () => {
+    const parsed = v.userBets.query.safeParse({ kind: 'casino', from: '2026-10-03', to: '2026-10-09', limit: '50', offset: '0' });
+    assert.equal(parsed.success, true, JSON.stringify(parsed.error?.issues));
+    assert.equal(parsed.data.page, 1);
+    assert.equal(parsed.data.limit, 50);
+    assert.equal('offset' in parsed.data, false, 'folded into page');
+  });
+
+  await t.test('offset becomes the page it falls on', () => {
+    assert.equal(v.userStatement.query.parse({ limit: '20', offset: '40' }).page, 3);
+    assert.equal(v.agentBets.query.parse({ limit: '50', offset: '50' }).page, 2);
+    assert.equal(v.userPdf.query.parse({ page: '4' }).page, 4, 'page alone still works');
+  });
+
+  await t.test('GET /admin/blogs?limit=20&offset=0 is not a 422', () => {
+    const parsed = blogs.list.query.safeParse({ limit: '20', offset: '0' });
+    assert.equal(parsed.success, true, JSON.stringify(parsed.error?.issues));
+    assert.equal(parsed.data.page, 1);
+    assert.equal(blogs.byCategory.query.parse({ limit: '10', offset: '30' }).page, 4);
+  });
+
+  await t.test('unknown keys are still refused', () => {
+    assert.equal(v.userBets.query.safeParse({ limit: '50', skip: '0' }).success, false);
+    assert.equal(blogs.list.query.safeParse({ limit: '20', skip: '0' }).success, false);
+  });
+});
+
+test('a row carrying the wallet after it moved post − running', () => {
+  /**
+   * Live, Testuser10: a fancy YES 55 @ 100 for ₹100 won. The exchange's settlement row says
+   * amount 100 (the profit) while the wallet got 200 (stake back + profit); the statement
+   * closed ₹100 under the wallet. `post` is the wallet the exchange recorded after each row.
+   */
+  const events = [
+    event('2026-01-01T10:00:00Z', KIND.BANK_DEPOSIT, '1000'),
+    { ...event('2026-01-02T10:00:00Z', KIND.SPORTS, '-100'), post: '900' },
+    { ...event('2026-01-02T11:00:00Z', KIND.SPORTS, '100'), post: '1100' },
+    // a lost bet settles with nothing moved: dropped
+    { ...event('2026-01-02T12:00:00Z', KIND.SPORTS, '-100'), post: '1100' },
+  ];
+  const ledger = buildLedger(events, '1100', { page: 1, limit: 100, anchor: 'events' });
+  assert.equal(ledger.closing, '1100.00000000');
+  assert.equal(ledger.rows.length, 3);
+  assert.equal(ledger.rows[0].amount, '200.00000000');
+  assert.equal('post' in ledger.rows[0], false);
 });

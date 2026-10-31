@@ -41,6 +41,7 @@ module.exports = function publicRoutes(deps) {
 
   router.get('/coins', validate(v.coinDetails), ctrl.coinDetails);
   router.get('/chains', ctrl.chains);
+  router.get('/networks', validate(v.networks), ctrl.networks);
 
   return router;
 };

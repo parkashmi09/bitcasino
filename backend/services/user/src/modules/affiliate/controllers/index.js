@@ -33,6 +33,11 @@ function createControllers({ service }) {
       response.ok(res, await service.myRewards({ ...req.query, userId: req.user.id }))
     ),
 
+    /** Reward History dialog: every reward of one kind, claimed or not, newest first. */
+    rewardHistory: asyncHandler(async (req, res) =>
+      response.ok(res, await service.rewardHistory({ ...req.query, userId: req.user.id }))
+    ),
+
     /** @legacy GET /affiliate/unclaimed-rewards/:uid */
     unclaimed: asyncHandler(async (req, res) =>
       response.ok(res, await service.unclaimedRewards({ userId: req.user.id }))

@@ -1,12 +1,15 @@
 'use strict';
 
 const { Router } = require('express');
-const { validate } = require('@ibitplay/common');
+const { validate, requireTxnPassword } = require('@ibitplay/common');
 const { PERMISSIONS } = require('@ibitplay/auth');
 
 const v = require('../jsGames.validators');
+const cv = require('../jsCuration.validators');
 const { buildJsGamesService } = require('../jsGames.factory');
+const { JsCurationService } = require('../jsCuration.service');
 const { createControllers } = require('../controllers');
+const { createCurationControllers } = require('../controllers/curation');
 
 /**
  * Operator actions.
@@ -31,12 +34,21 @@ const { createControllers } = require('../controllers');
 module.exports = function adminRoutes(deps) {
   const { auth } = deps;
   const ctrl = createControllers({ service: buildJsGamesService(deps) });
+  const curation = createCurationControllers({ service: new JsCurationService(deps) });
   const router = Router();
+
+  const canRead = auth.requirePermission(PERMISSIONS.CASINO_READ);
+  const canManage = auth.requirePermission(PERMISSIONS.CASINO_MANAGE);
 
   /** @legacy POST /jsGames/game/transfer */
   router.post(
     '/v1/transfer',
-    auth.requirePermission(PERMISSIONS.WALLET_CREDIT),
+    // wallet:adjust (house level), not wallet:credit: the body names ANY player and this route has no
+    // tree check, so an agent holding wallet:credit could move another tree's balance. No screen
+    // calls it (docs/SECURITY-CHECKLIST.md, 2026-10-25 findings).
+    auth.requirePermission(PERMISSIONS.WALLET_ADJUST),
+    // Moves the player's wallet: the staff caller's transaction code first.
+    requireTxnPassword({ clients: deps.clients }),
     validate(v.transferV1),
     ctrl.transferV1
   );
@@ -49,6 +61,30 @@ module.exports = function adminRoutes(deps) {
   );
   /** @legacy GET /jsGamesv2/historyAdmin */
   router.get('/v2/history', auth.requirePermission(PERMISSIONS.CASINO_READ), ctrl.historyAllV2);
+
+  /* ── Curation ───────────────────────────────────────────────────────
+   *
+   * NEW. The curation screens in the admin panel wrote against
+   * `/admin/casino/games/…`, which orders the AGGREGATOR catalogue —
+   * `gisgamesnew`, a table the site does not list and whose `uuid` the
+   * launcher cannot open. The lists an operator built there were invisible
+   * to every player. These order `js_games`, which is what the lobby renders.
+   *
+   * The read/write split is `games/routes/admin.routes.js`'s and for the same
+   * reason: support staff need to see what is in a collection; rewriting the
+   * front page of the casino is a different act from looking at it.
+   */
+  router.get('/v1/vendors', canRead, curation.vendors);
+  router.get('/v1/types', canRead, curation.types);
+  router.get('/v1/collections', canRead, curation.collections);
+
+  router.get('/v1/catalogue/search', canRead, validate(cv.searchCatalogue), curation.searchCatalogue);
+  router.put('/v1/catalogue/:gameUid/icon', canManage, validate(cv.updateIcon), curation.updateIcon);
+
+  /* `:scope` is `vendor` | `type` | `collection` — one route rather than six,
+     matching the single `js_game_curation` table behind it. */
+  router.get('/v1/curation/:scope/:key', canRead, validate(cv.readCuration), curation.readCuration);
+  router.put('/v1/curation/:scope/:key', canManage, validate(cv.writeCuration), curation.writeCuration);
 
   return router;
 };

@@ -58,7 +58,8 @@ module.exports = function adminRoutes(deps) {
   router.post(
     '/bulk',
     canSend,
-    auth.requireLevel(STAFF_LEVELS.SUB_ADMIN),
+    // Mail to every player is the Super Admin's (and its executives') alone (user, 2026-10-29).
+    auth.requireLevel(STAFF_LEVELS.SUPER_ADMIN),
     bulkLimiter,
     validate(v.sendBulk),
     asyncHandler(async (req, res) =>

@@ -1,7 +1,7 @@
 'use strict';
 
 const { Router } = require('express');
-const { validate, createActivityRecorder } = require('@ibitplay/common');
+const { validate, createActivityRecorder, entitlements, requireTxnPassword } = require('@ibitplay/common');
 const { PERMISSIONS } = require('@ibitplay/auth');
 
 const v = require('../p2p.validators');
@@ -52,6 +52,11 @@ module.exports = function adminRoutes(deps) {
   });
 
   const router = Router();
+  // Gives or takes balance: the staff caller's transaction code first.
+  const txnCode = requireTxnPassword({ clients });
+
+  // Not in the owner's plan: the staff desk closes with the player side (403 NOT_ENTITLED).
+  router.use(entitlements.requireFeature('p2p'));
 
   /**
    * Two permissions, not one.
@@ -161,9 +166,9 @@ module.exports = function adminRoutes(deps) {
    * row FOR UPDATE — legacy did the read and the write with nothing between
    * them, so two concurrent calls both credited.
    */
-  router.post('/orders/:orderId/release', canMoveMoney, validate(v.releaseOrder), auditOrder('p2p.order.release'), ctrl.releaseOrder);
+  router.post('/orders/:orderId/release', canMoveMoney, txnCode, validate(v.releaseOrder), auditOrder('p2p.order.release'), ctrl.releaseOrder);
   /** @legacy POST /admin/p2p/cancel/:orderId */
-  router.post('/orders/:orderId/cancel', canMoveMoney, validate(v.cancelOrder), auditOrder('p2p.order.cancel'), ctrl.cancelOrder);
+  router.post('/orders/:orderId/cancel', canMoveMoney, txnCode, validate(v.cancelOrder), auditOrder('p2p.order.cancel'), ctrl.cancelOrder);
   /** @legacy PUT /admin/p2p/order/:orderId/status — took any string */
   router.patch(
     '/orders/:orderId/status',
@@ -191,6 +196,7 @@ module.exports = function adminRoutes(deps) {
     '/sell-orders/:orderId/release',
     canMoveMoney,
     ...single('admin_payment_proof', errors),
+    txnCode,
     validate(v.releaseSellOrder),
     auditOrder('p2p.sell.release', 'P2P_SELL_ORDER'),
     ctrl.releaseSellOrder
@@ -205,6 +211,7 @@ module.exports = function adminRoutes(deps) {
   router.post(
     '/sell-orders/:orderId/cancel',
     canMoveMoney,
+    txnCode,
     validate(v.cancelOrder),
     auditOrder('p2p.sell.cancel', 'P2P_SELL_ORDER'),
     ctrl.cancelSellOrder

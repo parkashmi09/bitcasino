@@ -1,0 +1,128 @@
+/* ---------------------------------------------------------------------------
+ * Moon-style design tokens.
+ *
+ * Palette names follow the Moon Design System convention (open-source, MIT,
+ * github.com/coingaming/moon-design) which the reference site also uses.
+ * Values are stored as space-separated RGB channels so they can be swapped at
+ * runtime by theme class, and consumed through `@theme inline` below.
+ * ------------------------------------------------------------------------- */
+
+:root,
+.theme-light {
+  /* Brand */
+  --piccolo: 242 89 13;      /* primary / brand            #F2590D */
+  --piccolo-80: 250 100 46;  /* brand hover                #FA642E */
+  --piccolo-120: 245 65 0;   /* brand pressed              #F54100 */
+
+  /* Surfaces */
+  --goku: 255 255 255;       /* app background             #FFFFFF */
+  --goku-40: 216 224 227;
+  --goku-80: 234 238 240;
+  --gohan: 249 247 246;      /* raised surface / card      #F9F7F6 */
+  --beerus: 224 224 224;     /* border                     #E0E0E0 */
+  --hit: 233 233 233;        /* subtle fill                #E9E9E9 */
+
+  /* Text */
+  --bulma: 0 0 0;            /* primary text               #000000 */
+  --trunks: 126 117 114;     /* secondary / muted text     #7E7572 */
+  --goten: 255 255 255;      /* inverse text               #FFFFFF */
+  --popo: 0 0 0;             /* pure black surface         #000000 */
+
+  /* Overlays */
+  --heles: 0 0 0 / 0.08;     /* hover veil */
+  --zeno: 0 0 0 / 0.4;       /* modal backdrop */
+  --jiren: 242 89 13 / 0.12; /* brand tint */
+
+  /* Semantic */
+  --krillin: 255 179 25;     /* caution                    #FFB319 */
+  --chichi: 255 78 100;      /* negative                   #FF4E64 */
+  --roshi: 73 179 86;        /* positive                   #49B356 */
+  --dodoria: 211 48 48;      /* critical                   #D33030 */
+  --whis: 52 72 240;         /* info                       #3448F0 */
+  --cell: 149 241 213;
+  --raditz: 179 128 74;
+  --frieza: 92 51 207;
+  --nappa: 114 85 80;
+
+  /* Jackpot accent ramp */
+  --jackpot-primary: 120 16 245;
+  --jackpot-secondary: 50 11 159;
+  --jackpot-tertiary: 127 39 255 / 0.21;
+}
+
+.theme-dark {
+  --piccolo: 242 89 13;
+  --piccolo-80: 250 100 46;
+  --piccolo-120: 245 65 0;
+
+  --goku: 26 33 42;
+  --goku-40: 44 50 58;
+  --goku-80: 44 50 58;
+  --gohan: 44 50 58;
+  --beerus: 55 61 69;
+  --hit: 76 81 90;
+
+  --bulma: 255 255 255;
+  --trunks: 141 157 168;
+  --goten: 255 255 255;
+  --popo: 0 0 0;
+
+  --heles: 255 255 255 / 0.12;
+  --zeno: 25 30 37 / 0.4;
+  --jiren: 242 89 13 / 0.12;
+
+  --krillin: 248 193 0;
+  --chichi: 255 78 100;
+  --roshi: 74 209 95;
+  --dodoria: 255 138 1;
+  --whis: 46 105 255;
+  --cell: 27 210 154;
+  --raditz: 179 128 74;
+  --frieza: 111 59 255;
+  --nappa: 0 142 173;
+}
+
+/* ---------------------------------------------------------------------------
+ * Owner colour themes (owner panel → Features & plan → Template; the `theme`
+ * variant from GET /admin/features/public, set on <html data-palette> by
+ * GatesProvider). Brand colour in both modes; dark mode also takes the
+ * template's background. `hash_game` ("Original") keeps the values above.
+ * --on-piccolo is text on a brand fill: dark on the bright accents.
+ * ------------------------------------------------------------------------- */
+:root { --on-piccolo: var(--goten); }
+
+[data-palette="carbon_gold"] { --piccolo: 252 238 10; --piccolo-80: 255 243 77; --piccolo-120: 214 201 0; --jiren: 252 238 10 / 0.12; --on-piccolo: 11 11 11; }
+[data-palette="violet_night"] { --piccolo: 139 92 246; --piccolo-80: 157 118 248; --piccolo-120: 114 62 232; --jiren: 139 92 246 / 0.12; }
+[data-palette="emerald_dark"] { --piccolo: 34 197 94; --piccolo-80: 74 222 128; --piccolo-120: 22 163 74; --jiren: 34 197 94 / 0.12; --on-piccolo: 11 15 12; }
+[data-palette="neon_navy"] { --piccolo: 26 255 0; --piccolo-80: 92 255 72; --piccolo-120: 20 204 0; --jiren: 26 255 0 / 0.12; --on-piccolo: 11 15 26; }
+
+.theme-dark[data-palette="carbon_gold"] { --goku: 11 11 11; --goku-40: 28 28 28; --goku-80: 28 28 28; --gohan: 28 28 28; --beerus: 44 44 44; --hit: 58 58 58; }
+.theme-dark[data-palette="violet_night"] { --goku: 15 10 30; --goku-40: 30 22 52; --goku-80: 30 22 52; --gohan: 30 22 52; --beerus: 48 38 76; --hit: 64 52 96; }
+.theme-dark[data-palette="emerald_dark"] { --goku: 11 15 12; --goku-40: 24 32 26; --goku-80: 24 32 26; --gohan: 24 32 26; --beerus: 38 50 41; --hit: 52 66 56; }
+.theme-dark[data-palette="neon_navy"] { --goku: 11 15 26; --goku-40: 24 30 46; --goku-80: 24 30 46; --gohan: 24 30 46; --beerus: 38 46 66; --hit: 52 61 84; }
+
+/* The twelve Figma palettes (owner panel → Template): brand colour in light mode; brand, ground and card in dark. */
+[data-palette="lapis_ledger"] { --piccolo: 34 64 116; --piccolo-80: 78 102 144; --piccolo-120: 29 54 99; --jiren: 34 64 116 / 0.12; --on-piccolo: 255 255 255; }
+.theme-dark[data-palette="lapis_ledger"] { --piccolo: 103 138 244; --piccolo-80: 133 161 246; --piccolo-120: 88 117 207; --jiren: 103 138 244 / 0.12; --on-piccolo: 255 255 255; --goku: 20 24 31; --goku-40: 27 33 43; --goku-80: 27 33 43; --gohan: 27 33 43; --beerus: 54 60 68; --hit: 73 77 85; }
+[data-palette="seashell_teal"] { --piccolo: 1 90 132; --piccolo-80: 52 123 157; --piccolo-120: 1 77 112; --jiren: 1 90 132 / 0.12; --on-piccolo: 255 255 255; }
+.theme-dark[data-palette="seashell_teal"] { --piccolo: 42 143 192; --piccolo-80: 85 165 205; --piccolo-120: 36 122 163; --jiren: 42 143 192 / 0.12; --on-piccolo: 255 255 255; --goku: 20 26 28; --goku-40: 26 35 38; --goku-80: 26 35 38; --gohan: 26 35 38; --beerus: 53 61 64; --hit: 72 79 81; }
+[data-palette="navy_coral"] { --piccolo: 4 82 157; --piccolo-80: 54 117 177; --piccolo-120: 3 70 133; --jiren: 4 82 157 / 0.12; --on-piccolo: 255 255 255; }
+.theme-dark[data-palette="navy_coral"] { --piccolo: 59 135 214; --piccolo-80: 98 159 222; --piccolo-120: 50 115 182; --jiren: 59 135 214 / 0.12; --on-piccolo: 255 255 255; --goku: 18 23 28; --goku-40: 25 32 42; --goku-80: 25 32 42; --gohan: 25 32 42; --beerus: 53 59 68; --hit: 71 77 85; }
+[data-palette="indigo_mint"] { --piccolo: 71 80 221; --piccolo-80: 108 115 228; --piccolo-120: 60 68 188; --jiren: 71 80 221 / 0.12; --on-piccolo: 255 255 255; }
+.theme-dark[data-palette="indigo_mint"] { --piccolo: 110 118 240; --piccolo-80: 139 145 243; --piccolo-120: 94 100 204; --jiren: 110 118 240 / 0.12; --on-piccolo: 255 255 255; --goku: 18 20 40; --goku-40: 26 28 54; --goku-80: 26 28 54; --gohan: 26 28 54; --beerus: 53 55 78; --hit: 72 73 94; }
+[data-palette="cobalt_citrine"] { --piccolo: 7 38 132; --piccolo-80: 57 81 157; --piccolo-120: 6 32 112; --jiren: 7 38 132 / 0.12; --on-piccolo: 255 255 255; }
+.theme-dark[data-palette="cobalt_citrine"] { --piccolo: 76 108 224; --piccolo-80: 112 137 230; --piccolo-120: 65 92 190; --jiren: 76 108 224 / 0.12; --on-piccolo: 255 255 255; --goku: 16 20 31; --goku-40: 23 29 45; --goku-80: 23 29 45; --gohan: 23 29 45; --beerus: 51 56 70; --hit: 69 74 87; }
+[data-palette="copper_harbour"] { --piccolo: 195 86 39; --piccolo-80: 207 120 82; --piccolo-120: 166 73 33; --jiren: 195 86 39 / 0.12; --on-piccolo: 255 255 255; }
+.theme-dark[data-palette="copper_harbour"] { --piccolo: 214 121 77; --piccolo-80: 222 148 113; --piccolo-120: 182 103 65; --jiren: 214 121 77 / 0.12; --on-piccolo: 255 255 255; --goku: 22 22 22; --goku-40: 31 30 29; --goku-80: 31 30 29; --gohan: 31 30 29; --beerus: 58 57 56; --hit: 76 75 74; }
+[data-palette="wisteria"] { --piccolo: 116 75 147; --piccolo-80: 144 111 169; --piccolo-120: 99 64 125; --jiren: 116 75 147 / 0.12; --on-piccolo: 255 255 255; }
+.theme-dark[data-palette="wisteria"] { --piccolo: 162 123 196; --piccolo-80: 181 149 208; --piccolo-120: 138 105 167; --jiren: 162 123 196 / 0.12; --on-piccolo: 255 255 255; --goku: 23 20 28; --goku-40: 32 28 39; --goku-80: 32 28 39; --gohan: 32 28 39; --beerus: 59 55 65; --hit: 77 73 82; }
+[data-palette="jade_night"] { --piccolo: 47 122 68; --piccolo-80: 89 149 105; --piccolo-120: 40 104 58; --jiren: 47 122 68 / 0.12; --on-piccolo: 255 255 255; }
+.theme-dark[data-palette="jade_night"] { --piccolo: 66 145 85; --piccolo-80: 104 167 119; --piccolo-120: 56 123 72; --jiren: 66 145 85 / 0.12; --on-piccolo: 255 255 255; --goku: 20 20 20; --goku-40: 27 27 27; --goku-80: 27 27 27; --gohan: 27 27 27; --beerus: 54 54 54; --hit: 73 73 73; }
+[data-palette="magma"] { --piccolo: 226 51 15; --piccolo-80: 232 92 63; --piccolo-120: 192 43 13; --jiren: 226 51 15 / 0.12; --on-piccolo: 255 255 255; }
+.theme-dark[data-palette="magma"] { --piccolo: 254 59 21; --piccolo-80: 254 98 68; --piccolo-120: 216 50 18; --jiren: 254 59 21 / 0.12; --on-piccolo: 255 255 255; --goku: 20 20 23; --goku-40: 29 29 34; --goku-80: 29 29 34; --gohan: 29 29 34; --beerus: 56 56 61; --hit: 74 74 78; }
+[data-palette="royal_dusk"] { --piccolo: 12 123 214; --piccolo-80: 61 149 222; --piccolo-120: 10 105 182; --jiren: 12 123 214 / 0.12; --on-piccolo: 255 255 255; }
+.theme-dark[data-palette="royal_dusk"] { --piccolo: 12 142 244; --piccolo-80: 61 165 246; --piccolo-120: 10 121 207; --jiren: 12 142 244 / 0.12; --on-piccolo: 255 255 255; --goku: 17 23 35; --goku-40: 24 32 47; --goku-80: 24 32 47; --gohan: 24 32 47; --beerus: 52 59 72; --hit: 70 77 89; }
+[data-palette="tangerine_field"] { --piccolo: 40 105 75; --piccolo-80: 83 135 111; --piccolo-120: 34 89 64; --jiren: 40 105 75 / 0.12; --on-piccolo: 255 255 255; }
+.theme-dark[data-palette="tangerine_field"] { --piccolo: 62 154 109; --piccolo-80: 101 174 138; --piccolo-120: 53 131 93; --jiren: 62 154 109 / 0.12; --on-piccolo: 255 255 255; --goku: 21 23 21; --goku-40: 29 32 29; --goku-80: 29 32 29; --gohan: 29 32 29; --beerus: 56 59 56; --hit: 74 77 74; }
+[data-palette="ocean_ruby"] { --piccolo: 0 91 179; --piccolo-80: 51 124 194; --piccolo-120: 0 77 152; --jiren: 0 91 179 / 0.12; --on-piccolo: 255 255 255; }
+.theme-dark[data-palette="ocean_ruby"] { --piccolo: 46 134 222; --piccolo-80: 88 158 229; --piccolo-120: 39 114 189; --jiren: 46 134 222 / 0.12; --on-piccolo: 255 255 255; --goku: 16 22 28; --goku-40: 23 32 41; --goku-80: 23 32 41; --gohan: 23 32 41; --beerus: 51 59 67; --hit: 69 77 84; }

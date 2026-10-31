@@ -61,6 +61,16 @@ const SOURCES = Object.freeze([
     currency: 'INR',
     statusValues: { success: ['Successful'], pending: ['Pending', 'Processing'], failed: ['Failed', 'Rejected', 'Error'] },
   },
+  {
+    // F2Pay (INR, USDT) — its own table, credited by the signed callback.
+    provider: 'f2pay',
+    model: 'F2payDeposits',
+    idColumn: 'id',
+    userColumn: 'user_id',
+    referenceColumn: 'mch_order_no',
+    userIdIsText: false,
+    statusValues: { success: ['Success'], pending: ['Pending'], failed: ['Failed'] },
+  },
 ]);
 
 /** Which bucket a raw provider status falls into. */
@@ -80,4 +90,38 @@ function statusBucket(provider, status) {
   return BUCKET.OTHER;
 }
 
-module.exports = { SOURCES, BUCKET, statusBucket };
+/**
+ * CCPayment's coin ids → ticker, for reading `ccdeposit.coinid` back.
+ *
+ * The deployment's `CCPAYMENT_COIN_IDS` is asked first (it is what issued the
+ * id); this is the fallback for rows minted before that was configured. Same
+ * table as admin-service's `dashboard.constants.COIN_IDS`, which the finance
+ * charts value crypto deposits with — keep the two in step.
+ */
+const CCPAYMENT_COINS = Object.freeze({
+  1155: 'BTC',
+  1161: 'ETH',
+  1173: 'LTC',
+  1169: 'BCH',
+  1280: 'USDT',
+  1482: 'TRX',
+  1492: 'DOGE',
+  1375: 'ADA',
+  1331: 'XRP',
+  1168: 'BNB',
+  1282: 'USDC',
+  1864: 'SHIB',
+});
+
+/**
+ * `fiat_withdrawals` statuses that count as withdrawn, lower-case (compare
+ * LOWER(status)): Approved OR Paid. Until ebfcdc0 a bank withdrawal moved once,
+ * In Queue → Approved, and Approved was the payout; since then it goes on to
+ * Paid. Both mean the operator released the money, and legacy rows stop at
+ * Approved. A copy of admin-service's `dashboard.constants.js`
+ * WITHDRAWAL_DONE.fiat_withdrawals, which every admin report reads and this
+ * service cannot require: keep the two in step.
+ */
+const FIAT_WITHDRAWN = Object.freeze(['approved', 'paid', 'sent', 'done', 'success', 'completed', 'complete']);
+
+module.exports = { SOURCES, BUCKET, statusBucket, CCPAYMENT_COINS, FIAT_WITHDRAWN };

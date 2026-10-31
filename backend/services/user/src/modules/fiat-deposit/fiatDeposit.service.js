@@ -4,10 +4,17 @@ const path = require('path');
 const fs = require('fs/promises');
 const crypto = require('crypto');
 
-const { money } = require('@ibitplay/common');
+const { money, sitePolicy, currencyRegistry, manualPayments } = require('@ibitplay/common');
 const { Op: SequelizeOp } = require('@ibitplay/db');
+const { assertPlayerCapability } = require('@ibitplay/auth');
 
 const errors = require('./fiatDeposit.errors');
+
+/** The ledger line for an approved manual deposit: crypto names its coin, network and tx hash. */
+const depositDescription = (deposit, depositId) =>
+  deposit.network
+    ? `Crypto deposit ${deposit.currency}·${deposit.network} #${depositId} (${deposit.transaction_id})`
+    : `Fiat deposit #${depositId} approved`;
 const {
   DEPOSIT_STATUS,
   MAGIC_BYTES,
@@ -15,6 +22,9 @@ const {
 } = require('./fiatDeposit.constants');
 const { WalletService } = require('../wallet/wallet.service');
 const { REASON } = require('../wallet/wallet.constants');
+const { FirstDepositBonusService } = require('../bonus/firstDepositBonus.service');
+const { notifyPlayer } = require('../notifications/notifyPlayer');
+const { withChannel, assertPlayerVisible } = require('../directory/playerScope');
 
 /**
  * Manual fiat deposits — a player transfers money to the house's bank account,
@@ -61,11 +71,14 @@ const { REASON } = require('../wallet/wallet.constants');
 class FiatDepositService {
   constructor(deps) {
     const { models, db, config, logger } = deps;
+    // rainbet: the staff tree checks (playerScope) need `clients` — the whole deps, not this service.
+    this.deps = deps;
     this.models = models;
     this.db = db;
     this.config = config;
     this.logger = logger;
     this.wallet = new WalletService(deps);
+    this.firstDepositBonus = deps.firstDepositBonus ?? new FirstDepositBonusService(deps);
     this.storageDir = config.DEPOSIT_STORAGE_DIR;
   }
 
@@ -76,7 +89,24 @@ class FiatDepositService {
    * @legacy POST /api/deposit/create
    */
   async create({ userId, details, screenshot }) {
-    if (!screenshot) throw errors.SCREENSHOT_REQUIRED();
+    // Before anything is written: a refused submission must leave no file behind.
+    await sitePolicy.assertAllowed(this.models, 'deposit_mode', 'manual', this.logger);
+    // Super Admin ka Manual deposit switch (Admin → Transactions → Deposit → Manual).
+    await manualPayments.assertManualAllowed(this.models.Users?.sequelize, 'deposit');
+    // The coin registry (061): no deposit in a coin the owner or the site switched off.
+    await currencyRegistry.assertCurrencyEnabled(details.currency);
+    // A crypto coin is a manual on-chain transfer: the network is required and the tx hash
+    // (`transactionId`) is the proof, so a screenshot is optional.
+    const isCrypto = (await currencyRegistry.describe(details.currency))?.kind === 'crypto';
+    if (isCrypto) {
+      if (!details.network) throw errors.NETWORK_REQUIRED();
+      const networks = (await currencyRegistry.networksOf(details.currency)) ?? [];
+      if (!networks.some((n) => n.key === details.network)) {
+        throw errors.NETWORK_NOT_ENABLED({ currency: details.currency, network: details.network });
+      }
+    } else if (!screenshot) {
+      throw errors.SCREENSHOT_REQUIRED();
+    }
 
     // A bank reference identifies one real transfer. Two deposits claiming the
     // same one is either a double submission or an attempt to be credited twice
@@ -87,11 +117,12 @@ class FiatDepositService {
     });
     if (duplicate) throw errors.DUPLICATE_TRANSACTION({ transactionId: details.transactionId });
 
-    const storedFile = await this.#storeScreenshot(userId, screenshot);
+    const storedFile = screenshot ? await this.#storeScreenshot(userId, screenshot) : null;
 
     const row = await this.models.FiatDeposits.create({
       user_id: userId,
       amount: details.amount,
+      claimed_amount: details.amount,
       currency: details.currency,
       transaction_id: details.transactionId,
       bank_name: details.bankName ?? null,
@@ -99,6 +130,8 @@ class FiatDepositService {
       ifsc_code: details.ifscCode ?? null,
       account_holder_name: details.accountHolderName ?? null,
       upi_id: details.upiId ?? null,
+      network: isCrypto ? details.network : null,
+      wallet_address: isCrypto ? details.walletAddress ?? null : null,
       screenshot_path: storedFile,
       status: DEPOSIT_STATUS.PENDING,
     });
@@ -131,7 +164,21 @@ class FiatDepositService {
       raw: true,
     });
     if (!row) throw errors.NOT_FOUND({ depositId });
-    return this.#present(row);
+    if (row.status !== DEPOSIT_STATUS.APPROVED) return this.#present(row);
+
+    /* What was actually CREDITED, which the operator may have corrected from the
+       claimed `amount` (approve's `creditAmount`). The row does not keep it; the
+       ledger does, under the idempotency key approve writes. The wallet's
+       "Approved — ₹X added" reads this one. */
+    const ledger = await this.models.CreditsLedger.findOne({
+      where: { idempotency_key: `fiat-deposit:${depositId}`, user_id: String(userId) },
+      attributes: ['amount'],
+      raw: true,
+    });
+    return {
+      ...this.#present(row),
+      creditedAmount: ledger ? money.toDecimalString(money.toMinor(ledger.amount)) : null,
+    };
   }
 
   /**
@@ -139,8 +186,8 @@ class FiatDepositService {
    * @legacy GET /api/deposit/user/history/:username
    * @legacy GET /api/deposit/admin/:staffId
    */
-  async listAll({ status, userId, currency, search, limit, offset }) {
-    const where = {
+  async listAll({ status, userId, currency, search, channel, limit, offset }) {
+    const where = withChannel({
       ...(status ? { status } : {}),
       ...(userId ? { user_id: userId } : {}),
       ...(currency ? { currency } : {}),
@@ -153,7 +200,7 @@ class FiatDepositService {
             ],
           }
         : {}),
-    };
+    }, 'user_id', channel);
 
     const result = await this.models.FiatDeposits.findAndCountAll({
       where,
@@ -163,13 +210,18 @@ class FiatDepositService {
       raw: true,
     });
 
-    const names = await this.#mapUsernames(result.rows.map((r) => r.user_id));
+    const ids = [...new Set(result.rows.map((r) => r.user_id).filter(Boolean).map(String))];
+    const users = ids.length
+      ? await this.models.Users.findAll({ attributes: ['id', 'name', 'avatar'], where: { id: { [SequelizeOp.in]: ids } }, raw: true })
+      : [];
+    const byId = new Map(users.map((u) => [String(u.id), u]));
 
     return {
       count: result.count,
       rows: result.rows.map((r) => ({
         ...this.#present(r, { forStaff: true }),
-        username: names.get(String(r.user_id)) || String(r.user_id),
+        username: byId.get(String(r.user_id))?.name || String(r.user_id),
+        avatar: byId.get(String(r.user_id))?.avatar ?? null,
       })),
     };
   }
@@ -195,7 +247,7 @@ class FiatDepositService {
    * that somehow reached the credit would collapse onto the first.
    */
   async approve({ depositId, creditAmount, comment }, staff) {
-    return this.db.transaction(async (transaction) => {
+    const approved = await this.db.transaction(async (transaction) => {
       const deposit = await this.models.FiatDeposits.findOne({
         where: { deposit_id: depositId },
         transaction,
@@ -206,14 +258,25 @@ class FiatDepositService {
       if (deposit.status !== DEPOSIT_STATUS.PENDING) {
         throw errors.ALREADY_PROCESSED({ depositId, status: deposit.status });
       }
+      // Manual deposit sirf direct user ka — child user (koi parent) ka paisa Sports Exchange D/W se.
+      await assertPlayerCapability(deposit.user_id, 'deposit');
 
       // Normalised either way, so the response and the ledger always carry a
       // canonical 8-dp string rather than whatever the operator typed.
       const amount = money.toDecimalString(money.toMinor(creditAmount ?? deposit.amount));
+      const claimed = money.toDecimalString(money.toMinor(deposit.amount));
+      // Never more than the player deposited; less (the bank statement shows less) only with the
+      // reason the player sees.
+      if (money.gt(amount, claimed)) throw errors.CREDIT_ABOVE_CLAIMED({ claimed, credit: amount });
+      if (money.lt(amount, claimed) && !String(comment ?? '').trim()) throw errors.CREDIT_REASON_REQUIRED({ claimed, credit: amount });
 
       await deposit.update(
         {
           status: DEPOSIT_STATUS.APPROVED,
+          // What was credited; the claim stays in claimed_amount (migration 114), so every
+          // sum of approved deposits (rollover, withdrawal cap, reports) counts real money.
+          amount,
+          claimed_amount: claimed,
           admin_comment: comment ?? null,
           handled_by: staff?.id ?? null,
           handled_at: new Date(),
@@ -232,7 +295,7 @@ class FiatDepositService {
           idempotencyKey: `fiat-deposit:${depositId}`,
           refType: 'FIAT_DEPOSIT',
           refId: String(depositId),
-          description: `Fiat deposit #${depositId} approved`,
+          description: depositDescription(deposit, depositId),
         },
         { sourceService: 'user-service', transaction }
       );
@@ -247,11 +310,30 @@ class FiatDepositService {
         userId: deposit.user_id,
         currency: deposit.currency,
         creditedAmount: amount,
-        claimedAmount: money.toDecimalString(money.toMinor(deposit.amount)),
+        claimedAmount: claimed,
         newBalance: movement.newBalance,
         ledgerId: movement.ledgerId,
       };
     });
+
+    // After COMMIT, outside the approval: the bonus never fails the deposit.
+    const firstDepositBonus = await this.firstDepositBonus.onDepositCredited({
+      userId: approved.userId,
+      currency: approved.currency,
+      amount: approved.creditedAmount,
+      ledgerId: approved.ledgerId,
+      source: 'FIAT_DEPOSIT',
+      refId: String(depositId),
+    });
+    void notifyPlayer(approved.userId, {
+      kind: 'deposit_approved',
+      key: `fiat-deposit:approved:${depositId}`,
+      title: 'Deposit approved',
+      body: `{amount} has been added to your wallet (deposit #${depositId}).`,
+      link: '#transactions',
+      meta: { amount: approved.creditedAmount, currency: approved.currency, depositId },
+    });
+    return { ...approved, firstDepositBonus };
   }
 
   /**
@@ -275,6 +357,14 @@ class FiatDepositService {
     });
 
     this.logger?.info({ depositId, staffId: staff?.id }, 'Fiat deposit rejected');
+    void notifyPlayer(deposit.user_id, {
+      kind: 'deposit_rejected',
+      key: `fiat-deposit:rejected:${depositId}`,
+      title: 'Deposit rejected',
+      body: `Your {amount} deposit #${depositId} was rejected. Reason: ${comment}`,
+      link: '#transactions',
+      meta: { amount: deposit.amount, currency: deposit.currency, depositId, reason: comment },
+    });
     return { depositId, status: DEPOSIT_STATUS.REJECTED, comment };
   }
 
@@ -320,6 +410,17 @@ class FiatDepositService {
       raw: true,
     });
     if (!row) throw errors.SCREENSHOT_NOT_FOUND({ depositId });
+
+    if (isStaff) {
+      // A staff reader opens only their own tree's receipts (as KYC documents); out of tree reads
+      // exactly like missing.
+      try {
+        await assertPlayerVisible(this.deps, requesterId, row.user_id);
+      } catch (error) {
+        if (error?.status === 404) throw errors.SCREENSHOT_NOT_FOUND({ depositId });
+        throw error;
+      }
+    }
 
     if (!isStaff && Number(row.user_id) !== Number(requesterId)) {
       // Same error as absent: confirming it exists would leak that a deposit
@@ -378,29 +479,21 @@ class FiatDepositService {
     return 'application/octet-stream';
   }
 
-  async #mapUsernames(userIds) {
-    const ids = [...new Set(userIds.filter(Boolean).map(String))];
-    if (!ids.length) return new Map();
-
-    const rows = await this.models.Users.findAll({
-      attributes: ['id', 'name'],
-      where: { id: { [SequelizeOp.in]: ids } },
-      raw: true,
-    });
-    return new Map(rows.map((r) => [String(r.id), r.name]));
-  }
-
   /** The screenshot PATH is never returned — only whether one exists. */
   #present(row, { forStaff = false } = {}) {
     return {
       depositId: row.deposit_id,
       userId: row.user_id,
+      // Credited once approved; claimedAmount is what the player entered (migration 114).
       amount: money.toDecimalString(money.toMinor(row.amount ?? '0')),
+      claimedAmount: money.toDecimalString(money.toMinorQuantised(String(row.claimed_amount ?? row.amount ?? '0'))),
       currency: row.currency,
       transactionId: row.transaction_id,
       bankName: row.bank_name,
       accountHolderName: row.account_holder_name,
       upiId: row.upi_id,
+      network: row.network ?? null,
+      walletAddress: row.wallet_address ?? null,
       status: row.status,
       hasScreenshot: Boolean(row.screenshot_path),
       adminComment: row.admin_comment,
@@ -417,4 +510,4 @@ class FiatDepositService {
   }
 }
 
-module.exports = { FiatDepositService };
+module.exports = { FiatDepositService, depositDescription };

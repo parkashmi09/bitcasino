@@ -21,6 +21,8 @@ module.exports = defineErrors('SPIN', {
   SLICE_NOT_FOUND: { status: 404, message: 'That wheel segment does not exist' },
 
   COOLDOWN_ACTIVE: { status: 429, message: 'You cannot spin again yet' },
+  /** None of the owner's grants (registration, first deposit, every deposit) gives a spin now. */
+  NOT_ELIGIBLE: { status: 403, message: 'No spin is available right now' },
   DEPOSIT_REQUIRED: {
     status: 403,
     message: 'A qualifying deposit is required before spinning again',

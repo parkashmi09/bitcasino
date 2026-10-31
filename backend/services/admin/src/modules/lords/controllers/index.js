@@ -1,6 +1,7 @@
 'use strict';
 
 const { response, asyncHandler } = require('@ibitplay/common');
+const { canIssueFunds } = require('@ibitplay/auth');
 
 /**
  * `canIssueFunds` is the platform owner's capability — the house is where money
@@ -11,7 +12,12 @@ const { response, asyncHandler } = require('@ibitplay/common');
 const actorFrom = (req) => ({
   id: req.staff.id,
   level: req.staff.level,
-  canIssueFunds: Number(req.staff.level) === 0,
+  parentLevel: req.staff.parentLevel ?? null,
+  // Checked against the executive's own login password in TXN_PASSWORD_MODE=login.
+  executiveId: req.staff.executiveId ?? null,
+  // Super Admin (level 1), not an executive under one. Was `level === 0`,
+  // which no staff level is.
+  canIssueFunds: canIssueFunds(req.staff),
 });
 
 function createControllers({ service, clients }) {
@@ -50,6 +56,9 @@ function createControllers({ service, clients }) {
     refill: asyncHandler(async (req, res) =>
       response.created(res, await service.refill({ ...req.body, actor: actorFrom(req) }))
     ),
+
+    /** The caller's own float: balance, credit line, available. */
+    myFloat: asyncHandler(async (req, res) => response.ok(res, await service.myFloat({ actor: actorFrom(req) }))),
 
     /** @legacy GET /lords/transfer/statement */
     transferStatement: asyncHandler(async (req, res) =>

@@ -1,11 +1,13 @@
 'use strict';
 
-const { createLogger, ServiceClient, resolveInternalKey } = require('@ibitplay/common');
+const { createLogger, ServiceClient, resolveInternalKey, configureEntitlements, configureCurrencyRegistry } = require('@ibitplay/common');
 const { createAuthMiddleware } = require('@ibitplay/auth');
 const db = require('@ibitplay/db');
 
 const config = require('./config');
 const { resolveStaff } = require('./modules/staff-directory/staffDirectory.service');
+const { createEntitlementsStore } = require('./modules/entitlements/entitlements.store');
+const { CurrenciesService } = require('./modules/currencies/currencies.service');
 
 /**
  * The admin-service container.
@@ -33,6 +35,16 @@ async function createContainer({ logger: injectedLogger } = {}) {
   const ourInternalKey = resolveInternalKey(config, config.SERVICE_NAME);
 
   const clients = {
+    // Self-client for `withActivity` audit posts (`/internal/admin/audit/activity`).
+    admin: new ServiceClient({
+      name: 'admin-service',
+      baseUrl: config.ADMIN_SERVICE_URL,
+      internalKey: ourInternalKey,
+      callerName: config.SERVICE_NAME,
+      timeoutMs: config.SERVICE_TIMEOUT_MS,
+      retries: config.SERVICE_RETRIES,
+      logger,
+    }),
     user: new ServiceClient({
       name: 'user-service',
       baseUrl: config.USER_SERVICE_URL,
@@ -60,10 +72,37 @@ async function createContainer({ logger: injectedLogger } = {}) {
       retries: config.SERVICE_RETRIES,
       logger,
     }),
+    /**
+     * admin-service, to itself.
+     *
+     * Ten modules here record an audit row through `createActivityRecorder`,
+     * which posts to `/internal/admin/audit/activity` — a route THIS service
+     * owns. Without an entry for itself `clients.admin` was `undefined`, and
+     * the recorder runs on `res` finish, AFTER the response has been sent: so
+     * every audited write in admin-service answered 201, then killed the
+     * process on `undefined.post` as an uncaughtException. Creating a staff
+     * account, a player, a banner, a blog, an executive, a lock or a config
+     * change each took the whole service down one request later.
+     *
+     * A loopback HTTP call is not free, but it is what every other service
+     * already does, it keeps the audit path identical everywhere, and the
+     * alternative — reaching into the audit service from ten call sites —
+     * puts a second way of writing that table into the codebase.
+     */
+    admin: new ServiceClient({
+      name: 'admin-service',
+      baseUrl: `http://127.0.0.1:${config.ADMIN_SERVICE_PORT}`,
+      internalKey: ourInternalKey,
+      callerName: config.SERVICE_NAME,
+      timeoutMs: config.SERVICE_TIMEOUT_MS,
+      retries: config.SERVICE_RETRIES,
+      logger,
+    }),
   };
 
   const auth = createAuthMiddleware({
     config,
+    loadSession: (id) => connection.models.AuthSession.findByPk(id, { attributes: ['revoked_at'], raw: true }),
     loadUser: async (userId) => {
       const user = await connection.models.Users.findByPk(userId, {
         attributes: ['id', 'status', 'is_locked', 'system_locked', 'bet_status'],
@@ -74,9 +113,24 @@ async function createContainer({ logger: injectedLogger } = {}) {
     loadStaff: async (staffId, executiveId) => resolveStaff(connection.models, staffId, executiveId),
   });
 
+  /**
+   * The owner's entitlements, from `owner_entitlements` (docs/OWNER-PANEL.md).
+   * Registered as this process's source, so `entitlements.isFeatureEntitled()`
+   * here reads memory rather than calling ourselves. `index.js` starts it.
+   */
+  const entitlementsStore = createEntitlementsStore({ config, logger, db: connection });
+  configureEntitlements({ read: () => entitlementsStore.current() });
+  // The coin registry is this service's own table: read it directly.
+  configureCurrencyRegistry({
+    read: () => new CurrenciesService({ models: connection.models, logger, config, clients }).list(),
+    logger,
+    config,
+  });
+
   return {
     config,
     logger,
+    entitlementsStore,
     db: connection,
     models: connection.models,
     clients,

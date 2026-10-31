@@ -87,7 +87,7 @@ async function main() {
     const [rows] = await db.sequelize.query(
       `UPDATE staff
           SET password = :hash,
-              password2 = '',
+              password2 = NULL,
               first_login = false,
               status = 'active'
         WHERE name = :name
@@ -126,7 +126,7 @@ async function main() {
     await db.sequelize.query(
       `UPDATE users
           SET password = :hash,
-              password2 = '',
+              password2 = NULL,
               two_fa_status = false
         WHERE id = :id`,
       { replacements: { hash, id: player.id } }

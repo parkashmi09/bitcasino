@@ -1,11 +1,12 @@
 'use strict';
 
 const { Router } = require('express');
-const { validate, createRateLimiter } = require('@ibitplay/common');
+const { validate, createRateLimiter, response, asyncHandler, noBody } = require('@ibitplay/common');
 
 const v = require('../staffAuth.validators');
 const { StaffAuthService } = require('../staffAuth.service');
 const { createControllers } = require('../controllers');
+const txn = require('../transactionPassword');
 
 /**
  * Signing out.
@@ -40,7 +41,7 @@ module.exports = function adminRoutes(deps) {
   router.authorizationReviewed =
     'Every route acts on the caller\'s own session or second factor, identified from the token — no route takes a staff id';
 
-  router.post('/logout', ctrl.logout);
+  router.post('/logout', noBody(), ctrl.logout);
 
   /**
    * A six-digit code has a million possibilities and a 30-second life. Without
@@ -60,6 +61,43 @@ module.exports = function adminRoutes(deps) {
   router.post('/2fa/begin', validate(v.beginTwoFactor), ctrl.beginTwoFactor);
   router.post('/2fa/confirm', codeLimiter, validate(v.confirmTwoFactor), ctrl.confirmTwoFactor);
   router.post('/2fa/disable', codeLimiter, validate(v.disableTwoFactor), ctrl.disableTwoFactor);
+
+  /**
+   * The caller's own TRANSACTION PASSWORD — see `transactionPassword.js`.
+   *
+   * `GET` says whether one is set (the money dialogs use it to tell an agent to
+   * set one first). `POST` sets or changes it and requires the login password,
+   * so it shares the code limiter: it is a password check reachable with a
+   * live session, which the sign-in limiter never sees.
+   */
+  router.get(
+    '/transaction-password',
+    asyncHandler(async (req, res) =>
+      response.ok(res, {
+        set: await txn.hasTransactionPassword(deps.models, req.staff.id),
+        // `login`: the transaction password is the login password — nothing to set.
+        mode: txn.transactionPasswordMode(),
+      })
+    )
+  );
+  router.post(
+    '/transaction-password',
+    codeLimiter,
+    validate(txn.setSchema),
+    asyncHandler(async (req, res) =>
+      response.ok(
+        res,
+        await txn.setTransactionPassword(deps.models, {
+          staffId: req.staff.id,
+          executiveId: req.staff.executiveId,
+          level: req.staff.level,
+          currentPassword: req.body.currentPassword,
+          transactionPassword: req.body.transactionPassword,
+          logger,
+        })
+      )
+    )
+  );
 
   return router;
 };

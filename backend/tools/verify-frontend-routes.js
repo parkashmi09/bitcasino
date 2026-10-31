@@ -23,7 +23,6 @@
  *
  *   adminpanel/src/services/endpoints.ts     the staff app's registry
  *   Addaplay/src/services/api/endpoints.js   the player app's registry
- *   apps/web/src/lib/endpoints.js            the Bitcasino web app's registry
  *
  * Both are plain object literals of string paths, so they are parsed with a
  * regex rather than imported — this script must run without either app's
@@ -68,20 +67,50 @@ const { execFileSync } = require('child_process');
 const BACKEND = path.resolve(__dirname, '..');
 const REPO = path.resolve(BACKEND, '..');
 
+/**
+ * Where each front end actually is.
+ *
+ * ── THIS PATH HAS BEEN WRONG TWICE, THE SAME WAY BOTH TIMES ──────────────
+ *
+ * It was first written as `<repo>/adminpanel`, then corrected to
+ * `test-automation-and-updated-admin/adminpanel`. The operator console now
+ * sits BESIDE the player app, as `<workspace>/adminpanel` — a sibling of
+ * `stake-site` rather than anything under it.
+ *
+ * Each time, the symptom was the same and it is the reason this comment keeps
+ * growing: the tool printed `✗ no registry at …` and carried on, so it checked
+ * ZERO of the console's endpoints while still exiting green on the ones it
+ * could find. A check that fails for a path reason rather than a routing one
+ * is a check nobody reads — it always failed the same way, so it stopped
+ * meaning anything.
+ *
+ * If this breaks again, fix the path rather than deleting the entry.
+ */
 const REGISTRIES = [
+  /**
+   * The operator console. Its registry writes full paths (`${ADMIN}/auth/login`)
+   * because `apiFetch` does not prefix.
+   */
   { app: 'adminpanel', file: path.join(REPO, 'adminpanel/src/services/endpoints.ts') },
-  { app: 'Addaplay', file: path.join(REPO, 'Addaplay/src/services/api/endpoints.js') },
-  // The React front end in this repo. Unlike the other two it is a sibling of
-  // backend/ rather than a checkout beside it, and it is being wired up one
-  // phase at a time — see docs/10-backend-integration.md — so this registry is
-  // short and grows. Every path in it is called through apps/web/src/lib/api.js,
-  // so there are no hardcoded paths for the call-site pass to find.
-  { app: 'apps/web', file: path.join(REPO, 'apps/web/src/lib/endpoints.js') },
+  /**
+   * The player app.
+   *
+   * Its registry is the ONLY way it addresses the API: every call goes through
+   * a verb helper from `lib/api`, so there are no hardcoded paths for the
+   * call-site pass to catch. That is the stronger position to be in, and it is
+   * why the registry pass matters more here — a renamed route breaks the
+   * registry, and the registry breaks every caller.
+   *
+   * Its entries are SERVICE-RELATIVE (`/user/auth/me`): `lib/api` prepends
+   * `VITE_API_BASE || '/api/v1'`, so `prefix` below stands in for that.
+   */
+  { app: 'frontend', file: path.join(REPO, 'frontend/src/lib/endpoints.js'), prefix: '/api/v1' },
 ];
 
 /** Source trees walked for `apiFetch('/literal-path')` call sites. */
 const SOURCES = [
   { app: 'adminpanel', dir: path.join(REPO, 'adminpanel/src') },
+  { app: 'frontend', dir: path.join(REPO, 'frontend/src') },
 ];
 
 /** Mount the four services and read back every concrete route they expose. */
@@ -121,12 +150,21 @@ function normalise(p) {
 /**
  * Pull every string literal that looks like an API path out of a registry.
  *
- * Template literals are the norm there (`` `${USER}/wallet/balances` ``), so
- * the service-root variables are resolved first and the interpolation is
- * replaced with the prefix it stands for.
+ * TWO SHAPES, because the two apps address the API differently.
+ *
+ *   adminpanel   `key: `${ADMIN}/auth/login``   — a root constant plus a tail,
+ *                a bare path string that `apiFetch` sends as-is.
+ *
+ *   frontend     `key: () => get("/user/profile")` — the path is an argument to
+ *                a verb helper, and `lib/api` prepends `/api/v1`. That prefix
+ *                is supplied by the registry entry rather than parsed, because
+ *                it comes from a Vite env var this tool cannot read.
+ *
+ * Reading only the first shape is how this check came to pass while examining
+ * ZERO of the player app's endpoints.
  */
-function readRegistry(file) {
-  const source = fs.readFileSync(file, 'utf8');
+function readRegistry(file, prefix = '') {
+  const source = stripComments(fs.readFileSync(file, 'utf8'));
 
   const roots = {};
   for (const [, name, value] of source.matchAll(
@@ -136,12 +174,21 @@ function readRegistry(file) {
   }
 
   const found = [];
-  // `key: `${ROOT}/rest``  — the only shape the registries use.
+
+  // Shape one — `key: `${ROOT}/rest``.
   for (const [, key, root, rest] of source.matchAll(
     /(\w+)\s*:\s*`\$\{([A-Z_]+)\}([^`]*)`/g
   )) {
     if (!(root in roots)) continue;
     found.push({ key, path: `${roots[root]}${rest}` });
+  }
+
+  // Shape two — `verb("/path")` / `verb(`/path/${id}`)`.
+  for (const [, verb, raw] of source.matchAll(
+    /\b(get|post|put|patch|del|delete)\(\s*[`'"](\/[^`'"]*)[`'"]/g
+  )) {
+    // `${id}` in a template literal is a path parameter by another name.
+    found.push({ key: `${verb} ${raw}`, path: `${prefix}${raw.replace(/\$\{[^}]*\}/g, ':p')}` });
   }
 
   return found;
@@ -274,14 +321,14 @@ function main() {
   let checked = 0;
   const missing = [];
 
-  for (const { app, file } of REGISTRIES) {
+  for (const { app, file, prefix } of REGISTRIES) {
     if (!fs.existsSync(file)) {
       console.error(`  ✗ ${app}: no registry at ${path.relative(REPO, file)}`);
       process.exitCode = 1;
       continue;
     }
 
-    const entries = readRegistry(file);
+    const entries = readRegistry(file, prefix ?? '');
     if (entries.length === 0) {
       console.error(`  ✗ ${app}: registry parsed to zero entries — its shape changed`);
       process.exitCode = 1;

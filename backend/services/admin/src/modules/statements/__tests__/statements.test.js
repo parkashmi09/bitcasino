@@ -50,7 +50,11 @@ test('statements against a database', async (t) => {
   const { models } = connection;
   const service = new StatementsService({ models, db: connection, logger, config: {} });
 
-  const roleId = (await models.Roles.findOne({ raw: true }))?.id ?? 1;
+  // An AGENT's role, not the first one in the table: Super Admin, Admin and Sub
+  // Admin are the back office and see every player on the site, so rivals
+  // modelled with one of those would not be rivals at all.
+  const roleId = (await models.Roles.findOne({ where: { level: 6 }, raw: true }))?.id;
+  assert.ok(roleId, 'the test database needs a level-6 (agent) role');
 
   const agent = newId();
   const outsider = newId();
@@ -63,14 +67,14 @@ test('statements against a database', async (t) => {
     });
     await models.Credits.destroy({ where: { uid: player } });
     await models.Users.destroy({ where: { id: player } });
-    await models.StaffBalances.destroy({ where: { staff_id: [agent, outsider] } });
+    await models.StaffCredits.destroy({ where: { staff_id: [agent, outsider] } });
     await models.Staff.destroy({ where: { id: [agent, outsider] } });
 
     await models.Staff.bulkCreate([
       { id: agent, name: `sa-${agent}`, email: `sa${agent}@t.test`, password: 'x', role_id: roleId, parent_id: null },
       { id: outsider, name: `so-${outsider}`, email: `so${outsider}@t.test`, password: 'x', role_id: roleId, parent_id: null },
     ]);
-    await models.StaffBalances.create({ staff_id: agent, inr: '5000' });
+    await models.StaffCredits.create({ staff_id: agent, inr: '5000' });
 
     await models.Users.create({ id: player, name: 'Statement Player', password: 'x', status: 'active', parent_staff_id: agent });
     await models.Credits.create({ uid: player, inr: '1200' });
@@ -109,7 +113,7 @@ test('statements against a database', async (t) => {
     });
     await models.Credits.destroy({ where: { uid: player } });
     await models.Users.destroy({ where: { id: player } });
-    await models.StaffBalances.destroy({ where: { staff_id: [agent, outsider] } });
+    await models.StaffCredits.destroy({ where: { staff_id: [agent, outsider] } });
     await models.Staff.destroy({ where: { id: [agent, outsider] } });
     if (connection) await connection.close();
   });
@@ -125,6 +129,24 @@ test('statements against a database', async (t) => {
     assert.ok(statement.rows.length > 0);
     // Newest first, and the first row carries the closing balance.
     assert.equal(statement.rows[0].balance, statement.balance.closing);
+  });
+
+  await t.test('`unexplained` is closing − opening − (in − out) − play for the period', async () => {
+    /**
+     * Wallet 1200; events +1000 (agent) and +300 (sports) — 100 of the wallet
+     * is not explained by any event ever read. Over the window every figure
+     * adds up, so the period's `unexplained` is zero, and the wallet drift is
+     * reported apart as `lifetimeUnreconciled`. The old figure was the drift.
+     */
+    const statement = await service.userStatement({
+      staff: asAgent, userId: player, from: '2026-01-05', to: '2026-01-06',
+    });
+    const b = statement.balance;
+    assert.equal(b.totalIn, '1000.00000000');
+    assert.equal(b.totalOut, '0.00000000');
+    assert.equal(b.unexplained, '0.00000000');
+    assert.equal(b.lifetimeUnreconciled, '-100.00000000');
+    assert.equal(Number(b.closing) - Number(b.opening), 1300, '1000 in + 300 play');
   });
 
   await t.test('A DEPOSIT IN credits_ledger IS NOT COUNTED AS A BET WON', async () => {
@@ -270,6 +292,31 @@ test('statements against a database', async (t) => {
     const casino = await service.bets({ staff: asAgent, staffId: agent, kind: 'casino' });
     assert.equal(casino.kind, 'casino');
     assert.ok(Array.isArray(casino.rows));
+  });
+
+  await t.test('an Original Games round is one casino bet, in its own wallet', async () => {
+    const q = (sql, replacements) => connection.sequelize.query(sql, { replacements });
+    const leg = (tx, kind, amount) =>
+      q(`INSERT INTO og_transactions (transaction_id, kind, status, user_id, round_id, game_code, currency, amount)
+         VALUES (:tx, :kind, 'applied', :uid, :round, 'mines', 'USDT', :amount)`,
+      { tx: `${player}-${tx}`, kind, uid: player, round: `rnd-${player}`, amount });
+    await q('DELETE FROM og_transactions WHERE user_id = :uid', { uid: player });
+    try {
+      await leg('b1', 'bet', '5');
+      await leg('w1', 'win', '7.5');
+      const usdt = await service.bets({ staff: asAgent, userId: player, kind: 'casino', currency: 'USDT' });
+      const og = usdt.rows.filter((r) => r.source === 'og');
+      assert.equal(og.length, 1, 'the bet and win legs fold into one round');
+      assert.equal(og[0].stake, '5.00000000');
+      assert.equal(og[0].profit, '2.50000000');
+      assert.equal(og[0].status, 'won');
+      const inr = await service.bets({ staff: asAgent, userId: player, kind: 'casino', currency: 'INR' });
+      assert.equal(inr.rows.filter((r) => r.source === 'og').length, 0, 'not in the INR wallet');
+      const sports = await service.bets({ staff: asAgent, userId: player, kind: 'sports', currency: 'USDT' });
+      assert.equal(sports.total, 0, 'sports bets are INR only');
+    } finally {
+      await q('DELETE FROM og_transactions WHERE user_id = :uid', { uid: player });
+    }
   });
 
   await t.test('the PDF renders the statement it was given', async () => {

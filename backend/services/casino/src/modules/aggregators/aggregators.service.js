@@ -11,6 +11,7 @@ const {
   ASIA_DISPLAY_CURRENCY,
   NEXUS_GAME_TYPES,
 } = require('./aggregators.constants');
+const { GamesService } = require('../games/games.service');
 
 /**
  * The three remaining casino wallet callbacks.
@@ -75,13 +76,15 @@ const {
  * change in the container.
  */
 class AggregatorsService {
-  constructor({ models, db, config, logger, wallet, onSettled }) {
+  constructor({ models, db, config, logger, wallet, onSettled, clients, games }) {
     this.models = models;
     this.db = db;
     this.config = config;
     this.logger = logger;
     this.wallet = wallet;
     this.onSettled = onSettled;
+    /** The wager feed (USD wager, VIP XP, affiliate, rakeback). */
+    this.games = games ?? new GamesService({ models, db, config, logger, clients });
   }
 
   // ══════════════════════════════════════════════════════════════════════
@@ -386,6 +389,28 @@ class AggregatorsService {
        * getting paid.
        */
       this.#notify({ userId, aggregator, action, balance: result.balance });
+
+      /**
+       * The stake counts toward the wager feed — the gross stake, not the net
+       * delta (a winning round still turned that stake over) — in the
+       * settlement coin, converted to USD by user-service once per
+       * `<aggregator>:<transaction id>`. Only a fresh settlement reaches here
+       * (a duplicate is caught below). Best-effort: never fails the round.
+       */
+      if (!money.isZero(stake)) {
+        try {
+          await this.games.recordActivity({
+            userId,
+            gameRef: null,
+            wagered: money.toDecimalString(money.toMinor(stake)),
+            currency: SETTLEMENT_CURRENCY,
+            source: `agg-${aggregator}`,
+            ref: transactionId,
+          });
+        } catch (error) {
+          this.logger?.warn({ err: error, aggregator, transactionId }, 'Wager feed failed — the settlement stands');
+        }
+      }
 
       return result;
     } catch (error) {

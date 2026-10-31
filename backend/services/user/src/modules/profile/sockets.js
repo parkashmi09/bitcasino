@@ -1,7 +1,8 @@
 'use strict';
 
-const { EVENTS, AUDIENCE } = require('@ibitplay/socket');
-const { money, vipLevelFor } = require('@ibitplay/common');
+const { EVENTS, PLATFORM_EVENTS, AUDIENCE } = require('@ibitplay/socket');
+const { money, resolveVipLadder } = require('@ibitplay/common');
+const { isAgentPlayer } = require('@ibitplay/auth');
 const errors = require('./profile.errors');
 const { ProfileService } = require('./profile.service');
 const { IN_HOUSE_GAMES } = require('./profile.constants');
@@ -152,10 +153,13 @@ function register({ on, deps }) {
           'id', 'name', 'email', 'avatar', 'level', 'games_played', 'country',
           'referalcode', 'created', 'last_login_at',
         ]);
+        // Agent's player: INR only, no VIP / referral (user, 2026-10-18).
+        const agent = await isAgentPlayer(user.id);
 
-        const [credits, wager] = await Promise.all([
+        const [credits, wager, ladder] = await Promise.all([
           models.Credits.findOne({ where: { uid: user.id }, raw: true }),
           models.Userwager.findOne({ where: { uid: user.id }, raw: true }),
+          resolveVipLadder(models, { logger }),
         ]);
 
         const lifetimeWager = String(wager?.wager ?? '0').replace(/,/g, '');
@@ -168,16 +172,17 @@ function register({ on, deps }) {
           level: Number(user.level ?? 0),
           country: user.country ?? null,
           gamesPlayed: Number(user.games_played ?? 0),
-          referralCode: user.referalcode ?? null,
+          referralCode: agent ? null : user.referalcode ?? null,
           joined: user.created ?? null,
           lastLogin: user.last_login_at ?? null,
           wager: lifetimeWager,
           /**
-           * The shared ladder — the same one the operator's reports use, so a
-           * player and a support agent never see different levels.
+           * The site's ladder — the same one `GET /user/vip` and the operator's
+           * reports resolve, so a player and a support agent never see
+           * different levels.
            */
-          vip: vipLevelFor(lifetimeWager),
-          credit: describeBalances(credits),
+          vip: agent ? null : { ...ladder.levelFor(lifetimeWager), ladder: ladder.key },
+          credit: describeBalances(agent && credits ? { inr: credits.inr } : credits),
         });
       } catch (error) {
         if (error.code?.startsWith('PROFILE_')) return refuse(error);
@@ -316,18 +321,24 @@ function register({ on, deps }) {
     audience: AUDIENCE.PUBLIC,
     handle: async () => {
       /**
-       * ORDERED BY `date`, BECAUSE THIS TABLE HAS NO `id`.
+       * ═══════════════════════════════════════════════════════════════════
+       * FIXED — THIS ORDERED BY A COLUMN THE TABLE DOES NOT HAVE
        *
-       * `notifications` is one of the handful of baseline tables declared
-       * with no primary key — `(title, content, date)` and nothing else —
-       * and the model says so: it calls `removeAttribute('id')` to stop
-       * Sequelize inventing one. Ordering by `id` therefore emitted
-       * `ORDER BY "Notifications"."id" DESC` against a column that does
-       * not exist, Postgres refused the statement, and this event answered
-       * `SOCKET_HANDLER_FAILED` — every time, for every caller.
+       * `order: [['id', 'DESC']]` produced
        *
-       * Found by calling it. The web client's notification feed is the
-       * first thing on this platform to send `C.NOTIFICATION`.
+       *     SELECT "title", "content", "date" FROM "notifications"
+       *     ORDER BY "Notifications"."id" DESC LIMIT 20
+       *     → 42703  column Notifications.id does not exist
+       *
+       * `notifications` is three columns — `title`, `content`, `date` — with
+       * no key of any kind, and the model selects exactly those three. So
+       * every call to this event answered `SOCKET_HANDLER_FAILED`, and it
+       * would have done so from the first request: nothing about it depends
+       * on data. The table is also empty, which is why an empty widget looked
+       * like an empty feed rather than a broken one.
+       *
+       * Ordered by `date`, which is the only orderable column there is.
+       * ═══════════════════════════════════════════════════════════════════
        */
       const rows = await models.Notifications.findAll({
         order: [['date', 'DESC']],
@@ -362,6 +373,19 @@ function register({ on, deps }) {
     audience: AUDIENCE.PUBLIC,
     handle: async () => {
       return ok(await clients.casino.get('/internal/casino/bet-history/recent', { query: { limit: MAX_ROWS } }));
+    },
+  });
+
+  /**
+   * `liveBets` — the public live wins ticker, same rows as the casino's
+   * `GET /casino/bet-history/live`. Ours (PLATFORM_EVENTS), not legacy's.
+   */
+  on(PLATFORM_EVENTS.LIVE_BETS, {
+    audience: AUDIENCE.PUBLIC,
+    handle: async (payload) => {
+      const limit = Math.min(50, Math.max(1, Number(payload?.limit) || 12));
+      const rows = await clients.casino.get('/api/v1/casino/bet-history/live', { query: { limit } });
+      return ok({ rows: Array.isArray(rows) ? rows : [] });
     },
   });
 

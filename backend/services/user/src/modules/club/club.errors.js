@@ -10,7 +10,7 @@ module.exports = defineErrors('CLUB', {
 
   NOT_CLUB_OWNER: {
     status: 403,
-    message: 'Only the club owner can do that',
+    message: 'Only the club leader can do that',
   },
   NOT_A_MEMBER: { status: 404, message: 'This player is not in a club' },
   ALREADY_IN_CLUB: {
@@ -21,7 +21,7 @@ module.exports = defineErrors('CLUB', {
   },
   OWNER_CANNOT_LEAVE: {
     status: 409,
-    message: 'A club owner cannot leave their own club',
+    message: 'A club leader cannot leave their own club',
   },
   CANNOT_RECRUIT_SELF: { status: 422, message: 'You cannot recruit yourself' },
 
@@ -41,7 +41,7 @@ module.exports = defineErrors('CLUB', {
     status: 422,
     // Legacy stored whatever it was given, so a club could be configured to pay
     // out more than the wagering it generated.
-    message: 'The owner, agent and member percentages cannot exceed 100 between them',
+    message: 'The leader, agent and member percentages cannot exceed 100 between them',
   },
 
   CODE_GENERATION_FAILED: { status: 503, message: 'Could not allocate a code — try again' },

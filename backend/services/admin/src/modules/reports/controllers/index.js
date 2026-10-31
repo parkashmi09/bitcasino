@@ -16,24 +16,26 @@ function createControllers({ service, deps }) {
       return response.paginated(res, result.rows, { ...page(req.query), total: result.total });
     }),
 
+    /** GET /reports/user-list — Users page ki table */
+    userList: asyncHandler(async (req, res) => {
+      const result = await service.userList({ staff: req.staff, ...req.query });
+      return response.paginated(res, result.rows, { ...page(req.query), total: result.total });
+    }),
+
+    /** GET /reports/client-balance-sheet/:userId — client user ki sheet (point ledger) */
+    clientBalanceSheet: asyncHandler(async (req, res) =>
+      response.ok(res, await service.clientBalanceSheet({ staff: req.staff, ...req.params, ...req.query }))
+    ),
+
+    /** GET /reports/players/summary — Users page ke cards */
+    playersSummary: asyncHandler(async (req, res) =>
+      response.ok(res, await service.playersSummary({ staff: req.staff, ...req.query }))
+    ),
+
     /** @legacy GET /reports/user/:userId */
     playerReport: asyncHandler(async (req, res) =>
       response.ok(res, await service.playerReport({ staff: req.staff, ...req.params }))
     ),
-
-    /**
-     * @legacy GET /api/admin/agent-users
-     *
-     * `ok`, not `paginated`: the body carries two lists and the caller needs
-     * both. The players page; the downline staff do not, because it is bounded
-     * by the tree rather than by the customer count.
-     */
-    agentUsers: asyncHandler(async (req, res) => {
-      const result = await service.agentUsers({ staff: req.staff, ...req.query });
-      return response.ok(res, result, {
-        pagination: { ...page(req.query), total: result.total },
-      });
-    }),
 
     /**
      * @legacy GET /reports/export
@@ -68,9 +70,20 @@ function createControllers({ service, deps }) {
       response.ok(res, await service.userRisk({ staff: req.staff, ...req.params }))
     ),
 
-    staffRisk: asyncHandler(async (req, res) =>
-      response.ok(res, await service.staffRisk({ staff: req.staff, ...req.params }))
+    /** Registration country / city and login country, players counted once. */
+    geoStats: asyncHandler(async (req, res) =>
+      response.ok(res, await service.geoStats({ staff: req.staff }))
     ),
+
+    ipTracker: asyncHandler(async (req, res) => {
+      const result = await service.ipTracker({ staff: req.staff, ...req.query });
+      return response.paginated(res, result.rows, { ...page(req.query), total: result.total });
+    }),
+
+    sharedIps: asyncHandler(async (req, res) => {
+      const result = await service.sharedIps({ staff: req.staff, ...req.query });
+      return response.paginated(res, result.rows, { ...page(req.query), total: result.total });
+    }),
 
     /** @legacy GET /api/admin/balance-sheet/:userId */
     balanceSheet: asyncHandler(async (req, res) => {

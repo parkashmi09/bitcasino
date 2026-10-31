@@ -27,15 +27,33 @@ module.exports = (sequelize) => {
       id: { type: DataTypes.BIGINT, autoIncrement: true, primaryKey: true, allowNull: false, field: 'id' },
       user_id: { type: DataTypes.BIGINT, allowNull: false, field: 'user_id' },
       game_uid: { type: DataTypes.STRING(190), allowNull: true, field: 'game_uid' },
-      /** bet | win | loss */
-      transaction_type: { type: DataTypes.STRING(20), allowNull: false, field: 'transaction_type' },
+      /** One of `V2_SETTLEMENT` — nine shapes, the longest 33 characters. */
+      transaction_type: { type: DataTypes.STRING(40), allowNull: false, field: 'transaction_type' },
       amount: { type: DataTypes.DECIMAL(30, 8), allowNull: false, defaultValue: '0', field: 'amount' },
       currency: { type: DataTypes.STRING(10), allowNull: false, field: 'currency' },
-      /** The provider's id for this movement — THE idempotency key. */
+      /**
+       * The provider's ROUND id — half of the idempotency key.
+       *
+       * Unique with `transaction_type`, not on its own: one round settles a
+       * stake and then a payout, and both carry this same value. And per
+       * player: the key is `(user_id, external_transaction_id,
+       * transaction_type)` — see migrations 045 and 095.
+       */
       external_transaction_id: {
         type: DataTypes.STRING(190),
         allowNull: false,
         field: 'external_transaction_id',
+      },
+      /** The provider's per-MESSAGE id. Kept for support; never the key. */
+      serial_number: { type: DataTypes.STRING(190), allowNull: true, field: 'serial_number' },
+      /** Copied from `js_games` at settlement so history needs no join. */
+      game_type: { type: DataTypes.STRING(100), allowNull: true, field: 'game_type' },
+      game_name: { type: DataTypes.STRING(255), allowNull: true, field: 'game_name' },
+      transaction_status: {
+        type: DataTypes.STRING(20),
+        allowNull: false,
+        defaultValue: 'completed',
+        field: 'transaction_status',
       },
       ledger_id: { type: DataTypes.BIGINT, allowNull: true, field: 'ledger_id' },
       additional_data: { type: DataTypes.JSONB, allowNull: true, field: 'additional_data' },

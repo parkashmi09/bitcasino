@@ -15,6 +15,8 @@ module.exports = defineErrors('STATEMENTS', {
 
   BAD_RANGE: { status: 400, message: '`from` must not be after `to`' },
 
+  UNSUPPORTED_CURRENCY: { status: 400, message: 'No wallet in that currency' },
+
   RANGE_REQUIRED: {
     status: 400,
     /**

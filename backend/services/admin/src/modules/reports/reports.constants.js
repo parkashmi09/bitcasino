@@ -35,6 +35,7 @@ const CURRENCY_COLUMNS = Object.freeze({
   SC: 'sc',
   MVR: 'mvr',
   AED: 'aed',
+  IDR: 'idr',
   SHIB: 'shib',
   MATIC: 'matic',
   USDP: 'usdp',
@@ -42,6 +43,8 @@ const CURRENCY_COLUMNS = Object.freeze({
   NEXO: 'nexo',
   MKR: 'mkr',
   NC: 'nc',
+  // Retired (nothing credits it any more) but still a balance a player may
+  // hold, so it stays reportable.
   BJB: 'bjb',
 });
 
@@ -120,6 +123,15 @@ const RISK_LOGIN_ROWS = 15;
 const RISK_IP_ROWS = 25;
 const RISK_BET_ROWS = 10;
 
+/** How many accounts a shared-IP row lists. The count is always the full one. */
+const SHARED_IP_USERS = 50;
+
+/** Other accounts listed on a player's risk view as sharing one of their public IPs. */
+const RISK_SHARED_ACCOUNTS = 20;
+
+/** Rows per breakdown on the geo stats (registration country / city, login country). */
+const GEO_TOP_N = 20;
+
 /**
  * Ceiling on one CSV export.
  *
@@ -184,6 +196,9 @@ module.exports = {
   RISK_LOGIN_ROWS,
   RISK_IP_ROWS,
   RISK_BET_ROWS,
+  SHARED_IP_USERS,
+  RISK_SHARED_ACCOUNTS,
+  GEO_TOP_N,
   MAX_EXPORT_ROWS,
   CSV_FORMULA_PREFIXES,
 };

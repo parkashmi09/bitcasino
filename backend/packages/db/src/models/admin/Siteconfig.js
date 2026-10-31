@@ -289,7 +289,7 @@ module.exports = (sequelize) => {
     nc: {
       type: DataTypes.BOOLEAN,
       allowNull: true,
-      defaultValue: true,
+      defaultValue: false, // the test coin is off for players (migration 066)
       field: "nc",
     },
     npr: {
@@ -382,6 +382,13 @@ module.exports = (sequelize) => {
       defaultValue: true,
       field: "provablyfair",
     },
+    // rainbet: KYC in levels (1–4) when on, one step with no levels when off (migration 170).
+    kyclevels: {
+      type: DataTypes.BOOLEAN,
+      allowNull: true,
+      defaultValue: true,
+      field: "kyclevels",
+    },
     id: {
       type: DataTypes.INTEGER,
       autoIncrement: true,
@@ -392,7 +399,6 @@ module.exports = (sequelize) => {
     apaynotificationemail: {
       type: DataTypes.STRING(255),
       allowNull: true,
-      defaultValue: "salvin.dev.cfz@gmail.com",
       field: "apaynotificationemail",
     },
     gmailuser: {

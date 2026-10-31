@@ -2,8 +2,30 @@
 
 const { Router } = require('express');
 const { response, asyncHandler, validate, z } = require('@ibitplay/common');
-const { Op, fn, col } = require('sequelize');
+const { Op, fn, col, literal } = require('sequelize');
 const { money } = require('@ibitplay/common');
+
+/* Only `/player/:userId/stats` uses it — the rest of this file queries the
+   models directly, which is how it was written. */
+const { BetHistoryService } = require('../betHistory.service');
+const { casinoProfileStats } = require('../profileStats');
+
+/**
+ * A round with a public outcome.
+ *
+ * Excludes two kinds of row that the feeds used to carry:
+ *
+ *   `result IS NULL`       still open — no outcome yet, and showing one
+ *                          implies there is.
+ *   `result = "refunded"`  VOIDED by `GameEngine.refund`, stake returned. Its
+ *                          `profit` is `0`, which `classify()` reads as a
+ *                          PUSH — so a round that never happened appeared as
+ *                          a tie in the public ticker and in `LAST_BETS`.
+ *
+ * `bets.result` is a `json` column and the marker is the JSON string
+ * `"refunded"`, so the comparison is on `::text` rather than the column.
+ */
+const SETTLED = literal(`"result" IS NOT NULL AND "result"::text <> '"refunded"'`);
 
 /**
  * Bet reads for user-service's socket transport.
@@ -40,6 +62,7 @@ const limit = z.coerce.number().int().min(1).max(MAX_ROWS).default(25);
 
 module.exports = function internalRoutes(deps) {
   const { models } = deps;
+  const service = new BetHistoryService(deps);
   const router = Router();
 
   /** One bet, with money as decimal strings rather than driver floats. */
@@ -151,6 +174,35 @@ module.exports = function internalRoutes(deps) {
   );
 
   /** @legacy SOCKET 62f8c260fbce6de8e5ed19767977cc1e — `C.LAST_BETS` */
+  /**
+   * One player's headline counts, for user-service's public profile — gap 17.
+   *
+   * `playerStats` counts ROUNDS rather than movements and returns no money,
+   * both deliberately — see its own note. It is the same method the player's
+   * own `/casino/bet-history/stats` uses; the only difference is who names the
+   * player, which here is the calling service on behalf of a viewer.
+   */
+  router.get(
+    '/player/:userId/stats',
+    validate({ params: z.object({ userId: z.coerce.number().int().positive() }) }),
+    asyncHandler(async (req, res) =>
+      response.ok(res, await service.playerStats({ userId: req.params.userId }))
+    )
+  );
+
+  /**
+   * The casino half of user-service's `GET /user/profile/stats`: stakes, wins,
+   * biggest payout and top games per currency, for one player. user-service
+   * converts to USD and adds sports. See `profileStats.js`.
+   */
+  router.get(
+    '/player/:userId/profile-stats',
+    validate({ params: z.object({ userId: z.coerce.number().int().positive() }) }),
+    asyncHandler(async (req, res) =>
+      response.ok(res, await casinoProfileStats(deps.db, req.params.userId))
+    )
+  );
+
   router.get(
     '/recent',
     validate({
@@ -158,7 +210,10 @@ module.exports = function internalRoutes(deps) {
     }),
     asyncHandler(async (req, res) => {
       const rows = await models.Bets.findAll({
-        where: req.query.game ? { game: req.query.game } : {},
+        /* Settled, non-voided rounds only — same reasoning as `liveFeed`. An
+           open round has no outcome to publish, and a refunded one is a round
+           that did not happen, whose zero profit reads as a PUSH. */
+        where: req.query.game ? { [Op.and]: [{ game: req.query.game }, SETTLED] } : SETTLED,
         attributes: ['id', 'uid', 'game', 'amount', 'profit', 'coin', 'created'],
         order: [['id', 'DESC']],
         limit: req.query.limit,
@@ -174,7 +229,10 @@ module.exports = function internalRoutes(deps) {
     validate({ query: z.object({ limit }).strict() }),
     asyncHandler(async (req, res) => {
       const rows = await models.Bets.findAll({
-        where: { profit: { [Op.gt]: 0 } },
+        /* `profit > 0` already excludes a refund (its profit is 0), but not an
+           open round, so `SETTLED` is applied here too rather than relying on
+           one filter to imply the other. */
+        where: { [Op.and]: [{ profit: { [Op.gt]: 0 } }, SETTLED] },
         attributes: ['id', 'uid', 'game', 'amount', 'profit', 'coin', 'created'],
         order: [['profit', 'DESC']],
         limit: req.query.limit,

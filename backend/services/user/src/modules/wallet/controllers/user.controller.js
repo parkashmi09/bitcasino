@@ -42,8 +42,8 @@ function createUserController({ service }) {
     }),
 
     ledger: asyncHandler(async (req, res) => {
-      const { limit, offset, currency, reason } = req.query;
-      const result = await service.listLedger({ userId: req.user.id, currency, reason, limit, offset });
+      const { limit, offset, currency, reason, category } = req.query;
+      const result = await service.listLedger({ userId: req.user.id, currency, reason, category, limit, offset });
       return response.paginated(res, result, { page: Math.floor(offset / limit) + 1, limit });
     }),
   };

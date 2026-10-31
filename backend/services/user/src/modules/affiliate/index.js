@@ -25,5 +25,6 @@ module.exports = {
   routers: {
     user: require('./routes/user.routes'),
     admin: require('./routes/admin.routes'),
+    internal: require('./routes/internal.routes'),
   },
 };

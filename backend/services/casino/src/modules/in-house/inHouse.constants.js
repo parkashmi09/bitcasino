@@ -17,11 +17,13 @@ const HOUSE_EDGE_PERCENT = 2;
  * into `UPDATE credits SET ${coin} = ${coin} - $2` — `_.lowerCase` formats, it
  * does not sanitise.
  */
+// BJB is retired (`RETIRED_CURRENCIES` in @ibitplay/common): no bets in it, so
+// nothing here can pay one out.
 const COIN_COLUMNS = Object.freeze({
   BTC: 'btc', ETH: 'eth', LTC: 'ltc', BCH: 'bch', USDT: 'usdt', TRX: 'trx',
   DOGE: 'doge', ADA: 'ada', XRP: 'xrp', BNB: 'bnb', USDP: 'usdp', NEXO: 'nexo',
   MKR: 'mkr', TUSD: 'tusd', USDC: 'usdc', BUSD: 'busd', INR: 'inr',
-  SHIB: 'shib', MATIC: 'matic', SC: 'sc', MVR: 'mvr', BJB: 'bjb', AED: 'aed',
+  SHIB: 'shib', MATIC: 'matic', SC: 'sc', MVR: 'mvr', AED: 'aed',
   NPR: 'npr', PKR: 'pkr', EUR: 'eur', BDT: 'bdt',
 });
 

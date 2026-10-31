@@ -10,7 +10,7 @@ const accountType = z.enum(ACCOUNT_TYPES);
 const paging = z.object({
   limit: z.coerce.number().int().min(1).max(200).default(50),
   offset: z.coerce.number().int().min(0).default(0),
-});
+}).strict();
 
 /** Money as a string. Legacy did `Number(amount)` and compared it to a NUMERIC. */
 const amount = z
@@ -33,7 +33,7 @@ const limitAmount = z
  */
 const transactionPassword = z.string().min(1).max(200);
 
-const newPassword = z.string().min(12, 'must be at least 12 characters').max(200);
+const newPassword = z.string().min(8, 'must be at least 8 characters').max(200);
 
 const setPassword = {
   body: z.object({ accountType, accountId: id, newPassword, transactionPassword }).strict(),
@@ -68,7 +68,11 @@ const setExposureLimit = {
 };
 
 const setCreditLimit = {
-  body: z.object({ accountId: id, creditLimit: limitAmount, transactionPassword }).strict(),
+  // `accountType` defaults to 'user' — the original contract. 'staff' sets an
+  // agent's credit line, the one the float guards enforce.
+  body: z
+    .object({ accountType: accountType.default('user'), accountId: id, creditLimit: limitAmount, transactionPassword })
+    .strict(),
 };
 
 /** No `fromId`. The payer is the authenticated operator. */
@@ -89,6 +93,8 @@ const transferStatement = {
     accountId: id.optional(),
     from: z.coerce.date().optional(),
     to: z.coerce.date().optional(),
+    // Direct Users | Agent Users tab; na ho = dono
+    channel: z.enum(['direct', 'agent']).optional(),
   }),
 };
 

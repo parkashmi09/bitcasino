@@ -98,9 +98,16 @@ class BlogsService {
       // Never the description in a list, and never the bytes.
       attributes: this.#summaryColumns(),
       order: [
-        // Unpublished posts have no `published_at`, so the admin listing falls
-        // back to creation order rather than dropping them to the end.
-        [includeUnpublished ? 'created_at' : 'published_at', 'DESC'],
+        /**
+         * Unpublished posts have no `published_at`, so the admin listing falls
+         * back to creation order rather than dropping them to the end.
+         *
+         * The public list COALESCEs: a row inserted as published without the
+         * stamp (the demo seed, a legacy import after migration 032's backfill)
+         * has a NULL `published_at`, and Postgres puts NULLs FIRST in a DESC
+         * sort, so those posts outranked every newer one on the front page.
+         */
+        [includeUnpublished ? col('created_at') : fn('COALESCE', col('published_at'), col('date'), col('created_at')), 'DESC'],
         ['id', 'DESC'],
       ],
       limit,

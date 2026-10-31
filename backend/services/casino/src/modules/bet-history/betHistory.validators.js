@@ -2,7 +2,7 @@
 
 const { z } = require('@ibitplay/common');
 
-const { SOURCE_KEYS } = require('./betHistory.constants');
+const { SOURCE_KEYS, BET_CATEGORIES } = require('./betHistory.constants');
 
 const paging = {
   page: z.coerce.number().int().min(1).default(1),
@@ -14,6 +14,9 @@ const window = {
   to: z.coerce.date().optional(),
 };
 
+/** Admin ka Direct Users / Agent Users tab. Na ho = sab (pehle jaisa). */
+const channel = z.enum(['direct', 'agent']).optional();
+
 const listing = {
   query: z
     .object({
@@ -22,6 +25,7 @@ const listing = {
       search: z.string().trim().max(120).optional(),
       userId: z.coerce.number().int().positive().optional(),
       source: z.enum(SOURCE_KEYS).optional(),
+      channel,
     })
     .strict()
     .refine((v) => !v.from || !v.to || v.to >= v.from, {
@@ -38,9 +42,12 @@ const userListing = {
 
 const stats = {
   query: z
-    .object({ ...window, userId: z.coerce.number().int().positive().optional() })
+    .object({ ...window, userId: z.coerce.number().int().positive().optional(), channel })
     .strict(),
 };
+
+/** `/analytics` — sirf Direct / Agent tab. */
+const analytics = { query: z.object({ channel }).strict() };
 
 const userParam = { params: z.object({ userId: z.coerce.number().int().positive() }) };
 
@@ -58,13 +65,92 @@ const liveFeed = {
   query: z.object({ limit: z.coerce.number().int().min(1).max(100).default(50) }).strict(),
 };
 
-const myHistory = {
+/**
+ * The "N playing" window.
+ *
+ * Capped at a day. A window of a week would let a caller ask this server to
+ * `COUNT(DISTINCT uid)` over the whole bets table on a public route — the same
+ * shape of problem as the unpaginated `SELECT *` this module was built to
+ * replace. Fifteen minutes is what "playing" means; the ceiling is there so
+ * nobody can turn it into "has ever played".
+ */
+const activity = {
   query: z
-    .object({ ...paging, ...window, source: z.enum(SOURCE_KEYS).optional() })
+    .object({ minutes: z.coerce.number().int().min(1).max(1440).default(15) })
     .strict(),
 };
 
-module.exports = { listing, userListing, stats, userParam, myTimedRounds, liveFeed, myHistory };
+/**
+ * The "Continue Playing" row.
+ *
+ * A short list by nature — it is a row of tiles, not a history page, and the
+ * player's own bet history is already available in full on `/bet-history`.
+ */
+const recentGames = {
+  query: z.object({ limit: z.coerce.number().int().min(1).max(50).default(12) }).strict(),
+};
+
+/** A bet id is a bigint on the wire, so it arrives as a digit string. */
+const myBet = {
+  params: z.object({ betId: z.string().trim().regex(/^\d+$/, 'betId must be numeric') }),
+};
+
+/** The public board. `game` narrows it to one game's board, as the tabs do. */
+const topWins = {
+  query: z
+    .object({
+      limit: z.coerce.number().int().min(1).max(100).default(20),
+      game: z.string().trim().max(60).optional(),
+    })
+    .strict(),
+};
+
+/** The three windows the contest tabs offer. */
+const PERIODS = ['daily', 'weekly', 'monthly'];
+
+const leaderboard = {
+  query: z
+    .object({
+      period: z.enum(PERIODS).default('weekly'),
+      limit: z.coerce.number().int().min(1).max(100).default(20),
+    })
+    .strict(),
+};
+
+const myPosition = {
+  query: z.object({ period: z.enum(PERIODS).default('weekly') }).strict(),
+};
+
+const myHistory = {
+  query: z
+    .object({
+      ...paging,
+      ...window,
+      source: z.enum(SOURCE_KEYS).optional(),
+      /** The pane's Type filter — see `categoryOf`. */
+      category: z.enum(BET_CATEGORIES).optional(),
+      /** One coin, any case (`bets.coin` is stored lower-case). */
+      currency: z.string().trim().regex(/^[A-Za-z][A-Za-z0-9]{1,9}$/).transform((c) => c.toUpperCase()).optional(),
+    })
+    .strict(),
+};
+
+module.exports = {
+  listing,
+  userListing,
+  stats,
+  analytics,
+  userParam,
+  myTimedRounds,
+  liveFeed,
+  activity,
+  recentGames,
+  myHistory,
+  myBet,
+  topWins,
+  leaderboard,
+  myPosition,
+};
 
 /**
  * The raw-table reads.
@@ -81,6 +167,7 @@ const rawPaging = {
   from: zod.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
   to: zod.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
   userId: zod.coerce.number().int().positive().optional(),
+  channel: zod.enum(['direct', 'agent']).optional(),
 };
 
 /** @legacy GET /betHistory/transactions/luckysports */

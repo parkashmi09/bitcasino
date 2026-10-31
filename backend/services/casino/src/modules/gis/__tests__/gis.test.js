@@ -293,6 +293,43 @@ test('slotegrator (gis)', async (t) => {
     assert.equal(first.error_code, undefined);
   });
 
+  await t.test('a bet counts toward the wager once (USD conversion is user-service\'s), a win never', async () => {
+    // GIS/Slotegrator stakes never reached `userwager` — no VIP XP, no
+    // rakeback, no commission for an aggregator-only player.
+    const uid = await seedPlayer(newUid());
+    const balances = new Map([[String(uid), '1000']]);
+    const counted = [];
+    const service = new GisService({
+      models,
+      db: connection,
+      logger,
+      wallet: makeWallet(balances),
+      provider,
+      games: { async recordPlay() {}, async recordActivity(args) { counted.push(args); return { counted: true }; } },
+      config: { SERVICE_NAME: 'casino-service', GIS_MAX_SKEW_SECONDS: 300 },
+    });
+
+    const txId = newTxId();
+    const bet = () =>
+      service.handleTransaction(
+        callback({ action: 'bet', player_id: String(uid), currency: 'USDT', amount: '40', transaction_id: txId })
+      );
+    const first = await bet();
+    const retry = await bet();
+    await service.handleTransaction(
+      callback({ action: 'win', player_id: String(uid), currency: 'USDT', amount: '10', transaction_id: newTxId() })
+    );
+
+    assert.equal(counted.length, 1, 'one stake, one count');
+    assert.equal(counted[0].wagered, '40.00000000');
+    assert.equal(counted[0].currency, 'USDT');
+    assert.equal(counted[0].source, 'gis');
+    assert.equal(counted[0].ref, txId);
+    // The internal flag never reaches the provider.
+    assert.equal('duplicate' in first, false);
+    assert.equal('duplicate' in retry, false);
+  });
+
   await t.test('two retries arriving together apply once', async () => {
     // The legacy guard was a SELECT followed much later by an INSERT. Both
     // reads returned "not seen" and both paid.
@@ -370,6 +407,152 @@ test('slotegrator (gis)', async (t) => {
   // ══════════════════════════════════════════════════════════════════════
   //  Rollbacks
   // ══════════════════════════════════════════════════════════════════════
+
+  await t.test('a refund and a rollback of one bet return the stake once, in either order', async () => {
+    for (const order of [['refund', 'rollback'], ['rollback', 'refund']]) {
+      const uid = await seedPlayer(newUid());
+      const balances = new Map([[String(uid), '1000']]);
+      const service = new GisService({ models, db: connection, logger, wallet: makeWallet(balances), provider, games: { async recordPlay() {}, async recordActivity() { return {}; }, async reverseActivity() { return {}; } }, config: { SERVICE_NAME: 'casino-service', GIS_MAX_SKEW_SECONDS: 300 } });
+      const tx = (body) => service.handleTransaction(callback({ player_id: String(uid), currency: 'USDT', ...body }));
+      const bet = newTxId();
+      await tx({ action: 'bet', amount: '100', transaction_id: bet });
+      for (const step of order) {
+        if (step === 'refund') await tx({ action: 'refund', amount: '100', transaction_id: newTxId(), bet_transaction_id: bet });
+        else await tx({ action: 'rollback', transaction_id: newTxId(), rollback_transactions: [{ transaction_id: bet, action: 'bet', amount: '100' }] });
+      }
+      assert.equal(Number(balances.get(String(uid))), 1000, order.join(' then '));
+    }
+  });
+
+  await t.test('a refund pays at most the stake, and only for the bet of that player', async () => {
+    const uid = await seedPlayer(newUid());
+    const other = await seedPlayer(newUid());
+    const balances = new Map([[String(uid), '1000'], [String(other), '0']]);
+    const service = new GisService({ models, db: connection, logger, wallet: makeWallet(balances), provider, games: { async recordPlay() {}, async recordActivity() { return {}; }, async reverseActivity() { return {}; } }, config: { SERVICE_NAME: 'casino-service', GIS_MAX_SKEW_SECONDS: 300 } });
+    const tx = (player, body) => service.handleTransaction(callback({ player_id: String(player), currency: 'USDT', ...body }));
+    const bet = newTxId();
+    await tx(uid, { action: 'bet', amount: '100', transaction_id: bet });
+    await tx(other, { action: 'refund', amount: '100', transaction_id: newTxId(), bet_transaction_id: bet });
+    assert.equal(Number(balances.get(String(other))), 0, 'not the bet of another player');
+    await tx(uid, { action: 'refund', amount: '9999', transaction_id: newTxId(), bet_transaction_id: bet });
+    assert.equal(Number(balances.get(String(uid))), 1000, 'the stake, not the figure asked');
+  });
+
+  await t.test('a win naming a round with no bet is refused; free spins and matched rounds pay', async () => {
+    const uid = await seedPlayer(newUid());
+    const balances = new Map([[String(uid), '1000']]);
+    const service = new GisService({ models, db: connection, logger, wallet: makeWallet(balances), provider, games: { async recordPlay() {}, async recordActivity() { return {}; }, async reverseActivity() { return {}; } }, config: { SERVICE_NAME: 'casino-service', GIS_MAX_SKEW_SECONDS: 300 } });
+    const tx = (body) => service.handleTransaction(callback({ player_id: String(uid), currency: 'USDT', ...body }));
+    const round = `round-${newTxId()}`;
+    const refused = await tx({ action: 'win', amount: '500', transaction_id: newTxId(), round_id: round });
+    assert.ok(refused.error_code, 'no bet yet');
+    assert.equal(Number(balances.get(String(uid))), 1000);
+    await tx({ action: 'bet', amount: '10', transaction_id: newTxId(), round_id: round });
+    await tx({ action: 'win', amount: '30', transaction_id: newTxId(), round_id: round });
+    assert.equal(Number(balances.get(String(uid))), 1020);
+    await tx({ action: 'win', amount: '5', transaction_id: newTxId(), round_id: `fs-${newTxId()}`, freespin_id: 'fs1' });
+    assert.equal(Number(balances.get(String(uid))), 1025);
+  });
+
+  await t.test('wager feed: a refunded bet and a rolled-back bet stop counting, once each; a rolled-back win does not', async () => {
+    const uid = await seedPlayer(newUid());
+    const balances = new Map([[String(uid), '1000']]);
+    const reversed = [];
+    const service = new GisService({
+      models,
+      db: connection,
+      logger,
+      wallet: makeWallet(balances),
+      provider,
+      games: {
+        async recordPlay() {},
+        async recordActivity() { return { counted: true }; },
+        async reverseActivity(args) { reversed.push(args); return { reversed: true }; },
+      },
+      config: { SERVICE_NAME: 'casino-service', GIS_MAX_SKEW_SECONDS: 300 },
+    });
+    const tx = (body) => service.handleTransaction(callback({ player_id: String(uid), currency: 'USDT', ...body }));
+
+    const refunded = newTxId();
+    const rolled = newTxId();
+    const win = newTxId();
+    await tx({ action: 'bet', amount: '40', transaction_id: refunded });
+    await tx({ action: 'bet', amount: '30', transaction_id: rolled });
+    await tx({ action: 'win', amount: '10', transaction_id: win });
+
+    const refundIds = [];
+    const refund = () => {
+      refundIds.push(newTxId());
+      return tx({ action: 'refund', amount: '40', transaction_id: refundIds.at(-1), bet_transaction_id: refunded });
+    };
+    await refund();
+    await refund(); // retried under a fresh id
+    const rollback = (id) =>
+      tx({ action: 'rollback', transaction_id: newTxId(), rollback_transactions: [{ transaction_id: id }] });
+    await rollback(rolled);
+    await rollback(rolled);
+    await rollback(win);
+
+    assert.deepEqual(reversed, [
+      // The refunded amount and the provider's refund id (partial-refund aware, migration 090);
+      // a failed call is queued for retry (`outbox`).
+      { userId: uid, source: 'gis', ref: refunded, amount: '40.00000000', refundRef: refundIds[0], outbox: true },
+      { userId: uid, source: 'gis', ref: rolled, amount: null, refundRef: null, outbox: true },
+    ]);
+    assert.equal(balances.get(String(uid)), '1000.00000000', 'stakes returned, win taken back');
+  });
+
+  await t.test('wager feed: a partial refund reverses only the refunded part, keyed by the refund id', async () => {
+    const uid = await seedPlayer(newUid());
+    const balances = new Map([[String(uid), '100']]);
+    const reversed = [];
+    const service = new GisService({
+      models,
+      db: connection,
+      logger,
+      wallet: makeWallet(balances),
+      provider,
+      games: {
+        async recordPlay() {},
+        async recordActivity() { return { counted: true }; },
+        async reverseActivity(args) { reversed.push(args); return { reversed: true }; },
+      },
+      config: { SERVICE_NAME: 'casino-service', GIS_MAX_SKEW_SECONDS: 300 },
+    });
+    const betId = newTxId();
+    const refundId = newTxId();
+    await service.handleTransaction(callback({ action: 'bet', player_id: String(uid), currency: 'USDT', amount: '40', transaction_id: betId }));
+    await service.handleTransaction(
+      callback({ action: 'refund', player_id: String(uid), currency: 'USDT', amount: '15', transaction_id: refundId, bet_transaction_id: betId })
+    );
+    assert.deepEqual(reversed, [{ userId: uid, source: 'gis', ref: betId, amount: '15.00000000', refundRef: refundId, outbox: true }]);
+    assert.equal(balances.get(String(uid)), '75.00000000');
+  });
+
+  await t.test('wager feed: a failing reversal never fails the refund', async () => {
+    const uid = await seedPlayer(newUid());
+    const balances = new Map([[String(uid), '100']]);
+    const service = new GisService({
+      models,
+      db: connection,
+      logger,
+      wallet: makeWallet(balances),
+      provider,
+      games: {
+        async recordPlay() {},
+        async recordActivity() { return { counted: true }; },
+        async reverseActivity() { throw new Error('user-service down'); },
+      },
+      config: { SERVICE_NAME: 'casino-service', GIS_MAX_SKEW_SECONDS: 300 },
+    });
+    const betId = newTxId();
+    await service.handleTransaction(callback({ action: 'bet', player_id: String(uid), currency: 'USDT', amount: '40', transaction_id: betId }));
+    const result = await service.handleTransaction(
+      callback({ action: 'refund', player_id: String(uid), currency: 'USDT', amount: '40', transaction_id: newTxId(), bet_transaction_id: betId })
+    );
+    assert.equal(result.error_code, undefined);
+    assert.equal(balances.get(String(uid)), '100.00000000');
+  });
 
   await t.test('a rollback reverses OUR amount, not the one it names', async () => {
     // Legacy summed `Big(tx.amount)` straight from the request, so a rollback
@@ -544,18 +727,19 @@ test('slotegrator (gis)', async (t) => {
     assert.match(result.error_description, /Unsupported currency/);
   });
 
-  await t.test('PKR settles against the INR balance, as legacy mapped it', async () => {
-    const uid = await seedPlayer(newUid());
-    const balances = new Map([[String(uid), '900']]);
-    const { service, wallet } = build(balances);
+  await t.test('INR and PKR callbacks move the wallet of the same name', async () => {
+    for (const [sent, wallet] of [['INR', 'INR'], ['PKR', 'PKR']]) {
+      const uid = await seedPlayer(newUid());
+      const { service } = build(new Map([[String(uid), '900']]));
 
-    await service.handleTransaction(
-      callback({ action: 'bet', player_id: String(uid), currency: 'PKR', amount: '100', transaction_id: newTxId() })
-    );
+      const result = await service.handleTransaction(
+        callback({ action: 'bet', player_id: String(uid), currency: sent, amount: '100', transaction_id: newTxId() })
+      );
 
-    const row = await models.GisTransactions.findOne({ where: { user_id: uid }, order: [['id', 'DESC']], raw: true });
-    assert.equal(row.currency, 'INR');
-    assert.ok([...wallet.applied.keys()].length, 'and the movement was made');
+      assert.equal(result.error_code, undefined, `${sent} bet settles`);
+      const row = await models.GisTransactions.findOne({ where: { user_id: uid }, order: [['id', 'DESC']], raw: true });
+      assert.equal(row.currency, wallet);
+    }
   });
 
   // ══════════════════════════════════════════════════════════════════════
@@ -671,6 +855,8 @@ test('slotegrator (gis)', async (t) => {
 
     assert.equal(result.written, 1);
     assert.equal(result.skipped, 1, 'a row with no uuid is counted, not silently dropped');
+    assert.equal(result.providers, 1, 'the same crawl records its providers');
+    assert.ok(await models.GisProvidersNew.findOne({ where: { name: 'X' } }), 'provider X is in gis_providers_new');
 
     const row = await models.Gisgamesnew.findOne({ where: { uuid }, raw: true });
     assert.equal(row.name, 'After');
@@ -699,5 +885,62 @@ test('slotegrator (gis)', async (t) => {
 
     // Key order in the object must not change the signature.
     assert.equal(flat, provider.sign({ a: 1, b: 'two words' }, headers));
+  });
+
+  await t.test("owner's INR-as-PKR: the game opens in PKR, callbacks convert PKR → INR and move the INR wallet", async () => {
+    const q = (sql) => connection.sequelize.query(sql);
+    // 1 INR = 3 PKR at these rates. Inserted only for this test, removed after.
+    const added = [];
+    for (const [cur, rate] of [['INR', '0.012'], ['PKR', '0.004']]) {
+      const [rows] = await q(`SELECT 1 FROM exchangerate WHERE UPPER(currency) = '${cur}'`);
+      if (!rows.length) {
+        await q(`INSERT INTO exchangerate (currency, usd_rate) VALUES ('${cur}', ${rate})`);
+        added.push(cur);
+      }
+    }
+    await q("INSERT INTO site_features (feature, enabled, variant) VALUES ('slotegrator_inr_as_pkr', true, 'on') ON CONFLICT (feature) DO UPDATE SET variant = 'on'");
+    try {
+      const uid = await seedPlayer(newUid());
+      const balances = new Map([[String(uid), '1000']]);
+      const sent = [];
+      const service = new GisService({
+        models,
+        db: connection,
+        logger,
+        wallet: makeWallet(balances),
+        provider: { configured: true, sign: (...a) => provider.sign(...a), async post(_path, params) { sent.push(params); return { url: 'https://game.test' }; } },
+        games: { async recordPlay() {}, async recordActivity() {} },
+        config: { SERVICE_NAME: 'casino-service', GIS_MAX_SKEW_SECONDS: 300 },
+      });
+
+      const { sessionId } = await service.launch({ userId: uid, gameUuid: 'g-pkr', playerName: 'p', currency: 'INR', device: 'desktop' });
+      assert.equal(sent[0].currency, 'PKR', 'an INR game opens in PKR');
+
+      const call = (body) => service.handleTransaction(callback({ player_id: String(uid), currency: 'PKR', session_id: sessionId, ...body }));
+      const [r] = await connection.sequelize.query("SELECT usd_rate FROM exchangerate WHERE UPPER(currency) = 'INR'");
+      const [p] = await connection.sequelize.query("SELECT usd_rate FROM exchangerate WHERE UPPER(currency) = 'PKR'");
+      const fx = Number(r[0].usd_rate) / Number(p[0].usd_rate);
+
+      const probe = await call({ action: 'balance' });
+      assert.equal(Number(probe.balance).toFixed(2), (1000 * fx).toFixed(2), 'the balance is quoted in PKR');
+
+      const bet = await call({ action: 'bet', amount: String(30 * fx), transaction_id: newTxId() });
+      assert.equal(Number(balances.get(String(uid))).toFixed(4), '970.0000', 'a PKR bet debits its INR value');
+      assert.equal(Number(bet.balance).toFixed(2), (970 * fx).toFixed(2));
+
+      await call({ action: 'win', amount: String(50 * fx), transaction_id: newTxId() });
+      assert.equal(Number(balances.get(String(uid))).toFixed(4), '1020.0000', 'a PKR win credits its INR value');
+
+      // A PKR callback for any other session is the PKR wallet's, untouched by the switch.
+      const other = await service.handleTransaction(callback({ action: 'balance', player_id: String(uid), currency: 'PKR', session_id: 'not-an-inr-session' }));
+      assert.equal(other.balance, '1020.0000', 'no conversion outside an INR-as-PKR session');
+
+      await q("UPDATE site_features SET variant = 'off' WHERE feature = 'slotegrator_inr_as_pkr'");
+      await service.launch({ userId: uid, gameUuid: 'g-pkr', playerName: 'p', currency: 'INR', device: 'desktop' });
+      assert.equal(sent[1].currency, 'INR', 'switched off: INR opens in INR');
+    } finally {
+      await q("DELETE FROM site_features WHERE feature = 'slotegrator_inr_as_pkr'");
+      for (const cur of added) await q(`DELETE FROM exchangerate WHERE UPPER(currency) = '${cur}'`);
+    }
   });
 });

@@ -1,9 +1,10 @@
 'use strict';
 
 const { Router } = require('express');
-const { validate, z, response, asyncHandler } = require('@ibitplay/common');
+const { validate, z, response, asyncHandler, refuseCustomCurrencies, noQuery } = require('@ibitplay/common');
 
 const { SeamlessCatalogueService } = require('../seamlessCatalogue.service');
+const { requireGameEntitled } = require('../../games/gameEntitlement');
 
 /**
  * The operator side of the seamless integration: what games exist, and opening
@@ -17,10 +18,13 @@ const { SeamlessCatalogueService } = require('../seamlessCatalogue.service');
 module.exports = function userRoutes(deps) {
   const service = new SeamlessCatalogueService(deps);
   const router = Router();
+  // Custom coins (owner-created, no provider behind them) never reach this module: CURRENCY_NOT_SUPPORTED_FOR_GAMES.
+  router.use(refuseCustomCurrencies('GAMES'));
 
   /** @legacy GET /fetch-products */
   router.get(
     '/products',
+    noQuery(),
     asyncHandler(async (_req, res) => response.ok(res, await service.products()))
   );
 
@@ -50,6 +54,8 @@ module.exports = function userRoutes(deps) {
         })
         .strict(),
     }),
+    // The owner's plan — see `games/gameEntitlement.js`.
+    requireGameEntitled(deps, (req) => ({ uid: req.body.gameCode, provider: req.body.productCode, type: req.body.gameType })),
     asyncHandler(async (req, res) =>
       response.created(res, await service.launch({ ...req.body, userId: req.user.id, ip: req.ip }))
     )

@@ -16,6 +16,11 @@ function createControllers({ service }) {
       response.created(res, await service.activate({ ...req.body, userId: req.user.id }))
     ),
 
+    /** Activate by the code on the card (the player's "Redeem a code" box). */
+    redeem: asyncHandler(async (req, res) =>
+      response.created(res, await service.redeem({ code: req.body.code, userId: req.user.id }))
+    ),
+
     /** @legacy POST /giftCard/claim */
     claim: asyncHandler(async (req, res) =>
       response.ok(res, await service.claim({ ...req.body, userId: req.user.id }))
@@ -45,11 +50,11 @@ function createControllers({ service }) {
     search: asyncHandler(async (req, res) => response.ok(res, await service.findByKey(req.body))),
 
     /** @legacy GET /giftCard/admin/analytics */
-    analytics: asyncHandler(async (_req, res) => response.ok(res, await service.analytics())),
+    analytics: asyncHandler(async (req, res) => response.ok(res, await service.analytics({ staff: req.staff }))),
 
     /** @legacy GET /giftCard/admin/records */
     records: asyncHandler(async (req, res) => {
-      const result = await service.records(req.query);
+      const result = await service.records({ ...req.query, staff: req.staff });
       return response.paginated(res, result.rows, { ...page(req.query), total: result.total });
     }),
   };

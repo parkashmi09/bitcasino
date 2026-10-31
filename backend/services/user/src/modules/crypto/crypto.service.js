@@ -9,12 +9,13 @@ const errors = require('./crypto.errors');
 const {
   COIN_COLUMNS,
   CCPAYMENT_STATUS,
-  FINAL_STATUSES,
   CCPAYMENT_OK,
 } = require('./crypto.constants');
 const { WalletService } = require('../wallet/wallet.service');
 const { createHttpClient } = require('../psp/providers/http');
 const { REASON } = require('../wallet/wallet.constants');
+const { FirstDepositBonusService } = require('../bonus/firstDepositBonus.service');
+const { notifyPlayer } = require('../notifications/notifyPlayer');
 
 /**
  * Crypto arriving.
@@ -42,6 +43,7 @@ class CryptoService {
      */
     this.http = http ?? createHttpClient({ logger, timeoutMs: Number(config?.PSP_TIMEOUT_MS ?? 10_000) });
     this.wallet = new WalletService(deps);
+    this.firstDepositBonus = deps.firstDepositBonus ?? new FirstDepositBonusService(deps);
   }
 
   // ══════════════════════════════════════════════════════════════════════
@@ -61,9 +63,11 @@ class CryptoService {
    *    reorder keys and produce a different digest, so the router keeps the
    *    original buffer.
    *
-   * 2. IS IT NEW. The provider retries. A deposit already in a final state is
-   *    acknowledged and ignored, and the credit itself carries an idempotency
-   *    key derived from the order — two independent guards.
+   * 2. WHAT ARRIVED. The webhook is a hint, not the money: its body carries
+   *    no amount and its status is not final (CCPayment's doc). The order's
+   *    own record (`getAppOrderInfo`) decides — each payment in its
+   *    `paidList` that is `Success` and not `isFlaggedAsRisky` is credited at
+   *    the amount RECEIVED, once, keyed on CCPayment's `recordId`.
    *
    * 3. WHICH COLUMN. Legacy interpolated `coinSymbol` from this very body into
    *    the `SET` clause. It is looked up in a fixed map here and an unknown
@@ -90,132 +94,136 @@ class CryptoService {
       return { handled: false, type };
     }
 
-    const { orderId, coinSymbol, status } = msg ?? {};
+    const orderId = msg?.orderId == null ? '' : String(msg.orderId);
     if (!orderId) return { handled: false, reason: 'no order id' };
 
-    const column = COIN_COLUMNS[String(coinSymbol ?? '').toUpperCase()];
-    if (!column) {
-      /**
-       * Refused, and LOUD. An unknown symbol here is either a coin somebody
-       * enabled upstream without telling this platform, or an attempt at the
-       * injection legacy permitted. Both want a human.
-       */
-      this.logger?.error(
-        { orderId, coinSymbol },
-        'CCPayment sent a coin this platform does not hold — refusing to credit'
-      );
-      throw errors.UNSUPPORTED_COIN({ coinSymbol });
-    }
-
-    return this.db.transaction(async (transaction) => {
-      /**
-       * One handler per order at a time.
-       *
-       * Legacy took `pg_advisory_xact_lock` too — the right instinct — but on
-       * the one shared client, inside a transaction it then held open across an
-       * outbound HTTP call to the provider.
-       */
-      const { result } = await this.db.advisoryLock(
-        `ccpayment:${orderId}`,
-        async () => this.#applyDeposit({ orderId, coinSymbol, status, msg }, transaction),
-        { transaction }
-      );
-      return result;
-    });
-  }
-
-  async #applyDeposit({ orderId, coinSymbol, status, msg }, transaction) {
-    const deposit = await this.models.Ccdeposit.findOne({
-      where: { orderid: String(orderId) },
-      transaction,
-      raw: true,
-    });
-
-    if (!deposit) {
-      // A deposit we have no record of. Acknowledged — the provider is not
-      // wrong to tell us, and there is nothing to credit.
+    // Not ours (another app on the same CCPayment account): acknowledged, and CCPayment is not asked.
+    const known = await this.models.Ccdeposit.findOne({ where: { orderid: orderId }, attributes: ['id'], raw: true });
+    if (!known) {
       this.logger?.warn({ orderId }, 'CCPayment webhook for an unknown order');
       return { handled: false, reason: 'unknown order' };
     }
 
-    if (FINAL_STATUSES.includes(deposit.status)) {
-      this.logger?.info({ orderId, status: deposit.status }, 'CCPayment webhook replayed — already final');
-      return { handled: false, reason: 'already settled', status: deposit.status };
-    }
+    // Before the transaction, so no lock is held across a call to the provider.
+    // If CCPayment cannot answer, this throws, the webhook gets a 5xx and CCPayment retries.
+    const { data: order } = await this.#ccpayment('/ccpayment/v2/getAppOrderInfo', { orderId });
 
-    if (status !== CCPAYMENT_STATUS.SUCCESS) {
-      await this.models.Ccdeposit.update(
-        { status: status ?? CCPAYMENT_STATUS.PROCESSING, updated_at: new Date() },
-        { where: { orderid: String(orderId) }, transaction }
-      );
-      return { handled: true, credited: false, status };
-    }
-
-    /**
-     * The amount comes from the WEBHOOK, and is checked against what we
-     * recorded when the address was issued.
-     *
-     * Legacy read `payment.amount` from a second call to the provider and
-     * credited it unconditionally. Both numbers should agree; when they do not,
-     * the deposit is held for a human rather than credited to whichever source
-     * was consulted last.
-     */
-    const reported = String(msg?.amount ?? deposit.amount ?? deposit.price ?? '0');
-    const expected = String(deposit.price ?? '0');
-
-    if (
-      money.gt(expected, '0') &&
-      money.compare(money.toMinor(reported), money.toMinor(expected)) !== 0
-    ) {
+    const currency = String(order?.coinSymbol ?? '').toUpperCase();
+    if (!COIN_COLUMNS[currency]) {
       /**
-       * Credit what ARRIVED, and say so.
-       *
-       * Over- and under-payment are both real — a player sends a round number,
-       * or the network fee comes out of the transfer — and both need
-       * reconciling. Crediting the ORDER amount would mean paying out money
-       * that never landed on the under-payment side.
+       * Refused, and LOUD. A coin this platform does not hold is somebody
+       * enabling it upstream without telling us — a human decides.
        */
-      this.logger?.warn(
-        { orderId, reported, expected },
-        'CCPayment reported an amount different from the order — crediting what arrived'
-      );
+      this.logger?.error({ orderId, coinSymbol: order?.coinSymbol }, 'CCPayment order is in a coin this platform does not hold — refusing to credit');
+      throw errors.UNSUPPORTED_COIN({ coinSymbol: order?.coinSymbol });
     }
 
-    const amount = money.toDecimalString(money.toMinor(reported));
-    const currency = String(coinSymbol).toUpperCase();
+    const outcome = await this.db.transaction(async (transaction) => {
+      // One handler per order at a time.
+      const { result } = await this.db.advisoryLock(
+        `ccpayment:${orderId}`,
+        async () => this.#applyDeposit({ orderId, currency, paid: order?.paidList }, transaction),
+        { transaction }
+      );
+      return result;
+    });
 
-    const movement = await this.wallet.credit(
-      {
-        userId: deposit.userid,
+    // After COMMIT, and never able to fail the webhook — see FirstDepositBonusService.
+    for (const credit of outcome.credits) {
+      await this.firstDepositBonus.onDepositCredited({
+        userId: outcome.userId,
         currency,
-        amount,
-        reason: REASON.DEPOSIT,
-        // One credit per order, whatever the provider retries.
-        idempotencyKey: `ccpayment:${orderId}`,
-        refType: 'CRYPTO_DEPOSIT',
-        refId: String(orderId),
-        description: `${currency} deposit`,
-      },
-      { sourceService: 'user-service', transaction }
-    );
+        amount: credit.amount,
+        ledgerId: credit.ledgerId,
+        source: 'CRYPTO_DEPOSIT',
+        refId: orderId,
+      });
+      void notifyPlayer(outcome.userId, {
+        kind: 'deposit_credited',
+        key: `crypto-deposit:credited:${credit.recordId}`,
+        title: 'Deposit received',
+        body: '{amount} has been credited to your wallet.',
+        link: '#transactions',
+        meta: { amount: credit.amount, currency, reference: orderId },
+      });
+    }
+    if (outcome.failed) {
+      void notifyPlayer(outcome.userId, {
+        kind: 'deposit_failed',
+        key: `crypto-deposit:failed:${orderId}`,
+        title: 'Deposit failed',
+        body: 'Your {amount} deposit did not go through. Nothing was credited.',
+        link: '#transactions',
+        meta: { amount: outcome.ordered, currency, reference: orderId },
+      });
+    }
+    return { ...outcome, credited: outcome.credits.length > 0 };
+  }
+
+  async #applyDeposit({ orderId, currency, paid }, transaction) {
+    const deposit = await this.models.Ccdeposit.findOne({ where: { orderid: orderId }, transaction, raw: true });
+    const payments = Array.isArray(paid) ? paid : [];
+
+    const confirmed = payments.filter((p) => p.status === CCPAYMENT_STATUS.SUCCESS && p.recordId);
+    // A risky payment never lands on its own (CCPayment holds it too) — staff review it on the CCPayment dashboard.
+    const settled = confirmed.filter((p) => p.isFlaggedAsRisky !== true);
+    if (settled.length < confirmed.length) {
+      this.logger?.error({ orderId, userId: deposit.userid }, 'CCPayment flagged a payment as risky — held, not credited');
+    }
+
+    const credits = [];
+    let received = 0n;
+    for (const payment of settled) {
+      // What ARRIVED, cut (never rounded up) to the wallet's 8 places.
+      const minor = money.toMinor(String(payment.amount ?? '0').trim().replace(/(\.\d{8})\d+$/, '$1'));
+      if (minor <= 0n) continue;
+      received += minor;
+
+      const movement = await this.wallet.credit(
+        {
+          userId: deposit.userid,
+          currency,
+          amount: money.toDecimalString(minor),
+          reason: REASON.DEPOSIT,
+          // One credit per CCPayment record — a retried or repeated webhook is a replay.
+          idempotencyKey: `ccpayment:${payment.recordId}`,
+          refType: 'CRYPTO_DEPOSIT',
+          refId: orderId,
+          description: `${currency} deposit`,
+        },
+        { sourceService: 'user-service', transaction }
+      );
+      if (!movement.replayed) {
+        credits.push({ recordId: String(payment.recordId), amount: money.toDecimalString(minor), ledgerId: movement.ledgerId });
+        this.logger?.info({ orderId, userId: deposit.userid, currency, amount: money.toDecimalString(minor), ledgerId: movement.ledgerId }, 'Crypto deposit credited');
+      }
+    }
+
+    // Under- and over-payment are both real; the player gets what arrived, and staff see the gap here.
+    if (credits.length && deposit.price != null && received !== money.toMinorQuantised(deposit.price)) {
+      this.logger?.warn({ orderId, received: money.toDecimalString(received), ordered: String(deposit.price) }, 'CCPayment order paid a different amount than ordered');
+    }
+
+    let status = CCPAYMENT_STATUS.PROCESSING;
+    if (received > 0n) status = CCPAYMENT_STATUS.SUCCESS;
+    else if (confirmed.length) status = CCPAYMENT_STATUS.RISKY;
+    else if (payments.length && payments.every((p) => p.status === CCPAYMENT_STATUS.FAILED)) status = CCPAYMENT_STATUS.FAILED;
 
     await this.models.Ccdeposit.update(
-      { status: CCPAYMENT_STATUS.SUCCESS, updated_at: new Date() },
-      { where: { orderid: String(orderId) }, transaction }
-    );
-
-    this.logger?.info(
-      { orderId, userId: deposit.userid, currency, amount, ledgerId: movement.ledgerId },
-      'Crypto deposit credited'
+      { status, ...(received > 0n ? { amount: money.toDecimalString(received) } : {}), updated_at: new Date() },
+      { where: { orderid: orderId }, transaction }
     );
 
     return {
       handled: true,
-      credited: true,
-      orderId: String(orderId),
-      amount,
+      orderId,
+      userId: deposit.userid,
       currency,
-      newBalance: movement.newBalance,
+      status,
+      credits,
+      // Told to the player once, when the order first turns Failed.
+      failed: status === CCPAYMENT_STATUS.FAILED && deposit.status !== CCPAYMENT_STATUS.FAILED,
+      ordered: String(deposit.price ?? '0'),
     };
   }
 
@@ -387,7 +395,12 @@ class CryptoService {
      */
     const missing = ['CCPAYMENT_BASE_URL', 'CCPAYMENT_APP_ID', 'CCPAYMENT_APP_SECRET']
       .filter((name) => !this.config?.[name]);
-    if (missing.length) throw errors.NOT_CONFIGURED({ missing });
+    if (!this.http) missing.push('http client');
+    if (missing.length) {
+      // The names stay in the server log: the public 503 must not tell anyone which config is missing.
+      this.logger?.error({ missing }, 'CCPayment is not configured');
+      throw errors.NOT_CONFIGURED();
+    }
 
     const body = payload ? JSON.stringify(payload) : '';
     const timestamp = Math.floor(Date.now() / 1000);

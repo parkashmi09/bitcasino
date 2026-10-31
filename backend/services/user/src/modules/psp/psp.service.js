@@ -10,6 +10,8 @@ const { getProvider } = require('./providers');
 const { createHttpClient } = require('./providers/http');
 const { WalletService } = require('../wallet/wallet.service');
 const { REASON } = require('../wallet/wallet.constants');
+const { FirstDepositBonusService } = require('../bonus/firstDepositBonus.service');
+const { notifyPlayer } = require('../notifications/notifyPlayer');
 
 /**
  * Payment-provider callbacks — the one place on the platform where an
@@ -48,6 +50,7 @@ class PspService {
     this.config = config;
     this.logger = logger;
     this.wallet = new WalletService(deps);
+    this.firstDepositBonus = deps.firstDepositBonus ?? new FirstDepositBonusService(deps);
 
     // Outbound calls to providers. Injectable so a test can confirm a payment
     // without a network, and so the timeout is one decision in one place rather
@@ -109,6 +112,13 @@ class PspService {
       return { status: 'ok', duplicate: true, reference: parsed.reference };
     }
 
+    // An in-between state (F2Pay reports more than paid / failed): nothing to do yet. Kept in the
+    // audit log so the state the provider sent can be read later.
+    if (parsed.status === PSP_STATUS.PENDING) {
+      await this.#record(audit, { accepted: false, rejection: 'NOT_FINAL' });
+      return { status: 'ok', settled: false, reference: parsed.reference };
+    }
+
     // ── 3. A failure is recorded, not credited ────────────────────────
     if (parsed.status !== PSP_STATUS.SUCCESS) {
       await this.#markStatus(providerName, record, PSP_STATUS.FAILED);
@@ -116,6 +126,14 @@ class PspService {
       // Logged, but NOT as an accepted digest: a failure notice must not burn
       // the fingerprint of a payload the provider may resend as a success.
       await this.#record(audit, { accepted: false, rejection: 'REPORTED_FAILED' });
+      void notifyPlayer(record.userId, {
+        kind: 'deposit_failed',
+        key: `psp-deposit:failed:${providerName}:${parsed.reference}`,
+        title: 'Deposit failed',
+        body: 'Your {amount} deposit did not go through. Nothing was credited.',
+        link: '#transactions',
+        meta: { amount: record.amount, currency: record.currency, reference: String(parsed.reference) },
+      });
       return { status: 'ok', settled: false, reference: parsed.reference };
     }
 
@@ -164,7 +182,7 @@ class PspService {
     }
 
     // ── 5. Credit, once — and burn the payload ────────────────────────
-    return this.db.transaction(async (transaction) => {
+    const settled = await this.db.transaction(async (transaction) => {
       // Claim the digest INSIDE the money transaction. If this payload has
       // already settled something the unique index rejects it here, the
       // transaction rolls back, and nothing was credited. Two concurrent
@@ -217,6 +235,25 @@ class PspService {
         newBalance: movement.newBalance,
       };
     });
+
+    // ── 6. First-deposit bonus, after COMMIT — never fails the callback ──
+    await this.firstDepositBonus.onDepositCredited({
+      userId: record.userId,
+      currency: record.currency,
+      amount: expected,
+      ledgerId: settled.ledgerId,
+      source: `PSP_${providerName.toUpperCase()}`,
+      refId: String(parsed.reference),
+    });
+    void notifyPlayer(record.userId, {
+      kind: 'deposit_credited',
+      key: `psp-deposit:credited:${providerName}:${parsed.reference}`,
+      title: 'Deposit received',
+      body: '{amount} has been credited to your wallet.',
+      link: '#transactions',
+      meta: { amount: expected, currency: record.currency, reference: String(parsed.reference) },
+    });
+    return settled;
   }
 
   /**
@@ -268,6 +305,12 @@ class PspService {
     audit.userId = payout.userId;
     audit.currency = payout.currency;
 
+    // ── Still in flight (F2Pay's Processing): nothing to do until a final state arrives. ──
+    if (parsed.status === PSP_STATUS.PENDING) {
+      await this.#record(audit, { accepted: false, rejection: 'NOT_FINAL' });
+      return { status: 'ok', settled: false, pending: true, reference: parsed.reference };
+    }
+
     // ── Success: the money already left. Record and stop. ─────────────
     if (parsed.status === PSP_STATUS.SUCCESS) {
       await this.#markPayoutStatus(payout, PSP_STATUS.SUCCESS);
@@ -276,6 +319,14 @@ class PspService {
         { provider: providerName, reference: parsed.reference, userId: payout.userId },
         'Payout confirmed by the provider'
       );
+      void notifyPlayer(payout.userId, {
+        kind: 'withdrawal_paid',
+        key: `psp-payout:paid:${providerName}:${payout.reference}`,
+        title: 'Withdrawal paid',
+        body: 'Your {amount} withdrawal has been sent.',
+        link: '#transactions',
+        meta: { amount: payout.amount, currency: payout.currency, reference: String(payout.reference) },
+      });
       return { status: 'ok', settled: true, reference: parsed.reference };
     }
 
@@ -323,6 +374,14 @@ class PspService {
       },
       'Payout failed — balance refunded'
     );
+    void notifyPlayer(payout.userId, {
+      kind: 'withdrawal_rejected',
+      key: `psp-payout:failed:${providerName}:${payout.reference}`,
+      title: 'Withdrawal failed',
+      body: 'Your {amount} withdrawal could not be paid out. The funds are back in your wallet.',
+      link: '#transactions',
+      meta: { amount, currency: payout.currency, reference: String(payout.reference) },
+    });
 
     return {
       status: 'ok',
@@ -517,6 +576,17 @@ class PspService {
       };
     }
 
+    if (providerName === 'f2pay') {
+      const row = await this.models.F2payDeposits.findOne({ where: { mch_order_no: reference }, raw: true });
+      return row && {
+        model: 'F2payDeposits', key: { mch_order_no: reference },
+        userId: row.user_id, amount: row.amount, currency: row.currency,
+        // 'Pending' / 'Success' / 'Failed'.
+        status: row.status, settled: SETTLED_STATUSES.has(String(row.status).toLowerCase()),
+        createdAt: row.created_at,
+      };
+    }
+
     const row = await PayInTransactions.findOne({ where: { out_trade_no: reference }, raw: true });
     return row && {
       model: 'PayInTransactions', key: { out_trade_no: reference },
@@ -540,6 +610,15 @@ class PspService {
   /** The payout side of #findTransaction. Two tables rather than four. */
   async #findPayout(providerName, reference) {
     const { Apaywithdrawals, PayOutTransactions } = this.models;
+
+    if (providerName === 'f2pay') {
+      const row = await this.models.F2payWithdrawals.findOne({ where: { mch_order_no: reference }, raw: true });
+      return row && {
+        model: 'F2payWithdrawals', key: { mch_order_no: reference },
+        reference, userId: row.user_id, amount: row.amount, currency: row.currency,
+        status: row.status, refunded: Boolean(row.refunded),
+      };
+    }
 
     if (providerName === 'apay') {
       const row = await Apaywithdrawals.findOne({ where: { custom_transaction_id: reference }, raw: true });
@@ -566,7 +645,7 @@ class PspService {
     if (!model) return;
 
     const success = status === PSP_STATUS.SUCCESS;
-    const patch = payout.model === 'Apaywithdrawals'
+    const patch = payout.model === 'Apaywithdrawals' || payout.model === 'F2payWithdrawals'
       ? { status: success ? 'Success' : 'Failed', ...(refunded !== undefined ? { refunded } : {}) }
       : { status: success ? 1 : 2 };
 
@@ -585,6 +664,7 @@ class PspService {
       Apaydeposits: success ? 'Success' : 'Failed',
       Cricpaytransactions: success ? 'Successful' : 'Failed',
       Upideposit: success ? 'success' : 'failed',
+      F2payDeposits: success ? 'Success' : 'Failed',
     };
 
     const patch = {

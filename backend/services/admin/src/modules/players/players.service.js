@@ -3,11 +3,14 @@
 const crypto = require('node:crypto');
 const { Op, literal } = require('sequelize');
 const { money } = require('@ibitplay/common');
-const { hashPassword } = require('@ibitplay/auth');
+const { hashPassword, canIssueFunds } = require('@ibitplay/auth');
 
 const errors = require('./players.errors');
 const { PLAYER_ROLE_ID, PASSWORD_ROUNDS, CLOSED_STATUS, WALLET_SEED } = require('./players.constants');
-const { descendantIds } = require('../staff-directory/staffDirectory.service');
+const { visibleStaffIds } = require('../staff-directory/staffDirectory.service');
+const { assertTransactionPassword } = require('../staff-auth/transactionPassword');
+const { insufficientStaffBalance } = require('../lords/staffFloat');
+const { addPointEntry, SPENDABLE_SQL } = require('../lords/pointLedger');
 
 /**
  * Player accounts, from an operator's side.
@@ -29,7 +32,7 @@ class PlayersService {
    * Legacy opened a transaction, took three early returns out of it without
    * rolling back, and debited with no floor.
    */
-  async create({ actor, username, email, phone, country, password, initialBalance = '0', parentId }) {
+  async create({ actor, username, email, phone, country, password, initialBalance = '0', parentId, transactionPassword }) {
     const anchor = await this.#resolveParent(actor, parentId);
 
     /**
@@ -63,8 +66,41 @@ class PlayersService {
       throw errors.NOT_PERMITTED({ reason: 'an opening balance may not be negative' });
     }
 
+    /**
+     * The second factor for the opening balance.
+     *
+     * A funded creation moves money out of the caller's own float exactly like
+     * `POST /admin/staff/transfer`, so it asks for the transaction password
+     * under the SAME policy as `StaffService.transfer`: required for everyone
+     * except the platform owner (Super Admin), for whom it is required once
+     * set.
+     * Checked before the transaction opens, so a refusal moves nothing. An
+     * unfunded creation moves no money and needs no second factor.
+     */
+    if (funding > 0n) {
+      /**
+       * The opening balance is a money move with the new player, so it is the
+       * DIRECT PARENT's only (the addaplay rule, as `LordsService.adjustPlayer`):
+       * a player created under a descendant is funded by that descendant, not
+       * out of the creator's float past it. The platform owner is exempt.
+       */
+      if (Number(anchor) !== Number(actor.id) && !canIssueFunds(actor)) {
+        throw errors.NOT_PERMITTED({ reason: 'only the account a player reports to can fund it' });
+      }
+      // Required for everyone, the platform owner too (user, 2026-10-20) — as in `StaffService.transfer`.
+      await assertTransactionPassword(this.models, actor.id, transactionPassword, {
+        required: true,
+        executiveId: actor.executiveId ?? null,
+      });
+    }
+
+    /**
+     * Yahan bana har player kisi staff ke neeche hai (child user), isliye referral code NAHI:
+     * affiliate sirf direct users (khud signup, koi parent nahi) ke liye hai
+     * (`user/affiliate/referrerResolver.js` aise codes refuse karta hai).
+     */
     return this.db.transaction(async (transaction) => {
-      const referralCode = await this.#uniqueReferralCode(username, transaction);
+      const referralCode = null;
 
       const user = await this.models.Users.create(
         {
@@ -83,11 +119,13 @@ class PlayersService {
           phone: phone ?? null,
           country: country ?? null,
           parent_staff_id: anchor,
+          // rainbet: an agent user's upline chose this password; the first sign-in must replace it.
+          must_change_password: anchor != null,
           role_id: PLAYER_ROLE_ID,
           friends: 'Support,',
           wallet: WALLET_SEED,
           referalcode: referralCode,
-          referral_link: this.#referralLink(referralCode),
+          referral_link: referralCode ? this.#referralLink(referralCode) : null,
           status: 'active',
         },
         { transaction }
@@ -96,7 +134,7 @@ class PlayersService {
       await this.models.Credits.create({ uid: user.id, inr: '0' }, { transaction });
 
       if (funding > 0n) {
-        await this.#fund({ actor, userId: user.id, amount: funding, transaction });
+        await this.#fund({ actor, userId: user.id, username: user.name, amount: funding, transaction });
       }
 
       this.logger?.info(
@@ -121,7 +159,7 @@ class PlayersService {
    *
    * Edit a player inside the caller's tree.
    */
-  async update({ actor, playerId, username, email, phone, country, password, parentId }) {
+  async update({ actor, playerId, username, email, phone, country, password }) {
     const player = await this.#assertVisible(actor, playerId);
 
     const changes = {};
@@ -129,15 +167,6 @@ class PlayersService {
     if (email !== undefined) changes.email = email;
     if (phone !== undefined) changes.phone = phone;
     if (country !== undefined) changes.country = country;
-
-    if (parentId !== undefined) {
-      /**
-       * Legacy wrote `parent_staff_id` straight from the body with no check, so
-       * an agent could move a player to ANY staff id — up the tree, or across
-       * to a rival, taking the player's balance and future turnover with them.
-       */
-      changes.parent_staff_id = await this.#resolveParent(actor, parentId);
-    }
 
     if (password !== undefined) {
       changes.password = await hashPassword(password, PASSWORD_ROUNDS);
@@ -149,12 +178,19 @@ class PlayersService {
        * means a player who changes their password stops having one stored.
        */
       changes.password2 = null;
+      if (player.parent_staff_id != null) changes.must_change_password = true;
     }
 
     if (!Object.keys(changes).length) throw errors.NOTHING_TO_UPDATE();
 
     const [affected] = await this.models.Users.update(changes, { where: { id: player.id } });
     if (!affected) throw errors.NOT_FOUND({ playerId });
+    if (password !== undefined && player.parent_staff_id != null) {
+      await this.models.AuthSession.update(
+        { revoked_at: new Date(), revoked_reason: 'password_reset_by_staff' },
+        { where: { user_id: player.id, revoked_at: null } }
+      );
+    }
 
     this.logger?.info(
       {
@@ -216,12 +252,12 @@ class PlayersService {
           { where: { uid: player.id }, transaction }
         );
 
-        await this.models.StaffBalances.increment(
+        await this.models.StaffCredits.increment(
           { inr: money.toDecimalString(remaining) },
           { where: { staff_id: actor.id }, transaction }
         );
 
-        await this.models.StaffTransfers.create(
+        const transfer = await this.models.StaffTransfers.create(
           {
             from_type: 'user',
             from_id: player.id,
@@ -232,6 +268,46 @@ class PlayersService {
             transfer_type: 'transfer',
             note: 'Account closed — balance returned',
             created_at: new Date(),
+          },
+          { transaction }
+        );
+
+        // Point ledger: bacha hua paisa player se wapas parent ke paas.
+        await addPointEntry(
+          this.models,
+          {
+            child: { type: 'user', id: player.id },
+            parent: { type: 'staff', id: actor.id },
+            amount: money.toDecimalString(remaining),
+            isDeposit: false,
+            transferId: transfer.id,
+            remark: 'Account closed',
+          },
+          { transaction }
+        );
+
+        // The player's ledger closes at 0, mirroring the opening balance row.
+        await this.models.CreditsLedger.create(
+          {
+            user_id: String(player.id),
+            currency: 'INR',
+            amount: `-${money.toDecimalString(remaining)}`,
+            reason: 'TRANSFER_OUT',
+            description: 'Account closed — balance returned',
+            balance: '0',
+            closing: '0',
+            netamount: 0,
+            profit: 0,
+            loss: 0,
+            commission: 0,
+            idempotency_key: null,
+            source_service: 'admin-service',
+            meta: {
+              refType: 'STAFF_TRANSFER',
+              refId: String(transfer.id),
+              staffId: String(actor.id),
+              previousBalance: money.toDecimalString(remaining),
+            },
           },
           { transaction }
         );
@@ -295,19 +371,27 @@ class PlayersService {
    * debited unconditionally — so two concurrent creations both saw enough money
    * and the agent's balance went negative.
    */
-  async #fund({ actor, userId, amount, transaction }) {
+  async #fund({ actor, userId, username, amount, transaction }) {
     const decimal = money.toDecimalString(amount);
 
-    const [affected] = await this.models.StaffBalances.update(
+    const [affected] = await this.models.StaffCredits.update(
       { inr: literal(`inr - ${decimal}`) },
-      { where: { staff_id: actor.id, inr: { [Op.gte]: decimal } }, transaction }
+      {
+        where: {
+          staff_id: actor.id,
+          inr: { [Op.gte]: decimal },
+          // TENEXCH: settlement points opening credit me nahi ja sakte.
+          [Op.and]: [literal(SPENDABLE_SQL.replace(':amount', decimal))],
+        },
+        transaction,
+      }
     );
 
-    if (!affected) throw errors.INSUFFICIENT_FUNDS({ amount: decimal });
+    if (!affected) throw insufficientStaffBalance({ amount: decimal });
 
     await this.models.Credits.increment({ inr: decimal }, { where: { uid: userId }, transaction });
 
-    await this.models.StaffTransfers.create(
+    const transfer = await this.models.StaffTransfers.create(
       {
         from_type: 'staff',
         from_id: actor.id,
@@ -321,6 +405,68 @@ class PlayersService {
       },
       { transaction }
     );
+
+    // Point ledger: parent ne naye player ko opening balance diya.
+    await addPointEntry(
+      this.models,
+      {
+        child: { type: 'user', id: userId },
+        parent: { type: 'staff', id: actor.id },
+        amount: decimal,
+        isDeposit: true,
+        transferId: transfer.id,
+        remark: 'Opening balance',
+        // TENEXCH: account ka opening credit 'User creation' / open:<walletId>.
+        opening: true,
+      },
+      { transaction }
+    );
+
+    /**
+     * The player's side, written like `LordsService.adjustPlayer`: a
+     * credits_ledger TRANSFER_IN (so the wallet reconciles against its ledger
+     * and the admin Ledger tab shows it) and the wallet_history row. The wallet
+     * was created at 0 in this same transaction, so before/after are 0 → amount.
+     */
+    await this.models.CreditsLedger.create(
+      {
+        user_id: String(userId),
+        currency: 'INR',
+        amount: decimal,
+        reason: 'TRANSFER_IN',
+        description: 'Opening balance',
+        balance: decimal,
+        closing: decimal,
+        netamount: 0,
+        profit: 0,
+        loss: 0,
+        commission: 0,
+        idempotency_key: null,
+        source_service: 'admin-service',
+        meta: {
+          refType: 'STAFF_TRANSFER',
+          refId: String(transfer.id),
+          staffId: String(actor.id),
+          previousBalance: '0',
+        },
+      },
+      { transaction }
+    );
+
+    await this.models.WalletHistory.create(
+      {
+        uid: userId,
+        username: username || String(userId),
+        coin: 'INR',
+        operation: 'credit',
+        amount: decimal,
+        previous_balance: '0',
+        new_balance: decimal,
+        description: 'Opening balance',
+        transaction_time: new Date(),
+      },
+      { transaction }
+    );
   }
 
   /** The player must be inside the caller's tree. */
@@ -328,14 +474,14 @@ class PlayersService {
     const id = Number(playerId);
     if (!Number.isInteger(id) || id <= 0) throw errors.NOT_FOUND({ playerId });
 
-    const tree = await descendantIds(this.models, actor.id, { logger: this.logger });
+    const tree = await visibleStaffIds(this.models, actor.id, { logger: this.logger });
     const seesUnassigned = tree.map(Number).includes(1);
 
     const player = await this.models.Users.findOne({
       where: {
         id,
         ...(seesUnassigned
-          ? { [Op.or]: [{ parent_staff_id: tree }, { parent_staff_id: null }] }
+          ? { [Op.or]: [{ parent_staff_id: tree }, { parent_staff_id: null, is_demo: false }] }
           : { parent_staff_id: tree }),
       },
       attributes: ['id', 'name', 'status', 'parent_staff_id'],
@@ -350,7 +496,7 @@ class PlayersService {
   async #resolveParent(actor, parentId) {
     if (parentId == null) return actor.id;
 
-    const tree = await descendantIds(this.models, actor.id, { logger: this.logger });
+    const tree = await visibleStaffIds(this.models, actor.id, { logger: this.logger });
     if (!tree.map(Number).includes(Number(parentId))) throw errors.CANNOT_REPARENT_OUTSIDE_TREE({ parentId });
 
     return Number(parentId);
@@ -394,32 +540,6 @@ class PlayersService {
 
     // Ten collisions in a ten-digit space is not bad luck.
     throw errors.NOT_PERMITTED({ reason: 'could not allocate an account id' });
-  }
-
-  /**
-   * A referral code nobody else has.
-   *
-   * Retried against the database rather than trusted from one generation —
-   * these are short codes and a collision assigns a new player's referrals to
-   * somebody else.
-   */
-  async #uniqueReferralCode(username, transaction) {
-    const base = String(username).replace(/[^A-Za-z0-9]/g, '').slice(0, 6).toUpperCase() || 'PLAYER';
-
-    for (let attempt = 0; attempt < 8; attempt += 1) {
-      const code = `${base}${crypto.randomInt(1000, 999_999)}`;
-      const taken = await this.models.Users.findOne({
-        where: { referalcode: code },
-        attributes: ['id'],
-        transaction,
-        raw: true,
-      });
-      if (!taken) return code;
-    }
-
-    // Eight collisions on a random six-digit suffix means something is wrong
-    // with the generator, not with luck.
-    throw errors.NOT_PERMITTED({ reason: 'could not allocate a referral code' });
   }
 
   #referralLink(code) {

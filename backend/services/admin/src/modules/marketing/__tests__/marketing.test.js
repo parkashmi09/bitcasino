@@ -200,7 +200,29 @@ test('marketing against a database', async (t) => {
   await t.test('the search box does not treat _ as a wildcard', async () => {
     // Bound as a parameter in legacy, so not injectable — but the LIKE
     // wildcards inside it were never escaped, so the box lied.
-    const result = await service.customers({ search: '_', limit: 5, offset: 0 });
-    assert.equal(result.total, 0);
+    //
+    // Scoped to its own two players, so other rows in the database (the demo
+    // cast is all `demo_…`) cannot change the answer: `<tag>xb` would match
+    // the search `<tag>_b` if `_` were a wildcard; `<tag>_b` matches it literally.
+    const { Users } = connection.models;
+    const base = 987_000_000 + (process.pid % 100_000) * 10;
+    const tag = `mktsearch${base}`;
+    const plain = { id: base + 1, name: `${tag}xb`, password: 'x', status: 'active' };
+    const literal = { id: base + 2, name: `${tag}_b`, password: 'x', status: 'active' };
+    const ids = [plain.id, literal.id];
+    await Users.destroy({ where: { id: ids } });
+    await Users.bulkCreate([plain, literal]);
+    try {
+      const result = await service.customers({ search: `${tag}_b`, limit: 5, offset: 0 });
+      assert.equal(result.total, 1, 'only the literal underscore matches');
+      assert.deepEqual(result.rows.map((r) => r.name), [literal.name]);
+
+      // A bare `_` never matches a name without one (as a wildcard it matched every row).
+      const bare = await service.customers({ search: '_', limit: 100, offset: 0 });
+      assert.ok(bare.rows.every((r) => [r.name, r.email, r.phone].some((v) => String(v ?? '').includes('_'))));
+      assert.equal(bare.rows.some((r) => r.id === String(plain.id)), false);
+    } finally {
+      await Users.destroy({ where: { id: ids } });
+    }
   });
 });

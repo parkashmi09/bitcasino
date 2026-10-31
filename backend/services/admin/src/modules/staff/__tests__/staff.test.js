@@ -1,10 +1,15 @@
 'use strict';
 
+// These cases exercise the SEPARATE transaction password (`staff.transaction_password`);
+// login mode (the default) is covered in staff-auth/__tests__/txnPasswordMode.test.js.
+process.env.TXN_PASSWORD_MODE = 'separate';
+
 const test = require('node:test');
 const assert = require('node:assert');
 
 const db = require('@ibitplay/db');
 const { createLogger, money } = require('@ibitplay/common');
+const { verifyPassword } = require('@ibitplay/auth');
 
 const { StaffService } = require('../staff.service');
 const v = require('../staff.validators');
@@ -26,6 +31,9 @@ const newStaffId = () => (nextStaffId += 1);
 
 let nextUid = 860_000_000 + Math.floor(process.pid % 100_000) * 1000;
 const newUid = () => (nextUid += 1);
+
+/** Every seeded account's transaction password (plaintext is a supported legacy shape). */
+const TXN = 'staff test txn password';
 
 test('admin staff', async (t) => {
   const logger = createLogger({ name: 'staff-test', level: 'silent' });
@@ -55,13 +63,6 @@ test('admin staff', async (t) => {
     assert.equal(v.transfer.body.safeParse({ ...base, amount: '100' }).success, true);
   });
 
-  await t.test('a bulk status change is bounded', async () => {
-    const ids = (n) => Array.from({ length: n }, (_, i) => i + 1);
-    assert.equal(v.bulkStatus.body.safeParse({ ids: ids(500), status: 'active' }).success, true);
-    assert.equal(v.bulkStatus.body.safeParse({ ids: ids(501), status: 'active' }).success, false);
-    assert.equal(v.bulkStatus.body.safeParse({ ids: [], status: 'active' }).success, false);
-  });
-
   await t.test('changing your own password requires the current one', async () => {
     assert.equal(v.changePassword.body.safeParse({ newPassword: 'a'.repeat(12) }).success, false);
     assert.equal(
@@ -75,22 +76,6 @@ test('admin staff', async (t) => {
     );
   });
 
-  await t.test('an update naming nothing is refused', async () => {
-    // Legacy built its SET clause from whichever fields were present.
-    assert.equal(v.updateStaff.body.safeParse({}).success, false);
-    assert.equal(v.updateStaff.body.safeParse({ name: 'New' }).success, true);
-  });
-
-  await t.test('?includeSubtree=false does not ask for the subtree', async () => {
-    // `z.coerce.boolean()` maps every non-empty string to `true`, so the
-    // explicit `false` used to widen the rollup from one account's balance to
-    // the whole branch's.
-    const parse = (query) => v.rollup.query.parse(query);
-    assert.equal(parse({}).includeSubtree, false);
-    assert.equal(parse({ includeSubtree: 'false' }).includeSubtree, false);
-    assert.equal(parse({ includeSubtree: 'true' }).includeSubtree, true);
-  });
-
   // ══════════════════════════════════════════════════════════════════════
   //  Reading rows that carry more precision than the platform's scale
   //
@@ -100,45 +85,6 @@ test('admin staff', async (t) => {
   //  parser — and returned `400 amount supports at most 8 decimal places` for
   //  the whole page rather than showing the stored value.
   // ══════════════════════════════════════════════════════════════════════
-
-  await t.test('an over-precise stored balance does not 400 the read paths', async () => {
-    const OVER_PRECISE = '-182800.00000000000206';
-    const actor = { id: 1, level: 0, canResetOthers: true, canIssueFunds: true };
-
-    const service = new StaffService({
-      logger,
-      models: {
-        // `descendantIds` walks this; one root and no children.
-        Staff: {
-          findAll: async () => [],
-          count: async () => 1,
-          findByPk: async () => ({ id: 1, name: 'Root', email: 'r@x.io', role_id: 1, status: 'active' }),
-        },
-        // `transfers()` resolves counterparty names for the page it returns.
-        Users: { count: async () => 0, findAll: async () => [] },
-        StaffBalances: {
-          findAll: async () => [{ staff_id: 1, inr: OVER_PRECISE }],
-          findOne: async () => ({ staff_id: 1, inr: OVER_PRECISE, credit_limit: OVER_PRECISE }),
-        },
-        StaffTransfers: {
-          findAll: async () => [{ direction: 'deposit', count: '2', total: OVER_PRECISE }],
-          findAndCountAll: async () => ({
-            count: 1,
-            rows: [{ id: 9, from_type: 'staff', from_id: 1, to_type: 'user', to_id: 2, amount: OVER_PRECISE }],
-          }),
-        },
-      },
-    });
-
-    // Quantised to the platform's scale, not rejected and not silently zeroed.
-    const quantised = money.fromStored(OVER_PRECISE);
-    assert.equal(quantised, '-182800.00000000');
-
-    assert.equal((await service.rollup({ actor, staffId: 1 })).balance, quantised);
-    assert.equal((await service.transferSummary({ actor })).at(0).total, quantised);
-    assert.equal((await service.transfers({ actor })).rows.at(0).amount, quantised);
-    assert.equal((await service.getById({ actor, staffId: 1 })).balance.inr, quantised);
-  });
 
   // ══════════════════════════════════════════════════════════════════════
   //  Against a real database
@@ -175,19 +121,39 @@ test('admin staff', async (t) => {
     clients: { admin: {} },
   });
 
-  const roleId = 9500 + (process.pid % 100);
+  /**
+   * One role per staff level, so the hierarchy rule (create and act only
+   * strictly below your own level) has real levels to compare. A seeded
+   * account defaults to level 3, or one below its parent.
+   */
+  const roleBase = 9500 + (process.pid % 100) * 10;
+  const roleFor = (level) => roleBase + level;
+  const levels = new Map();
+
+  const ensureRole = async (level) => {
+    await connection.sequelize.query(
+      `INSERT INTO roles (id, name, level) VALUES (:id, :name, :level)
+       ON CONFLICT (id) DO UPDATE SET level = EXCLUDED.level`,
+      { replacements: { id: roleFor(level), name: `staff-test-role-${roleBase}-${level}`, level } }
+    );
+    return roleFor(level);
+  };
 
   /** A staff account, optionally beneath another, with a balance. */
-  const seedStaff = async (id, { parentId = null, inr = '0' } = {}) => {
-    await connection.sequelize.query(
-      `INSERT INTO roles (id, name, level) VALUES (:roleId, :name, 3) ON CONFLICT (id) DO NOTHING`,
-      { replacements: { roleId, name: `staff-test-role-${roleId}` } }
-    );
+  const seedStaff = async (id, { parentId = null, inr = '0', level } = {}) => {
+    const lvl = level ?? (parentId ? Math.min((levels.get(parentId) ?? 3) + 1, 7) : 3);
+    const roleId = await ensureRole(lvl);
+    levels.set(id, lvl);
 
     await connection.models.StaffHierarchy.destroy({
       where: { [require('sequelize').Op.or]: [{ ancestor_id: id }, { descendant_id: id }] },
     });
-    await connection.models.StaffBalances.destroy({ where: { staff_id: id } });
+    // Ids repeat across runs (they derive from the pid), and a previous run may
+    // have left accounts or players beneath this one. Detach them, or the
+    // delete trips `staff_parent_id_fkey` / `users_parent_staff_id_fkey`.
+    await connection.sequelize.query('UPDATE staff SET parent_id = NULL WHERE parent_id = :id', { replacements: { id } });
+    await connection.sequelize.query('UPDATE users SET parent_staff_id = NULL WHERE parent_staff_id = :id', { replacements: { id } });
+    await connection.models.StaffCredits.destroy({ where: { staff_id: id } });
     await connection.models.Staff.destroy({ where: { id } });
 
     await connection.models.Staff.create({
@@ -198,8 +164,9 @@ test('admin staff', async (t) => {
       role_id: roleId,
       parent_id: parentId,
       status: 'active',
+      transaction_password: TXN,
     });
-    await connection.models.StaffBalances.create({ staff_id: id, inr });
+    await connection.models.StaffCredits.create({ staff_id: id, inr });
 
     // The closure table: self, plus every ancestor of the parent one deeper.
     const rows = [{ ancestor_id: id, descendant_id: id, depth: 0 }];
@@ -245,7 +212,7 @@ test('admin staff', async (t) => {
   };
 
   const staffBalance = async (id) => {
-    const row = await connection.models.StaffBalances.findOne({ where: { staff_id: id }, raw: true });
+    const row = await connection.models.StaffCredits.findOne({ where: { staff_id: id }, raw: true });
     return money.toDecimalString(money.toMinor(row?.inr ?? '0'));
   };
   const playerBalance = async (uid) => {
@@ -253,13 +220,28 @@ test('admin staff', async (t) => {
     return money.toDecimalString(money.toMinor(row?.inr ?? '0'));
   };
 
-  const actorFor = (id, extra = {}) => ({ id, level: 3, canResetOthers: false, canIssueFunds: false, ...extra });
+  const actorFor = (id, extra = {}) => ({
+    // Not the owner, so every transfer here is the parent-to-DIRECT-child path
+    // (the only one below the Super Admin); parentFunding.test.js covers its
+    // rules in detail. These tests are about the guarded debit itself.
+    id,
+    level: levels.get(id) ?? 3,
+    canResetOthers: false,
+    canIssueFunds: false,
+    canAdjustWallets: false,
+    canCredit: true,
+    canDebit: true,
+    ...extra,
+  });
+  /** The platform owner: `wallet:adjust` + `canIssueFunds`, the only wide path. */
+  const ownerActor = (id, extra = {}) =>
+    actorFor(id, { level: 1, canIssueFunds: true, canAdjustWallets: true, ...extra });
 
   await t.test('a transfer down the tree moves money and records it', async () => {
     const boss = await seedStaff(newStaffId(), { inr: '1000' });
     const agent = await seedStaff(newStaffId(), { parentId: boss, inr: '0' });
 
-    const result = await service.transfer({
+    const result = await service.transfer({ transactionPassword: TXN,
       actor: actorFor(boss), toType: 'staff', toId: agent, amount: '250', direction: 'deposit',
     });
 
@@ -279,10 +261,10 @@ test('admin staff', async (t) => {
     const agent = await seedStaff(newStaffId(), { parentId: boss, inr: '0' });
 
     await assert.rejects(
-      () => service.transfer({
+      () => service.transfer({ transactionPassword: TXN,
         actor: actorFor(boss), toType: 'staff', toId: agent, amount: '500', direction: 'deposit',
       }),
-      (err) => err.code === 'STAFF_INSUFFICIENT_FUNDS' && err.status === 402
+      (err) => err.code === 'INSUFFICIENT_FUNDS' && err.status === 422
     );
 
     assert.equal(await staffBalance(boss), '100.00000000');
@@ -297,8 +279,8 @@ test('admin staff', async (t) => {
     const b = await seedStaff(newStaffId(), { parentId: boss });
 
     const results = await Promise.allSettled([
-      service.transfer({ actor: actorFor(boss), toType: 'staff', toId: a, amount: '100', direction: 'deposit' }),
-      service.transfer({ actor: actorFor(boss), toType: 'staff', toId: b, amount: '100', direction: 'deposit' }),
+      service.transfer({ transactionPassword: TXN, actor: actorFor(boss), toType: 'staff', toId: a, amount: '100', direction: 'deposit' }),
+      service.transfer({ transactionPassword: TXN, actor: actorFor(boss), toType: 'staff', toId: b, amount: '100', direction: 'deposit' }),
     ]);
 
     assert.equal(results.filter((r) => r.status === 'fulfilled').length, 1);
@@ -309,7 +291,7 @@ test('admin staff', async (t) => {
     const boss = await seedStaff(newStaffId(), { inr: '0' });
     const agent = await seedStaff(newStaffId(), { parentId: boss, inr: '400' });
 
-    await service.transfer({
+    await service.transfer({ transactionPassword: TXN,
       actor: actorFor(boss), toType: 'staff', toId: agent, amount: '150', direction: 'withdraw',
     });
 
@@ -322,34 +304,65 @@ test('admin staff', async (t) => {
     const agent = await seedStaff(newStaffId(), { parentId: boss, inr: '10' });
 
     await assert.rejects(
-      () => service.transfer({
+      () => service.transfer({ transactionPassword: TXN,
         actor: actorFor(boss), toType: 'staff', toId: agent, amount: '500', direction: 'withdraw',
       }),
-      (err) => err.code === 'STAFF_INSUFFICIENT_FUNDS'
+      (err) => err.code === 'INSUFFICIENT_FUNDS' && err.status === 422
     );
     assert.equal(await staffBalance(agent), '10.00000000');
     assert.equal(await staffBalance(boss), '0.00000000');
   });
 
-  await t.test('money can move to a player under the tree', async () => {
-    const boss = await seedStaff(newStaffId(), { inr: '500' });
-    const agent = await seedStaff(newStaffId(), { parentId: boss });
-    const player = await seedPlayer(newUid(), agent, '0');
+  await t.test('the owner funds its DIRECT child player from the owner wallet; a grandchild player is not in its tree', async () => {
+    const owner = await seedStaff(newStaffId(), { inr: '500', level: 1 });
+    const agent = await seedStaff(newStaffId(), { parentId: owner });
+    // TENEXCH: direct children only — the owner too. A grandchild's player is not in its tree.
+    const deep = await seedPlayer(newUid(), agent, '0');
+    await assert.rejects(
+      () => service.transfer({ transactionPassword: TXN, actor: ownerActor(owner), toType: 'user', toId: deep, amount: '75', direction: 'deposit' }),
+      (err) => err.code === 'STAFF_PLAYER_NOT_IN_YOUR_TREE'
+    );
+    const player = await seedPlayer(newUid(), owner, '0');
 
-    await service.transfer({
-      actor: actorFor(boss), toType: 'user', toId: player, amount: '75', direction: 'deposit',
+    await service.transfer({ transactionPassword: TXN,
+      actor: ownerActor(owner), toType: 'user', toId: player, amount: '75', direction: 'deposit',
     });
 
     assert.equal(await playerBalance(player), '75.00000000');
-    assert.equal(await staffBalance(boss), '425.00000000');
+    // Migration 099: the owner's balance is in `credits` and a transfer draws on it.
+    assert.equal(await staffBalance(owner), '425.00000000');
   });
 
-  await t.test('an account outside the tree cannot be transferred to', async () => {
+  await t.test('a transfer to or from a player writes the player\'s ledger + history, so the wallet reconciles', async () => {
+    const owner = await seedStaff(newStaffId(), { inr: '500', level: 1 });
+    const player = await seedPlayer(newUid(), owner, '0');
+
+    await service.transfer({ transactionPassword: TXN,
+      actor: ownerActor(owner), toType: 'user', toId: player, amount: '75', direction: 'deposit',
+    });
+    await service.transfer({ transactionPassword: TXN,
+      actor: ownerActor(owner), toType: 'user', toId: player, amount: '30', direction: 'withdraw',
+    });
+
+    const rows = await connection.models.CreditsLedger.findAll({ where: { user_id: String(player) }, order: [['id', 'ASC']], raw: true });
+    assert.deepEqual(
+      rows.map((r) => [r.reason, money.toDecimalString(money.toMinor(String(r.amount))), money.toDecimalString(money.toMinor(String(r.balance)))]),
+      [['TRANSFER_IN', '75.00000000', '75.00000000'], ['TRANSFER_OUT', '-30.00000000', '45.00000000']]
+    );
+    assert.equal(rows[1].meta.previousBalance, '75.00000000');
+    const sum = rows.reduce((a, r) => a + money.toMinor(String(r.amount)), 0n);
+    assert.equal(money.toDecimalString(sum), await playerBalance(player), 'ledger sums to the wallet');
+    assert.equal(await connection.models.WalletHistory.count({ where: { uid: player } }), 2);
+    await connection.models.CreditsLedger.destroy({ where: { user_id: String(player) } });
+    await connection.models.WalletHistory.destroy({ where: { uid: player } });
+  });
+
+  await t.test('an outside account cannot be transferred to', async () => {
     const boss = await seedStaff(newStaffId(), { inr: '1000' });
     const stranger = await seedStaff(newStaffId(), { inr: '0' });
 
     await assert.rejects(
-      () => service.transfer({
+      () => service.transfer({ transactionPassword: TXN,
         actor: actorFor(boss), toType: 'staff', toId: stranger, amount: '100', direction: 'deposit',
       }),
       (err) => err.code === 'STAFF_NOT_IN_YOUR_TREE' && err.status === 404
@@ -357,34 +370,48 @@ test('admin staff', async (t) => {
     assert.equal(await staffBalance(boss), '1000.00000000');
   });
 
-  await t.test('a player under a DIFFERENT tree cannot be transferred to', async () => {
-    const boss = await seedStaff(newStaffId(), { inr: '1000' });
-    const other = await seedStaff(newStaffId(), { inr: '0' });
-    const theirPlayer = await seedPlayer(newUid(), other, '0');
+  await t.test('an Admin holding wallet:adjust is NOT the wide path: its own player yes, no grandchild', async () => {
+    const admin = await seedStaff(newStaffId(), { inr: '1000', level: 2 });
+    const sub = await seedStaff(newStaffId(), { parentId: admin, inr: '0' });
+    const grandchild = await seedStaff(newStaffId(), { parentId: sub, inr: '0' });
+    const player = await seedPlayer(newUid(), admin, '0');
+    const actor = actorFor(admin, { canAdjustWallets: true });
 
+    // TENEXCH: its DIRECT child player is a target of the same API, out of its own float.
+    await service.transfer({ transactionPassword: TXN, actor, toType: 'user', toId: player, amount: '50', direction: 'deposit' });
+    assert.equal(await playerBalance(player), '50.00000000');
+    await service.transfer({ transactionPassword: TXN, actor, toType: 'user', toId: player, amount: '50', direction: 'withdraw' });
     await assert.rejects(
-      () => service.transfer({
-        actor: actorFor(boss), toType: 'user', toId: theirPlayer, amount: '50', direction: 'deposit',
-      }),
-      (err) => err.code === 'STAFF_PLAYER_NOT_IN_YOUR_TREE'
+      () => service.transfer({ transactionPassword: TXN, actor, toType: 'staff', toId: grandchild, amount: '50', direction: 'deposit' }),
+      (err) => err.code === 'STAFF_NOT_IN_YOUR_TREE' && err.status === 404
     );
-    assert.equal(await playerBalance(theirPlayer), '0.00000000');
+    // Its direct child, out of its own float.
+    await service.transfer({ transactionPassword: TXN, actor, toType: 'staff', toId: sub, amount: '50', direction: 'deposit' });
+    assert.equal(await staffBalance(admin), '950.00000000');
+    assert.equal(await staffBalance(sub), '50.00000000');
+    assert.equal(await playerBalance(player), '0.00000000');
   });
 
-  await t.test('the platform owner issues funds, and it is logged as issuance', async () => {
-    // Legacy expressed this as `req.staff.level !== 0` in the middle of the
-    // handler. It is an explicit capability here, and the debit is skipped
-    // rather than silently succeeding against a balance of zero.
+  await t.test('the platform owner pays from its own wallet, and cannot give more than it holds', async () => {
+    // Migration 099: the owner no longer mints here. It adds balance to its own
+    // wallet first (Exchange > Owner wallet) and every transfer draws on it.
     const owner = await seedStaff(newStaffId(), { inr: '0' });
     const agent = await seedStaff(newStaffId(), { parentId: owner, inr: '0' });
 
-    await service.transfer({
-      actor: actorFor(owner, { canIssueFunds: true, level: 0 }),
-      toType: 'staff', toId: agent, amount: '1000', direction: 'deposit',
-    });
+    await assert.rejects(
+      () => service.transfer({ transactionPassword: TXN,
+        actor: ownerActor(owner), toType: 'staff', toId: agent, amount: '1000', direction: 'deposit',
+      }),
+      (err) => err.code === 'INSUFFICIENT_FUNDS' && err.status === 422
+    );
+    assert.equal(await staffBalance(agent), '0.00000000', 'nothing moved');
 
+    await connection.models.StaffCredits.update({ inr: '1500' }, { where: { staff_id: owner } });
+    await service.transfer({ transactionPassword: TXN,
+      actor: ownerActor(owner), toType: 'staff', toId: agent, amount: '1000', direction: 'deposit',
+    });
     assert.equal(await staffBalance(agent), '1000.00000000');
-    assert.equal(await staffBalance(owner), '0.00000000', 'the owner draws on nothing');
+    assert.equal(await staffBalance(owner), '500.00000000');
   });
 
   // ── The tree ──────────────────────────────────────────────────────────
@@ -400,7 +427,7 @@ test('admin staff', async (t) => {
       name: 'New Agent',
       email: `agent-${boss}@test.invalid`,
       password: 'correct horse battery',
-      roleId,
+      roleId: await ensureRole(4),
     });
 
     const rows = await connection.models.StaffHierarchy.findAll({
@@ -421,118 +448,203 @@ test('admin staff', async (t) => {
       name: 'Hash Only',
       email: `hash-${boss}@test.invalid`,
       password: 'correct horse battery',
-      roleId,
+      roleId: await ensureRole(4),
     });
 
     const row = await connection.models.Staff.findByPk(created.id, { raw: true });
     assert.match(row.password, /^\$2[aby]\$/, 'a bcrypt hash');
-    assert.ok(!row.password2, 'password2 must stay empty');
+    assert.equal(row.password2, null, 'password2 must stay NULL');
 
     await connection.models.Staff.destroy({ where: { id: created.id } });
   });
 
-  await t.test('an account with descendants cannot be deleted', async () => {
-    // Legacy deleted the row and left the subtree pointing at a parent that no
-    // longer existed — those accounts then belonged to no tree at all.
-    const boss = await seedStaff(newStaffId());
-    const agent = await seedStaff(newStaffId(), { parentId: boss });
-    const sub = await seedStaff(newStaffId(), { parentId: agent });
+  // ── The hierarchy rule: create and act only strictly below your level ──
 
-    // `agent` has `sub` beneath it, so it cannot go.
-    await assert.rejects(
-      () => service.remove({ actor: actorFor(boss), staffId: agent }),
-      (err) => err.code === 'STAFF_CANNOT_DELETE_WITH_DESCENDANTS' && err.status === 409
+  const PASSWORD = 'correct horse battery';
+  const make = (actor, roleLevel, extra = {}) =>
+    ensureRole(roleLevel).then((roleId) =>
+      service.create({
+        actor,
+        name: `made-${actor.id}-${roleLevel}-${newStaffId()}`,
+        email: `made-${actor.id}-${roleLevel}-${newStaffId()}@test.invalid`,
+        password: PASSWORD,
+        roleId,
+        ...extra,
+      })
     );
+  const cleanup = (...ids) => connection.models.Staff.destroy({ where: { id: ids } });
+  const refusedLevel = (err) => err.code === 'STAFF_LEVEL_NOT_BELOW' && err.status === 403;
 
-    // The leaf can. Deleting it then frees the one above.
-    await service.remove({ actor: actorFor(boss), staffId: sub });
-    const gone = await connection.models.Staff.findByPk(sub, { raw: true });
-    assert.equal(gone, null);
+  await t.test('an Admin cannot create a Super Admin, nor another Admin', async () => {
+    const admin = await seedStaff(newStaffId(), { level: 2 });
 
-    await service.remove({ actor: actorFor(boss), staffId: agent });
-    assert.equal(await connection.models.Staff.findByPk(agent, { raw: true }), null);
+    await assert.rejects(() => make(actorFor(admin), 1), refusedLevel);
+    await assert.rejects(() => make(actorFor(admin), 2), refusedLevel);
+
+    const sub = await make(actorFor(admin), 3);
+    assert.equal(Number(sub.parentId), admin);
+    await cleanup(sub.id);
   });
 
-  await t.test('deleting an account removes its hierarchy rows too', async () => {
-    // Otherwise the closure table keeps naming an id that no longer exists,
-    // and every scoped query silently widens to include a ghost.
-    const boss = await seedStaff(newStaffId());
-    const agent = await seedStaff(newStaffId(), { parentId: boss });
+  await t.test('each level creates any level below it, under itself (TENEXCH rule)', async () => {
+    const admin = await seedStaff(newStaffId(), { level: 2 });
+    const smOfAdmin = await make(actorFor(admin), 4);
+    assert.equal(Number(smOfAdmin.parentId), admin);
 
-    await service.remove({ actor: actorFor(boss), staffId: agent });
+    const sub = await seedStaff(newStaffId(), { parentId: admin, level: 3 });
+    await assert.rejects(() => make(actorFor(sub), 3), refusedLevel, 'not a peer');
+    await assert.rejects(() => make(actorFor(sub), 2), refusedLevel, 'not upwards');
+    const smMade = await make(actorFor(sub), 4);
+    assert.equal(Number(smMade.parentId), sub);
+    const masterOfSub = await make(actorFor(sub), 5);
+    const agentOfSub = await make(actorFor(sub), 6);
+    assert.equal(Number(agentOfSub.parentId), sub);
 
-    const { Op } = require('sequelize');
-    const left = await connection.models.StaffHierarchy.count({
-      where: { [Op.or]: [{ ancestor_id: agent }, { descendant_id: agent }] },
+    const sm = await seedStaff(newStaffId(), { level: 4 });
+    await assert.rejects(() => make(actorFor(sm), 4), refusedLevel, 'not a peer');
+    await assert.rejects(() => make(actorFor(sm), 3), refusedLevel, 'not upwards');
+    const agentOfSm = await make(actorFor(sm), 6);
+    assert.equal(Number(agentOfSm.parentId), sm);
+
+    const master = await make(actorFor(sm), 5);
+    levels.set(Number(master.id), 5);
+
+    await assert.rejects(() => make(actorFor(master.id), 5), refusedLevel);
+    await assert.rejects(() => make(actorFor(master.id), 4), refusedLevel);
+    const agentOfMaster = await make(actorFor(master.id), 6);
+    assert.equal(Number(agentOfMaster.parentId), Number(master.id));
+    levels.set(Number(agentOfMaster.id), 6);
+
+    // An agent creates players only.
+    await assert.rejects(() => make(actorFor(agentOfMaster.id), 7));
+    await assert.rejects(() => make(actorFor(agentOfMaster.id), 6), refusedLevel);
+
+    await cleanup(agentOfMaster.id, master.id, smMade.id, agentOfSub.id, masterOfSub.id, agentOfSm.id, smOfAdmin.id);
+  });
+
+  await t.test('the Super Admin creates any level, under itself or a descendant', async () => {
+    const owner = await seedStaff(newStaffId(), { level: 1 });
+    const sm = await seedStaff(newStaffId(), { parentId: owner, level: 4 });
+    const master = await seedStaff(newStaffId(), { parentId: sm, level: 5 });
+
+    const admin = await make(ownerActor(owner), 2);
+    const agentDirect = await make(ownerActor(owner), 6);
+    const agent = await make(ownerActor(owner), 6, { parentId: master });
+    assert.equal(Number(agent.parentId), master);
+    const closure = await connection.models.StaffHierarchy.findAll({ where: { descendant_id: agent.id }, raw: true });
+    assert.ok(closure.some((r) => Number(r.ancestor_id) === sm && Number(r.depth) === 2), 'grandparent row');
+
+    // Still strictly below the parent it hangs from.
+    await assert.rejects(() => make(ownerActor(owner), 5, { parentId: master }), refusedLevel);
+
+    await cleanup(agent.id, agentDirect.id, admin.id);
+  });
+
+  await t.test('below the Super Admin, a create under a descendant must sit below that parent', async () => {
+    const sm = await seedStaff(newStaffId(), { level: 4 });
+    const master = await seedStaff(newStaffId(), { parentId: sm, level: 5 });
+    const stranger = await seedStaff(newStaffId(), { level: 5 });
+
+    const agent = await make(actorFor(sm), 6, { parentId: master });
+    assert.equal(Number(agent.parentId), master);
+    await cleanup(agent.id);
+    await assert.rejects(() => make(actorFor(sm), 5, { parentId: master }), refusedLevel);
+    await assert.rejects(
+      () => make(actorFor(sm), 5, { parentId: stranger }),
+      (err) => err.code === 'STAFF_NOT_IN_YOUR_TREE'
+    );
+  });
+
+  await t.test('an Executive (role 7) is never created or re-levelled through /admin/staff', async () => {
+    const owner = await seedStaff(newStaffId(), { level: 1 });
+    const sm = await seedStaff(newStaffId(), { level: 4 });
+    const notPermitted = (err) => err.code === 'STAFF_NOT_PERMITTED' && err.status === 403;
+
+    await assert.rejects(() => make(actorFor(sm), 7), notPermitted);
+    await assert.rejects(() => make(ownerActor(owner), 7), notPermitted);
+  });
+
+  await t.test('an unknown role is refused', async () => {
+    const admin = await seedStaff(newStaffId(), { level: 2 });
+    await assert.rejects(
+      () => service.create({
+        actor: actorFor(admin), name: 'x', email: `x-${admin}@test.invalid`, password: PASSWORD, roleId: 2_000_000_000,
+      }),
+      (err) => err.code === 'STAFF_UNKNOWN_ROLE'
+    );
+  });
+
+  // ── First sign-in: a password somebody else chose ─────────────────────
+
+  const mustChange = async (id) =>
+    (await connection.models.Staff.findByPk(id, { attributes: ['must_change_password'], raw: true }))
+      .must_change_password;
+
+  await t.test('a created account must change its password first; that change issues the transaction password', async (st) => {
+    const prevMode = process.env.TXN_PASSWORD_MODE;
+    process.env.TXN_PASSWORD_MODE = 'separate';
+    st.after(() => { if (prevMode === undefined) delete process.env.TXN_PASSWORD_MODE; else process.env.TXN_PASSWORD_MODE = prevMode; });
+
+    const boss = await seedStaff(newStaffId(), { level: 3 });
+    const created = await make(actorFor(boss), 4);
+    assert.equal(await mustChange(created.id), true);
+
+    const first = await service.changePassword({
+      actor: { id: created.id, level: 4 }, oldPassword: PASSWORD, newPassword: 'another long password',
     });
-    assert.equal(left, 0);
-  });
+    assert.equal(await mustChange(created.id), false);
+    assert.match(first.transactionPassword, /^\d{6}$/);
+    const stored = await connection.models.Staff.findByPk(created.id, { attributes: ['transaction_password', 'first_login'], raw: true });
+    assert.equal(await verifyPassword(first.transactionPassword, stored.transaction_password), true);
+    assert.equal(stored.first_login, false);
 
-  await t.test('an account cannot delete itself', async () => {
-    const boss = await seedStaff(newStaffId());
+    // Below the Super Admin there is no later own change, only the creator's reset.
     await assert.rejects(
-      () => service.remove({ actor: actorFor(boss), staffId: boss }),
-      (err) => err.code === 'STAFF_NOT_PERMITTED'
+      () => service.changePassword({
+        actor: { id: created.id, level: 4 }, oldPassword: 'another long password', newPassword: 'a third long password',
+      }),
+      (e) => e.code === 'STAFF_OWN_PASSWORD_LOCKED'
     );
-  });
 
-  await t.test('an account holding a balance cannot be deleted', async () => {
-    const boss = await seedStaff(newStaffId());
-    const agent = await seedStaff(newStaffId(), { parentId: boss, inr: '25' });
+    // An upline's reset sets it again — they know the password now.
+    await service.changePassword({
+      actor: actorFor(boss, { canResetOthers: true }), targetId: created.id, newPassword: 'reset by the boss!!',
+    });
+    assert.equal(await mustChange(created.id), true);
 
-    await assert.rejects(
-      () => service.remove({ actor: actorFor(boss), staffId: agent }),
-      (err) => err.code === 'STAFF_CANNOT_DELETE_WITH_BALANCE' && err.status === 409
-    );
-  });
-
-  await t.test('the tree shows descendants and stops at the caller', async () => {
-    const boss = await seedStaff(newStaffId());
-    const agent = await seedStaff(newStaffId(), { parentId: boss });
-    const sub = await seedStaff(newStaffId(), { parentId: agent });
-    const stranger = await seedStaff(newStaffId());
-
-    const tree = await service.tree({ actor: actorFor(agent) });
-    const flat = [];
-    const walk = (nodes) => nodes.forEach((n) => { flat.push(Number(n.id)); walk(n.children); });
-    walk(tree);
-
-    assert.ok(flat.includes(agent));
-    assert.ok(flat.includes(sub));
-    assert.ok(!flat.includes(boss), 'an agent does not see upwards');
-    assert.ok(!flat.includes(stranger));
-  });
-
-  await t.test('a listing never carries a password column', async () => {
-    const boss = await seedStaff(newStaffId());
-    const list = await service.list({ actor: actorFor(boss) });
-    for (const row of list.rows) {
-      assert.equal(row.password, undefined);
-      assert.equal(row.password2, undefined);
+    // …and the forced change after it issues a NEW transaction password; the old one stops working.
+    const rotated = await service.changePassword({
+      actor: { id: created.id, level: 4 }, oldPassword: 'reset by the boss!!', newPassword: 'a fourth long password',
+      transactionPassword: '123456', // ignored: only a Super Admin may choose its own
+    });
+    assert.notEqual(rotated.transactionPassword, undefined);
+    assert.match(rotated.transactionPassword, /^\d{6}$/);
+    const after = await connection.models.Staff.findByPk(created.id, { attributes: ['transaction_password'], raw: true });
+    assert.equal(await verifyPassword(rotated.transactionPassword, after.transaction_password), true);
+    if (rotated.transactionPassword !== first.transactionPassword) {
+      assert.equal(await verifyPassword(first.transactionPassword, after.transaction_password), false);
     }
+
+    // Neither the create, the own change nor the reset left a cleartext copy.
+    const row = await connection.models.Staff.findByPk(created.id, { attributes: ['password', 'password2'], raw: true });
+    assert.match(row.password, /^\$2[aby]\$/);
+    assert.equal(row.password2, null, 'password2 must stay NULL');
+    await cleanup(created.id);
   });
 
-  await t.test('an account cannot change its own status in bulk', async () => {
-    const boss = await seedStaff(newStaffId());
+  await t.test('a session that must change its password cannot reset anyone else', async () => {
+    const boss = await seedStaff(newStaffId(), { level: 3 });
+    const agent = await seedStaff(newStaffId(), { parentId: boss, level: 4 });
     await assert.rejects(
-      () => service.bulkStatus({ actor: actorFor(boss), ids: [boss], status: 'suspended' }),
-      (err) => err.code === 'STAFF_NOT_PERMITTED'
+      () => service.changePassword({
+        actor: actorFor(boss, { canResetOthers: true, mustChangePassword: true }),
+        targetId: agent,
+        newPassword: PASSWORD,
+      }),
+      (err) => err.code === 'STAFF_PASSWORD_CHANGE_REQUIRED' && err.status === 403
     );
   });
 
-  await t.test('the transfer history is reachable and scoped', async () => {
-    // `GET /api/staff/transactions` was shadowed by `/:id` and never ran.
-    const boss = await seedStaff(newStaffId(), { inr: '500' });
-    const agent = await seedStaff(newStaffId(), { parentId: boss });
-    await service.transfer({
-      actor: actorFor(boss), toType: 'staff', toId: agent, amount: '100', direction: 'deposit',
-    });
+  // ── Suspension cascades like the system lock ─────────────────────────
 
-    const history = await service.transfers({ actor: actorFor(boss) });
-    assert.ok(history.total >= 1);
-    assert.equal(history.rows[0].amount, '100.00000000');
-
-    const summary = await service.transferSummary({ actor: actorFor(boss) });
-    assert.ok(summary.some((s) => s.direction === 'deposit'));
-  });
 });

@@ -1,8 +1,9 @@
 'use strict';
 
-const { EVENTS, AUDIENCE } = require('@ibitplay/socket');
+const { EVENTS, AUDIENCE, PLATFORM_EVENTS, encode } = require('@ibitplay/socket');
 
 const { GameEngine } = require('./engine/gameEngine');
+const { ChallengeService } = require('../challenges/challenges.service');
 const { CrashLoop } = require('./engine/crashLoop');
 const { KenoLoop } = require('./engine/kenoLoop');
 
@@ -97,8 +98,59 @@ const refuse = (error) => ({
   code: error.code,
 });
 
+/**
+ * Tell every connected client that a round settled.
+ *
+ * ═════════════════════════════════════════════════════════════════════════
+ * WHY THIS EXISTS
+ *
+ * `LAST_BETS`, `TOP_WINNERS` and `GET casino/bet-history/live` are all PULL —
+ * they answer a request with the most recent rows, and nothing tells a client
+ * that new rows exist. Legacy had no push either; its board moved only when
+ * the page asked again. So a live bets feed could only ever be a poll.
+ *
+ * `BET_SETTLED` is this project's own event (see `PLATFORM_EVENTS` — it is
+ * deliberately NOT in the legacy tables) and carries the settled round, so a
+ * feed can prepend a row instead of re-reading itself on a timer.
+ *
+ * ── `nsp.emit`, NOT `socket.broadcast.emit` ─────────────────────────────
+ *
+ * Chat excludes the sender because their own message is already in the reply
+ * they get. A bets feed is different: the player who just bet should see their
+ * round arrive in the ticker like everyone else's, and the ack that drives
+ * their game board is a different surface. So this reaches the sender too.
+ *
+ * ── FAILURE HERE MUST NOT UNDO A SETTLED ROUND ──────────────────────────
+ *
+ * The money has already moved by the time this runs. A throw would reach the
+ * handler's catch, which refunds — turning a broadcast problem into a paid
+ * round being taken back. So it never throws.
+ * ═════════════════════════════════════════════════════════════════════════
+ */
+function announceSettled({ context, game, coin, amount, settled, logger, challenges }) {
+  // rainbet: the round against the open challenges on its game; never awaited, never throws.
+  void challenges?.onSettled({ userId: context.userId, game, coin, amount, profit: settled?.profit, betId: settled?.betId });
+  try {
+    context.socket.nsp.emit(
+      PLATFORM_EVENTS.BET_SETTLED,
+      encode({
+        game,
+        coin: String(coin ?? '').toLowerCase(),
+        amount: String(amount ?? '0'),
+        profit: String(settled?.profit ?? '0'),
+        win: Boolean(settled?.isWinner),
+        reference: String(settled?.betId ?? ''),
+        at: new Date().toISOString(),
+      })
+    );
+  } catch (error) {
+    logger?.warn({ err: error, game }, 'Could not announce a settled round');
+  }
+}
+
 function register({ on, deps }) {
   const engine = new GameEngine(deps);
+  const challenges = new ChallengeService(deps);
   const { logger, config } = deps;
 
   /**
@@ -138,6 +190,27 @@ function register({ on, deps }) {
          */
         const canProfit = await engine.canProfit(context.userId);
 
+        /**
+         * VALIDATE FIRST, THEN TAKE THE STAKE.
+         *
+         * `game.play` is pure — it draws and prices the round and moves no
+         * money — so it runs before the debit. A game returning `null` is
+         * legacy's silent `return` on a bad parameter (Limbo's
+         * `if (payout < 1.01) return;`); it used to arrive AFTER the stake was
+         * taken and needed a refund, a reversed wager and a bet row marked
+         * `refunded`. Now an invalid round never opens a bet at all.
+         */
+        let outcome;
+        try {
+          outcome = game.play({ ...payload, canProfit, serverAuthority, logger });
+        } catch (error) {
+          logger?.warn({ err: error, game: game.key }, 'In-house round refused before the stake');
+          outcome = null;
+        }
+        if (!outcome) {
+          return { command: 'error', message: 'Invalid bet parameters', code: 'INHOUSE_INVALID_STAKE' };
+        }
+
         let bet;
         try {
           bet = await engine.placeBet({
@@ -147,28 +220,11 @@ function register({ on, deps }) {
             amount,
           });
         } catch (error) {
-          if (error.code?.startsWith('INHOUSE_')) return refuse(error);
+          if (error.code?.startsWith('INHOUSE_') || error.code === 'NOT_ENTITLED') return refuse(error);
           throw error;
         }
 
         try {
-          const outcome = game.play({ ...payload, canProfit, serverAuthority, logger });
-
-          /**
-           * A game returning `null` is legacy's silent `return` on a bad
-           * parameter — several do it, e.g. Limbo's `if (payout < 1.01) return;`.
-           * The stake has already been taken by then, so it is given back.
-           */
-          if (!outcome) {
-            await engine.refund({
-              userId: context.userId,
-              betId: bet.betId,
-              coin: bet.currency,
-              amount: bet.stake,
-            });
-            return { command: 'error', message: 'Invalid bet parameters', code: 'INHOUSE_INVALID_STAKE' };
-          }
-
           const settled = await engine.settle({
             userId: context.userId,
             betId: bet.betId,
@@ -178,6 +234,16 @@ function register({ on, deps }) {
             isWinner: outcome.isWinner,
             coin: bet.currency,
             amount: bet.stake,
+          });
+
+          announceSettled({
+            context,
+            game: game.key,
+            coin: bet.currency,
+            amount: bet.stake,
+            settled,
+            logger,
+            challenges,
           });
 
           /**
@@ -207,7 +273,7 @@ function register({ on, deps }) {
               logger?.error({ err: refundError, betId: bet.betId }, 'Refund after a failed round ALSO failed')
             );
 
-          if (error.code?.startsWith('INHOUSE_')) return refuse(error);
+          if (error.code?.startsWith('INHOUSE_') || error.code === 'NOT_ENTITLED') return refuse(error);
           throw error;
         }
       },
@@ -251,7 +317,28 @@ function register({ on, deps }) {
               hash: opened?.hash,
             });
 
-            return { command: 'play', hash: opened?.hash, roundId: round.roundId, balance: round.balance };
+            /**
+             * `state` is what the client is ALLOWED to see of the round.
+             *
+             * Several of these games cannot be played without it — Video Poker
+             * asks which of five cards to hold, Blackjack shows a hand against
+             * an up card — and the open reply carried none of it, so a board
+             * had nothing to draw and no basis for the decision the next
+             * message asks for.
+             *
+             * A game opts in with `publicState`, and what it leaves out is the
+             * point: `deck` is every card still to come, and a client holding
+             * it knows the outcome before it chooses. A game with no projection
+             * sends nothing, which is right for Mines and Three Card Monte —
+             * their whole state IS the answer.
+             */
+            return {
+              command: 'play',
+              hash: opened?.hash,
+              roundId: round.roundId,
+              balance: round.balance,
+              state: game.publicState ? game.publicState(opened?.state ?? {}) : undefined,
+            };
           }
 
           const round = await engine.openRoundFor({ userId: context.userId, game: game.key });
@@ -269,6 +356,9 @@ function register({ on, deps }) {
               isWinner: outcome.isWinner,
             });
 
+            announceSettled({
+              context, game: game.key, coin: round.coin, amount: round.amount, settled, logger, challenges,
+            });
             return { command: 'busted', ...settled, win: settled.isWinner };
           }
 
@@ -279,7 +369,26 @@ function register({ on, deps }) {
             const settled = await engine.closeRound({
               round, profit: outcome.profit, result: outcome.result, isWinner: outcome.isWinner,
             });
-            return { command: 'busted', ...settled, win: settled.isWinner };
+            announceSettled({
+              context, game: game.key, coin: round.coin, amount: round.amount, settled, logger, challenges,
+            });
+            /**
+             * `slot` and `path` are Plinko's, and they only exist once the ball
+             * has landed — so sending them is not a leak, it is the settlement.
+             *
+             * `closeRound` keeps `profit`, `result` and `isWinner` and drops the
+             * rest of the outcome, which left a client with a multiplier and no
+             * way to know which of the four slots paying it the ball reached.
+             * Without that the drop can only be animated from a guess, and a
+             * board animating a guess is exactly the shape of the bug this game
+             * already had.
+             */
+            return {
+              command: 'busted',
+              ...settled,
+              win: settled.isWinner,
+              ...(outcome.slot !== undefined ? { slot: outcome.slot, path: outcome.path } : {}),
+            };
           }
 
           const stepped = stepFn({
@@ -302,6 +411,9 @@ function register({ on, deps }) {
               isWinner: false,
               status: 'lost',
             });
+            announceSettled({
+              context, game: game.key, coin: round.coin, amount: round.amount, settled, logger, challenges,
+            });
             return { command: 'busted', ...settled, win: false };
           }
 
@@ -309,11 +421,13 @@ function register({ on, deps }) {
             round,
             selected: stepped.selected ?? round.selected,
             profit: stepped.profit,
+            // HiLo advances its position in the deck here. See `stepRound`.
+            state: stepped.state,
           });
 
           return { command: 'clicked', profit: stepped.profit, id: payload?.land ?? payload?.id, card: stepped.card };
         } catch (error) {
-          if (error.code?.startsWith('INHOUSE_')) return refuse(error);
+          if (error.code?.startsWith('INHOUSE_') || error.code === 'NOT_ENTITLED') return refuse(error);
           throw error;
         }
       },
@@ -353,7 +467,7 @@ function register({ on, deps }) {
         }
         return await crashLoop.join({ userId: context.userId, amount: payload?.amount, coin: payload?.coin });
       } catch (error) {
-        if (error.code?.startsWith('INHOUSE_')) return refuse(error);
+        if (error.code?.startsWith('INHOUSE_') || error.code === 'NOT_ENTITLED') return refuse(error);
         throw error;
       }
     },
@@ -402,7 +516,7 @@ function register({ on, deps }) {
           numbers: payload?.numbers,
         });
       } catch (error) {
-        if (error.code?.startsWith('INHOUSE_')) return refuse(error);
+        if (error.code?.startsWith('INHOUSE_') || error.code === 'NOT_ENTITLED') return refuse(error);
         throw error;
       }
     },

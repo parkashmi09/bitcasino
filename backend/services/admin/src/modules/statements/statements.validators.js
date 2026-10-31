@@ -9,6 +9,16 @@ const isoDay = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Use YYYY-MM-DD');
 const RANGE_FIELDS = { from: isoDay.optional(), to: isoDay.optional() };
 
 /**
+ * `offset` is accepted beside `page`, because every other admin list takes
+ * `limit` + `offset` and the admin UI sends it here too — `.strict()` turned
+ * that into a 422 "Unrecognized key 'offset'". It is folded into `page`
+ * (`floor(offset / limit) + 1`) so the service keeps one paging model.
+ */
+const OFFSET_FIELD = { offset: z.coerce.number().int().min(0).optional() };
+const offsetToPage = ({ offset, ...rest }) =>
+  offset === undefined ? rest : { ...rest, page: Math.floor(offset / rest.limit) + 1 };
+
+/**
  * A query schema carrying the date-range rules.
  *
  * ─────────────────────────────────────────────────────────────────────────
@@ -30,7 +40,7 @@ const RANGE_FIELDS = { from: isoDay.optional(), to: isoDay.optional() };
  */
 const withRange = (fields = {}) =>
   z
-    .object({ ...RANGE_FIELDS, ...fields })
+    .object({ ...RANGE_FIELDS, ...OFFSET_FIELD, ...fields })
     .strict()
     .refine((value) => !(value.from && value.to) || value.from <= value.to, {
       message: '`from` must not be after `to`',
@@ -42,7 +52,8 @@ const withRange = (fields = {}) =>
         return (Date.parse(value.to) - Date.parse(value.from)) / 86_400_000 <= MAX_RANGE_DAYS;
       },
       { message: `A statement may cover at most ${MAX_RANGE_DAYS} days`, path: ['to'] }
-    );
+    )
+    .transform(offsetToPage);
 
 const staffId = z.coerce.number().int().positive();
 const userId = z.coerce.number().int().positive();
@@ -52,6 +63,11 @@ const statementFields = {
   category: z.enum(CATEGORIES).default('all'),
   page: z.coerce.number().int().min(1).default(1),
   limit: z.coerce.number().int().min(1).max(MAX_PAGE_SIZE).default(100),
+};
+
+/** A player's statement: which wallet (INR when absent). */
+const walletField = {
+  currency: z.string().trim().toUpperCase().regex(/^[A-Z0-9]{2,10}$/, 'Not a currency code').optional(),
 };
 
 /** The bet list: which game, and a page. */
@@ -79,13 +95,14 @@ module.exports = {
   agentStatement: { params: z.object({ staffId }).strict(), query: withRange(statementFields) },
 
   /** @legacy GET /api/admin/agent-report/user/:userId/statement */
-  userStatement: { params: z.object({ userId }).strict(), query: withRange(statementFields) },
+  userStatement: { params: z.object({ userId }).strict(), query: withRange({ ...statementFields, ...walletField }) },
 
   /** @legacy GET /api/admin/agent-report/:staffId/bets */
   agentBets: { params: z.object({ staffId }).strict(), query: withRange(betFields) },
 
   /** @legacy GET /api/admin/agent-report/user/:userId/bets */
-  userBets: { params: z.object({ userId }).strict(), query: withRange(betFields) },
+  // `currency`: the statement screen sends its wallet with every request, the bet list included.
+  userBets: { params: z.object({ userId }).strict(), query: withRange({ ...betFields, ...walletField }) },
 
   /**
    * @legacy GET /api/admin/agent-report/:staffId/pdf
@@ -94,5 +111,5 @@ module.exports = {
   agentPdf: { params: z.object({ staffId }).strict(), query: withRange(pdfFields) },
 
   /** @legacy GET /api/admin/agent-report/user/:userId/pdf */
-  userPdf: { params: z.object({ userId }).strict(), query: withRange(pdfFields) },
+  userPdf: { params: z.object({ userId }).strict(), query: withRange({ ...pdfFields, ...walletField }) },
 };

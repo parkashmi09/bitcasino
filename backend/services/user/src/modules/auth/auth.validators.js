@@ -11,12 +11,12 @@ const { username } = require('../profile/profile.validators');
  *
  * The password rule is length-first. Composition rules ("one uppercase, one
  * symbol") push people toward `Password1!` — predictable to an attacker and
- * hard for the person to remember — so the floor is 10 characters with no
+ * hard for the person to remember — so the floor is 8 characters with no
  * character-class requirement, which is both stronger and kinder.
  */
 const password = z
   .string({ required_error: 'password is required' })
-  .min(10, 'password must be at least 10 characters')
+  .min(8, 'password must be at least 8 characters')
   .max(200, 'password must be at most 200 characters');
 
 /** Login accepts a username, an email or a phone number in one field. */
@@ -90,38 +90,55 @@ const changePassword = {
 };
 
 /**
- * Finish a password reset with the code from `POST /email/otp`.
+ * Begin a password reset.
  *
- * `email`, not `identifier`. The OTP is issued against an ADDRESS — that is
- * what `user_otps.email` stores and what the proof is keyed on — so accepting
- * a username here would mean resolving it to an address first, and a username
- * that happens to equal somebody else's email address is exactly the
- * collision `#findByIdentifier` exists to avoid. The player typed the address
- * to get the code; they still have it.
- *
- * `.strict()`, like every other schema here: an unexpected key is a 422
- * rather than a silent drop, which is what stops a client sending
- * `{email, code, password}` and wondering why nothing changed.
+ * Only an address, and the service answers identically whether or not it is
+ * registered — so this schema must not become the thing that distinguishes
+ * them. Keep it to a shape check: rejecting a malformed address is fine,
+ * rejecting an unregistered one would undo the service's own care.
  */
-const resetPassword = {
+const requestPasswordReset = {
+  body: z
+    .object({ email: z.string().trim().toLowerCase().email('a valid email is required').max(255) })
+    .strict(),
+};
+
+/**
+ * Finish a reset with the token from the email.
+ *
+ * `newPassword` takes the same floor as every other password here. No
+ * `currentPassword` and no session: holding the token IS the proof, which is
+ * why the token is single-use and short-lived in the service.
+ */
+const completePasswordReset = {
   body: z
     .object({
-      email: z.string().trim().toLowerCase().email('that is not a valid email address').max(190),
-      // Exactly six digits, matching `OTP_LENGTH` and the email module's own
-      // regex. A prefix of a code is not a code.
-      code: z.string().trim().regex(/^\d{6}$/, 'the code is 6 digits'),
+      token: z.string().trim().min(1, 'token is required').max(512),
       newPassword: password,
     })
     .strict(),
 };
 
+/** The session id is a bigint on the wire, so it arrives as a digit string. */
+const revokeSession = {
+  params: z.object({ sessionId: z.string().trim().regex(/^\d+$/, 'sessionId must be numeric') }),
+};
+
+/** The one-time code the Google callback handed the player site. */
+const googleExchange = {
+  body: z.object({ code: z.string().trim().min(16).max(128), nonce: z.string().regex(/^[A-Za-z0-9_-]{22,128}$/) }).strict(),
+};
+
 module.exports = {
+  googleExchange,
   login,
-  register,
   refresh,
   logout,
   changePassword,
-  resetPassword,
+  register,
+  requestPasswordReset,
+  completePasswordReset,
+  revokeSession,
   password,
   identifier,
 };

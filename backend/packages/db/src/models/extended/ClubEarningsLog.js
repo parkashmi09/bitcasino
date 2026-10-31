@@ -32,7 +32,8 @@ module.exports = (sequelize) => {
       wager_amount: { type: DataTypes.DECIMAL(30, 8), allowNull: false, defaultValue: '0', field: 'wager_amount' },
       percentage: { type: DataTypes.DECIMAL(5, 2), allowNull: false, defaultValue: '0', field: 'percentage' },
       amount: { type: DataTypes.DECIMAL(30, 8), allowNull: false, defaultValue: '0', field: 'amount' },
-      currency: { type: DataTypes.STRING(10), allowNull: false, defaultValue: 'BJB', field: 'currency' },
+      // USDT since migration 060 (club rewards are paid in REWARD_CURRENCY).
+      currency: { type: DataTypes.STRING(10), allowNull: false, defaultValue: 'USDT', field: 'currency' },
       period_start: { type: DataTypes.DATE, allowNull: true, field: 'period_start' },
       period_end: { type: DataTypes.DATE, allowNull: true, field: 'period_end' },
       paid: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: false, field: 'paid' },

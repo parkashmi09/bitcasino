@@ -6,6 +6,7 @@ const { validate } = require('@ibitplay/common');
 const v = require('../catalogue.validators');
 const { CatalogueService } = require('../catalogue.service');
 const { createControllers } = require('../controllers');
+const { requireGameEntitled } = require('../../games/gameEntitlement');
 
 /**
  * Launching a game.
@@ -18,8 +19,11 @@ module.exports = function userRoutes(deps) {
   const ctrl = createControllers({ service: new CatalogueService(deps) });
   const router = Router();
 
+  // The owner's plan — see `games/gameEntitlement.js`.
+  const entitled = requireGameEntitled(deps, (req) => ({ uid: req.body.gameCode, provider: req.body.providerCode }));
+
   /** @legacy POST /game_launch, /game_launch_new */
-  router.post('/launch', validate(v.launch), ctrl.launch);
+  router.post('/launch', validate(v.launch), entitled, ctrl.launch);
 
   return router;
 };

@@ -4,6 +4,7 @@ const { Op } = require('sequelize');
 
 const errors = require('./banners.errors');
 const { inspect } = require('./upload');
+const { AGENT_PREFIX, modeOf } = require('./banners.constants');
 
 /**
  * The banners on the front of the site.
@@ -35,7 +36,19 @@ class BannersService {
    * The bytes are inspected BEFORE anything is written, and `contentType` comes
    * from the signature that matched — not from the request.
    */
-  async putBanner({ staff, type, label, file }) {
+  async putBanner({ staff, type, label, title, subtitle, ctaLabel, ctaHref, sortOrder, file }) {
+    /**
+     * No file on an EXISTING placement is an edit of its copy: the image stays.
+     * The admin's Replace form says "leave empty to keep the current one", and
+     * without this an operator could not fix a typo in a headline without
+     * re-uploading the picture. A placement that does not exist yet still needs
+     * an image, so that case falls through to `inspect` and its NO_FILE.
+     */
+    if (!file?.buffer?.length) {
+      const existing = await this.models.Banners.findOne({ where: { type }, attributes: ['id'], raw: true });
+      if (existing) return this.#putCopy({ staff, type, label, title, subtitle, ctaLabel, ctaHref, sortOrder });
+    }
+
     const image = inspect(file);
 
     /**
@@ -54,6 +67,25 @@ class BannersService {
         byte_size: image.byteSize,
         uploaded_by: staff?.id ?? null,
         is_active: true,
+
+        /**
+         * The slide copy — migration 037.
+         *
+         * `?? null` and not `|| null`: an operator clearing a headline sends
+         * an empty string, and that must overwrite the old one. Coalescing on
+         * falsiness would keep whatever was there and make "delete this text"
+         * silently do nothing.
+         *
+         * An upload that names none of these blanks them, which is the same
+         * replace-the-placement semantics the image already has: this is one
+         * operation that writes a whole banner, not a patch.
+         */
+        title: title ?? null,
+        subtitle: subtitle ?? null,
+        cta_label: ctaLabel ?? null,
+        cta_href: ctaHref ?? null,
+        sort_order: sortOrder ?? 0,
+
         updated_at: new Date(),
         created_at: new Date(),
       },
@@ -75,6 +107,31 @@ class BannersService {
     );
 
     return this.#describe(row?.get?.({ plain: true }) ?? row, { includeUrl: true });
+  }
+
+  /**
+   * The copy-only half of `putBanner`: same replace-the-whole-banner semantics
+   * for the text (anything not sent is blanked), the bytes untouched.
+   */
+  async #putCopy({ staff, type, label, title, subtitle, ctaLabel, ctaHref, sortOrder }) {
+    await this.models.Banners.update(
+      {
+        title: title ?? null,
+        subtitle: subtitle ?? null,
+        cta_label: ctaLabel ?? null,
+        cta_href: ctaHref ?? null,
+        sort_order: sortOrder ?? 0,
+        uploaded_by: staff?.id ?? null,
+        is_active: true,
+        updated_at: new Date(),
+      },
+      { where: { type } }
+    );
+
+    this.logger?.info({ type, staffId: staff?.id, label: label ?? null }, 'Banner copy updated, image kept');
+
+    const row = await this.models.Banners.findOne({ where: { type }, attributes: this.#metaColumns(), raw: true });
+    return this.#describe(row, { includeUrl: true });
   }
 
   /**
@@ -111,11 +168,16 @@ class BannersService {
   }
 
   /** @legacy GET /api/banners/getBannerAll */
-  async list({ includeInactive = false }) {
+  async list({ includeInactive = false, mode }) {
+    const byMode = mode
+      ? { type: mode === 'agent' ? { [Op.startsWith]: AGENT_PREFIX } : { [Op.notLike]: `${AGENT_PREFIX}%` } }
+      : {};
     const rows = await this.models.Banners.findAll({
-      where: includeInactive ? {} : { is_active: true },
+      where: { ...(includeInactive ? {} : { is_active: true }), ...byMode },
       attributes: this.#metaColumns(),
-      order: [['type', 'ASC']],
+      /* Slide order, then placement — see migration 037. Ordering on `type`
+         alone puts hero-10 before hero-2. */
+      order: [['sort_order', 'ASC'], ['type', 'ASC']],
       raw: true,
     });
     return { total: rows.length, rows: rows.map((r) => this.#describe(r, { includeUrl: true })) };
@@ -136,7 +198,9 @@ class BannersService {
   async listWithImages({ includeInactive = false }) {
     const rows = await this.models.Banners.findAll({
       where: includeInactive ? {} : { is_active: true },
-      order: [['type', 'ASC']],
+      /* Slide order, then placement — see migration 037. Ordering on `type`
+         alone puts hero-10 before hero-2. */
+      order: [['sort_order', 'ASC'], ['type', 'ASC']],
       raw: true,
     });
 
@@ -189,9 +253,17 @@ class BannersService {
    * Listing banners must not drag megabytes of image through the query — legacy
    * read every file from disk on every list call, which is the same mistake
    * with a different backing store.
+   *
+   * The slide fields (migration 037) are here rather than only on the binary
+   * read for the same reason in reverse: a carousel needs the copy to lay a
+   * slide out, and should not have to pull every image to get at it.
    */
   #metaColumns() {
-    return ['id', 'type', 'image', 'content_type', 'byte_size', 'uploaded_by', 'is_active', 'created_at', 'updated_at'];
+    return [
+      'id', 'type', 'image', 'content_type', 'byte_size', 'uploaded_by', 'is_active',
+      'title', 'subtitle', 'cta_label', 'cta_href', 'sort_order',
+      'created_at', 'updated_at',
+    ];
   }
 
   #describe(row, { includeUrl = false } = {}) {
@@ -199,10 +271,29 @@ class BannersService {
     return {
       id: row.id,
       type: row.type,
+      mode: modeOf(row.type),
       contentType: row.content_type ?? null,
       byteSize: row.byte_size ?? null,
       active: row.is_active !== false,
       uploadedBy: row.uploaded_by ?? null,
+
+      /**
+       * The slide, when there is one — migration 037.
+       *
+       * All four are null on an image-only banner, which is what every row
+       * written before that migration is. A consumer that needs copy checks
+       * for it; the hero carousel falls back to its captured slides rather
+       * than rendering a headline-shaped blank.
+       *
+       * `cta` is one object or null rather than two loose fields, because a
+       * label without an href is a button that goes nowhere — the pair is only
+       * meaningful together, and this makes that impossible to get half right.
+       */
+      title: row.title ?? null,
+      subtitle: row.subtitle ?? null,
+      cta: row.cta_label && row.cta_href ? { label: row.cta_label, href: row.cta_href } : null,
+      sortOrder: row.sort_order ?? 0,
+
       createdAt: row.created_at ?? null,
       updatedAt: row.updated_at ?? null,
       /**

@@ -5,6 +5,15 @@ const { totp, verifyPassword, createSecretBox } = require('@ibitplay/auth');
 const errors = require('./twofa.errors');
 
 /**
+ * How long withdrawals are frozen after the second factor is removed.
+ *
+ * bc.game's own figure, out of the "Disable 2FA" confirm in `index-CU_BJJlr.js`:
+ * "Withdrawals will be disabled for 24 hours after you disable the 2FA." The
+ * same window a password change writes (migration 040), for the same reason.
+ */
+const WITHDRAW_COOLDOWN_MS = 24 * 60 * 60 * 1000;
+
+/**
  * Two-factor authentication.
  *
  * Replaces `legacy/2fa/routes.js`, which had SQL and business logic inline in
@@ -246,13 +255,30 @@ class TwoFactorService {
         { where: { uid: TwoFactorService.#key(userId) }, transaction }
       );
 
+      /**
+       * THE 24-HOUR WITHDRAWAL FREEZE — migration 040, the same column a password
+       * change writes, and it is here because the DIALOG SAYS SO.
+       *
+       * bc.game's own "Disable 2FA" confirm leads with "Withdrawals will be
+       * disabled for 24 hours after you disable the 2FA." Porting that screen
+       * without this line would put a second false promise about money on the
+       * site, which is the argument migration 040 was created under.
+       *
+       * The reasoning matches the password case exactly: removing a factor is
+       * either the owner tidying up or an attacker who has just taken the
+       * account, and from here the two are indistinguishable. Written inside the
+       * same transaction, so an account whose second factor came off always
+       * carries the freeze.
+       */
+      const lockedUntil = new Date(Date.now() + WITHDRAW_COOLDOWN_MS);
+
       await this.models.Users.update(
-        { two_fa: null, two_fa_status: false },
+        { two_fa: null, two_fa_status: false, withdraw_locked_until: lockedUntil },
         { where: { id: userId }, transaction }
       );
 
       this.logger?.warn({ userId }, 'Two-factor authentication disabled');
-      return { enabled: false };
+      return { enabled: false, withdrawLockedUntil: lockedUntil.toISOString() };
     });
   }
 }

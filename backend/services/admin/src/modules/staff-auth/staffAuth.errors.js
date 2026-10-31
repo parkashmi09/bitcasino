@@ -3,6 +3,7 @@
 const { defineErrors } = require('@ibitplay/common');
 
 module.exports = defineErrors('STAFF_AUTH', {
+  PASSWORD_CHANGE_NOT_DUE: { status: 409, message: 'This account has no password change due. Ask an account above you' },
   INVALID_CREDENTIALS: {
     status: 401,
     /**

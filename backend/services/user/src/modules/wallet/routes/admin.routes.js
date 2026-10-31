@@ -19,7 +19,7 @@ const { createAdminController } = require('../controllers/admin.controller');
 module.exports = function adminRoutes(deps) {
   const { auth, clients, logger, config } = deps;
   const service = new WalletService(deps);
-  const ctrl = createAdminController({ service });
+  const ctrl = createAdminController({ service, config });
 
   const withActivity = createActivityRecorder({
     client: clients.admin,
@@ -42,12 +42,12 @@ module.exports = function adminRoutes(deps) {
 
   router.get('/:userId/history', auth.requirePermission(PERMISSION.READ), validate(v.adminHistory), ctrl.history);
 
-  router.get('/:userId/reconcile', auth.requirePermission(PERMISSION.ADJUST), validate(v.adminBalance), ctrl.reconcile);
+  router.get('/:userId/reconcile', auth.requirePermission(PERMISSION.ADJUST), validate(v.adminReconcile), ctrl.reconcile);
 
   router.post(
     '/adjust',
-    // Either grant is accepted here; the service still records which direction
-    // was used, and the validator refuses anything but credit/debit.
+    // Either grant gets past here; the controller then requires wallet:credit for
+    // a credit and wallet:debit for a debit. The validator refuses anything else.
     auth.requireAnyPermission(PERMISSION.CREDIT, PERMISSION.DEBIT),
     validate(v.adminAdjust),
     withActivity({

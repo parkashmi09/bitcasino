@@ -1,12 +1,23 @@
 'use strict';
 
-const { Op, fn, col, literal } = require('sequelize');
-const { hashPassword, verifyPassword } = require('@ibitplay/auth');
-const { money } = require('@ibitplay/common');
+const { randomInt } = require('crypto');
+const { Op, QueryTypes, literal } = require('sequelize');
+const {
+  hashPassword,
+  verifyPassword,
+  canActOn,
+  canCreateLevel,
+  isLoginPasswordMode,
+  STAFF_LEVELS,
+} = require('@ibitplay/auth');
+const { money, withdrawBlock } = require('@ibitplay/common');
 
 const errors = require('./staff.errors');
 const { TRANSFER_DIRECTION, TARGET_TYPE, BALANCE_CURRENCY, PASSWORD_ROUNDS } = require('./staff.constants');
-const { descendantIds } = require('../staff-directory/staffDirectory.service');
+const { manageableStaffIds } = require('../staff-directory/staffDirectory.service');
+const { debitStaffFloat, insufficientStaffBalance, insufficientFunds } = require('../lords/staffFloat');
+const { addPointEntry, SPENDABLE_SQL } = require('../lords/pointLedger');
+const { assertTransactionPassword } = require('../staff-auth/transactionPassword');
 
 /**
  * Staff accounts, the players beneath them, and transfers down the tree.
@@ -28,423 +39,32 @@ class StaffService {
   //  Reads
   // ══════════════════════════════════════════════════════════════════════
 
-  /** @legacy GET /api/staff/tree */
-  async tree({ actor }) {
-    const ids = await this.#visibleStaffIds(actor);
-
-    const rows = await this.models.Staff.findAll({
-      where: { id: ids },
-      attributes: ['id', 'name', 'email', 'parent_id', 'role_id', 'status', 'percentage'],
-      order: [['id', 'ASC']],
-      raw: true,
-    });
-
-    const byId = new Map(rows.map((s) => [Number(s.id), { ...this.#shapeStaff(s), children: [] }]));
-
-    const roots = [];
-    for (const node of byId.values()) {
-      const parent = node.parentId != null ? byId.get(Number(node.parentId)) : null;
-      // A node whose parent is outside the visible set is a root of THIS view,
-      // which is what a subtree looks like from partway down.
-      if (parent) parent.children.push(node);
-      else roots.push(node);
-    }
-    return roots;
-  }
-
-  /** @legacy GET /api/staff */
-  async list({ actor, search, status, limit = 50, offset = 0 }) {
-    const ids = await this.#visibleStaffIds(actor);
-
-    const { rows, count } = await this.models.Staff.findAndCountAll({
-      where: {
-        id: ids,
-        ...(status ? { status } : {}),
-        ...(search
-          ? {
-              [Op.or]: [
-                { name: { [Op.iLike]: `%${search}%` } },
-                { email: { [Op.iLike]: `%${search}%` } },
-              ],
-            }
-          : {}),
-      },
-      attributes: ['id', 'name', 'email', 'phone', 'country', 'parent_id', 'role_id', 'status', 'percentage'],
-      order: [['id', 'ASC']],
-      limit,
-      offset,
-      raw: true,
-    });
-
-    return { total: count, rows: rows.map((s) => this.#shapeStaff(s)) };
-  }
-
   /** @legacy GET /api/staff/:id */
   async getById({ actor, staffId }) {
     await this.#assertVisible(actor, staffId);
 
     const row = await this.models.Staff.findByPk(staffId, {
-      attributes: ['id', 'name', 'email', 'phone', 'country', 'parent_id', 'role_id', 'status', 'percentage'],
+      attributes: [
+        'id', 'name', 'email', 'phone', 'country', 'parent_id', 'role_id', 'status', 'percentage',
+        'system_locked', 'casino_locked', 'sports_betlocked', 'withdraw_locked', 'originals_locked',
+      ],
       raw: true,
     });
     if (!row) throw errors.NOT_FOUND({ staffId });
 
-    const balance = await this.models.StaffBalances.findOne({ where: { staff_id: staffId }, raw: true });
-    return { ...this.#shapeStaff(row), balance: this.#shapeBalance(balance) };
-  }
-
-  /** @legacy GET /api/staff/players */
-  async listPlayers({ actor, search, limit = 50, offset = 0 }) {
-    const ids = await this.#visibleStaffIds(actor);
-
-    const { rows, count } = await this.models.Users.findAndCountAll({
-      where: {
-        parent_staff_id: ids,
-        ...(search ? { name: { [Op.iLike]: `%${search}%` } } : {}),
-      },
-      attributes: ['id', 'name', 'email', 'status', 'parent_staff_id', 'sports_betlocked', 'casino_locked'],
-      order: [['id', 'DESC']],
-      limit,
-      offset,
-      raw: true,
-    });
-
+    const balance = await this.models.StaffCredits.findOne({ where: { staff_id: staffId }, raw: true });
     return {
-      total: count,
-      rows: rows.map((u) => ({
-        id: u.id,
-        name: u.name,
-        // Deliberately not the password hash. Legacy's player listing selected
-        // the whole row.
-        email: u.email,
-        status: u.status,
-        staffId: u.parent_staff_id,
-        sportsLocked: Boolean(u.sports_betlocked),
-        casinoLocked: Boolean(u.casino_locked),
-      })),
-    };
-  }
-
-  /**
-   * @legacy GET /api/staff/:id/percent-chain
-   *
-   * The commission chain from the root down to this account — who takes what
-   * share of what this account generates.
-   */
-  async percentChain({ actor, staffId }) {
-    await this.#assertVisible(actor, staffId);
-
-    // `depth` here is distance UP from the requested account: 0 is the account
-    // itself, 1 its parent, 2 its grandparent. Ordered root-first.
-    const ancestors = await this.models.StaffHierarchy.findAll({
-      where: { descendant_id: staffId },
-      attributes: ['ancestor_id', 'depth'],
-      order: [['depth', 'DESC']],
-      raw: true,
-    });
-
-    const rows = await this.models.Staff.findAll({
-      where: { id: ancestors.map((a) => a.ancestor_id) },
-      attributes: ['id', 'name', 'parent_id', 'role_id', 'percentage'],
-      raw: true,
-    });
-    const byId = new Map(rows.map((s) => [Number(s.id), s]));
-    const roles = await this.#rolesById(rows.map((s) => s.role_id));
-
-    return ancestors
-      .map((a) => ({ staff: byId.get(Number(a.ancestor_id)), depth: Number(a.depth) }))
-      .filter((a) => a.staff)
-      .map(({ staff, depth }) => this.#shapePercentNode(staff, depth, roles));
-  }
-
-  /** @legacy GET /api/staff/:id/percent-tree */
-  async percentTree({ actor, staffId }) {
-    await this.#assertVisible(actor, staffId);
-
-    const root = Number(staffId);
-    const ids = await descendantIds(this.models, staffId, { logger: this.logger });
-    const rows = await this.models.Staff.findAll({
-      where: { id: ids },
-      attributes: ['id', 'name', 'parent_id', 'role_id', 'percentage'],
-      order: [['id', 'ASC']],
-      raw: true,
-    });
-
-    const roles = await this.#rolesById(rows.map((s) => s.role_id));
-    const depths = this.#subtreeDepths(root, rows);
-
-    return rows
-      .map((s) => this.#shapePercentNode(s, depths.get(Number(s.id)) ?? null, roles))
-      .sort((a, b) => (a.depth ?? Infinity) - (b.depth ?? Infinity) || a.id - b.id);
-  }
-
-  /**
-   * Depth of every row measured from `root`, which is depth 0 — this is a
-   * SUBTREE view, so an account partway down the ladder sees itself at the top
-   * rather than carrying the absolute depth it has in the full hierarchy.
-   *
-   * Walked level by level off `parent_id` rather than read from
-   * `staff_hierarchy`, because the id set came from the same walk: anything the
-   * closure table disagrees about would show up here as a null depth.
-   */
-  #subtreeDepths(root, rows) {
-    const childrenOf = new Map();
-    for (const s of rows) {
-      if (s.parent_id == null) continue;
-      const parent = Number(s.parent_id);
-      if (!childrenOf.has(parent)) childrenOf.set(parent, []);
-      childrenOf.get(parent).push(Number(s.id));
-    }
-
-    const depths = new Map([[root, 0]]);
-    let frontier = [root];
-    let depth = 0;
-    while (frontier.length) {
-      depth += 1;
-      const next = [];
-      for (const id of frontier) {
-        for (const child of childrenOf.get(id) || []) {
-          // Already-seen means a cycle in `parent_id`; keep the shallower depth
-          // and stop rather than loop, same stance as the walk that built `rows`.
-          if (depths.has(child)) continue;
-          depths.set(child, depth);
-          next.push(child);
-        }
-      }
-      frontier = next;
-    }
-    return depths;
-  }
-
-  async #rolesById(roleIds) {
-    const ids = [...new Set(roleIds.filter((id) => id != null).map(Number))];
-    if (!ids.length) return new Map();
-
-    const rows = await this.models.Roles.findAll({
-      where: { id: ids },
-      attributes: ['id', 'name', 'level'],
-      raw: true,
-    });
-    return new Map(rows.map((r) => [Number(r.id), r]));
-  }
-
-  /**
-   * The percentage views name the role and its ladder position instead of a
-   * bare `role_id`, and key the parent as `parent_id`, because they render a
-   * tree the client has to reassemble and colour without a second lookup.
-   *
-   * `role` is the CLOSED-UP name — `Super Master`, as the `roles` table spells
-   * it, comes back as `SuperMaster`. The colour and hierarchy tables on the
-   * client are all keyed that way, so sending the spaced name matched only the
-   * one-word roles (`Master`, `Agent`) and dropped every other node to the
-   * fallback colour.
-   */
-  #shapePercentNode(staff, depth, roles) {
-    const role = roles.get(Number(staff.role_id));
-    return {
-      id: Number(staff.id),
-      name: staff.name,
-      percentage: staff.percentage != null ? Number(staff.percentage) : null,
-      role: role?.name ? String(role.name).replace(/[\s_-]+/g, '') : null,
-      level: role?.level ?? null,
-      parent_id: staff.parent_id ?? null,
-      depth,
-    };
-  }
-
-  /**
-   * @legacy GET /api/staff/transactions
-   * @legacy GET /api/staff/transfers/:id?
-   *
-   *   `GET /api/staff/transactions` WAS UNREACHABLE. It is declared at line 97
-   *   of `system/routes/staff.js`, after `router.get('/:id')` at line 84 —
-   *   Express matches in order, so the request hit `getById` with
-   *   `id = 'transactions'` and never arrived here.
-   */
-  async transfers({ actor, staffId, direction, from, to, limit = 50, offset = 0 }) {
-    const ids = await this.#visibleStaffIds(actor);
-    const scope = staffId ? [await this.#assertVisible(actor, staffId)] : ids;
-
-    const { rows, count } = await this.models.StaffTransfers.findAndCountAll({
-      where: {
-        [Op.or]: [
-          { from_type: TARGET_TYPE.STAFF, from_id: scope },
-          { to_type: TARGET_TYPE.STAFF, to_id: scope },
-        ],
-        ...(direction ? { direction } : {}),
-        ...this.#dateRange(from, to),
+      ...this.#shapeStaff(row),
+      balance: this.#shapeBalance(balance),
+      // The lock columns `POST /admin/locks` sets, so the detail screen shows the current state.
+      locks: {
+        system: Boolean(row.system_locked),
+        casino: Boolean(row.casino_locked),
+        sports: Boolean(row.sports_betlocked),
+        withdraw: Boolean(row.withdraw_locked),
+        originals: Boolean(row.originals_locked),
       },
-      order: [['id', 'DESC']],
-      limit,
-      offset,
-      raw: true,
-    });
-
-    return { total: count, rows: await this.#withCounterpartyNames(rows) };
-  }
-
-  /**
-   * Resolve the account names on a page of transfers.
-   *
-   * The rows carry `(from_type, from_id)` and `(to_type, to_id)` and nothing
-   * else — an operator reading the list sees "Staff #12 paid User #4471",
-   * which is not a sentence anybody can audit. Two batched lookups per page,
-   * not one per row: a 50-row page resolved lazily is 100 round trips.
-   */
-  async #withCounterpartyNames(rows) {
-    const idsOfType = (type) => [
-      ...new Set(
-        rows.flatMap((r) => [
-          r.from_type === type ? Number(r.from_id) : null,
-          r.to_type === type ? Number(r.to_id) : null,
-        ]).filter((id) => Number.isFinite(id))
-      ),
-    ];
-
-    const staffIds = idsOfType(TARGET_TYPE.STAFF);
-    const userIds = idsOfType(TARGET_TYPE.USER);
-
-    const [staff, users] = await Promise.all([
-      staffIds.length
-        ? this.models.Staff.findAll({ where: { id: staffIds }, attributes: ['id', 'name'], raw: true })
-        : [],
-      userIds.length
-        ? this.models.Users.findAll({ where: { id: userIds }, attributes: ['id', 'name'], raw: true })
-        : [],
-    ]);
-
-    const names = {
-      [TARGET_TYPE.STAFF]: new Map(staff.map((s) => [String(s.id), s.name ?? null])),
-      [TARGET_TYPE.USER]: new Map(users.map((u) => [String(u.id), u.name ?? null])),
     };
-
-    // A deleted counterparty stays `null` rather than dropping the row: the
-    // transfer happened, and the money it moved still has to appear.
-    const nameFor = (type, id) => names[type]?.get(String(id)) ?? null;
-
-    return rows.map((t) =>
-      this.#shapeTransfer(t, {
-        from: nameFor(t.from_type, t.from_id),
-        to: nameFor(t.to_type, t.to_id),
-      })
-    );
-  }
-
-  /**
-   * @legacy GET /api/staff/transfers/summary
-   * @legacy GET /api/staff/transfers/summary/:id
-   *
-   *   `/transfers/summary` WAS ALSO UNREACHABLE — declared after
-   *   `/transfers/:id?`, so it matched that with `id = 'summary'`.
-   */
-  async transferSummary({ actor, staffId, from, to }) {
-    const scope = staffId ? [await this.#assertVisible(actor, staffId)] : await this.#visibleStaffIds(actor);
-
-    const rows = await this.models.StaffTransfers.findAll({
-      attributes: ['direction', [fn('COUNT', col('id')), 'count'], [fn('SUM', col('amount')), 'total']],
-      where: {
-        [Op.or]: [
-          { from_type: TARGET_TYPE.STAFF, from_id: scope },
-          { to_type: TARGET_TYPE.STAFF, to_id: scope },
-        ],
-        ...this.#dateRange(from, to),
-      },
-      group: ['direction'],
-      raw: true,
-    });
-
-    return rows.map((r) => ({
-      direction: r.direction,
-      count: Number(r.count),
-      // `fromStored`, not `toMinor` — see `#shapeBalance`. `SUM(amount)` over a
-      // bare `numeric` column is itself bare `numeric`, so the total carries
-      // whatever precision the widest row in the group had.
-      total: money.fromStored(r.total ?? '0', { field: 'total' }),
-    }));
-  }
-
-  /**
-   * @legacy GET /api/staff/rollup/:id
-   * @legacy GET /api/staff/rollupStaff/:id
-   * @legacy GET /api/staff/metrics/:id
-   *
-   * Counts and balances for one account and, for the rollup, everything under
-   * it.
-   */
-  async rollup({ actor, staffId, includeSubtree = false }) {
-    await this.#assertVisible(actor, staffId);
-
-    const ids = includeSubtree
-      ? await descendantIds(this.models, staffId, { logger: this.logger })
-      : [Number(staffId)];
-
-    const [balances, players, staffCount] = await Promise.all([
-      this.models.StaffBalances.findAll({ where: { staff_id: ids }, raw: true }),
-      this.models.Users.count({ where: { parent_staff_id: ids } }),
-      this.models.Staff.count({ where: { id: ids } }),
-    ]);
-
-    // `toMinorQuantised`, not `toMinor` — see `#shapeBalance`. One over-precise
-    // row anywhere in the subtree used to 400 the whole rollup.
-    const total = balances.reduce(
-      (sum, b) => money.add(sum, money.toMinorQuantised(b.inr ?? '0', { field: 'balance' })),
-      0n
-    );
-
-    return {
-      staffId: Number(staffId),
-      includesSubtree: includeSubtree,
-      staffAccounts: staffCount,
-      players,
-      // Summed as exact decimals. Legacy's rollup added `Number(row.inr)` per
-      // row, which is float addition over a NUMERIC column.
-      balance: money.toDecimalString(total),
-      currency: BALANCE_CURRENCY,
-    };
-  }
-
-  /**
-   * @legacy GET /api/staff/analytics/:id
-   *
-   * A seven-day trend of transfers in and out.
-   */
-  async analytics({ actor, staffId, days = 7 }) {
-    await this.#assertVisible(actor, staffId);
-
-    const since = new Date(Date.now() - days * 86_400_000);
-    const rows = await this.models.StaffTransfers.findAll({
-      attributes: [
-        [fn('DATE', col('created_at')), 'day'],
-        'direction',
-        [fn('COUNT', col('id')), 'count'],
-        [fn('SUM', col('amount')), 'total'],
-      ],
-      where: {
-        [Op.or]: [
-          { from_type: TARGET_TYPE.STAFF, from_id: staffId },
-          { to_type: TARGET_TYPE.STAFF, to_id: staffId },
-        ],
-        created_at: { [Op.gte]: since },
-      },
-      group: [literal('DATE(created_at)'), 'direction'],
-      order: [[literal('DATE(created_at)'), 'ASC']],
-      raw: true,
-    });
-
-    return rows.map((r) => ({
-      day: r.day,
-      direction: r.direction,
-      count: Number(r.count),
-      // A stored sum, so `fromStored` — see `transferSummary`.
-      total: money.fromStored(r.total ?? '0', { field: 'total' }),
-    }));
-  }
-
-  /** @legacy GET /api/staff/:id/whatsapp-ref */
-  async whatsappRef({ actor, staffId }) {
-    await this.#assertVisible(actor, staffId);
-    const row = await this.models.StaffWhatsappRef.findOne({ where: { staff_id: staffId }, raw: true });
-    return row ? { staffId: Number(staffId), reference: row.reference ?? row.ref ?? null } : null;
   }
 
   // ══════════════════════════════════════════════════════════════════════
@@ -473,8 +93,28 @@ class StaffService {
    * row count decides the outcome, and the history row is written inside it.
    * ─────────────────────────────────────────────────────────────────────
    */
-  async transfer({ actor, toType, toId, amount, direction }) {
-    const target = await this.#assertTransferTarget(actor, toType, toId);
+  async transfer({ actor, toType, toId, amount, direction, transactionPassword, opening = false }, { transaction: outer } = {}) {
+    /**
+     * Sports Exchange ka EK deposit / withdraw API (TENEXCH `/admin/wallet/deposit/add` aur
+     * `/withdraw` jaisa): owner ho ya koi bhi staff, apne DIRECT child — staff ya player — ke saath.
+     *
+     *   the Super Admin (`canIssueFunds`, holding `wallet:adjust`) — paid from the owner's own wallet.
+     *   everyone else, Admin and Sub Admin included — out of its own float, and needs the
+     *     `wallet:credit` / `wallet:debit` grant (`#assertParentFunding`).
+     *
+     * Grandchild / kisi aur ka account: nahi (system tracker ka rule bhi — Credit / Debit
+     * hamesha direct parent ke saath). `opening`: Create Account ka opening credit
+     * ('User creation' entry). `outer`: Create Account apne transaction me bulata hai.
+     */
+    const parentFunding = !(actor.canAdjustWallets && actor.canIssueFunds);
+    if (parentFunding) this.#assertParentFunding(actor, toType, toId, direction);
+
+    // The second factor: every staff member moving balance gives it, the owner too (user, 2026-10-20).
+    await assertTransactionPassword(this.models, actor.id, transactionPassword, {
+      required: true,
+      executiveId: actor.executiveId ?? null,
+    });
+    const target = await this.#assertDirectChild(actor, toType, toId, outer);
 
     // Who pays and who receives. A `withdraw` pulls money UP from the target;
     // a `deposit` pushes it DOWN from the actor.
@@ -490,8 +130,22 @@ class StaffService {
       throw errors.CANNOT_TRANSFER_TO_SELF();
     }
 
-    return this.db.transaction(async (transaction) => {
-      await this.#debit(source, amount, { actor, transaction });
+    // Pulling money UP out of an account is that account's cash-out: the withdrawal block
+    // (migration 091) on the paying account refuses it before anything moves.
+    if (isWithdraw) {
+      await withdrawBlock.assertWithdrawAllowed(
+        this.models,
+        source.type === TARGET_TYPE.USER ? { userId: source.id } : { staffId: source.id },
+        { transaction: outer }
+      );
+    }
+
+    const run = (fn) => (outer ? fn(outer) : this.db.transaction(fn));
+    return run(async (transaction) => {
+      // An agent funding a PLAYER may draw on its credit line; a transfer to
+      // another staff account never does. See `lords/staffFloat.js`.
+      const allowCredit = source.type === TARGET_TYPE.STAFF && destination.type === TARGET_TYPE.USER;
+      await this.#debit(source, amount, { actor, transaction, allowCredit });
       await this.#credit(destination, amount, { transaction });
 
       const row = await this.models.StaffTransfers.create(
@@ -507,6 +161,33 @@ class StaffService {
         },
         { transaction }
       );
+
+      // Point ledger (zip jaisa): child ke wallet me entry — deposit pe +, withdraw pe −.
+      await addPointEntry(
+        this.models,
+        {
+          child: { type: toType, id: target },
+          parent: { type: TARGET_TYPE.STAFF, id: actor.id },
+          amount,
+          isDeposit: !isWithdraw,
+          transferId: row.id,
+          remark: opening ? 'Opening balance' : isWithdraw ? 'Withdraw' : 'Deposit',
+          opening,
+        },
+        { transaction }
+      );
+
+      // The PLAYER side of the movement gets its ledger + history rows, as the
+      // opening balance and account close already do (players.service): a
+      // player wallet changed here without them drifted from its ledger and
+      // reconcile reported `balanced: false`.
+      if (source.type === TARGET_TYPE.USER || destination.type === TARGET_TYPE.USER) {
+        const isCredit = destination.type === TARGET_TYPE.USER;
+        await this.#playerLedger(
+          { userId: isCredit ? destination.id : source.id, amount, isCredit, transferId: row.id, actor },
+          transaction
+        );
+      }
 
       this.logger?.info(
         { actorStaffId: actor.id, from: source, to: destination, amount, direction, transferId: row.id },
@@ -524,13 +205,33 @@ class StaffService {
   /**
    * @legacy POST /api/staff
    *
-   * Create an account one level below the caller.
+   * Create an account BELOW the caller.
+   *
+   * ── THE HIERARCHY RULE ──────────────────────────────────────────────
+   * The new account's level must be strictly below (a higher number than)
+   * the caller's own, and strictly below its parent's. The parent is the
+   * caller or one of the caller's own descendants — never someone outside
+   * that subtree. Without this an Admin could create a Super Admin: the role
+   * was taken from the body and never compared with anything.
    */
-  async create({ actor, name, email, password, phone, country, roleId, percentage }) {
-    const existing = await this.models.Staff.findOne({ where: { email }, raw: true });
+  async create({ actor, name, email, password, phone, country, roleId, percentage, parentId }, { transaction: outer } = {}) {
+    const level = await this.#roleLevel(roleId);
+    if (level === null) throw errors.UNKNOWN_ROLE({ roleId });
+    this.#assertCreatableLevel(actor, level);
+
+    const parent = parentId == null ? Number(actor.id) : await this.#assertVisible(actor, parentId);
+    if (parent !== Number(actor.id)) {
+      // The account is created under a descendant: it must sit below THAT
+      // account too, or the tree would hold a master beneath an agent.
+      const parentLevel = await this.#staffLevel(parent);
+      this.#assertLevelBelow(parentLevel, level, 'below the account it reports to');
+    }
+
+    const existing = await this.models.Staff.findOne({ where: { email }, raw: true, transaction: outer });
     if (existing) throw errors.NOT_PERMITTED({ reason: 'that email is already in use' });
 
-    return this.db.transaction(async (transaction) => {
+    const run = (fn) => (outer ? fn(outer) : this.db.transaction(fn));
+    return run(async (transaction) => {
       const row = await this.models.Staff.create(
         {
           name,
@@ -540,9 +241,13 @@ class StaffService {
           phone: phone ?? null,
           country: country ?? null,
           role_id: roleId,
-          parent_id: actor.id,
+          parent_id: parent,
           percentage: percentage ?? null,
           status: 'active',
+          // The creator knows this password: the first sign-in must replace it,
+          // and that change issues the transaction password (`changePassword`).
+          must_change_password: true,
+          first_login: true,
         },
         { transaction }
       );
@@ -557,7 +262,7 @@ class StaffService {
        * invisible to every scoped query including the one that would find it.
        */
       const ancestors = await this.models.StaffHierarchy.findAll({
-        where: { descendant_id: actor.id },
+        where: { descendant_id: parent },
         attributes: ['ancestor_id', 'depth'],
         transaction,
         raw: true,
@@ -575,37 +280,15 @@ class StaffService {
         { transaction, ignoreDuplicates: true }
       );
 
-      await this.models.StaffBalances.findOrCreate({
+      await this.models.StaffCredits.findOrCreate({
         where: { staff_id: row.id },
         defaults: { staff_id: row.id, inr: '0' },
         transaction,
       });
 
-      this.logger?.info({ actorStaffId: actor.id, staffId: row.id, roleId }, 'Staff account created');
+      this.logger?.info({ actorStaffId: actor.id, staffId: row.id, roleId, level, parentId: parent }, 'Staff account created');
       return this.#shapeStaff(row.get({ plain: true }));
     });
-  }
-
-  /** @legacy PATCH /api/staff/:id */
-  async update({ actor, staffId, ...patch }) {
-    await this.#assertVisible(actor, staffId);
-    if (Number(staffId) === Number(actor.id)) {
-      // Editing your own row through the descendant endpoint would let an
-      // account change its own percentage. Self-service is `changePassword`.
-      throw errors.NOT_PERMITTED({ reason: 'use the password endpoint to change your own account' });
-    }
-
-    const fields = {};
-    for (const key of ['name', 'phone', 'country', 'status', 'percentage']) {
-      if (patch[key] !== undefined) fields[key] = patch[key];
-    }
-    if (!Object.keys(fields).length) throw errors.NOT_PERMITTED({ reason: 'nothing to change' });
-
-    const [affected] = await this.models.Staff.update(fields, { where: { id: staffId } });
-    if (!affected) throw errors.NOT_FOUND({ staffId });
-
-    this.logger?.info({ actorStaffId: actor.id, staffId, fields }, 'Staff account updated');
-    return this.getById({ actor, staffId });
   }
 
   /**
@@ -618,84 +301,62 @@ class StaffService {
    *   that endpoint is readable by anyone with SELECT on the table. Only the
    *   hash is written here.
    */
-  async changePassword({ actor, targetId, oldPassword, newPassword }) {
+  async changePassword({ actor, targetId, oldPassword, newPassword, transactionPassword: chosenTransactionPassword }) {
     const self = !targetId || Number(targetId) === Number(actor.id);
     const target = self ? actor.id : Number(targetId);
+    let transactionPassword = null;
 
     if (!self) {
-      await this.#assertVisible(actor, target);
+      // A session still on a password somebody else chose may only change its own.
+      if (actor.mustChangePassword) throw errors.PASSWORD_CHANGE_REQUIRED();
+      await this.#assertAuthorityOver(actor, target);
       // Legacy gated this on `req.staff.level !== 0` — a hardcoded level check
       // in the controller. It is a permission on the route here.
       if (!actor.canResetOthers) throw errors.NOT_PERMITTED({ reason: 'you may not reset another account' });
     } else {
-      const row = await this.models.Staff.findByPk(target, { attributes: ['password'], raw: true });
+      const row = await this.models.Staff.findByPk(target, {
+        attributes: ['password', 'must_change_password'],
+        raw: true,
+      });
       if (!row) throw errors.NOT_FOUND({ staffId: target });
+      // rainbet: an executive never changes its parent's password; below the Super Admin only the
+      // forced change is open.
+      if (actor.executiveId || (Number(actor.level) !== STAFF_LEVELS.SUPER_ADMIN && !row.must_change_password)) {
+        throw errors.OWN_PASSWORD_LOCKED();
+      }
       if (!(await verifyPassword(oldPassword ?? '', row.password ?? ''))) {
         throw errors.OLD_PASSWORD_WRONG();
+      }
+      // A forced change — first sign-in, or the next one after a superior's reset (TENEXCH flow) —
+      // issues a fresh 6-digit transaction password, returned once; the old one stops working.
+      // Never to an executive: it acts for this account but does not own its secrets.
+      // A whitelabel company chooses its own instead of being issued one.
+      if (row.must_change_password && !actor.executiveId && !isLoginPasswordMode()) {
+        // rainbet: only a Super Admin (a whitelabel company) may choose its own; everyone else is issued one.
+        const mayChoose = Number(actor.level) === STAFF_LEVELS.SUPER_ADMIN;
+        transactionPassword = (mayChoose && chosenTransactionPassword) || String(randomInt(100000, 1000000));
       }
     }
 
     await this.models.Staff.update(
-      { password: await hashPassword(newPassword, PASSWORD_ROUNDS) },
+      {
+        password: await hashPassword(newPassword, PASSWORD_ROUNDS),
+        // Your own change clears the flag. A reset by someone above you sets
+        // it: they know the password now, so you must replace it.
+        must_change_password: !self,
+        ...(self ? { first_login: false } : {}),
+        ...(transactionPassword ? { transaction_password: await hashPassword(transactionPassword, PASSWORD_ROUNDS) } : {}),
+        // Ends every session of the target — the caller's own too on a self change — so a
+        // token stolen before the change stops working now, not in 8 h.
+        token_version: literal('token_version + 1'),
+      },
       { where: { id: target } }
     );
 
-    this.logger?.warn({ actorStaffId: actor.id, targetStaffId: target, self }, 'Staff password changed');
-    return { staffId: target, changed: true };
-  }
-
-  /**
-   * @legacy DELETE /api/staff/:id
-   *
-   * Legacy deleted the row and left the subtree pointing at a parent that no
-   * longer exists — those accounts then belonged to no tree and were invisible
-   * to every scoped query, including the ones that would have found them.
-   * A balance left behind was simply gone.
-   */
-  async remove({ actor, staffId }) {
-    await this.#assertVisible(actor, staffId);
-    if (Number(staffId) === Number(actor.id)) throw errors.NOT_PERMITTED({ reason: 'you cannot delete yourself' });
-
-    const descendants = await descendantIds(this.models, staffId, { logger: this.logger });
-    if (descendants.filter((id) => Number(id) !== Number(staffId)).length) {
-      throw errors.CANNOT_DELETE_WITH_DESCENDANTS({ staffId });
-    }
-
-    const balance = await this.models.StaffBalances.findOne({ where: { staff_id: staffId }, raw: true });
-    if (balance && !money.isZero(money.toMinorQuantised(balance.inr ?? '0'))) {
-      throw errors.CANNOT_DELETE_WITH_BALANCE({ staffId, balance: String(balance.inr) });
-    }
-
-    const players = await this.models.Users.count({ where: { parent_staff_id: staffId } });
-    if (players) throw errors.CANNOT_DELETE_WITH_DESCENDANTS({ staffId, players });
-
-    return this.db.transaction(async (transaction) => {
-      await this.models.StaffHierarchy.destroy({
-        where: { [Op.or]: [{ ancestor_id: staffId }, { descendant_id: staffId }] },
-        transaction,
-      });
-      await this.models.StaffBalances.destroy({ where: { staff_id: staffId }, transaction });
-      await this.models.Staff.destroy({ where: { id: staffId }, transaction });
-
-      this.logger?.warn({ actorStaffId: actor.id, staffId }, 'Staff account deleted');
-      return { staffId: Number(staffId), deleted: true };
-    });
-  }
-
-  /** @legacy POST /api/staff/patch-bulk-status */
-  async bulkStatus({ actor, ids, status }) {
-    const visible = (await this.#visibleStaffIds(actor)).map(Number);
-    const outside = ids.filter((id) => !visible.includes(Number(id)));
-    if (outside.length) throw errors.NOT_IN_YOUR_TREE({ ids: outside });
-
-    // An actor cannot suspend themselves out of their own session.
-    if (ids.map(Number).includes(Number(actor.id))) {
-      throw errors.NOT_PERMITTED({ reason: 'you cannot change your own status' });
-    }
-
-    const [affected] = await this.models.Staff.update({ status }, { where: { id: ids } });
-    this.logger?.warn({ actorStaffId: actor.id, ids, status, affected }, 'Staff status changed in bulk');
-    return { updated: affected, status };
+    this.logger?.warn({ actorStaffId: actor.id, targetStaffId: target, self, transactionPasswordIssued: Boolean(transactionPassword) }, 'Staff password changed');
+    // A chosen one is not echoed back: its owner just typed it.
+    const issued = transactionPassword && transactionPassword !== chosenTransactionPassword;
+    return { staffId: target, changed: true, ...(issued ? { transactionPassword } : {}), ...(transactionPassword && !issued && chosenTransactionPassword ? { transactionPasswordSet: true } : {}) };
   }
 
   // ══════════════════════════════════════════════════════════════════════
@@ -709,50 +370,95 @@ class StaffService {
    * debited unconditionally — so two transfers issued at once both passed the
    * comparison and the account went negative.
    */
-  async #debit(party, amount, { actor, transaction }) {
-    /**
-     * The platform owner is the source of funds and has no balance to draw
-     * down — legacy expressed this as `req.staff.level !== 0`, skipping the
-     * check for level 0. Kept, because the alternative is that the top of the
-     * tree cannot fund anyone; but it is now an explicit capability on the
-     * actor rather than a magic number in the middle of a handler, and it is
-     * logged as the issuance it is.
-     */
-    if (party.type === TARGET_TYPE.STAFF && Number(party.id) === Number(actor.id) && actor.canIssueFunds) {
-      this.logger?.warn(
-        { actorStaffId: actor.id, amount },
-        'Funds ISSUED by the platform owner — this transfer is not drawn from an existing balance'
+  /** credits_ledger TRANSFER_IN/OUT + wallet_history for a player in a staff transfer (INR). */
+  async #playerLedger({ userId, amount, isCredit, transferId, actor }, transaction) {
+    const moved = money.toMinor(String(amount));
+    const wallet = await this.models.Credits.findOne({ where: { uid: userId }, attributes: ['inr'], transaction, raw: true });
+    const after = money.fromStored(wallet?.inr ?? '0');
+    const previous = money.toDecimalString(money.toMinor(after) + (isCredit ? -moved : moved));
+    const player = await this.models.Users.findOne({ where: { id: userId }, attributes: ['name'], transaction, raw: true });
+    const description = isCredit ? 'Funded by staff transfer' : 'Withdrawn by staff transfer';
+
+    await this.models.CreditsLedger.create(
+      {
+        user_id: String(userId),
+        currency: 'INR',
+        amount: money.toDecimalString(isCredit ? moved : -moved),
+        reason: isCredit ? 'TRANSFER_IN' : 'TRANSFER_OUT',
+        description,
+        balance: after,
+        closing: after,
+        netamount: 0,
+        profit: 0,
+        loss: 0,
+        commission: 0,
+        idempotency_key: null,
+        source_service: 'admin-service',
+        meta: { refType: 'STAFF_TRANSFER', refId: String(transferId), staffId: String(actor.id), previousBalance: previous },
+      },
+      { transaction }
+    );
+    await this.models.WalletHistory.create(
+      {
+        uid: userId,
+        username: player?.name || String(userId),
+        coin: 'INR',
+        operation: isCredit ? 'credit' : 'debit',
+        amount: money.toDecimalString(moved),
+        previous_balance: previous,
+        new_balance: after,
+        description,
+        transaction_time: new Date(),
+      },
+      { transaction }
+    );
+  }
+
+  async #debit(party, amount, { actor, transaction, allowCredit = false }) {
+    // TENEXCH: settlement points (`upper_point + down_point`) aage nahi jaate — staff ka deposit /
+    // child staff ka withdraw `inr − settlement points` tak. Agent ka credit line (player ko dena) alag.
+    if (party.type === TARGET_TYPE.STAFF && !allowCredit) {
+      const [ok] = await this.models.StaffCredits.sequelize.query(
+        `SELECT 1 FROM credits WHERE staff_id = :id AND ${SPENDABLE_SQL}`,
+        { replacements: { id: party.id, amount: money.toDecimalString(money.toMinor(amount)) }, type: QueryTypes.SELECT, transaction }
       );
-      return;
+      if (!ok) {
+        if (Number(party.id) === Number(actor.id)) throw insufficientStaffBalance({ staffId: party.id, amount });
+        throw insufficientFunds({ party: party.type, id: party.id, amount });
+      }
     }
 
+    /**
+     * Owner bhi apne wallet se deta hai (migration 099). Pehle owner yahan se
+     * bina kate paisa bana deta tha; ab owner pehle "Add balance" se apne
+     * credits me paisa daalta hai, aur har transfer usi se katta hai.
+     */
     const [affected] = party.type === TARGET_TYPE.STAFF
-      ? await this.models.StaffBalances.update(
-          { inr: literal(`inr - ${money.toDecimalString(money.toMinor(amount))}`) },
-          {
-            where: {
-              staff_id: party.id,
-              inr: { [Op.gte]: amount },
-            },
-            transaction,
-          }
-        )
+      ? [Number(await debitStaffFloat(this.models, party.id, amount, { transaction, allowCredit }))]
       : await this.models.Credits.update(
           { inr: literal(`inr - ${money.toDecimalString(money.toMinor(amount))}`) },
           {
             where: {
               uid: party.id,
               inr: { [Op.gte]: amount },
+              // TENEXCH: player sirf `credit` (diya − liya) tak nikal sakta hai; profit settlement se.
+              credit: { [Op.gte]: amount },
             },
             transaction,
           }
         );
 
-    if (!affected) throw errors.INSUFFICIENT_FUNDS({ party: party.type, id: party.id, amount });
+    if (!affected) {
+      // One overdraw error everywhere: 422 INSUFFICIENT_FUNDS (`staffFloat.js`).
+      if (party.type === TARGET_TYPE.STAFF && Number(party.id) === Number(actor.id)) {
+        throw insufficientStaffBalance({ staffId: party.id, amount });
+      }
+      throw insufficientFunds({ party: party.type, id: party.id, amount });
+    }
   }
 
   async #credit(party, amount, { transaction }) {
-    const model = party.type === TARGET_TYPE.STAFF ? this.models.StaffBalances : this.models.Credits;
+    const model = party.type === TARGET_TYPE.STAFF ? this.models.StaffCredits : this.models.Credits;
     const key = party.type === TARGET_TYPE.STAFF ? 'staff_id' : 'uid';
 
     const [, created] = await model.findOrCreate({
@@ -769,9 +475,9 @@ class StaffService {
     }
   }
 
-  /** Self plus every descendant, from the closure table. */
+  /** Self plus every descendant — or every staff tree on the site for a Super Admin. */
   async #visibleStaffIds(actor) {
-    return descendantIds(this.models, actor.id, { logger: this.logger });
+    return manageableStaffIds(this.models, actor.id, { logger: this.logger, level: actor.level });
   }
 
   async #assertVisible(actor, staffId) {
@@ -780,25 +486,110 @@ class StaffService {
     return Number(staffId);
   }
 
-  /** A transfer target must be a descendant account, or a player under one. */
-  async #assertTransferTarget(actor, toType, toId) {
-    if (toType === TARGET_TYPE.STAFF) return this.#assertVisible(actor, toId);
+  /** In the caller's subtree, and strictly below the caller's level. */
+  async #assertAuthorityOver(actor, staffId) {
+    const id = await this.#assertVisible(actor, staffId);
+    this.#assertCanActOn(actor, await this.#staffLevel(id), id);
+    return id;
+  }
 
-    const ids = await this.#visibleStaffIds(actor);
+  /**
+   * An account whose level cannot be read (no role row) is treated as acted on
+   * only by the Super Admin — failing closed for everyone else.
+   */
+  #assertCanActOn(actor, targetLevel, staffId) {
+    if (targetLevel === null) {
+      if (Number(actor.level) === STAFF_LEVELS.SUPER_ADMIN) return;
+      throw errors.LEVEL_NOT_BELOW({ staffId, reason: 'that account has no known level' });
+    }
+    if (!canActOn(Number(actor.level), targetLevel)) {
+      throw errors.LEVEL_NOT_BELOW({ staffId, reason: 'you can only act on accounts below your own level' });
+    }
+  }
+
+  /**
+   * TENEXCH's rule (`CHILD_LEVELS` in `@ibitplay/auth`): a creator makes any
+   * staff level below its own — a Sub Admin a Super Master, a Master or an
+   * Agent; an Agent makes players only.
+   *
+   * EXECUTIVE (7) is never a staff row made here, by anyone: executives are
+   * sub-logins and are made through `/admin/access/executives`.
+   */
+  #assertCreatableLevel(actor, level) {
+    if (Number(level) === STAFF_LEVELS.EXECUTIVE) {
+      throw errors.NOT_PERMITTED({ reason: 'executives are created from the executives screen, not as staff' });
+    }
+    this.#assertLevelBelow(actor.level, level);
+    // Below the caller but no staff level at all (an odd role level): fails closed.
+    if (!canCreateLevel(actor.level, level)) {
+      throw errors.LEVEL_NOT_BELOW({ level, reason: 'not a staff level you can create' });
+    }
+  }
+
+  /** `level` must be strictly below (a higher number than) `aboveLevel`. */
+  #assertLevelBelow(aboveLevel, level, where = 'below your own') {
+    if (!canActOn(Number(aboveLevel), Number(level))) {
+      throw errors.LEVEL_NOT_BELOW({ level, reason: `the new account's level must be ${where}` });
+    }
+  }
+
+  async #roleLevel(roleId) {
+    if (roleId == null) return null;
+    const role = await this.models.Roles.findByPk(roleId, { attributes: ['id', 'level'], raw: true });
+    const level = Number(role?.level);
+    return role && Number.isFinite(level) ? level : null;
+  }
+
+  async #staffLevel(staffId) {
+    const row = await this.models.Staff.findByPk(staffId, { attributes: ['id', 'role_id'], raw: true });
+    return row ? this.#roleLevel(row.role_id) : null;
+  }
+
+  /**
+   * The non-`wallet:adjust` path: a parent and its DIRECT CHILD STAFF account.
+   *
+   * Players keep their own route (`admin/user/wallet/adjust`, forwarded to
+   * `lords.adjustPlayer`), so a player target is refused here as before. A
+   * deposit needs `wallet:credit`, a withdrawal `wallet:debit` — the same
+   * grants the player money dialogs use.
+   */
+  #assertParentFunding(actor, toType, toId, direction) {
+    const isWithdraw = direction === TRANSFER_DIRECTION.WITHDRAW;
+    if (isWithdraw ? !actor.canDebit : !actor.canCredit) {
+      throw errors.NOT_PERMITTED({ reason: `your role cannot ${isWithdraw ? 'withdraw from' : 'deposit to'} an account` });
+    }
+    if (Number(toId) === Number(actor.id)) throw errors.CANNOT_TRANSFER_TO_SELF();
+  }
+
+  /**
+   * One level only — `staff.parent_id` must be the caller. A grandchild is
+   * settled by its own parent, so every ledger in the chain stays complete
+   * (addaplay's `assertDirectChild`). Anything else reads as not found.
+   */
+  async #assertDirectChildStaff(actor, toId, transaction) {
+    const child = await this.models.Staff.findOne({
+      where: { id: toId, parent_id: actor.id },
+      attributes: ['id', 'role_id'],
+      raw: true,
+      transaction,
+    });
+    if (!child) throw errors.NOT_IN_YOUR_TREE({ staffId: toId });
+    this.#assertCanActOn(actor, await this.#roleLevel(child.role_id), child.id);
+    return Number(child.id);
+  }
+
+  /** Target = caller ka DIRECT child: staff (`parent_id`) ya player (`parent_staff_id`). */
+  async #assertDirectChild(actor, toType, toId, transaction) {
+    if (toType === TARGET_TYPE.STAFF) return this.#assertDirectChildStaff(actor, toId, transaction);
+
     const player = await this.models.Users.findOne({
-      where: { id: toId, parent_staff_id: ids },
+      where: { id: toId, parent_staff_id: actor.id },
       attributes: ['id'],
       raw: true,
+      transaction,
     });
     if (!player) throw errors.PLAYER_NOT_IN_YOUR_TREE({ toId });
     return Number(player.id);
-  }
-
-  #dateRange(from, to) {
-    if (!from && !to) return {};
-    return {
-      created_at: { ...(from ? { [Op.gte]: from } : {}), ...(to ? { [Op.lte]: to } : {}) },
-    };
   }
 
   #shapeStaff(row) {
@@ -820,7 +611,7 @@ class StaffService {
    * ── `fromStored`, NOT `toMinor` ───────────────────────────────────────
    *
    * Every money column here is bare `numeric` in the baseline —
-   * `staff_balances.inr`, `.credit_limit`, `.exposure_limit` and
+   * the staff `credits` row (`inr`, `credit_limit`, `exposure_limit`) and
    * `staff_transfers.amount` — so Postgres has always accepted whatever
    * precision legacy's float arithmetic produced, and real rows carry well
    * past eight decimal places.
@@ -844,7 +635,7 @@ class StaffService {
 
   /**
    * `names` is optional: the list paths resolve them in one batch per page
-   * (see `#withCounterpartyNames`), while the single-transfer write path has
+   *, while the single-transfer write path has
    * no page to batch over and reports `null`.
    */
   #shapeTransfer(row, names = {}) {

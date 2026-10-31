@@ -44,4 +44,18 @@ module.exports = {
     user: require('./routes/user.routes'),
     admin: require('./routes/admin.routes'),
   },
+  jobs: [
+    {
+      name: 'vault:accrue-daily-interest',
+      intervalMs: Number(process.env.VAULT_ACCRUE_INTERVAL_MS || 60 * 60 * 1000),
+      immediate: true,
+      run: async (container) => {
+        const { VaultService } = require('./vault.service');
+        const service = new VaultService(container);
+        return service.accrueDailyInterest({
+          limit: Number(process.env.VAULT_ACCRUE_BATCH || 500),
+        });
+      },
+    },
+  ],
 };

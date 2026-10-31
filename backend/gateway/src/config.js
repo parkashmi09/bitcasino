@@ -44,6 +44,8 @@ const config = loadEnv(
     // hiding it.
     GATEWAY_PROXY_TIMEOUT_MS: coercers.int(35_000),
     GATEWAY_BODY_LIMIT: coercers.str('10mb'),
+    // 32 bytes, base64: the owner's api_encryption key, shared with the player site (NEXT_PUBLIC_API_ENC_KEY).
+    API_ENCRYPTION_KEY: coercers.str(''),
   },
   { serviceDir: path.resolve(__dirname, '..') }
 );

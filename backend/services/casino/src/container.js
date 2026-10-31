@@ -1,6 +1,6 @@
 'use strict';
 
-const { createLogger, ServiceClient, WalletClient, resolveInternalKey } = require('@ibitplay/common');
+const { createLogger, ServiceClient, WalletClient, resolveInternalKey, configureEntitlements } = require('@ibitplay/common');
 const { createAuthMiddleware } = require('@ibitplay/auth');
 const db = require('@ibitplay/db');
 
@@ -60,6 +60,7 @@ async function createContainer({ logger: injectedLogger } = {}) {
 
   const auth = createAuthMiddleware({
     config,
+    loadSession: (id) => connection.models.AuthSession.findByPk(id, { attributes: ['revoked_at'], raw: true }),
     loadUser: async (userId) => {
       const user = await connection.models.Users.findByPk(userId, {
         attributes: ['id', 'status', 'is_locked', 'system_locked', 'bet_status'],
@@ -72,6 +73,11 @@ async function createContainer({ logger: injectedLogger } = {}) {
         query: executiveId ? { executiveId } : undefined,
       }),
   });
+
+  // The owner's plan, asked of admin-service and cached 15 s — see
+  // `packages/common/src/entitlements.js`. The sportsbook session routes and
+  // every game launch check it.
+  configureEntitlements({ clients, logger, config });
 
   return {
     config,

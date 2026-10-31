@@ -2,7 +2,7 @@
 
 const { Router } = require('express');
 const { validate, createActivityRecorder } = require('@ibitplay/common');
-const { PERMISSIONS } = require('@ibitplay/auth');
+const { PERMISSIONS, denyAgentTree, VAULT_NOT_FOR_AGENTS } = require('@ibitplay/auth');
 
 const v = require('../vault.validators');
 const { VaultService } = require('../vault.service');
@@ -18,6 +18,10 @@ module.exports = function adminRoutes(deps) {
   });
 
   const router = Router();
+
+  // The vault admin is house-only: SUPER_MASTER / MASTER / AGENT (and their
+  // executives) are refused every route below — VAULT_NOT_FOR_AGENTS.
+  router.use(denyAgentTree({ code: VAULT_NOT_FOR_AGENTS, message: 'The vault is not available to agent accounts' }));
   const audit = (action) =>
     withActivity({
       action,

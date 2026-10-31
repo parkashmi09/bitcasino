@@ -4,6 +4,18 @@ const { money } = require('@ibitplay/common');
 const { fn, col, where } = require('@ibitplay/db');
 
 const errors = require('./exchangeRate.errors');
+const { isCustomCurrency } = require('../wallet/wallet.constants');
+
+/**
+ * A rate the site admin may not write: any custom coin's (the owner sets it
+ * in the owner panel and admin-service applies it, migration 065), and any row
+ * the owner's apply has tagged `managed_by = 'owner'`.
+ */
+function assertSiteManaged(currency, row) {
+  if (isCustomCurrency(currency) || row?.managed_by === 'owner') {
+    throw errors.OWNER_MANAGED({ currency: String(currency).toUpperCase() });
+  }
+}
 
 /**
  * Currency conversion rates.
@@ -24,6 +36,42 @@ const errors = require('./exchangeRate.errors');
  *      for a satoshi-denominated currency. Rates are strings end to end and go
  *      through `money`, which works in BigInt minor units.
  */
+/** CoinGecko id → our code. Stablecoins are pegged: written as 1.0 every run. */
+const COINGECKO_IDS = {
+  bitcoin: 'BTC', ethereum: 'ETH', litecoin: 'LTC', 'bitcoin-cash': 'BCH', binancecoin: 'BNB', ripple: 'XRP',
+  cardano: 'ADA', tron: 'TRX', dogecoin: 'DOGE', 'matic-network': 'MATIC', 'shiba-inu': 'SHIB', nexo: 'NEXO', maker: 'MKR',
+};
+const STABLECOINS = ['USDT', 'USDC', 'BUSD', 'TUSD', 'USDP'];
+const FIAT_CODES = ['INR', 'PKR', 'AED', 'NPR', 'BDT', 'MVR', 'EUR', 'IDR'];
+
+async function getJson(url) {
+  const res = await fetch(url, { signal: AbortSignal.timeout(15000) });
+  if (!res.ok) throw new Error(`${url} answered ${res.status}`);
+  return res.json();
+}
+
+/** USD value of one unit, from CoinGecko (crypto) and open.er-api (fiat). A feed that fails is left out. */
+async function fetchMarketRates() {
+  const [crypto, fiat] = await Promise.allSettled([
+    getJson(`https://api.coingecko.com/api/v3/simple/price?ids=${Object.keys(COINGECKO_IDS).join(',')}&vs_currencies=usd`),
+    getJson('https://open.er-api.com/v6/latest/USD'),
+  ]);
+  const rates = Object.fromEntries(STABLECOINS.map((code) => [code, 1]));
+  if (crypto.status === 'fulfilled') {
+    for (const [id, code] of Object.entries(COINGECKO_IDS)) {
+      const usd = Number(crypto.value[id]?.usd);
+      if (usd > 0) rates[code] = usd;
+    }
+  }
+  if (fiat.status === 'fulfilled') {
+    for (const code of FIAT_CODES) {
+      const perUsd = Number(fiat.value.rates?.[code]);
+      if (perUsd > 0) rates[code] = 1 / perUsd;
+    }
+  }
+  return { rates, failed: [crypto, fiat].filter((r) => r.status === 'rejected').map((r) => r.reason.message) };
+}
+
 class ExchangeRateService {
   constructor({ models, db, logger }) {
     this.models = models;
@@ -100,6 +148,7 @@ class ExchangeRateService {
 
   /** @legacy POST /exchangeRate/rates */
   async addRate({ currency, usdRate }) {
+    assertSiteManaged(currency);
     const existing = await this.#findRate(currency);
     if (existing) throw errors.RATE_ALREADY_EXISTS({ currency });
 
@@ -117,6 +166,7 @@ class ExchangeRateService {
   async updateRate({ currency, usdRate }) {
     const existing = await this.#findRate(currency);
     if (!existing) throw errors.RATE_NOT_FOUND({ currency });
+    assertSiteManaged(currency, existing);
 
     const previous = money.toDecimalString(money.toMinor(existing.usd_rate ?? '0'));
 
@@ -132,10 +182,35 @@ class ExchangeRateService {
     return { currency, usdRate, previousRate: previous };
   }
 
+  /**
+   * Hourly job: every site-managed row with a market price gets it. Rows the owner manages and
+   * codes the feeds do not carry keep their rate; a failed feed changes nothing.
+   */
+  async refreshFromMarket() {
+    const { rates, failed } = await fetchMarketRates();
+    if (failed.length) this.logger?.warn({ failed }, 'Exchange rate feed failed');
+
+    const rows = await this.models.Exchangerate.findAll({ raw: true });
+    const updated = [];
+    for (const row of rows) {
+      const code = String(row.currency).toUpperCase();
+      const usd = rates[code];
+      if (!usd || row.managed_by === 'owner' || isCustomCurrency(code)) continue;
+      await this.models.Exchangerate.update(
+        { usd_rate: usd.toFixed(8), last_updated: new Date() },
+        { where: { id: row.id } }
+      );
+      updated.push(code);
+    }
+    this.logger?.info({ updated }, 'Exchange rates refreshed from market');
+    return { updated, failed };
+  }
+
   /** @legacy DELETE /exchangeRate/rates/:currency */
   async deleteRate(currency) {
     const existing = await this.#findRate(currency);
     if (!existing) throw errors.RATE_NOT_FOUND({ currency });
+    assertSiteManaged(currency, existing);
 
     const removed = await this.models.Exchangerate.destroy({ where: { id: existing.id } });
     this.logger?.warn({ currency }, 'Exchange rate deleted');
@@ -157,6 +232,9 @@ class ExchangeRateService {
 
   async #requireRate(currency) {
     const row = await this.#findRate(currency);
+    /* USD and USDT ARE the unit (1:1). A site whose rate table lacks a USDT row used to throw
+       here for every non-USD stake, so no INR / BTC bet counted toward VIP, commission or bonus. */
+    if (!row && ['USD', 'USDT'].includes(String(currency ?? '').toUpperCase())) return '1.00000000';
     if (!row) throw errors.RATE_NOT_FOUND({ currency });
 
     const rate = money.toDecimalString(money.toMinor(row.usd_rate ?? '0'));
@@ -165,4 +243,4 @@ class ExchangeRateService {
   }
 }
 
-module.exports = { ExchangeRateService };
+module.exports = { ExchangeRateService, fetchMarketRates };

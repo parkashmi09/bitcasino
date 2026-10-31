@@ -2282,7 +2282,7 @@ CREATE TABLE public.siteconfig (
     netent boolean DEFAULT true,
     provablyfair boolean DEFAULT true,
     id integer DEFAULT nextval('public.siteconfig_id_seq'::regclass) NOT NULL,
-    apaynotificationemail character varying(255) DEFAULT 'salvin.dev.cfz@gmail.com'::character varying,
+    apaynotificationemail character varying(255),
     gmailuser character varying(255),
     gmailapppassword character varying(255),
     welcomepack boolean DEFAULT true NOT NULL,

@@ -3,6 +3,7 @@
 const crypto = require('node:crypto');
 const { fn, col, literal } = require('sequelize');
 const { money } = require('@ibitplay/common');
+const { isAgentTree } = require('@ibitplay/auth');
 
 const errors = require('./house.errors');
 const { DEFAULT_MAX, WIN_PROBABILITY, MAX_COUNTER } = require('./house.constants');
@@ -11,15 +12,53 @@ const { DEFAULT_MAX, WIN_PROBABILITY, MAX_COUNTER } = require('./house.constants
  * The `house` counters, and the ticker that walks them.
  */
 class HouseService {
-  constructor({ models, db, logger }) {
+  constructor({ models, db, logger, clients }) {
     this.models = models;
     this.db = db;
     this.logger = logger;
+    this.clients = clients;
   }
 
-  /** @legacy GET /gethouse */
-  async list({ limit = 100, offset = 0 }) {
+  /**
+   * The player ids an agent-tree caller may see, or `null` for everyone.
+   *
+   * The Super Admin (and its executives) sees every row. Every level below it
+   * (or an executive under one) sees only the players owned by their own
+   * subtree, resolved by admin-service (which owns `staff`) from the verified
+   * token's staff id. A failed lookup throws: a listing that cannot resolve
+   * its scope must not fall back to everyone.
+   */
+  async #visibleUserIds(staff) {
+    if (!staff || !isAgentTree(staff)) return null;
+
+    const result = await this.clients.admin.get(
+      `/internal/admin/staff-directory/staff/${staff.id}/descendants`
+    );
+    const staffIds = (result?.ids ?? result?.data?.ids ?? []).map(Number).filter(Number.isFinite);
+    if (!staffIds.length) return [];
+
+    const players = await this.models.Users.findAll({
+      where: { parent_staff_id: staffIds },
+      attributes: ['id'],
+      raw: true,
+    });
+    return players.map((p) => String(p.id));
+  }
+
+  /**
+   * @legacy GET /gethouse
+   *
+   * Legacy (and this route until now) listed every player's counters to any
+   * caller with `reports:read` — which the whole agent tree holds — so an
+   * AGENT could read the in-house counters of players in other trees. The
+   * listing is scoped to the caller's tree now; house staff keep all.
+   */
+  async list({ limit = 100, offset = 0, staff = null }) {
+    const visible = await this.#visibleUserIds(staff);
+    if (visible && !visible.length) return { total: 0, rows: [] };
+
     const { rows, count } = await this.models.House.findAndCountAll({
+      ...(visible ? { where: { uid: visible } } : {}),
       order: [['uid', 'ASC']],
       limit,
       offset,

@@ -1,7 +1,6 @@
 'use strict';
 
 const { EVENTS, encode } = require('@ibitplay/socket');
-const { money } = require('@ibitplay/common');
 
 const crash = require('../games/crash');
 const { crashMultiplier } = require('./serverAuthority');
@@ -272,7 +271,7 @@ class CrashLoop {
 
     this.io.emit(
       EVENTS.FINISH_CRASH,
-      encode({ uid: String(userId), cashout: result.cashout, won: money.toDecimalString(money.toMinor(String(result.won))) })
+      encode({ uid: String(userId), cashout: result.cashout, won: settled.profit })
     );
 
     return { cashedOut: true, ...settled };

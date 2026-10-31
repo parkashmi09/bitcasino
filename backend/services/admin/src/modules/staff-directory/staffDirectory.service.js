@@ -1,7 +1,14 @@
 'use strict';
 
 const { Op } = require('sequelize');
-const { resolvePermissions, verifyPassword, safeCompare, BCRYPT_PATTERN } = require('@ibitplay/auth');
+const {
+  resolvePermissions,
+  verifyPassword,
+  safeCompare,
+  BCRYPT_PATTERN,
+  STAFF_LEVELS,
+  isLoginPasswordMode,
+} = require('@ibitplay/auth');
 
 /**
  * Staff identity resolution — the authority every service defers to.
@@ -32,6 +39,8 @@ async function resolveStaff(models, staffId, executiveId = null) {
       'casino_locked',
       'agent_code',
       'percentage',
+      'must_change_password',
+      'token_version',
     ],
     include: [{ model: Roles, as: 'role', attributes: ['id', 'name', 'level', 'responsibilities'], required: false }],
     raw: true,
@@ -44,29 +53,109 @@ async function resolveStaff(models, staffId, executiveId = null) {
   const rolePermissions = roleGrants(staff.role?.responsibilities);
 
   let executive = null;
-  let executivePermissions = null;
 
   if (executiveId) {
     executive = await Executives.findByPk(executiveId, {
-      attributes: ['id', 'username', 'parent_staff_id', 'permissions', 'status', 'kind'],
+      attributes: ['id', 'username', 'parent_staff_id', 'permissions', 'status', 'kind', 'token_version'],
       raw: true,
     });
     // A missing executive is reported as such rather than silently falling back
     // to the parent's full authority.
     if (!executive) return { ...staff, executive: null, permissions: [] };
-    executivePermissions = normalisePermissions(executive.permissions);
   }
 
-  // `resolvePermissions` intersects an executive's grants with its parent's, so
-  // a sub-account can never hold authority the parent does not.
-  const permissions = resolvePermissions({ level, rolePermissions, executivePermissions });
+  /**
+   * `resolvePermissions` intersects an executive's grants with its parent's, so
+   * a sub-account can never hold authority the parent does not.
+   *
+   * The RAW column goes in, with `isExecutive`. It used to pass through
+   * `normalisePermissions` first, which returns null for the `{authority: [...]}`
+   * object the access module writes, for prose, and for an empty column — and
+   * null told `resolvePermissions` "not an executive", so every such executive
+   * held its parent's FULL authority. An unreadable grant is now no grant.
+   */
+  const permissions = resolvePermissions({
+    level,
+    rolePermissions,
+    executivePermissions: executive ? executive.permissions : null,
+    isExecutive: Boolean(executive),
+  });
+
+  // A staff ROW whose role is EXECUTIVE acts with its parent's authority; the
+  // level-gated guards (e.g. `denyAgentTree`) need the parent's level to know
+  // which side of the house/agent line it sits on.
+  let parentLevel = null;
+  if (level === STAFF_LEVELS.EXECUTIVE && staff.parent_id) {
+    const parent = await Staff.findByPk(staff.parent_id, {
+      attributes: ['id'],
+      include: [{ model: Roles, as: 'role', attributes: ['level'], required: false }],
+      raw: true,
+      nest: true,
+    });
+    parentLevel = parent?.role?.level ?? null;
+  }
+
+  // A suspended or system-locked account ANYWHERE above this one stops it
+  // too — on an existing token, not only at the next login. The auth guard
+  // refuses a non-null `uplineBlocked`.
+  const upline = await uplineBlock(models, staff.id);
 
   return {
     ...staff,
     level,
+    parentLevel,
     roleName: staff.role?.name ?? null,
     permissions,
     executive,
+    uplineBlocked: upline ? { staffId: upline.staffId, reason: upline.reason } : null,
+  };
+}
+
+/**
+ * The first staff account at or above `staffId` that blocks it: suspended or
+ * inactive (`status` ≠ active) or system-locked. `includeSelf: false` asks
+ * only about the ancestors (the account's own row is checked by its caller).
+ *
+ * One read of `staff_hierarchy` (the closure table: every ancestor at any
+ * depth) and one of `staff`. Returns null when nothing blocks it, or when the
+ * account does not exist.
+ *
+ * @returns {Promise<null | { staffId: number, reason: 'suspended'|'inactive'|'locked' }>}
+ */
+async function uplineBlock(models, staffId, { includeSelf = false } = {}) {
+  const { Staff, StaffHierarchy } = models;
+  const id = Number(staffId);
+  if (!Number.isSafeInteger(id) || id <= 0) return null;
+
+  let ids = [];
+  if (StaffHierarchy) {
+    const rows = await StaffHierarchy.findAll({
+      where: { descendant_id: id, ...(includeSelf ? {} : { ancestor_id: { [Op.ne]: id } }) },
+      attributes: ['ancestor_id'],
+      raw: true,
+    });
+    ids = rows.map((r) => Number(r.ancestor_id));
+  }
+  if (includeSelf && !ids.includes(id)) ids.push(id);
+  if (!ids.length) return null;
+
+  const blocked = await Staff.findOne({
+    where: {
+      id: ids,
+      [Op.or]: [
+        { system_locked: true },
+        { status: { [Op.ne]: 'active' } },
+      ],
+    },
+    attributes: ['id', 'status', 'system_locked'],
+    order: [['id', 'ASC']],
+    raw: true,
+  });
+  if (!blocked) return null;
+
+  return {
+    staffId: Number(blocked.id),
+    reason: blocked.status && blocked.status !== 'active' ? String(blocked.status) : 'locked',
   };
 }
 
@@ -131,6 +220,101 @@ async function descendantIds(models, staffId, { logger } = {}) {
   }
 
   return [...seen];
+}
+
+/**
+ * The staff whose players THIS staff member may see.
+ *
+ * ── WHY THIS IS NOT JUST `descendantIds` ─────────────────────────────────
+ *
+ * The hierarchy below Super Master is a sales tree: a master sees their agents'
+ * players and nobody else's, and `descendantIds` is exactly that. Super Admin,
+ * Admin and Sub Admin are not in the sales tree at all — they are the site's
+ * back office, and "full operations access" means every player on the site.
+ *
+ * The callers decide who sees a DIRECT signup (`parent_staff_id` NULL) by
+ * asking whether the tree contains the root staff member, which was only ever
+ * true for staff id 1 itself. So the site's own Admin — a child of the root
+ * with nobody under them — got `[own id]`: no agents' players, no direct
+ * signups, an empty Players screen on a site with players in it.
+ *
+ * ONLY THE SUPER ADMIN (level 1, the platform owner) reads the WHOLE tree,
+ * root included — which is also what lets it see direct signups. Admin and
+ * Sub Admin are scoped to their OWN subtree like every other level (the
+ * Addaplay rule): an Admin under the owner sees its own Sub Admins, their
+ * agents and their players, and nothing hanging from another Admin. Use this
+ * for "which players may I see"; keep `descendantIds` for "whose subtree is
+ * this" and for authority over staff.
+ *
+ * An EXECUTIVE staff row acts with its parent's authority (`resolveStaff`,
+ * `effectiveStaffLevel`), so it sees what its parent sees: an executive under
+ * an Admin reads the whole site, one under an agent reads that agent's players.
+ * Its own grants stay its own (read-only by default). Walking down from the
+ * executive's own row found nobody, so the role saw an empty Players screen.
+ */
+
+async function visibleStaffIds(models, staffId, { logger, hops = 0 } = {}) {
+  const own = await descendantIds(models, staffId, { logger });
+  if (!own.length) return own;
+
+  const me = await models.Staff.findByPk(Number(staffId), { attributes: ['id', 'role_id', 'parent_id'], raw: true });
+  const level = await levelOfRole(models, me?.role_id);
+  if (level === STAFF_LEVELS.EXECUTIVE && me?.parent_id && hops < MAX_DEPTH) {
+    const parents = await visibleStaffIds(models, me.parent_id, { logger, hops: hops + 1 });
+    return [...new Set([...own, ...parents.map(Number)])];
+  }
+  // `<=`: a restored legacy owner role can carry level 0 (legacy's
+  // `level !== 0` owner check); it is the owner too, never a lesser level.
+  if (!Number.isFinite(level) || level > STAFF_LEVELS.SUPER_ADMIN) return own;
+
+  return everyTree(models, own, { logger });
+}
+
+/**
+ * The staff accounts this staff member may SEE AND MANAGE as staff — the
+ * staff list and tree, staff detail, status, locks, limits and transfers.
+ *
+ * A Super Admin (level 1) is the site's owner: every staff tree on the site,
+ * whatever row it hangs from. Walking down from their own row is not that —
+ * the bootstrap Super Admin and a seeded `demo_superadmin` are both roots
+ * (`parent_id` NULL), so each saw only its own tree and the bootstrap account
+ * listed none of the demo staff.
+ *
+ * Every other level, Admin and Sub Admin included, keeps its own subtree:
+ * authority over a staff account still means being above it in the tree.
+ * (Which PLAYERS a back-office role may read is `visibleStaffIds`.)
+ *
+ * `level` is the caller's resolved session level (`req.staff.level`, read from
+ * the current row by `resolveStaff`); without it the row's role is looked up.
+ */
+async function manageableStaffIds(models, staffId, { logger, level } = {}) {
+  const own = await descendantIds(models, staffId, { logger });
+  if (!own.length) return own;
+
+  let actorLevel = level == null ? NaN : Number(level);
+  if (level == null) {
+    const me = await models.Staff.findByPk(Number(staffId), { attributes: ['id', 'role_id'], raw: true });
+    actorLevel = await levelOfRole(models, me?.role_id);
+  }
+  if (actorLevel !== STAFF_LEVELS.SUPER_ADMIN) return own;
+
+  return everyTree(models, own, { logger });
+}
+
+async function levelOfRole(models, roleId) {
+  if (roleId == null) return NaN;
+  const role = await models.Roles.findByPk(roleId, { attributes: ['level'], raw: true });
+  return Number(role?.level);
+}
+
+/** `own` plus every staff account under every root (`parent_id` NULL) on the site. */
+async function everyTree(models, own, { logger } = {}) {
+  const roots = await models.Staff.findAll({ where: { parent_id: null }, attributes: ['id'], raw: true });
+  const all = new Set(own.map(Number));
+  for (const { id } of roots) {
+    for (const found of await descendantIds(models, id, { logger })) all.add(Number(found));
+  }
+  return [...all];
 }
 
 /**
@@ -231,8 +415,14 @@ function roleGrants(value) {
  * Returns a boolean. The caller decides what a false means — this function has
  * no opinion about status codes.
  */
-async function verifyTransactionPassword(models, staffId, candidate) {
+async function verifyTransactionPassword(models, staffId, candidate, { executiveId = null } = {}) {
   if (typeof candidate !== 'string' || !candidate) return false;
+
+  // TXN_PASSWORD_MODE=login (the default): the transaction password IS the
+  // login password — the same bcrypt compare the staff sign-in runs. An
+  // executive session is checked against the executive's OWN login password
+  // (and only when that executive belongs to `staffId`), never its parent's.
+  if (isLoginPasswordMode()) return verifyLoginPassword(models, staffId, candidate, { executiveId });
 
   const staff = await models.Staff.findByPk(staffId, {
     attributes: ['id', 'transaction_password'],
@@ -255,6 +445,26 @@ async function verifyTransactionPassword(models, staffId, candidate) {
   return safeCompare(candidate, stored);
 }
 
+/** The login-password half of `verifyTransactionPassword` (TXN_PASSWORD_MODE=login). */
+async function verifyLoginPassword(models, staffId, candidate, { executiveId = null } = {}) {
+  let hash = null;
+  if (executiveId) {
+    const executive = models.Executives
+      ? await models.Executives.findOne({
+          where: { id: executiveId, parent_staff_id: staffId, status: 'active' },
+          attributes: ['id', 'password'],
+          raw: true,
+        })
+      : null;
+    hash = executive?.password ?? null;
+  } else {
+    const staff = await models.Staff.findByPk(staffId, { attributes: ['id', 'password'], raw: true });
+    hash = staff?.password ?? null;
+  }
+  // No hash still burns a bcrypt comparison inside `verifyPassword`, so "no
+  // such account" is not measurably faster than "wrong password".
+  return verifyPassword(candidate, hash);
+}
 
 /**
  * Is sports betting locked anywhere at or above this staff account.
@@ -280,18 +490,19 @@ async function betLockState(models, staffId, { logger } = {}) {
   const { Staff, StaffHierarchy } = models;
 
   const self = await Staff.findByPk(staffId, {
-    attributes: ['id', 'name', 'sports_betlocked', 'system_locked', 'parent_id'],
+    attributes: ['id', 'name', 'sports_betlocked', 'system_locked', 'status', 'parent_id'],
     raw: true,
   });
   if (!self) return { staffId: Number(staffId), locked: false, found: false };
 
-  if (self.sports_betlocked || self.system_locked) {
+  const suspended = (row) => row.status != null && row.status !== 'active';
+  if (self.sports_betlocked || self.system_locked || suspended(self)) {
     return {
       staffId: Number(staffId),
       locked: true,
       found: true,
       lockedBy: Number(staffId),
-      reason: self.system_locked ? 'account locked' : 'sports betting locked',
+      reason: suspended(self) ? `account ${self.status}` : self.system_locked ? 'account locked' : 'sports betting locked',
     };
   }
 
@@ -314,9 +525,9 @@ async function betLockState(models, staffId, { logger } = {}) {
   const locked = await Staff.findOne({
     where: {
       id: ids,
-      [Op.or]: [{ sports_betlocked: true }, { system_locked: true }],
+      [Op.or]: [{ sports_betlocked: true }, { system_locked: true }, { status: { [Op.ne]: 'active' } }],
     },
-    attributes: ['id', 'sports_betlocked', 'system_locked'],
+    attributes: ['id', 'sports_betlocked', 'system_locked', 'status'],
     raw: true,
   });
 
@@ -327,7 +538,11 @@ async function betLockState(models, staffId, { logger } = {}) {
     ...(locked
       ? {
           lockedBy: Number(locked.id),
-          reason: locked.system_locked ? 'an ancestor account is locked' : 'locked by an administrator',
+          reason: suspended(locked)
+            ? 'an ancestor account is suspended'
+            : locked.system_locked
+              ? 'an ancestor account is locked'
+              : 'locked by an administrator',
         }
       : {}),
   };
@@ -336,12 +551,13 @@ async function betLockState(models, staffId, { logger } = {}) {
 /**
  * The staff accounts this caller may lock, with their current state.
  *
- * Scoped to the caller's own subtree — legacy returned whatever
+ * Scoped to the staff the caller manages (`manageableStaffIds`: their own
+ * subtree, or the whole site for a Super Admin) — legacy returned whatever
  * `visibleStaffIds(req.headers['x-staff-id'])` produced, and that header is
  * set by the caller.
  */
 async function betLockList(models, staffId, { logger } = {}) {
-  const ids = await descendantIds(models, staffId, { logger });
+  const ids = await manageableStaffIds(models, staffId, { logger });
 
   const rows = await models.Staff.findAll({
     where: { id: ids },
@@ -374,7 +590,7 @@ async function setBetLock(models, { staffId, locked, actorStaffId }, { logger } 
     return { ok: false, reason: 'an account cannot change its own bet lock' };
   }
 
-  const visible = await descendantIds(models, actorStaffId, { logger });
+  const visible = await manageableStaffIds(models, actorStaffId, { logger });
   if (!visible.map(Number).includes(Number(staffId))) {
     return { ok: false, reason: 'that account is not in your hierarchy' };
   }
@@ -449,12 +665,15 @@ async function transfersForUser(models, userId, { limit = 50, offset = 0 } = {})
 }
 
 module.exports = {
+  uplineBlock,
   transfersForUser,
   betLockState,
   betLockList,
   setBetLock,
   resolveStaff,
   descendantIds,
+  visibleStaffIds,
+  manageableStaffIds,
   normalisePermissions,
   verifyTransactionPassword,
   MAX_DEPTH,

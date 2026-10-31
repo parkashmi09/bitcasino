@@ -1,13 +1,12 @@
 'use strict';
 
-const crypto = require('node:crypto');
 const { EVENTS, AUDIENCE } = require('@ibitplay/socket');
-const { money } = require('@ibitplay/common');
+const { money, entitlements, assertCurrencySupportedFor } = require('@ibitplay/common');
 
 const errors = require('./wallet.errors');
-const { WalletService } = require('./wallet.service');
-const { REASON } = require('./wallet.constants');
+const { WalletService, creditPayload } = require('./wallet.service');
 const { MAX_RAIN_PLAYERS, MIN_TIP, TIP_BLOCKED_CURRENCIES, CHAT_ROOMS } = require('./social.constants');
+const { TipService } = require('../tip/tip.service');
 
 /**
  * The wallet and social socket events — the ones that move money.
@@ -71,9 +70,22 @@ const { MAX_RAIN_PLAYERS, MIN_TIP, TIP_BLOCKED_CURRENCIES, CHAT_ROOMS } = requir
 /** Legacy's reply shape. Clients read `status`. */
 const ok = (payload) => ({ status: true, ...payload });
 const refuse = (error) => ({ status: false, msg: error.message, error: { code: error.code } });
+/** A refusal the player can act on (a coded 4xx), as opposed to a fault that should surface. */
+const isRefusal = (error) => Boolean(error?.code) && (error.status == null || error.status < 500);
+/**
+ * Rain recipients the tip rules turn away one at a time (tips off, agent-tree player, closed
+ * account): skipped, the rain carries on. Anything else (limits, balance, rate) stops it.
+ */
+const RAIN_SKIP = new Set(['TIP_USER_NOT_FOUND', 'TIP_DISABLED_BY_RECIPIENT', 'TIP_RECIPIENT_UNAVAILABLE', 'TIP_SELF']);
 
 function register({ on, deps }) {
   const wallet = new WalletService(deps);
+  /*
+   * Chat tips and rain go through the tip module, not a bare wallet transfer: the same plan
+   * switch, per-player "Allow tips", agent-tree rules, operator limits, ledger reasons, `tips`
+   * row and notification as the wallet's Tip tab. Before this, a socket message skipped all of it.
+   */
+  const tips = new TipService(deps);
   const { models, logger } = deps;
 
   /** Resolve a display name to an id, for the tip target. */
@@ -100,45 +112,27 @@ function register({ on, deps }) {
       const currency = String(coin ?? '').toUpperCase();
 
       try {
+        await entitlements.assertFeatureEntitled('tips');
         if (TIP_BLOCKED_CURRENCIES.includes(currency)) {
           // Legacy's `if (coin === "nc") return "NC is the test coin !"`.
           throw errors.CURRENCY_NOT_TIPPABLE({ currency });
         }
+        assertCurrencySupportedFor('TIPS', currency);
 
         const minor = money.toMinor(String(amount ?? '0'));
         if (minor < money.toMinor(MIN_TIP)) throw errors.TIP_TOO_SMALL({ minimum: MIN_TIP });
 
-        const recipient = await idOfName(target);
-        // One code for "no such player" and "closed account" — a tip box that
-        // distinguishes them is a way to enumerate usernames.
-        if (!recipient || recipient.status === 'closed') throw errors.TIP_TARGET_NOT_FOUND();
-        if (String(recipient.id) === String(context.userId)) throw errors.TIP_TO_SELF();
+        const result = await tips.send({
+          userId: context.userId,
+          toUsername: String(target ?? '').trim().slice(0, 50),
+          currency,
+          amount: money.toDecimalString(minor),
+        });
 
-        const result = await wallet.transfer(
-          {
-            fromUserId: String(context.userId),
-            toUserId: String(recipient.id),
-            currency,
-            amount: money.toDecimalString(minor),
-            /**
-             * A key derived from the sender, the target and a random nonce, so
-             * a socket retry of the SAME message moves the money once — and
-             * two deliberate tips of the same amount still both go through.
-             */
-            idempotencyKey: `tip:${context.userId}:${recipient.id}:${crypto.randomUUID()}`,
-            description: 'Tip',
-          },
-          { reason: REASON.TRANSFER_OUT }
-        );
-
-        logger?.info(
-          { from: String(context.userId), to: String(recipient.id), currency, amount: money.toDecimalString(minor) },
-          'Tip sent'
-        );
-
-        return ok({ target: String(recipient.id), amount: money.toDecimalString(minor), currency, ...result });
+        logger?.info({ from: String(context.userId), tipId: result.tipId, currency, amount: result.amount }, 'Chat tip sent');
+        return ok({ target: result.toUsername, amount: result.amount, currency, tipId: result.tipId, balance: result.balance });
       } catch (error) {
-        if (error.code?.startsWith('WALLET_')) return refuse(error);
+        if (isRefusal(error)) return refuse(error);
         throw error;
       }
     },
@@ -175,39 +169,38 @@ function register({ on, deps }) {
          * sender excluded. Legacy picked them from `chat_${room}` — a table
          * name built by concatenation from the message.
          */
-        const recipients = await recentChatters({ models, room, excludeUserId: context.userId, limit: count });
-        if (recipients.length < count) throw errors.RAIN_NOT_ENOUGH_PLAYERS({ wanted: count, found: recipients.length });
+        await entitlements.assertFeatureEntitled('tips');
+        assertCurrencySupportedFor('TIPS', currency);
+        // Twice as many candidates as wanted: some will have tips off or be agent-tree players.
+        const candidates = await recentChatters({ models, room, excludeUserId: context.userId, limit: count * 2 });
+        const names = new Map(
+          (await models.Users.findAll({ where: { id: candidates.map((r) => r.id) }, attributes: ['id', 'name'], raw: true }))
+            .map((u) => [String(u.id), u.name])
+        );
 
         /**
-         * Each transfer is its own atomic operation. The FIRST one that cannot
-         * be afforded stops the rain, and the ones already sent stand — the
-         * alternative is holding a transaction open across N transfers, which
-         * on a busy wallet is a lock somebody else is waiting behind.
-         *
-         * The reply says how many landed, so the sender is never told a rain
-         * of ten succeeded when six did.
+         * One tip per recipient through the tip module (each atomic, each its own `tips` row).
+         * A recipient the rules turn away is skipped; the first refusal that is about the SENDER
+         * (balance, limits, rate) stops the rain, and the tips already sent stand. The reply says
+         * how many landed, so the sender is never told a rain of ten succeeded when six did.
          */
         const paid = [];
-        const nonce = crypto.randomUUID();
-
-        for (const recipient of recipients) {
+        let stoppedBy = null;
+        for (const recipient of candidates) {
+          if (paid.length === count) break;
+          const name = names.get(String(recipient.id));
+          if (!name) continue;
           try {
-            await wallet.transfer(
-              {
-                fromUserId: String(context.userId),
-                toUserId: String(recipient.id),
-                currency,
-                amount: money.toDecimalString(each),
-                idempotencyKey: `rain:${nonce}:${recipient.id}`,
-                description: 'Rain',
-              },
-              { reason: REASON.TRANSFER_OUT }
-            );
+            await tips.send({ userId: context.userId, toUsername: name, currency, amount: money.toDecimalString(each), note: 'Rain' });
             paid.push(String(recipient.id));
           } catch (error) {
-            if (error.code === errors.INSUFFICIENT_FUNDS.code) break;
+            if (RAIN_SKIP.has(error?.code)) continue;
+            if (isRefusal(error)) { stoppedBy = error; break; }
             throw error;
           }
+        }
+        if (!paid.length && !stoppedBy && candidates.length < count) {
+          throw errors.RAIN_NOT_ENOUGH_PLAYERS({ wanted: count, found: candidates.length });
         }
 
         logger?.info(
@@ -215,7 +208,7 @@ function register({ on, deps }) {
           'Rain sent'
         );
 
-        if (!paid.length) throw errors.INSUFFICIENT_FUNDS({ currency });
+        if (!paid.length) throw stoppedBy ?? errors.RAIN_NOT_ENOUGH_PLAYERS({ wanted: count, found: 0 });
 
         return ok({
           players: paid.length,
@@ -226,7 +219,7 @@ function register({ on, deps }) {
           recipients: paid,
         });
       } catch (error) {
-        if (error.code?.startsWith('WALLET_')) return refuse(error);
+        if (isRefusal(error)) return refuse(error);
         throw error;
       }
     },
@@ -247,12 +240,8 @@ function register({ on, deps }) {
   on(EVENTS.CREDIT, {
     audience: AUDIENCE.USER,
     handle: async (_payload, context) => {
-      const balances = await wallet.getBalances(String(context.userId));
-      return ok({
-        credit: Object.fromEntries(
-          Object.entries(balances).map(([code, value]) => [code.toLowerCase(), value])
-        ),
-      });
+      // The same payload the wallet pushes after every movement.
+      return creditPayload(await wallet.getBalances(String(context.userId)));
     },
   });
 

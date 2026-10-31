@@ -65,26 +65,22 @@ class WalletClient {
    */
   async debit({ userId, currency, amount, reason, ref, description, ...context }) {
     return this.client.post('/internal/user/wallet/debit', {
-      body: {
-        userId, currency, amount, reason, description,
-        idempotencyKey: this.key(reason, ref),
-        refType: ref.type,
-        refId: String(ref.id),
-        ...context,
-      },
+      userId, currency, amount, reason, description,
+      idempotencyKey: this.key(reason, ref),
+      refType: ref.type,
+      refId: String(ref.id),
+      ...context,
     });
   }
 
   /** Give money to a player. */
   async credit({ userId, currency, amount, reason, ref, description, ...context }) {
     return this.client.post('/internal/user/wallet/credit', {
-      body: {
-        userId, currency, amount, reason, description,
-        idempotencyKey: this.key(reason, ref),
-        refType: ref.type,
-        refId: String(ref.id),
-        ...context,
-      },
+      userId, currency, amount, reason, description,
+      idempotencyKey: this.key(reason, ref),
+      refType: ref.type,
+      refId: String(ref.id),
+      ...context,
     });
   }
 
@@ -97,11 +93,9 @@ class WalletClient {
    */
   async rollback({ ledgerId, reason = 'Compensating rollback' }) {
     return this.client.post('/internal/user/wallet/rollback', {
-      body: {
-        ledgerId,
-        reason,
-        idempotencyKey: `${this.service}:ROLLBACK:LEDGER:${ledgerId}`,
-      },
+      ledgerId,
+      reason,
+      idempotencyKey: `${this.service}:ROLLBACK:LEDGER:${ledgerId}`,
     });
   }
 

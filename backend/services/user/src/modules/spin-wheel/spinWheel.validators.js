@@ -21,7 +21,7 @@ const slice = z.object({
    * checking, so a `-5` shifted the whole distribution silently.
    */
   weight: z.coerce.number().int().min(0).max(1_000_000).optional(),
-});
+}).strict();
 
 const updateConfig = {
   body: z
@@ -30,6 +30,12 @@ const updateConfig = {
       claimCooldownDays: z.coerce.number().int().min(0).max(3650).optional(),
       isActive: z.coerce.boolean().optional(),
       unlimitedSpin: z.coerce.boolean().optional(),
+      // Per-deposit cap on a spin code's bonus, in the reward currency.
+      maxBonus: moneyAmount.optional(),
+      // The spin bonus's rollover (null = use the first-deposit multiplier) and how many days an
+      // unwagered spin bonus stays in the bonus balance (migration 076).
+      wagerMultiplier: z.number().min(0).max(100).nullable().optional(),
+      bonusExpiryDays: z.coerce.number().int().min(0).max(3650).optional(),
     })
     .strict(),
 };
@@ -57,9 +63,11 @@ const bulkSlices = {
 const listing = {
   query: z.object({
     userId: id.optional(),
+    // Direct Users | Agent Users — na ho to sab (purana jawab).
+    channel: z.enum(['direct', 'agent']).optional(),
     limit: z.coerce.number().int().min(1).max(200).default(50),
     offset: z.coerce.number().int().min(0).default(0),
-  }),
+  }).strict(),
 };
 
 /** No `user_id` — legacy took it from the query string and the body. */
@@ -67,7 +75,7 @@ const paging = {
   query: z.object({
     limit: z.coerce.number().int().min(1).max(200).default(50),
     offset: z.coerce.number().int().min(0).default(0),
-  }),
+  }).strict(),
 };
 
 module.exports = { updateConfig, addSlice, updateSlice, sliceParam, bulkSlices, listing, paging };

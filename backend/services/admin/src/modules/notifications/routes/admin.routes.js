@@ -63,5 +63,24 @@ module.exports = function adminRoutes(deps) {
     ctrl.broadcast
   );
 
+  router.get('/sends', canRead, validate(v.listSends), ctrl.listSends);
+  router.patch(
+    '/sends/:sendId',
+    canSend,
+    validate(v.updateSend),
+    withActivity({
+      action: 'notification.update',
+      describe: (req) => ({ targetType: 'NOTIFICATION', targetId: req.params.sendId, details: { title: req.body.title, body: req.body.body } }),
+    }),
+    ctrl.updateSend
+  );
+  router.delete(
+    '/sends/:sendId',
+    canSend,
+    validate(v.deleteSend),
+    withActivity({ action: 'notification.delete', describe: (req) => ({ targetType: 'NOTIFICATION', targetId: req.params.sendId }) }),
+    ctrl.deleteSend
+  );
+
   return router;
 };

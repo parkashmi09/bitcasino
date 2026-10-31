@@ -259,7 +259,7 @@ recently.
 
 ## 6. Session tokens
 
-- The token is a JWT signed with the string `"keyboardca4ever"`, committed in
+- The token is a JWT signed with the string `"<redacted, see backend/docs/ROTATION.md>"`, committed in
   `legacy/Users/Rule.js` — already on the rotation list, and it mints a session
   for any player id.
 - `Token.refresh` (the logout path) generates its replacement with
@@ -449,7 +449,7 @@ direction moves real money.
 
 Three more things about that file, for whoever picks it up:
 
-- `TOKEN = "fb216c4fead6630de2551643267d5ab0"` with `PID = 3064`, hardcoded.
+- `TOKEN = "<redacted, see backend/docs/ROTATION.md>"` with `PID = 3064`, hardcoded.
   Added to `tools/check-secrets.js` and `docs/ROTATION.md`.
 - `CALLBACK = "http://api-transfer-wallet.8provider.com/callback_handler"` —
   plain HTTP, for a callback that moves money.

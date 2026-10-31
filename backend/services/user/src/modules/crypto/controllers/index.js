@@ -2,6 +2,8 @@
 
 const { response, asyncHandler } = require('@ibitplay/common');
 
+const { networksFor, allNetworks } = require('../crypto.networks');
+
 function createControllers({ service }) {
   const page = (q) => ({ page: Math.floor(q.offset / q.limit) + 1, limit: q.limit });
 
@@ -23,7 +25,7 @@ function createControllers({ service }) {
       });
 
       req.log?.info({ result }, 'CCPayment webhook handled');
-      return res.status(200).send('success');
+      return res.status(200).send('Success');
     }),
 
     /** @legacy POST /getCoinDetails */
@@ -31,6 +33,17 @@ function createControllers({ service }) {
 
     /** @legacy GET /getAllChains */
     chains: asyncHandler(async (_req, res) => response.ok(res, await service.chains())),
+
+    /**
+     * The networks a deposit / withdrawal screen offers: keys are the
+     * contract (`COIN_NETWORKS`), names and on/off come from the coin
+     * registry. `?coin=USDT` → `{ coin, networks }`; none → every coin's.
+     */
+    networks: asyncHandler(async (req, res) => {
+      const { coin } = req.query;
+      if (coin) return response.ok(res, { coin, networks: await networksFor(coin) });
+      return response.ok(res, await allNetworks());
+    }),
 
     /** @legacy POST /inrhistory */
     inrHistory: asyncHandler(async (req, res) => {

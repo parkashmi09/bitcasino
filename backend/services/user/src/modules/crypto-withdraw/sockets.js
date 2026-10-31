@@ -1,11 +1,13 @@
 'use strict';
 
 const { EVENTS, AUDIENCE } = require('@ibitplay/socket');
-const { money } = require('@ibitplay/common');
-const { verifyPassword } = require('@ibitplay/auth');
-const { Op, literal } = require('sequelize');
+const { sitePolicy, currencyRegistry, assertCurrencySupportedFor } = require('@ibitplay/common');
+const { verifyPassword, assertPlayerCapability } = require('@ibitplay/auth');
 
 const errors = require('./cryptoWithdraw.errors');
+const { COIN_COLUMNS } = require('./cryptoWithdraw.constants');
+const { CryptoWithdrawService } = require('./cryptoWithdraw.service');
+const { networksFor } = require('../crypto/crypto.networks');
 const { SwapService } = require('../swap/swap.service');
 
 /**
@@ -42,49 +44,50 @@ const { SwapService } = require('../swap/swap.service');
 
 const ok = (payload) => ({ status: true, ...payload });
 const refuse = (error) => ({ status: error.message, error: { code: error.code } });
-
-/** The wallet column a coin lives on. A map, never a string in the SQL. */
-const COIN_COLUMNS = Object.freeze({
-  BTC: 'btc', ETH: 'eth', LTC: 'ltc', BCH: 'bch', USDT: 'usdt', TRX: 'trx',
-  DOGE: 'doge', ADA: 'ada', XRP: 'xrp', BNB: 'bnb', USDC: 'usdc', BUSD: 'busd',
-  SHIB: 'shib', MATIC: 'matic', INR: 'inr',
-});
-
-/** `nc` is play money — legacy refuses it here too. */
-const BLOCKED = ['NC'];
+/** The wagering refusal carries what is left to wager, as the HTTP rails do (`details`). */
+const refuseWithDetails = (error) => ({ status: error.message, error: { code: error.code, details: error.details ?? null } });
 
 function register({ on, deps }) {
-  const { models, db, logger } = deps;
+  const { models, logger } = deps;
   const swapService = new SwapService(deps);
+  const withdrawals = new CryptoWithdrawService(deps);
 
   /**
    * @legacy SOCKET 7c0b37955cf21c7f2f3773c1268edc08
    *
    * `C.SUBMIT_NEW_WITHDRAWL` — request a payout.
+   *
+   * ─────────────────────────────────────────────────────────────────────
+   * THE MONEY MOVES IN `CryptoWithdrawService.request`, NOT HERE
+   *
+   * This handler used to debit `credits` with its own raw UPDATE — no ledger
+   * row, so `reconcile` drifted for every player who withdrew — and insert
+   * the row as `'pending'`, which the queue's state machine does not know,
+   * so staff could never approve or reject it. It now runs the cheap refusals
+   * (agent player, withdraw block, system lock, site policy), then checks the
+   * password (the socket's own gate, kept from legacy) and hands the request to the
+   * service: the guarded `WalletService.debit` WITHDRAWAL hold, the `In Queue`
+   * row, KYC and wagering (the owner's withdrawal requirements), minimum, cooldown and
+   * idempotency the fiat rail already has.
+   * ─────────────────────────────────────────────────────────────────────
    */
   on(EVENTS.SUBMIT_NEW_WITHDRAWL, {
     audience: AUDIENCE.USER,
     // Money leaving the platform. Legacy metered nothing.
     limit: { windowMs: 60 * 60_000, max: 10 },
     handle: async (payload, context) => {
-      const { wallet, amount, coin, password, chain } = payload ?? {};
-      const currency = String(coin ?? '').toUpperCase();
+      const { wallet, amount, coin, password, chain, forfeitBonus } = payload ?? {};
 
       try {
-        if (BLOCKED.includes(currency)) throw errors.UNSUPPORTED_COIN({ coin: currency });
-
-        const column = COIN_COLUMNS[currency];
-        if (!column) throw errors.UNSUPPORTED_COIN({ coin: currency });
-
-        const requested = money.toMinor(String(amount ?? '0'));
-        if (requested <= 0n) throw errors.INVALID_AMOUNT({ amount });
-
-        const address = String(wallet ?? '').trim();
-        if (!address) throw errors.INVALID_ADDRESS();
+        // Agent-tree players are refused before anything else, the password included.
+        await assertPlayerCapability(context.userId, 'withdraw');
+        // Then the other cheap refusals — a withdraw block, a system lock, the site's policy
+        // closed — so a blocked player is told why, not first that their password is wrong.
+        await withdrawals.assertMayRequest(context.userId);
 
         const user = await models.Users.findOne({
           where: { id: context.userId },
-          attributes: ['id', 'password', 'status', 'system_locked'],
+          attributes: ['id', 'password'],
           raw: true,
         });
         if (!user) throw errors.PLAYER_NOT_FOUND();
@@ -96,57 +99,38 @@ function register({ on, deps }) {
         const verified = user.password ? await verifyPassword(String(password ?? ''), user.password) : false;
         if (!verified) throw errors.PASSWORD_INCORRECT();
 
-        // A locked account cannot withdraw. Legacy checked nothing here, so a
-        // lock applied because money was going missing did not stop the payout.
-        if (user.system_locked || user.status === 'closed') throw errors.ACCOUNT_LOCKED();
-
-        const decimal = money.toDecimalString(requested);
-
-        /**
-         * ONE transaction: the guarded debit and the request row together. The
-         * row cannot exist without the money having moved, and the money
-         * cannot move without a row to account for it.
-         */
-        const result = await db.transaction(async (transaction) => {
-          const [affected] = await models.Credits.update(
-            { [column]: literal(`"${column}" - ${decimal}`) },
-            { where: { uid: context.userId, [column]: { [Op.gte]: decimal } }, transaction }
-          );
-
-          if (!affected) throw errors.INSUFFICIENT_BALANCE({ coin: currency });
-
-          const row = await models.Withdrawals.create(
-            {
-              uid: context.userId,
-              amount: decimal,
-              wallet: address,
-              // Every withdrawal is reviewed. Legacy inserted `'pending'` too.
-              status: 'pending',
-              coin: currency.toLowerCase(),
-              chain: chain ? String(chain) : null,
-              date: new Date(),
-            },
-            { transaction }
-          );
-
-          return { id: String(row.id) };
+        const result = await withdrawals.request({
+          userId: context.userId,
+          coin,
+          amount,
+          wallet,
+          chain,
+          forfeitBonus: forfeitBonus === true,
         });
 
-        logger?.warn(
-          {
-            userId: String(context.userId),
-            amount: decimal,
-            coin: currency,
-            withdrawalId: result.id,
-            // The address is NOT logged in full — it is a payment destination.
-            address: `${address.slice(0, 6)}…${address.slice(-4)}`,
-          },
-          'Withdrawal requested'
-        );
-
-        return ok({ id: result.id, amount: decimal, coin: currency, state: 'pending' });
+        // The shape this event has always answered with. `state` stays
+        // 'pending' (awaiting review); `queueStatus` is the row's real status.
+        return ok({
+          id: String(result.id),
+          amount: result.amount,
+          coin: result.coin,
+          state: 'pending',
+          queueStatus: result.status,
+        });
       } catch (error) {
-        if (error.code?.startsWith('CRYPTOWITHDRAW_')) return refuse(error);
+        // The site's own policy refusal is an answer for the player, not a server fault.
+        if (
+          error.code?.startsWith('CRYPTO_WITHDRAW_') ||
+          error.code?.startsWith('SITE_POLICY_') ||
+          error.code === 'WITHDRAW_NOT_FOR_AGENT_USERS' ||
+          error.code === 'WITHDRAW_BLOCKED' ||
+          error.code === 'BONUS_FORFEIT_REQUIRED' ||
+          error.code === 'BONUS_WAGER_REQUIRED'
+        ) {
+          return refuse(error);
+        }
+        // Wagering left, or over the deposit cap (its figures), or the cap could not be checked.
+        if (['WITHDRAW_WAGER_REQUIRED', 'WITHDRAW_CAP_EXCEEDED', 'WITHDRAW_CAP_CHECK_FAILED'].includes(error.code)) return refuseWithDetails(error);
         throw error;
       }
     },
@@ -200,6 +184,31 @@ function register({ on, deps }) {
    * `SELECT` too — it does not call out to a wallet daemon, so there is no
    * generation path here and an unallocated coin answers plainly rather than
    * inventing one.
+   *
+   * ─────────────────────────────────────────────────────────────────────
+   * `wallets` HAS NO `chain` COLUMN
+   *
+   *   CREATE TABLE public.wallets (address text, uid bigint, coin text, date …)
+   *
+   * That is the whole table, in the baseline schema and after every migration.
+   * This handler used to put `chain` in the WHERE and read `row.chain` back
+   * out, so any caller that supplied one produced
+   * `42703 column "chain" does not exist`, the handler threw, and the client
+   * got a bare `SOCKET_HANDLER_FAILED` — "That action could not be completed"
+   * — with nothing anywhere naming the column.
+   *
+   * Nothing had ever called the event, so nothing had ever hit it. Found on
+   * 3 Sep 2026 wiring the cashier's deposit panel (gap report §3.1), which is
+   * the first caller and passes a chain because a USDT address is only
+   * meaningful with one.
+   *
+   * Allocation on this schema is per (uid, coin), so that is what is looked
+   * up. The requested chain is echoed back for the client to label the address
+   * with — it is the caller's own value, not a fact from the row, and saying
+   * so is better than dropping it and letting the panel print an address under
+   * whichever network happens to be selected. `chain` belongs to
+   * `withdrawals`, which does have the column; it was borrowed here in error.
+   * ─────────────────────────────────────────────────────────────────────
    */
   on(EVENTS.GET_ADDRESS, {
     audience: AUDIENCE.USER,
@@ -207,20 +216,40 @@ function register({ on, deps }) {
       const currency = String(payload?.coin ?? '').toUpperCase();
       const chain = payload?.chain ? String(payload.chain) : null;
 
+      // A deposit address is the gateway route: the provider credits it by callback.
+      try {
+        // Agent-tree players are funded by their agent only — no deposit rail.
+        await assertPlayerCapability(context.userId, 'deposit');
+        await sitePolicy.assertAllowed(models, 'deposit_mode', 'automatic', logger);
+        // An owner-created coin has no deposit address: CURRENCY_NOT_SUPPORTED_FOR_DEPOSIT.
+        assertCurrencySupportedFor('DEPOSIT', currency);
+      } catch (error) {
+        return refuse(error);
+      }
+
       if (!COIN_COLUMNS[currency]) return refuse(errors.UNSUPPORTED_COIN({ coin: currency }));
+      // The coin registry (migration 061): a switched-off coin or network gets no address.
+      try {
+        await currencyRegistry.assertRegistryReadable();
+      } catch (error) {
+        return refuse(error);
+      }
+      if (!(await currencyRegistry.isEnabled(currency))) return refuse(errors.UNSUPPORTED_COIN({ coin: currency }));
+      if (chain) {
+        const offered = await networksFor(currency);
+        if (!offered.some((n) => n.key === chain)) {
+          return refuse(errors.NETWORK_UNAVAILABLE({ coin: currency, chain: chain.slice(0, 20), offered: offered.map((n) => n.key) }));
+        }
+      }
 
       const row = await models.Wallets.findOne({
-        where: {
-          uid: context.userId,
-          coin: currency.toLowerCase(),
-          ...(chain ? { chain } : {}),
-        },
+        where: { uid: context.userId, coin: currency.toLowerCase() },
         raw: true,
       });
 
       if (!row) return ok({ coin: currency, chain, address: null, allocated: false });
 
-      return ok({ coin: currency, chain: row.chain ?? chain, address: row.address, allocated: true });
+      return ok({ coin: currency, chain, address: row.address, allocated: true });
     },
   });
 

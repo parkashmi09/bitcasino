@@ -11,6 +11,7 @@ const { UnauthorizedError } = require('@ibitplay/common');
  *   access   — short-lived (15m), carries identity + role, sent on every call
  *   refresh  — long-lived (30d), single purpose: mint a new access token
  *   admin    — staff tokens, signed with JWT_ADMIN_SECRET
+ *   branch   — branch logins (admin modules/branches), a key derived from the admin one
  *
  * Separate secrets are the point. If the access secret leaks, an attacker can
  * forge a player session until it expires — bad. If one shared secret leaked,
@@ -20,13 +21,15 @@ const { UnauthorizedError } = require('@ibitplay/common');
  * invalidating every token the player holds.
  */
 
-const TOKEN_TYPES = { ACCESS: 'access', REFRESH: 'refresh', ADMIN: 'admin' };
+const TOKEN_TYPES = { ACCESS: 'access', REFRESH: 'refresh', ADMIN: 'admin', BRANCH: 'branch' };
 
 class TokenService {
   constructor(config) {
     this.accessSecret = config.JWT_ACCESS_SECRET;
     this.refreshSecret = config.JWT_REFRESH_SECRET;
     this.adminSecret = config.JWT_ADMIN_SECRET || config.JWT_ACCESS_SECRET;
+    // Its own key, so a branch token never verifies as a staff (or player) token; derived, so no new env key.
+    this.branchSecret = this.adminSecret && crypto.createHmac('sha256', this.adminSecret).update('branch-token').digest('hex');
     this.accessTtl = config.JWT_ACCESS_TTL || '15m';
     this.refreshTtl = config.JWT_REFRESH_TTL || '30d';
     this.adminTtl = config.JWT_ADMIN_TTL || '8h';
@@ -43,17 +46,18 @@ class TokenService {
   }
 
   /** Player access token. Keep the payload small — it rides on every request. */
-  signAccessToken({ userId, sessionId, role = 'player', status = 'active', extra = {} }) {
-    return jwt.sign(
-      { sub: String(userId), sid: sessionId, type: TOKEN_TYPES.ACCESS, role, status, ...extra },
-      this.accessSecret,
-      {
-        expiresIn: this.accessTtl,
-        issuer: this.issuer,
-        audience: this.audience,
-        jwtid: crypto.randomUUID(),
-      }
-    );
+  signAccessToken({ userId, sessionId, role = 'player', status = 'active', extra = {}, notAfter = null }) {
+    const sign = (expiresIn) =>
+      jwt.sign(
+        { sub: String(userId), sid: sessionId, type: TOKEN_TYPES.ACCESS, role, status, ...extra },
+        this.accessSecret,
+        { expiresIn, issuer: this.issuer, audience: this.audience, jwtid: crypto.randomUUID() }
+      );
+    const token = sign(this.accessTtl);
+    // `notAfter` (a Date): the session's own end — an access token never outlives it.
+    if (!notAfter) return token;
+    const left = Math.max(1, Math.floor((new Date(notAfter).getTime() - Date.now()) / 1000));
+    return jwt.decode(token).exp > Math.floor(Date.now() / 1000) + left ? sign(left) : token;
   }
 
   /** Refresh token — deliberately carries nothing but the session identity. */
@@ -67,7 +71,7 @@ class TokenService {
   }
 
   /** Staff token. Permissions are embedded so routine checks need no DB round trip. */
-  signAdminToken({ staffId, roleId, roleName, level, executiveId = null, permissions = null }) {
+  signAdminToken({ staffId, roleId, roleName, level, executiveId = null, permissions = null, tokenVersion = 0, executiveTokenVersion = 0, readOnly = false }) {
     return jwt.sign(
       {
         sub: String(staffId),
@@ -75,10 +79,24 @@ class TokenService {
         roleId,
         roleName,
         level,
-        ...(executiveId ? { executiveId } : {}),
+        // `staff.token_version` at issue; the guard refuses it once logout / a password or 2FA change bumps it.
+        tv: Number(tokenVersion) || 0,
+        // `executives.token_version`: the executive's logout bumps it without signing the parent out.
+        ...(executiveId ? { executiveId, etv: Number(executiveTokenVersion) || 0 } : {}),
         ...(permissions ? { permissions } : {}),
+        // Whitelabel preview (admin modules/whitelabel-link): every write is refused — middleware.js.
+        ...(readOnly ? { ro: true } : {}),
       },
       this.adminSecret,
+      { expiresIn: this.adminTtl, issuer: this.issuer, audience: this.audience, jwtid: crypto.randomUUID() }
+    );
+  }
+
+  /** Branch token (admin modules/branches). `tv` = `branches.token_version` at issue. */
+  signBranchToken({ branchId, tokenVersion = 0 }) {
+    return jwt.sign(
+      { sub: String(branchId), type: TOKEN_TYPES.BRANCH, tv: Number(tokenVersion) || 0 },
+      this.branchSecret,
       { expiresIn: this.adminTtl, issuer: this.issuer, audience: this.audience, jwtid: crypto.randomUUID() }
     );
   }
@@ -89,7 +107,13 @@ class TokenService {
    */
   verify(token, type = TOKEN_TYPES.ACCESS) {
     const secret =
-      type === TOKEN_TYPES.REFRESH ? this.refreshSecret : type === TOKEN_TYPES.ADMIN ? this.adminSecret : this.accessSecret;
+      type === TOKEN_TYPES.REFRESH
+        ? this.refreshSecret
+        : type === TOKEN_TYPES.ADMIN
+          ? this.adminSecret
+          : type === TOKEN_TYPES.BRANCH
+            ? this.branchSecret
+            : this.accessSecret;
 
     let payload;
     try {

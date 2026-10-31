@@ -1,10 +1,15 @@
 'use strict';
 
-const { Op, fn, col, literal } = require('sequelize');
+const { Op, fn, col, literal, where: sqlWhere } = require('sequelize');
 const { money } = require('@ibitplay/common');
 
 const errors = require('./depositReports.errors');
-const { SOURCES, statusBucket, BUCKET } = require('./depositReports.constants');
+const { SOURCES, statusBucket, BUCKET, CCPAYMENT_COINS, FIAT_WITHDRAWN } = require('./depositReports.constants');
+const { ccpaymentTicker } = require('../payment-orders/gateways');
+const { withChannel } = require('../directory/playerScope');
+
+/** `money`'s minor units per one unit. */
+const USD_SCALE = money.toMinor('1');
 
 /**
  * Staff deposit reporting — crypto and fiat, listed and totalled.
@@ -52,36 +57,56 @@ class DepositReportsService {
   //  Crypto
   // ══════════════════════════════════════════════════════════════════════
 
-  /** @legacy GET /depositHistory/crypto/deposits */
-  async listCryptoDeposits({ staff, status, from, to, userId, chain, limit = 10, offset = 0 }) {
-    const where = await this.#cryptoScope(staff, { status, from, to, userId, chain });
-    const rate = await this.#inrPerUsd();
+  /**
+   * @legacy GET /depositHistory/crypto/deposits
+   *
+   * `ccdeposit` holds the deposit in the COIN, not in USD: `paymentOrders`
+   * writes the coin amount to `price` and leaves `amount` unset, and older
+   * rows carry it in `amount`. Reading `amount` as USD showed 0.001 BTC as
+   * "0.00 USD". So each row returns the coin amount and its ticker, and a USD
+   * value only when the rate table prices that coin — the rule the finance
+   * charts (`reports/financeStats.service.js`) follow. An unpriced coin is
+   * `amountUsd: null`, never a made-up figure.
+   */
+  async listCryptoDeposits({ staff, status, from, to, userId, chain, coin, channel, limit = 10, offset = 0 }) {
+    // `ccdeposit.userid` VARCHAR hai.
+    const where = withChannel(await this.#cryptoScope(staff, { status, from, to, userId, chain }), 'userid', channel, { text: true });
+    // `ccdeposit` keys the coin by CCPayment's numeric id: a ticker filter is
+    // every id that reads as it (the configured map, then the built-in one).
+    // A coin no id maps to matches nothing.
+    if (coin) where.coinid = { [Op.in]: this.#coinIdsFor(coin) };
 
-    const { rows, count } = await this.models.Ccdeposit.findAndCountAll({
-      where,
-      order: [['created_at', 'DESC']],
-      limit,
-      offset,
-      raw: true,
-    });
+    const [{ rows, count }, rates] = await Promise.all([
+      this.models.Ccdeposit.findAndCountAll({
+        where,
+        order: [['created_at', 'DESC']],
+        limit,
+        offset,
+        raw: true,
+      }),
+      this.#usdPerUnit(),
+    ]);
 
     return {
       total: count,
-      rows: rows.map((row) => ({
-        id: row.id,
-        userId: row.userid,
-        chain: row.chain,
-        orderId: row.orderid,
-        address: row.deposit_address,
-        status: row.status,
-        // `ccdeposit.amount` is USD (USDT ≈ USD). Both figures are returned:
-        // the original is what the chain actually moved, and rounding it away
-        // makes a support query unanswerable.
-        amountUsd: money.toDecimalString(money.toMinor(row.amount ?? '0')),
-        amountInr: money.toDecimalString(money.multiply(row.amount ?? '0', rate)),
-        createdAt: row.created_at,
-      })),
-      rateUsdToInr: rate,
+      rows: rows.map((row) => {
+        const coin = this.#coinSymbol(row.coinid);
+        const amountMinor = money.toMinorQuantised(String(row.price ?? row.amount ?? '0'));
+        const rate = rates.get(coin);
+        return {
+          id: row.id,
+          userId: row.userid,
+          chain: row.chain,
+          orderId: row.orderid,
+          address: row.deposit_address,
+          status: row.status,
+          coinId: row.coinid ?? null,
+          coin,
+          amount: money.toDecimalString(amountMinor),
+          amountUsd: rate == null ? null : money.toDecimalString((amountMinor * rate) / USD_SCALE),
+          createdAt: row.created_at,
+        };
+      }),
     };
   }
 
@@ -268,7 +293,12 @@ class DepositReportsService {
       }, 'amount'),
       this.#sum(this.models.FiatDeposits, { user_id: String(userId), status: 'approved' }, 'amount'),
       this.#sum(this.models.Deposits, { uid: userId }, 'amount'),
-      this.#sum(this.models.FiatWithdrawals, { uid: userId, status: 'Approved' }, 'amount'),
+      // Withdrawn: Approved or Paid (FIAT_WITHDRAWN). 'Approved' alone dropped
+      // a withdrawal from the P&L the moment it was marked Paid.
+      this.#sum(this.models.FiatWithdrawals, {
+        uid: userId,
+        [Op.and]: [sqlWhere(fn('LOWER', col('status')), { [Op.in]: FIAT_WITHDRAWN })],
+      }, 'amount'),
       this.models.Credits.findOne({ where: { uid: userId }, raw: true }),
     ]);
 
@@ -478,6 +508,48 @@ class DepositReportsService {
     // `usd_rate` is USD per 1 unit of the currency, so 1 INR ≈ 0.0108 USD.
     // Inverting gives INR per USD.
     return money.toDecimalString(money.divide('1', String(usdPerInr)));
+  }
+
+  /**
+   * USD per one unit of each currency, as minor units — or nothing for a
+   * currency the table does not price. USD itself is 1 with or without a row.
+   */
+  async #usdPerUnit() {
+    const rows = await this.models.Exchangerate.findAll({ attributes: ['currency', 'usd_rate'], raw: true });
+    const rates = new Map([['USD', USD_SCALE]]);
+    for (const row of rows) {
+      const code = String(row.currency ?? '').toUpperCase();
+      const rate = Number(row.usd_rate);
+      if (code && Number.isFinite(rate) && rate > 0) rates.set(code, money.toMinorQuantised(String(row.usd_rate)));
+    }
+    return rates;
+  }
+
+  /** Ticker → every `ccdeposit.coinid` that `#coinSymbol` reads as it. */
+  #coinIdsFor(coin) {
+    const wanted = String(coin).toUpperCase();
+    const ids = new Set();
+    let map = this.config?.CCPAYMENT_COIN_IDS;
+    if (typeof map === 'string') {
+      try {
+        map = JSON.parse(map);
+      } catch {
+        map = null;
+      }
+    }
+    if (map && typeof map === 'object') {
+      for (const [ticker, id] of Object.entries(map)) if (String(ticker).toUpperCase() === wanted && Number.isFinite(Number(id))) ids.add(Number(id));
+    }
+    for (const [id, ticker] of Object.entries(CCPAYMENT_COINS)) {
+      if (ticker === wanted && this.#coinSymbol(id) === wanted) ids.add(Number(id));
+    }
+    return [...ids];
+  }
+
+  /** `ccdeposit.coinid` → ticker; an unknown id reads `#<id>`, as on the finance charts. */
+  #coinSymbol(coinId) {
+    if (coinId == null) return null;
+    return ccpaymentTicker(coinId, this.config)?.toUpperCase() ?? CCPAYMENT_COINS[Number(coinId)] ?? `#${coinId}`;
   }
 
   /** Every currency's USD rate, for the cross-currency total. */

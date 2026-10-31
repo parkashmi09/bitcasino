@@ -15,7 +15,8 @@ module.exports = {
   name: 'wager-report',
   service: 'casino',
   basePath: '/wager',
-  models: ['casino'],
+  // `extended` for `game_transactions` (jsGames v2), which the race turnover reads.
+  models: ['casino', 'extended'],
   routers: {
     internal: require('./routes/internal.routes'),
   },

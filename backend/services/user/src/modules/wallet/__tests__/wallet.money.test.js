@@ -7,7 +7,8 @@ const db = require('@ibitplay/db');
 const { createLogger, money } = require('@ibitplay/common');
 
 const { WalletService } = require('../wallet.service');
-const { REASON } = require('../wallet.constants');
+const { REASON, SUPPORTED_CURRENCIES, KNOWN_CURRENCIES } = require('../wallet.constants');
+const v = require('../wallet.validators');
 
 /**
  * The money guarantees, against a real PostgreSQL.
@@ -374,6 +375,34 @@ test('wallet money guarantees', async (t) => {
     assert.equal(report.balanced, true, `wallet drifted from its ledger by ${report.drift}`);
   });
 
+  await t.test('reconcile with no currency reports every currency the wallet has', async () => {
+    const uid = newUid();
+    await seedWallet(uid, '0');
+
+    await service.credit({ userId: uid, currency: 'INR', amount: '100', reason: REASON.DEPOSIT, idempotencyKey: `t-recall1-${uid}` });
+    await service.credit({ userId: uid, currency: 'USDT', amount: '5', reason: REASON.DEPOSIT, idempotencyKey: `t-recall2-${uid}` });
+    // A balance changed with no ledger row behind it: the drift the report exists to find.
+    await connection.models.Credits.update({ usdt: '7' }, { where: { uid } });
+
+    const report = await service.reconcileAll({ userId: uid });
+    assert.equal(report.userId, uid);
+    assert.equal(report.balanced, false);
+    const byCode = Object.fromEntries(report.currencies.map((c) => [c.currency, c]));
+    assert.equal(byCode.INR.balanced, true);
+    assert.equal(byCode.INR.ledgerSum, '100.00000000');
+    assert.equal(byCode.USDT.balanced, false);
+    assert.equal(byCode.USDT.drift, '2.00000000');
+    // Each entry keeps the single-currency shape.
+    assert.deepEqual(Object.keys(byCode.INR).sort(), ['balance', 'balanced', 'currency', 'drift', 'ledgerSum', 'userId']);
+
+    // The route's validator: no currency is accepted now, a junk one still a 422.
+    assert.equal(v.adminReconcile.query.safeParse({}).success, true);
+    assert.equal(v.adminReconcile.query.parse({ currency: 'inr' }).currency, 'INR');
+    assert.equal(v.adminReconcile.query.safeParse({ currency: 'NOPE!' }).success, false);
+
+    await assert.rejects(() => service.reconcileAll({ userId: newUid() }), (e) => e.status === 404 && e.message === 'No wallet exists for this player');
+  });
+
   await t.test('an unsupported currency never reaches SQL', async () => {
     const uid = newUid();
     await seedWallet(uid, '100');
@@ -388,5 +417,95 @@ test('wallet money guarantees', async (t) => {
 
     const stillThere = await connection.models.Credits.count({ where: { uid } });
     assert.equal(stillThere, 1, 'the credits table must still exist and hold the row');
+  });
+  // ══════════════════════════════════════════════════════════════════════
+  //  Retired coins (BJB): readable and debitable, never credited
+  // ══════════════════════════════════════════════════════════════════════
+
+  await t.test('crediting a retired coin is refused with CURRENCY_RETIRED and writes nothing', async () => {
+    const uid = newUid();
+    await connection.models.Credits.destroy({ where: { uid } });
+    await connection.models.Credits.create({ uid, bjb: '0' });
+
+    await assert.rejects(
+      () => service.credit({
+        userId: uid, currency: 'BJB', amount: '5',
+        reason: REASON.BONUS, idempotencyKey: `t-retired-${uid}`,
+      }),
+      (error) => error.code === 'WALLET_CURRENCY_RETIRED' && error.status === 422
+    );
+    // Lower case too — the check is on the code, not its spelling.
+    await assert.rejects(
+      () => service.credit({
+        userId: uid, currency: 'bjb', amount: '5',
+        reason: REASON.BONUS, idempotencyKey: `t-retired-lc-${uid}`,
+      }),
+      (error) => error.code === 'WALLET_CURRENCY_RETIRED'
+    );
+
+    const row = await connection.models.Credits.findOne({ where: { uid }, raw: true });
+    assert.equal(money.toDecimalString(money.toMinor(row?.bjb ?? '0')), '0.00000000');
+    const ledger = await connection.models.CreditsLedger.count({ where: { user_id: String(uid) } });
+    assert.equal(ledger, 0, 'a refused credit leaves no ledger row');
+  });
+
+  await t.test('a retired coin can still be debited, and is listed only while held', async () => {
+    const uid = newUid();
+    await connection.models.Credits.destroy({ where: { uid } });
+    await connection.models.Credits.create({ uid, bjb: '10', usdt: '0' });
+
+    assert.equal((await service.getBalances(uid)).BJB, '10.00000000');
+
+    const debit = await service.debit({
+      userId: uid, currency: 'BJB', amount: '10',
+      reason: REASON.BET_STAKE, idempotencyKey: `t-retired-debit-${uid}`,
+    });
+    assert.equal(debit.newBalance, '0.00000000');
+
+    const after = await service.getBalances(uid);
+    assert.equal('BJB' in after, false, 'a zero retired balance is not listed');
+    assert.equal(after.USDT, '0.00000000', 'live coins are listed at zero as before');
+  });
+
+  await t.test('the staff Ledger tab lists swap legs and Sports Exchange bets beside the wallet history', async () => {
+    const uid = newUid();
+    await seedWallet(uid, '100');
+    await service.debit({ userId: uid, currency: CURRENCY, amount: '10', reason: REASON.BET_STAKE, idempotencyKey: `t-staff-history-${uid}` });
+    const { CreditsLedger, WalletHistory } = connection.models;
+    const leg = (currency, amount, reason) => ({
+      user_id: String(uid), currency, amount, reason, description: 'Swap USDT -> INR', balance: 0, closing: 0,
+      netamount: 0, profit: 0, loss: 0, commission: 0, source_service: 'user-service', meta: { swap: true },
+    });
+    await CreditsLedger.bulkCreate([leg('USDT', '-30', REASON.TRANSFER_OUT), leg('INR', '2475', REASON.TRANSFER_IN)]);
+    const q = (sql) => connection.sequelize.query(sql, { replacements: { uid: String(uid) } });
+    await q(`INSERT INTO mssports.debit_ledger (user_id, currency, amount, reason, description, balance, created_at)
+             VALUES (:uid, 'INR', 100, 'bet_placed', 'AFG v ZIM', 2375, now())`);
+    try {
+      const all = await service.listStaffHistory({ userId: uid, limit: 50, offset: 0 });
+      assert.equal(all.count, 4, 'the debit, both swap legs and the sports bet');
+      const by = (prefix) => all.rows.filter((r) => String(r.id).startsWith(prefix)).map((r) => [r.coin, r.operation, money.toDecimalString(money.toMinorQuantised(r.amount))]);
+      assert.deepEqual(by('swap-').sort(), [['INR', 'credit', '2475.00000000'], ['USDT', 'debit', '30.00000000']]);
+      assert.deepEqual(by('sports-bet-'), [['INR', 'debit', '100.00000000']]);
+      const usdt = await service.listStaffHistory({ userId: uid, currency: 'USDT', limit: 50, offset: 0 });
+      assert.equal(usdt.count, 1, 'a USDT page has the USDT leg only — sports bets are INR');
+    } finally {
+      await q('DELETE FROM mssports.debit_ledger WHERE user_id = :uid');
+      await CreditsLedger.destroy({ where: { user_id: String(uid) } });
+      await WalletHistory.destroy({ where: { uid } });
+    }
+  });
+
+  await t.test('validators: BJB is known for reads and debits, never offered', async () => {
+    assert.equal(SUPPORTED_CURRENCIES.includes('BJB'), false);
+    assert.equal(KNOWN_CURRENCIES.includes('BJB'), true);
+    assert.equal(v.currency.safeParse('BJB').success, false);
+    assert.equal(v.knownCurrency.safeParse('bjb').success, true);
+    assert.equal(
+      v.transfer.body.safeParse({
+        fromUserId: 1, toUserId: 2, currency: 'BJB', amount: '1', idempotencyKey: 'transfer-key-1',
+      }).success,
+      false,
+      'a transfer credits its receiver, so a retired coin is refused'
+    );
   });
 });

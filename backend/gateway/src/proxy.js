@@ -41,7 +41,7 @@ const agents = {
  * @param {string} options.name       Upstream name, for logs and errors.
  * @param {number} options.timeoutMs
  */
-function createProxy({ target, name, timeoutMs = 35_000, logger }) {
+function createProxy({ target, name, timeoutMs = 35_000, logger, encryption }) {
   const base = new URL(target);
 
   return function proxyMiddleware(req, res, next) {
@@ -61,6 +61,14 @@ function createProxy({ target, name, timeoutMs = 35_000, logger }) {
     headers['x-forwarded-proto'] = req.protocol;
     headers['x-forwarded-host'] = req.headers.host || '';
     if (req.id) headers[REQUEST_ID_HEADER] = req.id;
+    // An answer to encrypt is read whole, so ask the upstream for it uncompressed.
+    const encrypt = encryption?.wants(req) ?? false;
+    if (encrypt) {
+      delete headers['accept-encoding'];
+      // A browser cache holding the plain answer would get a bodiless 304; always fetch the full answer.
+      delete headers['if-none-match'];
+      delete headers['if-modified-since'];
+    }
 
     const upstreamReq = transport.request(
       {
@@ -73,9 +81,25 @@ function createProxy({ target, name, timeoutMs = 35_000, logger }) {
         agent: agents[upstream.protocol],
       },
       (upstreamRes) => {
+        // A late reply after the 504 was already sent: writing again throws and crashed the gateway.
+        if (res.headersSent) return upstreamRes.resume();
         const responseHeaders = { ...upstreamRes.headers };
         for (const header of Object.keys(responseHeaders)) {
           if (HOP_BY_HOP.has(header.toLowerCase())) delete responseHeaders[header];
+        }
+
+        if (encrypt && String(responseHeaders['content-type'] ?? '').includes('json')) {
+          const chunks = [];
+          upstreamRes.on('data', (c) => chunks.push(c));
+          upstreamRes.on('end', () => {
+            delete responseHeaders['content-length'];
+            delete responseHeaders.etag;
+            const plain = Buffer.concat(chunks);
+            // Vary: a shared cache must not hand the sealed answer to a caller that asked for plain JSON.
+            res.writeHead(upstreamRes.statusCode, { ...responseHeaders, 'content-type': 'application/json; charset=utf-8', vary: 'Accept' });
+            res.end(plain.length ? encryption.encrypt(plain) : plain);
+          });
+          return;
         }
 
         res.writeHead(upstreamRes.statusCode, responseHeaders);

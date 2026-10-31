@@ -28,7 +28,7 @@ module.exports = (sequelize) => {
       field: "coinid",
     },
     price: {
-      type: DataTypes.DECIMAL(10, 2),
+      type: DataTypes.DECIMAL(30, 8),
       allowNull: true,
       field: "price",
     },
@@ -48,7 +48,7 @@ module.exports = (sequelize) => {
       field: "deposit_address",
     },
     amount: {
-      type: DataTypes.DECIMAL(10, 2),
+      type: DataTypes.DECIMAL(30, 8),
       allowNull: true,
       field: "amount",
     },

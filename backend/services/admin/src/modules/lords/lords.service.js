@@ -1,12 +1,40 @@
 'use strict';
 
 const { Op, fn, col, literal } = require('sequelize');
-const { money } = require('@ibitplay/common');
-const { hashPassword } = require('@ibitplay/auth');
+const { money, withdrawBlock } = require('@ibitplay/common');
+const { hashPassword, canActOn, effectiveStaffLevel, STAFF_LEVELS } = require('@ibitplay/auth');
 
 const errors = require('./lords.errors');
 const { ACCOUNT_TYPE, PASSWORD_ROUNDS } = require('./lords.constants');
-const { descendantIds, verifyTransactionPassword } = require('../staff-directory/staffDirectory.service');
+const { manageableStaffIds, verifyTransactionPassword } = require('../staff-directory/staffDirectory.service');
+const { directSources } = require('../locks/lockSources');
+const { cascadeSuspension } = require('../locks/suspendCascade');
+const {
+  assertTransactionPassword,
+  hasTransactionPassword,
+  errors: txnErrors,
+} = require('../staff-auth/transactionPassword');
+const {
+  debitStaffFloat,
+  creditStaffFloat,
+  readStaffFloat,
+  insufficientStaffBalance,
+  insufficientPlayerBalance,
+} = require('./staffFloat');
+const { TRANSFER_TYPE } = require('./lords.constants');
+const { addPointEntry, POINT_EVENT } = require('./pointLedger');
+const {
+  isOwnerStaff,
+  isDirectUser,
+  readOwnerDirectBalance,
+  debitOwnerDirectBalance,
+  creditOwnerDirectBalance,
+  insufficientDirectBalance,
+  LEDGER_TYPE,
+} = require('./ownerWallet');
+
+/** The only currency a staff float holds (`credits.inr` on the staff row). */
+const FLOAT_CURRENCY = 'INR';
 
 /** A NUMERIC that arrived as a string, as a plain number. Missing reads as 0. */
 const num = (value) => Number(value ?? 0) || 0;
@@ -61,15 +89,30 @@ class LordsService {
    *   `users`. Only the hash is written here.
    */
   async setPassword({ actor, accountType, accountId, newPassword, transactionPassword }) {
+    // Strictly BELOW the caller: your own password is changed through
+    // `/admin/staff/password`, which asks for the old one.
+    await this.#assertInTree(actor, accountType, accountId, { excludeSelf: 'use My account to change your own password' });
     await this.#assertTransactionPassword(actor, transactionPassword);
-    await this.#assertInTree(actor, accountType, accountId);
 
     const model = accountType === ACCOUNT_TYPE.STAFF ? this.models.Staff : this.models.Users;
     const [affected] = await model.update(
-      { password: await hashPassword(newPassword, PASSWORD_ROUNDS) },
+      {
+        password: await hashPassword(newPassword, PASSWORD_ROUNDS),
+        // A reset ends the staff account's open sessions, like the other password paths, and the
+        // next sign-in must replace the password (that change issues a new transaction password).
+        ...(accountType === ACCOUNT_TYPE.STAFF ? { token_version: literal('token_version + 1') } : {}),
+        must_change_password: true,
+      },
       { where: { id: accountId } }
     );
     if (!affected) throw errors.NOT_FOUND({ accountId });
+    // rainbet: a player's open sessions end too; the next sign-in carries the forced change.
+    if (accountType !== ACCOUNT_TYPE.STAFF) {
+      await this.models.AuthSession.update(
+        { revoked_at: new Date(), revoked_reason: 'password_reset_by_staff' },
+        { where: { user_id: accountId, revoked_at: null } }
+      );
+    }
 
     this.logger?.warn(
       { actorStaffId: actor.id, accountType, accountId },
@@ -88,12 +131,17 @@ class LordsService {
    * and separate endpoints make that non-atomic.
    */
   async setStatus({ actor, accountType, accountId, transactionPassword, ...flags }) {
-    await this.#assertTransactionPassword(actor, transactionPassword);
     await this.#assertInTree(actor, accountType, accountId);
-
-    if (accountType === ACCOUNT_TYPE.STAFF && Number(accountId) === Number(actor.id)) {
-      throw errors.CANNOT_ACT_ON_SELF({ reason: 'you cannot change your own locks' });
+    if (accountType === ACCOUNT_TYPE.STAFF) {
+      if (Number(accountId) === Number(actor.id)) {
+        throw errors.CANNOT_ACT_ON_SELF({ reason: 'you cannot change your own locks' });
+      }
+      // Strictly below the caller, as every other staff write: the agent tree
+      // (levels 4–6) now holds `users:lock`, and a subtree may still carry a
+      // legacy row at or above the caller's level.
+      await this.#assertBelowActor(actor, accountId);
     }
+    await this.#assertTransactionPassword(actor, transactionPassword);
 
     const patch = {};
     if (flags.status !== undefined) patch.status = flags.status;
@@ -104,9 +152,28 @@ class LordsService {
 
     if (!Object.keys(patch).length) throw errors.NOT_FOUND({ reason: 'nothing to change' });
 
-    const model = accountType === ACCOUNT_TYPE.STAFF ? this.models.Staff : this.models.Users;
-    const [affected] = await model.update(patch, { where: { id: accountId } });
-    if (!affected) throw errors.NOT_FOUND({ accountId });
+    const isStaff = accountType === ACCOUNT_TYPE.STAFF;
+    const model = isStaff ? this.models.Staff : this.models.Users;
+    // A lock set or lifted HERE is a direct one — recorded as such, so a later
+    // unlock of the parent agent does not undo it. See `locks/lockSources.js`.
+    const sources = directSources(patch);
+    await this.db.transaction(async (transaction) => {
+      const before = isStaff && patch.status !== undefined
+        ? await this.models.Staff.findByPk(accountId, { attributes: ['id', 'status'], transaction, raw: true })
+        : null;
+      const [affected] = await model.update(
+        sources ? { ...patch, lock_sources: sources } : patch,
+        { where: { id: accountId }, transaction }
+      );
+      if (!affected) throw errors.NOT_FOUND({ accountId });
+
+      // Suspending a staff account suspends its downline, as the system lock
+      // does; reactivating lifts it. See `locks/suspendCascade.js`.
+      const active = (status) => status == null || status === 'active';
+      if (before && active(before.status) !== active(patch.status)) {
+        await cascadeSuspension(this.models, accountId, !active(patch.status), { transaction, logger: this.logger });
+      }
+    });
 
     this.logger?.warn(
       { actorStaffId: actor.id, accountType, accountId, patch },
@@ -121,11 +188,12 @@ class LordsService {
    * How much a player may have at risk across open bets at once.
    */
   async setExposureLimit({ actor, accountType, accountId, exposureLimit, transactionPassword }) {
+    // Strictly BELOW the caller — a limit you can raise on yourself is not one.
+    await this.#assertInTree(actor, accountType, accountId, { excludeSelf: 'you cannot change your own exposure limit' });
     await this.#assertTransactionPassword(actor, transactionPassword);
-    await this.#assertInTree(actor, accountType, accountId);
 
     if (accountType === ACCOUNT_TYPE.STAFF) {
-      await this.models.StaffBalances.update(
+      await this.models.StaffCredits.update(
         { exposure_limit: exposureLimit },
         { where: { staff_id: accountId } }
       );
@@ -143,19 +211,35 @@ class LordsService {
   /**
    * @legacy POST /lords/update-current
    *
-   * Adjust a player's credit limit — how far below zero their balance may go.
+   * Set an AGENT's credit line — how far below zero their float may go.
+   *
+   *   staff → `credits.credit_limit` (staff row): the agent's credit line. ENFORCED
+   *           on every movement that funds a player from the agent's float
+   *           (refill, agent-tree balance credit, a transfer to a player) —
+   *           see `staffFloat.js`.
+   *   user  → REFUSED (ACCOUNTS_PLAYER_CREDIT_NOT_SUPPORTED). Players never
+   *           play on credit: every bet and withdrawal guards at `>= 0` in the
+   *           wallet spine and nothing reads `credits.credit_limit` (migration
+   *           068 zeroed it). Refused before the transaction-password check —
+   *           there is nothing to authorise.
    */
-  async setCreditLimit({ actor, accountId, creditLimit, transactionPassword }) {
-    await this.#assertTransactionPassword(actor, transactionPassword);
-    await this.#assertInTree(actor, ACCOUNT_TYPE.USER, accountId);
+  async setCreditLimit({ actor, accountType = ACCOUNT_TYPE.USER, accountId, creditLimit, transactionPassword }) {
+    if (accountType !== ACCOUNT_TYPE.STAFF) throw errors.PLAYER_CREDIT_NOT_SUPPORTED({ accountType, accountId });
 
-    await this.models.Credits.update({ credit_limit: creditLimit }, { where: { uid: accountId } });
+    await this.#assertInTree(actor, accountType, accountId, { excludeSelf: 'you cannot set your own credit line' });
+    await this.#assertTransactionPassword(actor, transactionPassword);
+
+    const [row, created] = await this.models.StaffCredits.findOrCreate({
+      where: { staff_id: accountId },
+      defaults: { staff_id: accountId, inr: '0', credit_limit: creditLimit },
+    });
+    if (!created) await row.update({ credit_limit: creditLimit });
 
     this.logger?.warn(
-      { actorStaffId: actor.id, accountId, creditLimit },
+      { actorStaffId: actor.id, accountType, accountId, creditLimit },
       'Credit limit changed — this is how far below zero a balance may go'
     );
-    return { accountId: Number(accountId), creditLimit };
+    return { accountType, accountId: Number(accountId), creditLimit };
   }
 
   // ══════════════════════════════════════════════════════════════════════
@@ -172,42 +256,43 @@ class LordsService {
    * ─────────────────────────────────────────────────────────────────────
    * WHERE THE MONEY COMES FROM
    *
-   * An ordinary operator funds it from their own balance — a guarded debit
-   * that refuses rather than going negative. The platform owner does not: the
-   * house is where money enters the system, so there is nothing to draw down.
+   * Everyone funds it from their own balance (`credits` row) — the owner too,
+   * since migration 099: the owner first puts money into their own wallet
+   * (`ownerAddBalance`) and every refill draws it down. A guarded debit that
+   * refuses rather than going negative.
    *
-   * Legacy modelled both correctly and recorded neither distinctly, so an
-   * owner-issued refill looked exactly like an agent moving their own float.
-   * Issuance is logged as issuance here and carries a per-refill ceiling that
-   * legacy had no equivalent of.
+   * One exception: the owner refilling a DIRECT user (no parent) — that is paid
+   * from the owner's Direct User balance (`staff_balances.inr`), not the
+   * owner's `credits` row (`ownerWallet.js`).
    * ─────────────────────────────────────────────────────────────────────
    */
   async refill({ actor, accountId, amount, note, transactionPassword }) {
+    await this.#assertMoneyTarget(actor, accountId);
     await this.#assertTransactionPassword(actor, transactionPassword);
-    await this.#assertInTree(actor, ACCOUNT_TYPE.USER, accountId);
 
     const ceiling = String(this.config.ADMIN_MAX_REFILL ?? '1000000');
     if (money.gt(amount, ceiling)) throw errors.REFILL_TOO_LARGE({ amount, ceiling });
 
+    // Owner aur direct user: owner ke Direct User balance (staff_balances) se katega.
+    const ownerToDirectUser = actor.canIssueFunds && (await isDirectUser(this.models, accountId));
+
     return this.db.transaction(async (transaction) => {
-      if (actor.canIssueFunds) {
-        this.logger?.warn(
-          { actorStaffId: actor.id, accountId, amount, note },
-          'Funds ISSUED by the platform owner — not drawn from an existing balance'
-        );
+      /**
+       * The guarded debit. `inr >= :amount` in the WHERE means Postgres
+       * decides under its own row lock and the row count is the answer —
+       * legacy read the balance with `FOR UPDATE` inside a transaction shared
+       * by every concurrent request, which is a lock whose scope nobody can
+       * reason about.
+       */
+      if (ownerToDirectUser) {
+        const debited = await debitOwnerDirectBalance(this.models, actor.id, amount, {
+          transaction,
+          entry: { type: LEDGER_TYPE.USER_DEPOSIT, userId: accountId, note: note ?? 'Refill' },
+        });
+        if (!debited) throw insufficientDirectBalance({ amount });
       } else {
-        /**
-         * The guarded debit. `inr >= :amount` in the WHERE means Postgres
-         * decides under its own row lock and the row count is the answer —
-         * legacy read the balance with `FOR UPDATE` inside a transaction shared
-         * by every concurrent request, which is a lock whose scope nobody can
-         * reason about.
-         */
-        const [affected] = await this.models.StaffBalances.update(
-          { inr: literal(`inr - ${money.toDecimalString(money.toMinor(amount))}`) },
-          { where: { staff_id: actor.id, inr: { [Op.gte]: amount } }, transaction }
-        );
-        if (!affected) throw errors.INSUFFICIENT_FUNDS({ amount });
+        const debited = await debitStaffFloat(this.models, actor.id, amount, { transaction, allowCredit: true });
+        if (!debited) throw insufficientStaffBalance({ amount });
       }
 
       const [credits, created] = await this.models.Credits.findOrCreate({
@@ -222,7 +307,7 @@ class LordsService {
         );
       }
 
-      await this.models.StaffTransfers.create(
+      const transfer = await this.models.StaffTransfers.create(
         {
           from_type: ACCOUNT_TYPE.STAFF,
           from_id: actor.id,
@@ -230,9 +315,28 @@ class LordsService {
           to_id: accountId,
           amount,
           direction: 'deposit',
-          transfer_type: actor.canIssueFunds ? 'issuance' : 'transfer',
+          // Its own type, so a statement can say "Refill" rather than passing
+          // it off as an ordinary transfer. Rows written before this are
+          // 'transfer' and still read as one. ('issuance' rows are history:
+          // the owner refilled without paying before migration 099.)
+          transfer_type: ownerToDirectUser ? TRANSFER_TYPE.DIRECT : TRANSFER_TYPE.REFILL,
           note: note ?? null,
           created_at: new Date(),
+        },
+        { transaction }
+      );
+
+      // Point ledger: parent ne player ko diya.
+      await addPointEntry(
+        this.models,
+        {
+          child: { type: ACCOUNT_TYPE.USER, id: accountId },
+          parent: { type: ACCOUNT_TYPE.STAFF, id: actor.id },
+          amount,
+          isDeposit: true,
+          transferId: transfer.id,
+          eventType: ownerToDirectUser ? POINT_EVENT.BANK_DEPOSIT : undefined,
+          remark: note ?? 'Refill',
         },
         { transaction }
       );
@@ -244,7 +348,7 @@ class LordsService {
       });
 
       this.logger?.info(
-        { actorStaffId: actor.id, accountId, amount, issued: Boolean(actor.canIssueFunds) },
+        { actorStaffId: actor.id, accountId, amount },
         'Wallet refilled'
       );
 
@@ -253,9 +357,283 @@ class LordsService {
         amount: money.toDecimalString(money.toMinor(amount)),
         balance: money.fromStored(after?.inr ?? '0'),
         currency: 'INR',
-        issued: Boolean(actor.canIssueFunds),
+        issued: false,
       };
     });
+  }
+
+  /**
+   * Agent-tree "adjust balance" — `POST /admin/user/wallet/adjust` from an
+   * agent-tree session (levels 4–6 and their executives), forwarded here by
+   * user-service because the staff float lives in this service's domain.
+   *
+   * ─────────────────────────────────────────────────────────────────────
+   * IT IS A TRANSFER, NOT AN ADJUSTMENT
+   *
+   * The adjust route credited the player and debited nobody: an agent holding
+   * `wallet:credit` could create money for its players without limit, with no
+   * transaction password and nothing on either statement. An agent-tree
+   * player's money comes ONLY from their agent, so here:
+   *
+   *   credit — the agent's float pays: guarded debit of the staff `credits.inr`
+   *            (down to −credit_limit), credit of the player's INR wallet
+   *   debit  — the player's wallet pays (guarded at >= amount), and the agent's
+   *            float receives it
+   *
+   * one transaction, both rows written by guarded/atomic UPDATEs — two
+   * concurrent credits cannot both pass the float guard. Recorded as:
+   *
+   *   staff_transfers  transfer_type 'adjust' — both statements read it
+   *   credits_ledger   TRANSFER_IN / TRANSFER_OUT + the idempotency key, so the
+   *                    player's wallet still reconciles against its ledger
+   *   wallet_history   the row the Wallets screen's history reads
+   *
+   * The ledger reason is deliberately NOT ADMIN_CREDIT: the player statement
+   * reads that reason as a house adjustment, and this movement is already on
+   * it through `staff_transfers`.
+   *
+   * INR only: an agent's float is the staff `credits.inr`, and there is no float
+   * in any other currency to draw from.
+   *
+   * OWNER (migration 099): the owner comes through here too, for INR.
+   *   - player has a parent → the owner's wallet pays, exactly like an agent
+   *   - DIRECT user (no parent) → the owner's Direct User balance
+   *     (`staff_balances.inr`) pays / gets it back, the owner's `credits` row
+   *     does NOT; recorded as transfer_type 'direct' and point events
+   *     'Bank Deposite' / 'Bank Withdraw' (see `ownerWallet.js`)
+   * ─────────────────────────────────────────────────────────────────────
+   */
+  async adjustPlayer({
+    actor, userId, currency, amount, operation, description, idempotencyKey, username, transactionPassword,
+  }) {
+    // user-service forwards only the staff id; owner hai ya nahi, DB se dekho.
+    // (Owner ka executive owner nahi hai — wo sirf apne parent ka kaam karta hai.)
+    if (actor.canIssueFunds === undefined) {
+      actor = { ...actor, canIssueFunds: !actor.executiveId && (await isOwnerStaff(this.models, actor.id)) };
+    }
+
+    // Tree scope FIRST: an account outside the caller's tree is a 404 whatever
+    // password came with it, so the password check is never an oracle (or a
+    // spent attempt) for a probe at someone else's player.
+    await this.#assertMoneyTarget(actor, userId);
+    await assertTransactionPassword(this.models, actor.id, transactionPassword, {
+      // Everyone, the owner too (user, 2026-10-20).
+      required: true,
+      executiveId: actor.executiveId ?? null,
+    });
+
+    // Owner aur direct user: owner ka Direct User balance (staff_balances) badlega, credits nahi.
+    const ownerToDirectUser = actor.canIssueFunds && (await isDirectUser(this.models, userId));
+
+    if (String(currency).toUpperCase() !== FLOAT_CURRENCY) {
+      throw errors.FLOAT_CURRENCY_ONLY({ currency, allowed: FLOAT_CURRENCY });
+    }
+
+    const minor = money.toMinor(amount);
+    const decimal = money.toDecimalString(minor);
+
+    const ceiling = String(this.config.ADMIN_MAX_REFILL ?? '1000000');
+    if (money.gt(decimal, ceiling)) throw errors.REFILL_TOO_LARGE({ amount: decimal, ceiling });
+
+    const isCredit = operation === 'credit';
+
+    // A debit is the player's cash-out to their agent: the withdrawal block (migration 091,
+    // direct or cascaded from an agent above) refuses it before anything moves.
+    if (!isCredit) await withdrawBlock.assertWithdrawAllowed(this.models, { userId });
+
+    return this.db.transaction(async (transaction) => {
+      // ── 1. Replay? A double-click or a retried request moves nothing twice.
+      if (idempotencyKey) {
+        const replay = await this.models.CreditsLedger.findOne({
+          where: { idempotency_key: idempotencyKey },
+          transaction,
+          raw: true,
+        });
+        if (replay) {
+          if (money.abs(replay.amount) !== minor) {
+            throw errors.IDEMPOTENCY_CONFLICT({ idempotencyKey });
+          }
+          return {
+            ledgerId: replay.id,
+            transferId: replay.meta?.refId ?? null,
+            userId: Number(userId),
+            currency: FLOAT_CURRENCY,
+            amount: decimal,
+            direction: operation,
+            previousBalance: replay.meta?.previousBalance ?? null,
+            newBalance: String(replay.balance ?? '0'),
+            staffBalance: await readStaffFloat(this.models, actor.id, { transaction }),
+            idempotencyKey,
+            replayed: true,
+          };
+        }
+      }
+
+      // ── 2. Lock the player's wallet, so the before/after figures are true.
+      const lockWallet = () =>
+        this.models.Credits.findOne({
+          where: { uid: userId },
+          attributes: ['uid', 'inr'],
+          lock: transaction.LOCK.UPDATE,
+          transaction,
+          raw: true,
+        });
+
+      let wallet = await lockWallet();
+      if (!wallet) {
+        if (!isCredit) throw insufficientPlayerBalance({ requested: decimal, available: '0' });
+        await this.models.Credits.findOrCreate({ where: { uid: userId }, defaults: { uid: userId }, transaction });
+        wallet = await lockWallet();
+      }
+      const previous = money.toMinorQuantised(wallet.inr ?? '0');
+
+      // ── 3. Move it. Each side is a guarded/atomic UPDATE decided by Postgres.
+      //       Owner → direct user: owner ka Direct User balance (staff_balances).
+      if (isCredit) {
+        if (ownerToDirectUser) {
+          const debited = await debitOwnerDirectBalance(this.models, actor.id, decimal, {
+            transaction,
+            entry: { type: LEDGER_TYPE.USER_DEPOSIT, userId, note: description ?? 'Deposit' },
+          });
+          if (!debited) {
+            throw insufficientDirectBalance({
+              requested: decimal,
+              available: await readOwnerDirectBalance(this.models, actor.id, { transaction }),
+            });
+          }
+        } else {
+          const debited = await debitStaffFloat(this.models, actor.id, decimal, { transaction, allowCredit: true });
+          if (!debited) {
+            throw insufficientStaffBalance({
+              requested: decimal,
+              ...(await readStaffFloat(this.models, actor.id, { transaction })),
+            });
+          }
+        }
+        await this.models.Credits.increment({ inr: decimal }, { where: { uid: userId }, transaction });
+      } else {
+        const [affected] = await this.models.Credits.update(
+          { inr: literal(`COALESCE(inr, 0) - ${decimal}`) },
+          { where: { uid: userId, inr: { [Op.gte]: decimal } }, transaction }
+        );
+        if (!affected) {
+          throw insufficientPlayerBalance({ requested: decimal, available: money.toDecimalString(previous) });
+        }
+        if (ownerToDirectUser) {
+          await creditOwnerDirectBalance(this.models, actor.id, decimal, {
+            transaction,
+            entry: { type: LEDGER_TYPE.USER_WITHDRAW, userId, note: description ?? 'Withdraw' },
+          });
+        }
+        else await creditStaffFloat(this.models, actor.id, decimal, { transaction });
+      }
+
+      const previousBalance = money.toDecimalString(previous);
+      const newBalance = money.toDecimalString(isCredit ? previous + minor : previous - minor);
+
+      // ── 4. Record it, on both sides.
+      const transfer = await this.models.StaffTransfers.create(
+        {
+          from_type: isCredit ? ACCOUNT_TYPE.STAFF : ACCOUNT_TYPE.USER,
+          from_id: isCredit ? actor.id : userId,
+          to_type: isCredit ? ACCOUNT_TYPE.USER : ACCOUNT_TYPE.STAFF,
+          to_id: isCredit ? userId : actor.id,
+          amount: decimal,
+          direction: isCredit ? 'deposit' : 'withdraw',
+          transfer_type: ownerToDirectUser ? TRANSFER_TYPE.DIRECT : TRANSFER_TYPE.ADJUST,
+          note: description ?? null,
+          created_at: new Date(),
+        },
+        { transaction }
+      );
+
+      // Point ledger: parent ne player ko diya (credit) ya player se liya (debit).
+      await addPointEntry(
+        this.models,
+        {
+          child: { type: ACCOUNT_TYPE.USER, id: userId },
+          parent: { type: ACCOUNT_TYPE.STAFF, id: actor.id },
+          amount: decimal,
+          isDeposit: isCredit,
+          transferId: transfer.id,
+          // Direct user ki history alag naam se, taaki pata rahe Direct User balance se gaya.
+          eventType: ownerToDirectUser ? (isCredit ? POINT_EVENT.BANK_DEPOSIT : POINT_EVENT.BANK_WITHDRAW) : undefined,
+          remark: description || (isCredit ? 'Deposit' : 'Withdraw'),
+        },
+        { transaction }
+      );
+
+      const ledger = await this.models.CreditsLedger.create(
+        {
+          user_id: String(userId),
+          currency: FLOAT_CURRENCY,
+          amount: isCredit ? decimal : `-${decimal}`,
+          reason: isCredit ? 'TRANSFER_IN' : 'TRANSFER_OUT',
+          description: description || (isCredit ? 'Credited by agent' : 'Debited by agent'),
+          balance: newBalance,
+          closing: newBalance,
+          netamount: 0,
+          profit: 0,
+          loss: 0,
+          commission: 0,
+          idempotency_key: idempotencyKey ?? null,
+          source_service: 'admin-service',
+          meta: {
+            refType: 'STAFF_TRANSFER',
+            refId: String(transfer.id),
+            staffId: String(actor.id),
+            previousBalance,
+          },
+        },
+        { transaction }
+      );
+
+      await this.models.WalletHistory.create(
+        {
+          uid: userId,
+          username: username || String(userId),
+          coin: FLOAT_CURRENCY,
+          operation: isCredit ? 'credit' : 'debit',
+          amount: decimal,
+          previous_balance: previousBalance,
+          new_balance: newBalance,
+          description: description || (isCredit ? 'Credited by agent' : 'Debited by agent'),
+          transaction_time: new Date(),
+        },
+        { transaction }
+      );
+
+      const staffBalance = await readStaffFloat(this.models, actor.id, { transaction });
+      // Owner ↔ direct user: kaun sa balance badla, wo bhi bata do.
+      const directBalance = ownerToDirectUser
+        ? await readOwnerDirectBalance(this.models, actor.id, { transaction })
+        : undefined;
+
+      this.logger?.info(
+        { actorStaffId: actor.id, userId, amount: decimal, operation, transferId: transfer.id },
+        'Agent-tree balance adjustment — moved between the agent float and the player'
+      );
+
+      return {
+        ledgerId: ledger.id,
+        transferId: String(transfer.id),
+        userId: Number(userId),
+        currency: FLOAT_CURRENCY,
+        amount: decimal,
+        direction: operation,
+        previousBalance,
+        newBalance,
+        staffBalance,
+        ...(directBalance !== undefined ? { directBalance } : {}),
+        idempotencyKey: idempotencyKey ?? null,
+        replayed: false,
+      };
+    });
+  }
+
+  /** The caller's own float, for the money dialogs. */
+  async myFloat({ actor }) {
+    return { staffId: Number(actor.id), currency: FLOAT_CURRENCY, ...(await readStaffFloat(this.models, actor.id)) };
   }
 
   // ══════════════════════════════════════════════════════════════════════
@@ -263,8 +641,8 @@ class LordsService {
   // ══════════════════════════════════════════════════════════════════════
 
   /** @legacy GET /lords/transfer/statement */
-  async transferStatement({ actor, accountType, accountId, from, to, limit = 50, offset = 0 }) {
-    const staffIds = await descendantIds(this.models, actor.id, { logger: this.logger });
+  async transferStatement({ actor, accountType, accountId, from, to, channel, limit = 50, offset = 0 }) {
+    const staffIds = await manageableStaffIds(this.models, actor.id, { logger: this.logger, level: actor.level });
 
     const scope = accountId
       ? { type: accountType ?? ACCOUNT_TYPE.USER, id: await this.#assertInTree(actor, accountType ?? ACCOUNT_TYPE.USER, accountId) }
@@ -284,9 +662,16 @@ class LordsService {
           ],
         };
 
+    // Direct Users | Agent Users tab: direct = jis transfer me ek taraf direct user (koi parent nahi) hai,
+    // agent = baaki sab (staff ↔ staff, staff ↔ agent ka player). Na ho = dono (purana).
+    const directSide = `((from_type = 'user' AND from_id IN (SELECT id FROM users WHERE parent_staff_id IS NULL))
+      OR (to_type = 'user' AND to_id IN (SELECT id FROM users WHERE parent_staff_id IS NULL)))`;
+    const channelWhere = channel ? { [Op.and]: [literal(channel === 'direct' ? directSide : `NOT ${directSide}`)] } : {};
+
     const { rows, count } = await this.models.StaffTransfers.findAndCountAll({
       where: {
         ...where,
+        ...channelWhere,
         ...(from || to
           ? { created_at: { ...(from ? { [Op.gte]: from } : {}), ...(to ? { [Op.lte]: to } : {}) } }
           : {}),
@@ -357,7 +742,7 @@ class LordsService {
    * against. See the sign note on `#rollupPnl` before touching a P&L field.
    */
   async allDetails({ actor, search, limit = 50, offset = 0, parentId }) {
-    const visible = (await descendantIds(this.models, actor.id, { logger: this.logger })).map(Number);
+    const visible = (await manageableStaffIds(this.models, actor.id, { logger: this.logger, level: actor.level })).map(Number);
     const rootId = parentId != null ? Number(parentId) : Number(actor.id);
     if (!visible.includes(rootId)) throw errors.NOT_IN_YOUR_TREE({ accountId: rootId });
 
@@ -414,7 +799,7 @@ class LordsService {
     const userIds = userRows.map((u) => Number(u.id));
 
     const [balances, credits, downline, subtrees] = await Promise.all([
-      this.models.StaffBalances.findAll({ where: { staff_id: staffIds }, raw: true }),
+      this.models.StaffCredits.findAll({ where: { staff_id: staffIds }, raw: true }),
       this.models.Credits.findAll({ where: { uid: userIds }, raw: true }),
       this.#hasDownline(staffIds),
       this.#subtreePlayers(staffIds, visible),
@@ -448,6 +833,7 @@ class LordsService {
         system_locked: Boolean(s.system_locked),
         balance: stored(balanceOf.get(String(id))?.inr),
         exp_limit: stored(balanceOf.get(String(id))?.exposure_limit),
+        credit_limit: stored(balanceOf.get(String(id))?.credit_limit),
         account_type: ACCOUNT_TYPE.STAFF.toUpperCase(),
         has_downline: downline.has(id),
         exposure: players.reduce((sum, p) => sum + (exposure.get(Number(p.id)) ?? 0), 0),
@@ -474,6 +860,8 @@ class LordsService {
         system_locked: Boolean(u.system_locked),
         balance: stored(creditOf.get(String(id))?.inr),
         exp_limit: stored(u.exposure_limit),
+        // Players never play on credit (migration 068) — always 0.
+        credit_limit: 0,
         account_type: ACCOUNT_TYPE.USER.toUpperCase(),
         has_downline: false,
         exposure: exposure.get(id) ?? 0,
@@ -602,16 +990,78 @@ class LordsService {
    * internal API — the same helper `staff-directory` exposes to other services.
    */
   async #assertTransactionPassword(actor, transactionPassword) {
+    // No transaction password on the account at all: say so (the same
+    // TXN_PASSWORD_NOT_SET wallet adjust and agent money moves return), rather
+    // than "not valid" for a password the operator could never have typed.
+    if (!(await hasTransactionPassword(this.models, actor.id))) throw txnErrors.NOT_SET();
     if (!transactionPassword) throw errors.TRANSACTION_PASSWORD_REQUIRED();
-    const ok = await verifyTransactionPassword(this.models, actor.id, transactionPassword);
+    const ok = await verifyTransactionPassword(this.models, actor.id, transactionPassword, {
+      executiveId: actor.executiveId ?? null,
+    });
     if (!ok) throw errors.TRANSACTION_PASSWORD_REQUIRED({ reason: 'not valid' });
   }
 
-  /** The target must be the caller's own account, a descendant, or their player. */
-  async #assertInTree(actor, accountType, accountId) {
-    const staffIds = (await descendantIds(this.models, actor.id, { logger: this.logger })).map(Number);
+  /**
+   * Money moves with a player are its DIRECT PARENT's only
+   * (`users.parent_staff_id` = the caller) — the addaplay rule, the player
+   * twin of `StaffService#assertDirectChildStaff`. A master crediting its
+   * agent's player skipped the agent's ledger. The platform owner
+   * (`canIssueFunds`) is exempt and reaches any player in scope.
+   *
+   * Anything else reads as not found (404 NOT_IN_YOUR_TREE), checked BEFORE
+   * the transaction password like every other scope check here.
+   */
+  async #assertMoneyTarget(actor, userId) {
+    if (actor.canIssueFunds) {
+      // Owner: apne tree ka koi bhi player, ya DIRECT user (jiska koi parent nahi).
+      if (await isDirectUser(this.models, userId)) return Number(userId);
+      return this.#assertInTree(actor, ACCOUNT_TYPE.USER, userId);
+    }
+
+    const player = await this.models.Users.findOne({
+      where: { id: userId, parent_staff_id: actor.id },
+      attributes: ['id'],
+      raw: true,
+    });
+    if (!player) throw errors.NOT_IN_YOUR_TREE({ accountId: userId, reason: 'not your direct player' });
+    return Number(player.id);
+  }
+
+  /** A staff target strictly below the caller's own level; an unknown level only for the Super Admin. */
+  async #assertBelowActor(actor, staffId) {
+    const level = Number(effectiveStaffLevel(actor));
+    const row = await this.models.Staff.findByPk(staffId, {
+      attributes: ['id'],
+      include: [{ model: this.models.Roles, as: 'role', attributes: ['level'], required: false }],
+      raw: true,
+      nest: true,
+    });
+    const target = row?.role?.level == null ? NaN : Number(row.role.level);
+    if (!Number.isFinite(target)) {
+      if (level === STAFF_LEVELS.SUPER_ADMIN) return;
+      throw errors.NOT_IN_YOUR_TREE({ accountId: staffId, reason: 'that account has no known level' });
+    }
+    if (!canActOn(level, target)) {
+      throw errors.NOT_IN_YOUR_TREE({ accountId: staffId, reason: 'you can only act on accounts below your own level' });
+    }
+  }
+
+  /**
+   * The target must be the caller's own account, a descendant, or their player.
+   *
+   * Every method runs this BEFORE the transaction password: out-of-tree is 404
+   * NOT_IN_YOUR_TREE with a right, wrong or missing password alike.
+   */
+  async #assertInTree(actor, accountType, accountId, { excludeSelf = null } = {}) {
+    const staffIds = (await manageableStaffIds(this.models, actor.id, { logger: this.logger, level: actor.level })).map(Number);
 
     if (accountType === ACCOUNT_TYPE.STAFF) {
+      // `manageableStaffIds` includes the caller. Settings that would let an
+      // account raise its own limits or reset its own password pass a reason
+      // here and act only on accounts strictly below.
+      if (excludeSelf && Number(accountId) === Number(actor.id)) {
+        throw errors.CANNOT_ACT_ON_SELF({ reason: excludeSelf });
+      }
       if (!staffIds.includes(Number(accountId))) throw errors.NOT_IN_YOUR_TREE({ accountId });
       return Number(accountId);
     }

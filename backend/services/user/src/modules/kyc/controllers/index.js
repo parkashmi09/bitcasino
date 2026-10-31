@@ -37,7 +37,7 @@ function createControllers({ service }) {
     /** @legacy GET /kyc/admin/applications */
     list: asyncHandler(async (req, res) => {
       const { limit, offset } = req.query;
-      const result = await service.listApplications(req.query);
+      const result = await service.listApplications({ ...req.query, staff: req.staff });
       return response.paginated(res, result, { page: Math.floor(offset / limit) + 1, limit });
     }),
 

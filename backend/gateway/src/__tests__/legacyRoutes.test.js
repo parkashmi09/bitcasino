@@ -24,16 +24,10 @@ const rewrite = (() => {
 
 test('gateway legacy routes', async (t) => {
   await t.test('a parameterised legacy path is rewritten', async () => {
-    // `GET /api/staff/1` answered `404 ... does not exist` while
-    // `GET /api/v1/admin/staff/1` worked: the EXACT map is keyed on a literal
-    // path and could not express the id segment.
-    assert.equal(rewrite('GET', '/api/staff/1').url, '/api/v1/admin/staff/1');
-    assert.equal(rewrite('PATCH', '/api/staff/1').url, '/api/v1/admin/staff/1');
-    assert.equal(rewrite('DELETE', '/api/staff/1').url, '/api/v1/admin/staff/1');
-    assert.equal(
-      rewrite('GET', '/api/staff/1/percent-chain').url,
-      '/api/v1/admin/staff/1/percent-chain'
-    );
+    // The EXACT map is keyed on a literal path and cannot express an id segment.
+    assert.equal(rewrite('GET', '/api/admin/user-risk/1').url, '/api/v1/admin/reports/user-risk/1');
+    // A widened parameter (`:name(<regex>)`) takes more than digits.
+    assert.equal(rewrite('GET', '/api/user/bet-result/ab.1:x').url, '/api/v1/sports/user/bet-result/ab.1:x');
   });
 
   await t.test('`req.originalUrl` moves with `req.url`', async () => {
@@ -41,27 +35,18 @@ test('gateway legacy routes', async (t) => {
     // the mount prefix off `url` before the handler runs. Rewriting one and not
     // the other routes to the right service and then asks it for the legacy
     // path, which it does not have.
-    const req = rewrite('GET', '/api/staff/1');
-    assert.equal(req.originalUrl, '/api/v1/admin/staff/1');
-    assert.equal(req.legacyPath, '/api/staff/1');
+    const req = rewrite('GET', '/api/admin/user-risk/1');
+    assert.equal(req.originalUrl, '/api/v1/admin/reports/user-risk/1');
+    assert.equal(req.legacyPath, '/api/admin/user-risk/1');
   });
 
-  await t.test('a literal path is never captured by a pattern', async () => {
-    // `/api/staff/:id` next to `/api/staff/tree` is the collision this table
-    // has to survive. Parameters match digits only, and EXACT is checked first.
-    assert.equal(rewrite('GET', '/api/staff/tree').url, '/api/v1/admin/staff/tree');
-    assert.equal(rewrite('GET', '/api/staff/players').url, '/api/v1/admin/staff/players');
-    assert.equal(rewrite('GET', '/api/staff/transactions').url, '/api/v1/admin/staff/transactions');
-    assert.equal(
-      rewrite('GET', '/api/staff/transfers/summary').url,
-      '/api/v1/admin/staff/transfers/summary'
-    );
+  await t.test('a non-numeric segment is not captured by a digits pattern', async () => {
     // Unmapped and non-numeric: passed through untouched rather than guessed at.
-    assert.equal(rewrite('GET', '/api/staff/whoever').url, '/api/staff/whoever');
+    assert.equal(rewrite('GET', '/api/admin/user-risk/whoever').url, '/api/admin/user-risk/whoever');
   });
 
   await t.test('a method is part of the key', async () => {
-    assert.equal(rewrite('POST', '/api/staff/1').url, '/api/staff/1');
+    assert.equal(rewrite('POST', '/api/admin/user-risk/1').url, '/api/admin/user-risk/1');
   });
 
   await t.test('the caller\'s query survives, and wins over the target\'s', async () => {
@@ -71,32 +56,16 @@ test('gateway legacy routes', async (t) => {
       rewrite('GET', '/today-deposits?date=2024-01-01').url,
       '/api/v1/admin/dashboard/today?kind=deposits&date=2024-01-01'
     );
-    assert.equal(rewrite('GET', '/api/staff/1?x=1').url, '/api/v1/admin/staff/1?x=1');
+    assert.equal(rewrite('GET', '/api/admin/user-risk/1?x=1').url, '/api/v1/admin/reports/user-risk/1?x=1');
   });
 
-  await t.test('legacy `rollupStaff` keeps meaning the whole branch', async () => {
-    // Three legacy handlers over one query. `rollupStaff` summed the subtree,
-    // `metrics` and `rollup` the one account — now one route and a flag.
-    assert.equal(
-      rewrite('GET', '/api/staff/rollupStaff/1').url,
-      '/api/v1/admin/staff/rollup/1?includeSubtree=true'
-    );
-    assert.equal(rewrite('GET', '/api/staff/metrics/1').url, '/api/v1/admin/staff/rollup/1');
-    // A baked-in default is a default: an explicit ask still wins.
-    assert.equal(
-      rewrite('GET', '/api/staff/rollupStaff/1?includeSubtree=false').url,
-      '/api/v1/admin/staff/rollup/1?includeSubtree=false'
-    );
-  });
-
-  await t.test('a path parameter can become a query parameter', async () => {
-    assert.equal(
-      rewrite('GET', '/api/staff/transfers/summary/7?from=2024-01-01').url,
-      '/api/v1/admin/staff/transfers/summary?staffId=7&from=2024-01-01'
-    );
-    // The bare `/transfers/:id` stays a path segment, and must not be swallowed
-    // by the `summary` pattern above it.
-    assert.equal(rewrite('GET', '/api/staff/transfers/7').url, '/api/v1/admin/staff/transfers/7');
+  await t.test('the removed outside agent system is no longer rewritten', async () => {
+    // Staff list / tree / detail / rollup hata diye — sirf password aur transfer bache.
+    for (const path of ['/api/staff', '/api/staff/tree', '/api/staff/1', '/api/staff/rollupStaff/1', '/api/admin/agent-users']) {
+      assert.equal(rewrite('GET', path).url, path);
+    }
+    assert.equal(rewrite('POST', '/api/staff/transfer').url, '/api/v1/admin/staff/transfer');
+    assert.equal(rewrite('PATCH', '/api/staff/password').url, '/api/v1/admin/staff/password');
   });
 
   await t.test('every mapping targets a versioned path', async () => {

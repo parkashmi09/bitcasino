@@ -5,6 +5,7 @@ const { Op, literal } = require('sequelize');
 const { money } = require('@ibitplay/common');
 
 const errors = require('./xCasino.errors');
+const { GamesService } = require('../games/games.service');
 const {
   COIN_COLUMNS,
   TRANSACTION_TYPE,
@@ -21,11 +22,13 @@ const {
  * response goes out.
  */
 class XCasinoService {
-  constructor({ models, db, logger, config }) {
+  constructor({ models, db, logger, config, clients, games }) {
     this.models = models;
     this.db = db;
     this.logger = logger;
     this.config = config;
+    /** The wager feed (USD wager, VIP XP, affiliate, rakeback) — see `#count`. */
+    this.games = games ?? new GamesService({ models, db, config, logger, clients });
   }
 
   // ══════════════════════════════════════════════════════════════════════
@@ -252,7 +255,7 @@ class XCasinoService {
     const isCredit = CREDIT_TYPES.includes(type);
     const decimal = money.toDecimalString(minor);
 
-    return this.db.transaction(async (transaction) => {
+    const result = await this.db.transaction(async (transaction) => {
       const before = await this.#balanceOf(run.user_id, run.coin, transaction);
 
       /**
@@ -338,6 +341,27 @@ class XCasinoService {
 
       return { balance: this.#toProvider(after), currency_code: run.coin };
     });
+
+    /**
+     * A stake counts toward the wager feed — in its wallet coin, converted to
+     * USD by user-service, exactly once per provider transaction id (a replay
+     * returned above, before reaching here). AFTER the money has committed and
+     * best-effort: `recordActivity` never throws into a settled bet.
+     */
+    if (type === TRANSACTION_TYPE.BET && minor > 0n) {
+      await this.games
+        .recordActivity({
+          userId: run.user_id,
+          gameRef: null,
+          wagered: decimal,
+          currency: run.coin,
+          source: 'xcasino',
+          ref: transactionId,
+        })
+        .catch((error) => this.logger?.warn({ err: error, transactionId }, 'Wager feed failed — the bet stands'));
+    }
+
+    return result;
   }
 
   /**
@@ -407,7 +431,7 @@ class XCasinoService {
     const reversalId = cancelTransactionId ?? `cancel:${transactionId}`;
     const decimal = money.toDecimalString(money.toMinor(original.amount ?? '0'));
 
-    return this.db.transaction(async (transaction) => {
+    const result = await this.db.transaction(async (transaction) => {
       try {
         await this.models.TransactionsCasino.create(
           {
@@ -456,6 +480,13 @@ class XCasinoService {
 
       return { balance: this.#toProvider(after), currency_code: original.currency_code };
     });
+
+    // The cancelled stake was counted under `xcasino:<bet id>`; it stops counting.
+    await this.games
+      .reverseActivity({ userId: original.user_id, source: 'xcasino', ref: transactionId, outbox: true })
+      .catch((error) => this.logger?.warn({ err: error, transactionId }, 'Wager reversal failed — the cancel stands'));
+
+    return result;
   }
 
   // ══════════════════════════════════════════════════════════════════════

@@ -498,7 +498,7 @@ moves real money.
 
 Three more things for whoever picks it up:
 
-- `TOKEN = "fb216c4fead6630de2551643267d5ab0"` with `PID = 3064`, hardcoded.
+- `TOKEN = "<redacted, see backend/docs/ROTATION.md>"` with `PID = 3064`, hardcoded.
   In `tools/check-secrets.js` and [ROTATION.md](ROTATION.md) §9.
 - `CALLBACK = "http://api-transfer-wallet.8provider.com/callback_handler"` —
   plain HTTP, for a callback that moves money.

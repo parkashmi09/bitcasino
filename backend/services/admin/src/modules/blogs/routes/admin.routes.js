@@ -1,7 +1,7 @@
 'use strict';
 
 const { Router } = require('express');
-const { validate, createActivityRecorder, imageUpload } = require('@ibitplay/common');
+const { validate, createActivityRecorder, imageUpload, noBody } = require('@ibitplay/common');
 const { PERMISSIONS } = require('@ibitplay/auth');
 
 const v = require('../blogs.validators');
@@ -109,6 +109,7 @@ module.exports = function adminRoutes(deps) {
    */
   router.delete(
     '/:id',
+    noBody(),
     canWrite,
     validate(v.removeById),
     withActivity({
@@ -120,6 +121,7 @@ module.exports = function adminRoutes(deps) {
 
   router.delete(
     '/slug/:slug',
+    noBody(),
     canWrite,
     validate(v.removeBySlug),
     withActivity({

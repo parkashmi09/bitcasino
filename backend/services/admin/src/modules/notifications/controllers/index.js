@@ -25,14 +25,24 @@ function createControllers({ service }) {
       response.accepted(res, await service.broadcast({ ...req.body, staff: req.staff }))
     ),
 
+    listSends: asyncHandler(async (req, res) => paged(res, req.query, service.listSends({ ...req.query, staff: req.staff }))),
+
+    updateSend: asyncHandler(async (req, res) =>
+      response.ok(res, await service.updateSend({ ...req.body, sendId: req.params.sendId, staff: req.staff }))
+    ),
+
+    deleteSend: asyncHandler(async (req, res) =>
+      response.ok(res, await service.deleteSend({ sendId: req.params.sendId, staff: req.staff }))
+    ),
+
     /** @legacy GET /firebase/history/:userId */
     history: asyncHandler(async (req, res) =>
-      paged(res, req.query, service.history({ ...req.query, userId: req.params.userId }))
+      paged(res, req.query, service.staffHistory({ ...req.query, userId: req.params.userId, staff: req.staff }))
     ),
 
     /** @legacy GET /firebase/unread-count/:userId */
     unreadCount: asyncHandler(async (req, res) =>
-      response.ok(res, await service.unreadCount({ userId: req.params.userId }))
+      response.ok(res, await service.staffUnreadCount({ userId: req.params.userId, staff: req.staff }))
     ),
 
     // ── Called by user-service on the player's behalf ──────────────────

@@ -24,6 +24,11 @@ const KIND = Object.freeze({
   // Play
   SPORTS: 'SPORTS',
   CASINO: 'CASINO',
+
+  // Neither a deposit nor play (owner, 19 Oct 2026: an admin credit is never a deposit)
+  ADMIN: 'ADMIN',
+  BONUS: 'BONUS',
+  SWAP: 'SWAP',
 });
 
 /** Which `?category=` filter each kind answers to. */
@@ -40,9 +45,12 @@ const KIND_CATEGORY = Object.freeze({
   [KIND.GATEWAY_WITHDRAW]: 'money',
   [KIND.SPORTS]: 'sports',
   [KIND.CASINO]: 'casino',
+  [KIND.ADMIN]: 'other',
+  [KIND.BONUS]: 'other',
+  [KIND.SWAP]: 'other',
 });
 
-const CATEGORIES = Object.freeze(['all', 'money', 'sports', 'casino']);
+const CATEGORIES = Object.freeze(['all', 'money', 'sports', 'casino', 'other']);
 
 /**
  * `credits_ledger.reason` values that are sports settlement.
@@ -101,6 +109,51 @@ const MAX_BET_PAGE_SIZE = 200;
  */
 const MAX_RANGE_DAYS = 1100;
 
+/**
+ * `gis_transactions.amount` is SIGNED from the wallet's side: the GIS handler
+ * (`casino/.../gis/gis.service.js`) writes a `bet` as a debit (negative) and a
+ * win/refund/rollback as a credit (positive). Older rows may hold the bet as a
+ * magnitude. Every reader here wants the stake as a magnitude and credits as
+ * stored, so a `bet` is read through ABS — summing it raw would turn every real
+ * stake into money the player received.
+ */
+const GIS_AMOUNT_SQL = "CASE WHEN LOWER(action) = 'bet' THEN ABS(amount) ELSE amount END";
+
+/** The same rule for one row, in minor units (BigInt). */
+const gisMagnitude = (action, minor) => (String(action).toLowerCase() === 'bet' && minor < 0n ? -minor : minor);
+
+/**
+ * The actions `gis.service.js` stores. `balance` is a probe and writes no row.
+ * A `refund` row is a credit (+) of the bet it names. A `rollback` row is a
+ * credit (+) when it reverses a bet and a debit (−) when it reverses a win or a
+ * refund.
+ */
+const GIS_PLAY_ACTIONS = Object.freeze(['bet', 'win', 'refund', 'rollback']);
+
+/**
+ * GIS rows split into turnover and payout, for the stats screens.
+ *
+ * The house result is the one the reports' `#tradingPnlFor` and this module
+ * compute: the stake (a `bet`, through ABS) minus every other row as stored.
+ * The stats screens also show turnover and payout, so each row goes on one side:
+ *
+ *   stake  a `bet` (+ABS), and a refund or rollback that gave a stake back
+ *          (stored +, so −amount): a refunded bet was never risked
+ *   win    a `win` as stored, and a rollback that took money back (stored −)
+ *
+ * stake − win is the same figure as `#tradingPnlFor` for any set of rows. So a
+ * bet and its full refund add 0 to turnover, 0 to payout and 0 to GGR.
+ * `a` is the table alias.
+ */
+const gisReversesStakeSql = (a) => `(LOWER(${a}.action) IN ('refund', 'rollback') AND ${a}.amount > 0)`;
+const gisKindSql = (a) => `(CASE WHEN LOWER(${a}.action) = 'bet' OR ${gisReversesStakeSql(a)} THEN 'stake' ELSE 'win' END)`;
+const gisSideAmountSql = (a) =>
+  `(CASE WHEN LOWER(${a}.action) = 'bet' THEN ABS(${a}.amount) WHEN ${gisReversesStakeSql(a)} THEN -${a}.amount ELSE ${a}.amount END)`;
+/** 1 for a bet row, else 0: a refund is not a bet placed. */
+const gisBetCountSql = (a) => `(CASE WHEN LOWER(${a}.action) = 'bet' THEN 1 ELSE 0 END)`;
+/** `AND`-able filter: a play row that moved money. */
+const gisPlayFilterSql = (a) => `LOWER(${a}.action) IN (${GIS_PLAY_ACTIONS.map((x) => `'${x}'`).join(', ')}) AND ${a}.amount <> 0`;
+
 module.exports = {
   KIND,
   KIND_CATEGORY,
@@ -112,4 +165,11 @@ module.exports = {
   MAX_PAGE_SIZE,
   MAX_BET_PAGE_SIZE,
   MAX_RANGE_DAYS,
+  GIS_AMOUNT_SQL,
+  gisMagnitude,
+  GIS_PLAY_ACTIONS,
+  gisKindSql,
+  gisSideAmountSql,
+  gisBetCountSql,
+  gisPlayFilterSql,
 };

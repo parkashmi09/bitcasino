@@ -1,5 +1,7 @@
 'use strict';
 
+const { LIVE_PROVIDERS, LIVE_TYPES } = require('../games/games.constants');
+
 /**
  * The four places a casino transaction can live, and how each spells itself.
  *
@@ -7,6 +9,7 @@
  * `gis_transactions` is Slotegrator.
  * `js_game_transactions` is jsGames v1.
  * `game_transactions` is jsGames v2.
+ * `og_transactions` is the Original Games aggregator.
  *
  * Each has its own column names for the same four ideas — who, how much, when,
  * and what happened. Legacy expressed the reconciliation as a hand-written
@@ -93,10 +96,34 @@ const SOURCES = Object.freeze({
     rowIdColumn: 'id',
     /** v2 reports movements, not rounds — each row stands alone. */
     roundColumn: null,
+    gameTypeColumn: 'game_type',
+    gameNameColumn: 'game_name',
     kindColumn: 'transaction_type',
     gameColumn: 'game_uid',
     catalog: 'jsgames',
     sessionColumn: null,
+    finishedColumn: null,
+    statusColumn: null,
+  },
+  /** The Original Games aggregator (migration 130): a bet row and a win row per round, unsigned. */
+  og: {
+    model: 'OgTransactions',
+    table: 'og_transactions',
+    label: 'original-games',
+    userColumn: 'user_id',
+    amountColumn: 'amount',
+    profitColumn: 'amount',
+    timeColumn: 'created_at',
+    currencyColumn: 'currency',
+    idColumn: 'transaction_id',
+    rowIdColumn: 'id',
+    roundColumn: 'round_id',
+    kindColumn: 'kind',
+    gameColumn: 'game_code',
+    catalog: 'og',
+    /** Bet and win legs are both positive, so the list folds them into one row per round. */
+    oneRowPerRound: true,
+    sessionColumn: 'session_id',
     finishedColumn: null,
     statusColumn: null,
   },
@@ -111,11 +138,41 @@ const SOURCES = Object.freeze({
  * that owns it.
  */
 const CATALOGS = Object.freeze({
-  gis: { model: 'GisGames', keyColumn: 'uuid', nameColumn: 'name', vendorColumn: 'provider' },
-  jsgames: { model: 'JsGames', keyColumn: 'game_uid', nameColumn: 'game_name', vendorColumn: 'vendor' },
+  // Slotegrator: the lobby's own catalogue (`gisgamesnew`) first, the legacy `gis_games` after.
+  gis: { model: 'Gisgamesnew', fallbackModel: 'GisGames', keyColumn: 'uuid', nameColumn: 'name', vendorColumn: 'provider', typeColumn: 'type', imageColumn: 'image' },
+  jsgames: { model: 'JsGames', keyColumn: 'game_uid', nameColumn: 'game_name', vendorColumn: 'vendor', typeColumn: 'game_type', imageColumn: 'game_icon' },
+  og: { model: 'OgGames', keyColumn: 'code', nameColumn: 'name', vendorColumn: 'code' },
 });
 
+/**
+ * The player's Bet History "Type" filter: `original | live | slots`.
+ *
+ *   original  an in-house game — the `bets` table, or a jsGames row whose catalogue vendor is
+ *             `in-house`;
+ *   live      a live-casino game, by the lobby's own rule (games.constants.js): a live provider
+ *             (LIVE_PROVIDERS — Slotegrator types a live blackjack table `blackjack`, the same
+ *             word as an RNG one) or a live type (LIVE_TYPES), or any type naming "live";
+ *   slots     every other third-party casino game (slots, instant, crash, RNG tables…).
+ *
+ * `type` / `vendor` come from the game catalogue (or, for jsGames v2, the row's own
+ * `game_type`); a row the catalogue does not know is a third-party game of unknown kind, so
+ * `slots`.
+ */
+const BET_CATEGORIES = Object.freeze(['original', 'live', 'slots']);
+const IN_HOUSE_VENDOR = 'in-house';
+
+function categoryOf({ sourceKey, vendor, type }) {
+  const v = String(vendor ?? '').trim().toLowerCase();
+  const t = String(type ?? '').trim().toLowerCase();
+  if (sourceKey === 'inhouse' || sourceKey === 'og' || v === IN_HOUSE_VENDOR) return 'original';
+  if (LIVE_PROVIDERS.includes(v) || LIVE_TYPES.includes(t) || /\blive\b/.test(t)) return 'live';
+  return 'slots';
+}
+
 const SOURCE_KEYS = Object.freeze(Object.keys(SOURCES));
+/** Third-party casino only: the admin Casino section never shows the Originals (inhouse, og). */
+const CASINO_SOURCE_KEYS = Object.freeze(SOURCE_KEYS.filter((k) => k !== 'inhouse' && k !== 'og'));
+
 
 /**
  * How a movement is classified, everywhere in this module.
@@ -257,6 +314,36 @@ function countExpressions(source) {
 function statExpressions(source) {
   const amount = `ABS(${source.amountColumn})`;
 
+  /**
+   * Original Games: a bet leg and a win leg per round, both unsigned, so a win row says nothing
+   * about the round — a loss is a win leg of 0 and a 3 back on a 5 stake is still a loss. Each
+   * applied bet leg a rollback did not undo is one round, judged by its round's win legs: a win
+   * only when they paid more than the stake, a push when they paid it back exactly. A rolled-back
+   * bet is a refund. `t` is the alias Sequelize gives the model's table.
+   */
+  if (source.oneRowPerRound) {
+    const t = `"${source.model}"`;
+    const undone = (a) => `EXISTS (SELECT 1 FROM ${source.table} rb
+      WHERE rb.kind = 'rollback' AND rb.status = 'applied' AND rb.reference_transaction_id = ${a}.transaction_id)`;
+    const bet = `${t}.kind = 'bet' AND ${t}.status = 'applied'`;
+    const played = `${bet} AND NOT ${undone(t)}`;
+    const payout = `(SELECT SUM(w.amount) FROM ${source.table} w
+      WHERE w.kind = 'win' AND w.status = 'applied' AND w.round_id = ${t}.round_id AND w.user_id = ${t}.user_id
+        AND NOT ${undone('w')})`;
+    return {
+      movements: 'COUNT(*)',
+      bets: `COUNT(*) FILTER (WHERE ${played})`,
+      winRows: `COUNT(*) FILTER (WHERE ${played} AND ${payout} > ${t}.amount)`,
+      paidWins: `COUNT(*) FILTER (WHERE ${played} AND ${payout} > ${t}.amount)`,
+      pushes: `COUNT(*) FILTER (WHERE ${played} AND ${payout} = ${t}.amount)`,
+      losses: `COUNT(*) FILTER (WHERE ${played} AND ${payout} < ${t}.amount)`,
+      refunds: `COUNT(*) FILTER (WHERE ${bet} AND ${undone(t)})`,
+      wagered: `COALESCE(SUM(${t}.amount) FILTER (WHERE ${played}), 0)`,
+      payouts: `COALESCE(SUM(${t}.amount) FILTER (WHERE ${t}.kind = 'win' AND ${t}.status = 'applied' AND NOT ${undone(t)}), 0)`,
+      refunded: `COALESCE(SUM(${t}.amount) FILTER (WHERE ${bet} AND ${undone(t)}), 0)`,
+    };
+  }
+
   // One row IS one round: it was a bet, and `profit` says what it did.
   if (!source.kindColumn) {
     const profit = source.profitColumn;
@@ -328,6 +415,9 @@ const MAX_ROWS_PER_SOURCE = 500;
 module.exports = {
   SOURCES,
   SOURCE_KEYS,
+  CASINO_SOURCE_KEYS,
+  BET_CATEGORIES,
+  categoryOf,
   CATALOGS,
   OUTCOME,
   KIND,

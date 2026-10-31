@@ -34,5 +34,8 @@ module.exports = {
   models: ['core', 'extended'],
   routers: {
     user: require('./routes/user.routes'),
+    // admin-service tells this service the public flags or features changed;
+    // the player sockets are here, so the broadcast is here.
+    internal: require('./routes/internal.routes'),
   },
 };

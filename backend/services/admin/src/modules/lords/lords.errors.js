@@ -16,11 +16,6 @@ module.exports = defineErrors('ACCOUNTS', {
     message: 'This action requires your transaction password',
   },
 
-  INSUFFICIENT_FUNDS: {
-    status: 402,
-    message: 'There is not enough in your balance to cover this',
-  },
-
   REFILL_TOO_LARGE: {
     status: 422,
     // Legacy had no ceiling on a direct wallet credit.
@@ -28,4 +23,23 @@ module.exports = defineErrors('ACCOUNTS', {
   },
 
   CANNOT_ACT_ON_SELF: { status: 422, message: 'An account cannot do that to itself' },
+
+  /** An agent's float is INR (the staff `credits.inr`); there is nothing else to draw from. */
+  FLOAT_CURRENCY_ONLY: {
+    status: 422,
+    message: 'Agent balance moves are in INR only',
+  },
+
+  /** Players never play on credit; only an agent's float has a credit line. */
+  PLAYER_CREDIT_NOT_SUPPORTED: {
+    status: 422,
+    message: 'Players cannot be given a credit limit',
+  },
+
+  // Overdraw is the shared 422 INSUFFICIENT_FUNDS — see `staffFloat.js`.
+
+  IDEMPOTENCY_CONFLICT: {
+    status: 409,
+    message: 'This request key was already used with a different amount',
+  },
 });

@@ -1,6 +1,7 @@
 'use strict';
 
-const { Op } = require('sequelize');
+const { randomInt } = require('node:crypto');
+const { Op, literal } = require('sequelize');
 const {
   hashPassword,
   verifyPassword,
@@ -8,9 +9,14 @@ const {
   TokenService,
   totp,
   createSecretBox,
+  STAFF_LEVELS,
+  canManagePromotions,
+  isLoginPasswordMode,
+  transactionPasswordMode,
 } = require('@ibitplay/auth');
 
 const errors = require('./staffAuth.errors');
+const { uplineBlock } = require('../staff-directory/staffDirectory.service');
 const {
   LOGIN_WINDOW_MS,
   LOGIN_MAX_ATTEMPTS,
@@ -72,10 +78,7 @@ class StaffAuthService {
     const { ip, userAgent } = context;
     this.#assertNotThrottled(email, ip);
 
-    const staff = await this.models.Staff.findOne({
-      where: { email: String(email).toLowerCase() },
-      raw: true,
-    });
+    const staff = await this.#findStaffByLoginId(email);
 
     /**
      * The comparison runs even when there is no account.
@@ -302,6 +305,8 @@ class StaffAuthService {
         two_fa_secret: this.secrets.seal(secret),
         two_fa_last_step: result.step,
         two_fa_enrolled_at: new Date(),
+        // Ends every session, this one too: one opened before the second factor existed must not outlive it.
+        token_version: literal('token_version + 1'),
       },
       { where: { id: staffId } }
     );
@@ -347,7 +352,8 @@ class StaffAuthService {
     // Cleared, not just flagged off — re-enrolling issues a new secret, so an
     // old QR screenshot cannot be reused.
     await this.models.Staff.update(
-      { two_fa_enabled: false, two_fa_secret: null, two_fa_last_step: null, two_fa_enrolled_at: null },
+      // The version bump ends every session, so turning 2FA off means signing in again.
+      { two_fa_enabled: false, two_fa_secret: null, two_fa_last_step: null, two_fa_enrolled_at: null, token_version: literal('token_version + 1') },
       { where: { id: staffId } }
     );
 
@@ -375,10 +381,7 @@ class StaffAuthService {
     const { ip } = context;
     this.#assertNotThrottled(email, ip);
 
-    const staff = await this.models.Staff.findOne({
-      where: { email: String(email).toLowerCase() },
-      raw: true,
-    });
+    const staff = await this.#findStaffByLoginId(email);
 
     const ok = await verifyPassword(currentPassword, staff?.password ?? DUMMY_HASH);
     if (!staff || !ok) {
@@ -388,11 +391,19 @@ class StaffAuthService {
 
     await this.#assertUsable(staff, { allowFirstLogin: true });
 
+    // rainbet: this route is the forced change only; it is no way round the creator-only rule.
+    if (!staff.first_login && !staff.must_change_password) throw errors.PASSWORD_CHANGE_NOT_DUE();
+    const transactionPassword = isLoginPasswordMode() ? null : String(randomInt(100000, 1000000));
+
     await this.models.Staff.update(
       {
         password: await hashPassword(newPassword, PASSWORD_ROUNDS),
+        ...(transactionPassword ? { transaction_password: await hashPassword(transactionPassword, PASSWORD_ROUNDS) } : {}),
         first_login: false,
+        must_change_password: false,
         // Never `password2`. Legacy wrote the plaintext there on every change.
+        // A token issued on the old password stops working.
+        token_version: literal('token_version + 1'),
       },
       { where: { id: staff.id } }
     );
@@ -400,7 +411,12 @@ class StaffAuthService {
     this.#clearFailures(email, ip);
     this.logger?.warn({ staffId: staff.id }, 'Staff password set on first sign-in');
 
-    return this.#issue({ staff: { ...staff, first_login: false }, executive: null, ip });
+    const session = await this.#issue({
+      staff: { ...staff, first_login: false, must_change_password: false, token_version: Number(staff.token_version ?? 0) + 1 },
+      executive: null,
+      ip,
+    });
+    return { ...session, ...(transactionPassword ? { transactionPassword } : {}) };
   }
 
   /**
@@ -408,30 +424,52 @@ class StaffAuthService {
    *
    * ── WHAT THIS CAN AND CANNOT DO ──────────────────────────────────────
    *
-   * Staff tokens are stateless and short-lived, so "log out" cannot revoke the
-   * token that is already issued — it stays valid until it expires. Saying so
-   * is better than pretending otherwise, which is what legacy's logout did: it
-   * returned success and took no action at all.
+   * Staff tokens are stateless, so logout bumps `staff.token_version`: the
+   * guard then refuses every token this account holds, on every device.
    *
-   * What it does do is record the event, so a session ending is in the audit
-   * trail next to the actions that preceded it.
+   * An executive sub-login shares its parent's staff row, so bumping it would
+   * sign the parent out too; its logout bumps `executives.token_version`
+   * instead, which only that executive's tokens carry (`etv`).
+   *
+   * The event is recorded, so a session ending is in the audit trail next to
+   * the actions that preceded it.
    */
   async logout({ actor }, context = {}) {
+    if (actor.executiveId) {
+      await this.models.Executives.update({ token_version: literal('token_version + 1') }, { where: { id: actor.executiveId } });
+    } else {
+      await this.models.Staff.update({ token_version: literal('token_version + 1') }, { where: { id: actor.id } });
+    }
     this.logger?.info(
       { staffId: actor.id, executiveId: actor.executiveId ?? null, ip: context.ip },
       'Staff signed out'
     );
-    return {
-      loggedOut: true,
-      // The client must discard it; the server cannot.
-      note: 'Discard the token. It remains valid until it expires.',
-    };
+    return { loggedOut: true };
   }
 
   // ══════════════════════════════════════════════════════════════════════
 
-  async #issue({ staff, executive, ip, userAgent }) {
+  /**
+   * A read-only session as `staffId` with no password — the parent site's Whitelabel preview
+   * (modules/whitelabel-link redeems a one-time code it handed out). The token carries `ro`, so
+   * every write anywhere answers 403 READ_ONLY_PREVIEW (packages/auth middleware.js).
+   */
+  async previewSession(staffId) {
+    const staff = await this.models.Staff.findByPk(staffId, { raw: true });
+    if (!staff) throw errors.INVALID_CREDENTIALS();
+    return this.#issue({ staff, executive: null, readOnly: true });
+  }
+
+  async #issue({ staff, executive, ip, userAgent, readOnly = false }) {
     const role = await this.models.Roles.findByPk(staff.role_id, { raw: true });
+
+    // A staff row whose role is EXECUTIVE acts with its parent's level.
+    let parentLevel = null;
+    if (role?.level === STAFF_LEVELS.EXECUTIVE && staff.parent_id) {
+      const parent = await this.models.Staff.findByPk(staff.parent_id, { attributes: ['role_id'], raw: true });
+      const parentRole = parent ? await this.models.Roles.findByPk(parent.role_id, { raw: true }) : null;
+      parentLevel = parentRole?.level ?? null;
+    }
 
     /**
      * The EFFECTIVE permission set goes in the token.
@@ -444,7 +482,10 @@ class StaffAuthService {
     const permissions = resolvePermissions({
       level: role?.level,
       rolePermissions: parseJson(role?.permissions),
-      executivePermissions: executive ? parseJson(executive.permissions) : null,
+      // Raw, with the flag: an executive whose grant is missing or unreadable
+      // resolves to NO permissions, never to the parent's.
+      executivePermissions: executive ? executive.permissions : null,
+      isExecutive: Boolean(executive),
     });
 
     const token = this.tokens.signAdminToken({
@@ -454,18 +495,31 @@ class StaffAuthService {
       level: role?.level ?? null,
       executiveId: executive?.id ?? null,
       permissions,
+      tokenVersion: staff.token_version,
+      executiveTokenVersion: executive?.token_version,
+      readOnly,
     });
 
     this.logger?.info(
       { staffId: staff.id, executiveId: executive?.id ?? null, ip, userAgent },
-      'Staff signed in'
+      readOnly ? 'Staff preview session issued' : 'Staff signed in'
     );
 
     return {
       token,
       // `first_login` tells the client to send the user to the password screen.
       firstLogin: Boolean(staff.first_login),
-      hasTransactionPassword: Boolean(staff.transaction_password),
+      /**
+       * True while the password is one somebody else chose. Every admin API
+       * except "who am I", change-password and logout answers 403
+       * PASSWORD_CHANGE_REQUIRED until it is replaced — send the user to the
+       * change-password screen. Never set for an executive sub-login.
+       */
+      mustChangePassword: !readOnly && !executive && staff.must_change_password === true,
+      readOnly,
+      // Always true in TXN_PASSWORD_MODE=login: the login password is the transaction password.
+      hasTransactionPassword: isLoginPasswordMode() || Boolean(staff.transaction_password),
+      transactionPasswordMode: transactionPasswordMode(),
       actor: {
         staffId: staff.id,
         name: staff.name,
@@ -476,6 +530,11 @@ class StaffAuthService {
         executiveId: executive?.id ?? null,
         executiveUsername: executive?.username ?? null,
         permissions,
+        // Same shape as GET /admin/access/me/permissions → capabilities.
+        capabilities: {
+          promotions: canManagePromotions({ level: role?.level, parentLevel }),
+          vault: canManagePromotions({ level: role?.level, parentLevel }),
+        },
       },
     };
   }
@@ -483,8 +542,8 @@ class StaffAuthService {
   /**
    * Can this account sign in at all.
    *
-   * Three gates: its own status, its own system lock, and a system lock
-   * anywhere above it. Legacy checked the last two and never looked at
+   * Three gates: its own status, its own system lock, and a suspension or
+   * system lock anywhere above it. Legacy checked the last two and never looked at
    * `status`, so an account suspended through the management screen kept
    * working.
    */
@@ -500,55 +559,67 @@ class StaffAuthService {
       this.logger?.info({ staffId: staff.id }, 'Staff signing in with a first-login password');
     }
 
-    const locked = await this.models.StaffHierarchy.findOne({
-      where: { descendant_id: staff.id, ancestor_id: { [Op.ne]: staff.id } },
-      raw: true,
-      include: [],
-    });
-
-    if (!locked) return;
-
-    const ancestors = await this.models.StaffHierarchy.findAll({
-      where: { descendant_id: staff.id, ancestor_id: { [Op.ne]: staff.id } },
-      attributes: ['ancestor_id'],
-      raw: true,
-    });
-
-    const lockedAncestor = await this.models.Staff.findOne({
-      where: { id: ancestors.map((a) => a.ancestor_id), system_locked: true },
-      attributes: ['id'],
-      raw: true,
-    });
-
-    if (lockedAncestor) {
-      throw errors.ACCOUNT_UNAVAILABLE({ reason: 'locked by an upline account' });
+    // Suspended, inactive or system-locked ANYWHERE above — one walk of
+    // `staff_hierarchy`, the same one the auth guard runs on every request.
+    const upline = await uplineBlock(this.models, staff.id);
+    if (upline) {
+      throw errors.ACCOUNT_UNAVAILABLE({ reason: `${upline.reason === 'locked' ? 'locked' : 'suspended'} by an upline account` });
     }
   }
 
-  #key(identifier, ip) {
-    return `${String(identifier ?? '').toLowerCase()}|${ip ?? 'unknown'}`;
+  async #findStaffByLoginId(identifier) {
+    const id = String(identifier).toLowerCase();
+    if (id.includes('@')) {
+      return this.models.Staff.findOne({ where: { email: id }, raw: true });
+    }
+    const { sequelize } = this.models.Staff;
+    return this.models.Staff.findOne({
+      where: {
+        [Op.or]: [
+          { email: id },
+          sequelize.where(sequelize.fn('lower', sequelize.col('name')), id),
+        ],
+      },
+      raw: true,
+    });
+  }
+
+  /**
+   * Throttle on identifier and IP independently, with the player thresholds
+   * (auth.service: 8 failures per identifier, 24 per IP, 15 minutes).
+   *
+   * One combined `identifier|ip` key let a botnet give one account 8 guesses
+   * per address, and one host walk a list of accounts 8 at a time.
+   */
+  #keys(identifier, ip) {
+    return [
+      { key: `id:${String(identifier ?? '').toLowerCase()}`, max: LOGIN_MAX_ATTEMPTS },
+      { key: `ip:${ip ?? 'unknown'}`, max: LOGIN_MAX_ATTEMPTS * 3 },
+    ];
   }
 
   #assertNotThrottled(identifier, ip) {
-    const entry = this.attempts.get(this.#key(identifier, ip));
-    if (!entry) return;
-    if (entry.until > Date.now()) throw errors.TOO_MANY_ATTEMPTS();
-    if (entry.first + LOGIN_WINDOW_MS < Date.now()) this.attempts.delete(this.#key(identifier, ip));
+    const now = Date.now();
+    for (const { key } of this.#keys(identifier, ip)) {
+      const entry = this.attempts.get(key);
+      if (!entry) continue;
+      if (entry.until > now) throw errors.TOO_MANY_ATTEMPTS();
+      if (entry.first + LOGIN_WINDOW_MS < now) this.attempts.delete(key);
+    }
   }
 
   #recordFailure(identifier, ip) {
-    const key = this.#key(identifier, ip);
     const now = Date.now();
-    const entry = this.attempts.get(key) ?? { count: 0, first: now, until: 0 };
-
-    if (entry.first + LOGIN_WINDOW_MS < now) {
-      entry.count = 0;
-      entry.first = now;
+    for (const { key, max } of this.#keys(identifier, ip)) {
+      const entry = this.attempts.get(key) ?? { count: 0, first: now, until: 0 };
+      if (entry.first + LOGIN_WINDOW_MS < now) {
+        entry.count = 0;
+        entry.first = now;
+      }
+      entry.count += 1;
+      if (entry.count >= max) entry.until = now + LOGIN_WINDOW_MS;
+      this.attempts.set(key, entry);
     }
-
-    entry.count += 1;
-    if (entry.count >= LOGIN_MAX_ATTEMPTS) entry.until = now + LOGIN_WINDOW_MS;
-    this.attempts.set(key, entry);
 
     // Bounded, so a spray across many identifiers cannot grow this without
     // limit — the oldest entries go first.
@@ -558,8 +629,9 @@ class StaffAuthService {
     }
   }
 
-  #clearFailures(identifier, ip) {
-    this.attempts.delete(this.#key(identifier, ip));
+  /** A proven password clears the account's count; the address's count stands. */
+  #clearFailures(identifier, _ip) {
+    this.attempts.delete(this.#keys(identifier)[0].key);
   }
 }
 

@@ -43,7 +43,25 @@ const PASSWORD_ROUNDS = 12;
  * Lower this number as enrolment spreads. Setting it to 7 requires 2FA of
  * every staff account on the platform.
  */
-const TWO_FA_REQUIRED_AT_OR_ABOVE_LEVEL = 3;
+/**
+ * Overridable per environment via `STAFF_2FA_REQUIRED_LEVEL`.
+ *
+ * THE DEFAULT IS THE SECURE VALUE (3). An unset, empty or unparseable variable
+ * keeps the policy exactly as written above, so a deployment that forgets the
+ * variable fails CLOSED rather than open.
+ *
+ * Setting it to 0 disables the enrolment requirement entirely: levels start at
+ * 1, so no account satisfies `level <= 0`. That is a LOCAL DEVELOPMENT
+ * convenience for signing in to a restored database whose senior accounts have
+ * no authenticator enrolled. On a real deployment it hands every admin account
+ * back its password-only sign-in — do not set it outside development.
+ */
+const TWO_FA_REQUIRED_AT_OR_ABOVE_LEVEL = (() => {
+  const raw = process.env.STAFF_2FA_REQUIRED_LEVEL;
+  if (raw === undefined || raw === '') return 3;
+  const parsed = Number(raw);
+  return Number.isInteger(parsed) && parsed >= 0 && parsed <= 7 ? parsed : 3;
+})();
 
 module.exports = {
   LOGIN_MAX_ATTEMPTS,

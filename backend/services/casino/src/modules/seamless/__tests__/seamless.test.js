@@ -8,7 +8,35 @@ const db = require('@ibitplay/db');
 const { createLogger, money } = require('@ibitplay/common');
 
 const { SeamlessService } = require('../seamless.service');
+const { GamesService } = require('../../games/games.service');
 const { RESPONSE_CODES } = require('../seamless.constants');
+
+/** The real `reverseActivity` over a user-service that is down: what it queues for retry. */
+const outboxFeed = () => {
+  const queued = [];
+  const real = new GamesService({
+    models: {},
+    db: {
+      sequelize: {
+        async query(sql, opts) {
+          if (/INSERT INTO wager_reverse_outbox/.test(sql)) queued.push(opts.replacements);
+          return [[], 1];
+        },
+      },
+    },
+    config: {},
+    logger: { warn() {}, info() {}, error() {} },
+    clients: { user: { async post() { throw new Error('user-service down'); } } },
+  });
+  return {
+    queued,
+    games: {
+      async recordPlay() {},
+      async recordActivity() { return { counted: true }; },
+      reverseActivity: (args) => real.reverseActivity(args),
+    },
+  };
+};
 
 /**
  * The casino seamless wallet.
@@ -128,6 +156,7 @@ test('casino seamless wallet', async (t) => {
         SEAMLESS_OPERATOR_CODE: OPERATOR,
         SEAMLESS_MAX_SKEW_SECONDS: 300,
         SEAMLESS_SIGN_MODE: 'legacy',
+        SEAMLESS_ALLOWED_IPS: ['10.0.0.1'],
         ...config,
       },
     });
@@ -489,6 +518,22 @@ test('casino seamless wallet', async (t) => {
     assert.equal(balances.get(String(uid)), '100.00000000');
   });
 
+  await t.test("a rollback naming another member does not refund them someone else's bet", async () => {
+    const victim = player('100');
+    const other = player('0');
+    const { service } = build(new Map([...victim.balances, ...other.balances]));
+    const id = newTxId();
+
+    await service.withdraw(
+      request('withdraw', { member_account: String(victim.uid), transactions: [{ id, amount: '40' }] })
+    );
+    const result = await service.rollback(
+      request('rollback', { member_account: String(other.uid), transactions: [{ id }] })
+    );
+
+    assert.equal(result.code, RESPONSE_CODES.BET_NOT_EXIST);
+  });
+
   await t.test('rolling back something we never applied is refused', async () => {
     const { uid, balances } = player('100');
     const { service } = build(balances);
@@ -505,15 +550,51 @@ test('casino seamless wallet', async (t) => {
   //  Audit
   // ══════════════════════════════════════════════════════════════════════
 
+  await t.test('a rollback and a cancel of one bet refund once', async () => {
+    const { uid, balances } = player('100');
+    const { service } = build(balances);
+    const id = newTxId();
+    await service.withdraw(request('withdraw', { member_account: String(uid), transactions: [{ id, amount: '40' }] }));
+    assert.equal(Number(balances.get(String(uid))), 60);
+
+    await Promise.all([
+      service.rollback(request('rollback', { member_account: String(uid), transactions: [{ id }] })),
+      service.cancel(request('cancel', { member_account: String(uid), transactions: [{ id }] })),
+    ]);
+    assert.equal(Number(balances.get(String(uid))), 100, 'the stake came back once');
+  });
+
+  await t.test('a win naming a round with no bet of this player is refused', async () => {
+    const { uid, balances } = player('100');
+    const { service } = build(balances);
+    const result = await service.deposit(
+      request('deposit', { member_account: String(uid), transactions: [{ id: newTxId(), amount: '500', round_id: `none-${newTxId()}` }] })
+    );
+    assert.equal(result.code, RESPONSE_CODES.BET_NOT_EXIST);
+    assert.equal(Number(balances.get(String(uid))), 100);
+  });
+
+  await t.test('the legacy signature is refused with no provider IP list', async () => {
+    const { uid, balances } = player('100');
+    const { service } = build(balances, { SEAMLESS_ALLOWED_IPS: [] });
+    const result = await service.deposit(request('deposit', { member_account: String(uid), transactions: [{ id: newTxId(), amount: '50' }] }));
+    assert.equal(result.code, RESPONSE_CODES.PRODUCT_UNDER_MAINTENANCE);
+    assert.equal(Number(balances.get(String(uid))), 100);
+  });
+
   await t.test('every applied movement leaves a traceable record', async () => {
     const { uid, balances } = player('100');
     const { service } = build(balances);
     const id = newTxId();
+    const round = `R-${id}`;
 
+    await service.withdraw(
+      request('withdraw', { member_account: String(uid), transactions: [{ id: newTxId(), amount: '5', round_id: round }] })
+    );
     await service.deposit(
       request('deposit', {
         member_account: String(uid),
-        transactions: [{ id, amount: '15', round_id: 'R-1', game_code: 'G-1' }],
+        transactions: [{ id, amount: '15', round_id: round, game_code: 'G-1' }],
       })
     );
 
@@ -522,8 +603,79 @@ test('casino seamless wallet', async (t) => {
     });
 
     assert.ok(row, 'legacy recorded nothing at all');
-    assert.equal(row.round_id, 'R-1');
+    assert.equal(row.round_id, round);
     assert.equal(row.game_code, 'G-1');
     assert.ok(row.ledger_id, 'and the ledger row it produced is linked');
+  });
+
+  // ── The wager feed (USD wager / VIP XP / affiliate / rakeback) ────────
+
+  const feedOn = (service, { fail = false } = {}) => {
+    const feed = { recorded: [], reversed: [] };
+    service.games = {
+      async recordActivity(args) { feed.recorded.push(args); if (fail) throw new Error('down'); return { counted: true }; },
+      async reverseActivity(args) { feed.reversed.push(args); if (fail) throw new Error('down'); return { reversed: true }; },
+    };
+    return feed;
+  };
+
+  await t.test('wager feed: a bet counts once in the settlement coin; a win counts nothing', async () => {
+    const { uid, balances } = player('100');
+    const { service } = build(balances);
+    const feed = feedOn(service);
+    const id = newTxId();
+    const body = request('withdraw', { member_account: String(uid), transactions: [{ id, amount: '30' }] });
+
+    await service.withdraw(body);
+    await service.withdraw(body); // retry
+    await service.deposit(request('deposit', { member_account: String(uid), transactions: [{ id: newTxId(), amount: '5' }] }));
+
+    assert.equal(feed.recorded.length, 1);
+    assert.deepEqual(feed.recorded[0], {
+      userId: uid, gameRef: null, wagered: '30.00000000', currency: 'USDT', source: 'seamless', ref: id,
+    });
+  });
+
+  await t.test('wager feed: a rolled-back bet stops counting, once; a rolled-back win does not touch it', async () => {
+    const { uid, balances } = player('100');
+    const { service } = build(balances);
+    const feed = feedOn(service);
+    const bet = newTxId();
+    const win = newTxId();
+    await service.withdraw(request('withdraw', { member_account: String(uid), transactions: [{ id: bet, amount: '25' }] }));
+    await service.deposit(request('deposit', { member_account: String(uid), transactions: [{ id: win, amount: '10' }] }));
+
+    const body = request('rollback', { member_account: String(uid), transactions: [{ id: bet }] });
+    await service.rollback(body);
+    await service.rollback(body);
+    await service.rollback(request('rollback', { member_account: String(uid), transactions: [{ id: win }] }));
+
+    assert.deepEqual(feed.reversed, [{ userId: uid, source: 'seamless', ref: bet, outbox: true }]);
+  });
+
+  await t.test('wager feed: a rollback whose reversal fails is queued in the outbox for retry', async () => {
+    const { uid, balances } = player('100');
+    const { service } = build(balances);
+    const { games, queued } = outboxFeed();
+    service.games = games;
+    const bet = newTxId();
+    await service.withdraw(request('withdraw', { member_account: String(uid), transactions: [{ id: bet, amount: '25' }] }));
+    const result = await service.rollback(request('rollback', { member_account: String(uid), transactions: [{ id: bet }] }));
+    assert.equal(result.code, RESPONSE_CODES.SUCCESS);
+    assert.equal(queued.length, 1);
+    assert.equal(queued[0].source, 'seamless');
+    assert.equal(queued[0].ref, String(bet));
+    assert.equal(queued[0].userId, String(uid));
+  });
+
+  await t.test('wager feed: a failing feed never fails the bet', async () => {
+    const { uid, balances } = player('100');
+    const { service } = build(balances);
+    feedOn(service, { fail: true });
+    const result = await service.withdraw(
+      request('withdraw', { member_account: String(uid), transactions: [{ id: newTxId(), amount: '30' }] })
+    );
+    assert.equal(result.code, RESPONSE_CODES.SUCCESS);
+    assert.equal(balances.get(String(uid)), '70.00000000');
   });
 });

@@ -29,7 +29,7 @@ module.exports = (sequelize) => {
       field: "coin",
     },
     incomeDate: {
-      type: 'TIMESTAMP',
+      type: DataTypes.DATE, // timestamptz (migration 083)
       allowNull: false,
       field: "incomeDate",
     },

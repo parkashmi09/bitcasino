@@ -1,0 +1,1484 @@
+@import 'tailwindcss';
+@import 'tw-animate-css';
+@import 'shadcn/tailwind.css';
+
+@custom-variant dark (&:is(.dark *));
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-poppins);
+  --font-mono: var(--font-geist-mono);
+  --font-heading: var(--font-sans);
+  --color-sidebar-ring: var(--sidebar-ring);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar: var(--sidebar);
+  --color-chart-8: var(--chart-8);
+  --color-chart-7: var(--chart-7);
+  --color-chart-6: var(--chart-6);
+  --color-chart-5: var(--chart-5);
+  --color-chart-4: var(--chart-4);
+  --color-chart-3: var(--chart-3);
+  --color-chart-2: var(--chart-2);
+  --color-chart-1: var(--chart-1);
+  --color-ring: var(--ring);
+  --color-input: var(--input);
+  --color-border: var(--border);
+  --color-destructive: var(--destructive);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-accent: var(--accent);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-muted: var(--muted);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-secondary: var(--secondary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary: var(--primary);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-popover: var(--popover);
+  --color-card-foreground: var(--card-foreground);
+  --color-card: var(--card);
+  --color-heading: var(--heading);
+  --color-brand-secondary: var(--brand-secondary);
+  --color-icon-accent: var(--icon-accent);
+  --color-success: var(--success);
+  --color-success-soft: var(--success-soft);
+  --color-warning: var(--warning);
+  --color-warning-soft: var(--warning-soft);
+  --color-danger: var(--danger);
+  --color-danger-soft: var(--danger-soft);
+  --color-info: var(--info);
+  --color-info-soft: var(--info-soft);
+  --radius-sm: calc(var(--radius) * 0.6);
+  --radius-md: calc(var(--radius) * 0.8);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) * 1.4);
+  --radius-2xl: calc(var(--radius) * 1.8);
+  --radius-3xl: calc(var(--radius) * 2.2);
+  --radius-4xl: calc(var(--radius) * 2.6);
+}
+
+:root {
+  /* ── ccpayment light, from src/theme/tokens.ts (live console CSS variables, 24 Oct 2026) ──
+     White paper cards with a soft shadow on a #f8f9fb page, ink #1f2025, blue #3c6ff5 for
+     actions and "you are here", #e8ecf2 strokes, 8px controls, 16px cards. */
+  --background: #f8f9fb;
+  --foreground: #1f2025;
+  --heading: #1f2025;
+  --card: #ffffff;
+  --card-foreground: #1f2025;
+  --popover: #ffffff;
+  --popover-foreground: #1f2025;
+  --primary: #3c6ff5;
+  --primary-foreground: #ffffff;
+  --secondary: rgb(202 207 216 / 16%);
+  --secondary-foreground: #1f2025;
+  --brand-secondary: #3c6ff5;
+  /* ccpayment's Secondary-main: the lime of its sign-in headline. */
+  --brand-lime: #bee072;
+  /* Sign-in backdrop: ccpayment's primary blue; in dark mode its Primary-darker navy. */
+  --login-bg: #3c6ff5;
+  --icon-accent: #3c6ff5;
+  --muted: #e8ecf2;
+  --muted-foreground: #71757e;
+  --accent: rgb(60 111 245 / 8%);
+  --accent-foreground: #3c6ff5;
+  --destructive: #ec684c;
+  --border: #e8ecf2;
+  --border-style-card: solid;
+  --input: #b3b9c5;
+  --ring: #3c6ff5;
+
+  /* ── status ───────────────────────────────────────────────────────
+     Money states, named rather than picked per screen. `-soft` is the background a badge
+     sits on (ccpayment's `*-bg`). */
+  --success: #218861;
+  --success-soft: rgb(67 190 118 / 16%);
+  --warning: #ac7c1f;
+  --warning-soft: rgb(255 171 0 / 16%);
+  --danger: #a92926;
+  --danger-soft: rgb(236 104 76 / 16%);
+  --info: #3767a3;
+  --info-soft: rgb(110 175 227 / 16%);
+  --chart-1: #3c6ff5;
+  --chart-2: #65aee8;
+  --chart-3: #43be76;
+  --chart-4: #e7b22b;
+  --chart-5: #ec684c;
+  --chart-6: #7aa139;
+  --chart-7: #89affc;
+  --chart-8: #a3a8b1;
+  /* ccpayment's ApexCharts: axis text is the disabled grey, gridlines dashed at the divider tone. */
+  --chart-axis: #b3b9c5;
+  /* Status colours as chart marks take ccpayment's *-main, not the darker text tone used on soft badges. */
+  --chart-success: #43be76;
+  --chart-danger: #ec684c;
+  --chart-warning: #e7b22b;
+  --chart-info: #65aee8;
+  /* MUI's placeholder in ccpayment's disabled grey. */
+  --input-placeholder: #b3b9c5;
+  --chart-grid: rgb(113 117 126 / 24%);
+  /* rounded-lg = 8px (controls); cards set 16px themselves. */
+  --radius: 0.5rem;
+  --shadow-card: 0px 12px 24px 0px rgb(113 117 126 / 16%), 0px 0px 2px 0px rgb(113 117 126 / 16%);
+  --shadow-dropdown: -20px 20px 40px 0px rgb(113 117 126 / 16%), 0px 0px 2px 0px rgb(113 117 126 / 16%);
+  --sidebar: #ffffff;
+  --sidebar-foreground: #1f2025;
+  --sidebar-primary: #3c6ff5;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: rgb(60 111 245 / 8%);
+  --sidebar-accent-foreground: #3c6ff5;
+  --sidebar-border: #e8ecf2;
+  --sidebar-ring: #3c6ff5;
+}
+
+.dark {
+  /* ccpayment dark: page #18181a, paper #1f2125, ink #ebecf2. Muted text is one grey step up
+     from ccpayment's #71757e so small print stays readable (AA). */
+  --background: #18181a;
+  --foreground: #ebecf2;
+  --heading: #ffffff;
+  --card: #1f2125;
+  --card-foreground: #ebecf2;
+  --popover: #1f2125;
+  --popover-foreground: #ebecf2;
+  --primary: #3c6ff5;
+  --primary-foreground: #ffffff;
+  --secondary: #26282d;
+  --secondary-foreground: #ebecf2;
+  --brand-secondary: #89affc;
+  --login-bg: #0b1c75;
+  --icon-accent: #89affc;
+  --muted: #26282d;
+  --muted-foreground: #a3a8b1;
+  --accent: rgb(60 111 245 / 16%);
+  --accent-foreground: #89affc;
+  --destructive: #ec684c;
+
+  --success: #43be76;
+  --success-soft: rgb(67 190 118 / 16%);
+  --warning: #e7b22b;
+  --warning-soft: rgb(255 171 0 / 16%);
+  --danger: #ec684c;
+  --danger-soft: rgb(236 104 76 / 16%);
+  --info: #65aee8;
+  --info-soft: rgb(110 175 227 / 16%);
+  --border: #383a3f;
+  --input: #494c54;
+  --ring: #3c6ff5;
+  --chart-1: #3c6ff5;
+  --chart-2: #65aee8;
+  --chart-3: #43be76;
+  --chart-4: #e7b22b;
+  --chart-5: #ec684c;
+  --chart-6: #bee072;
+  --chart-7: #89affc;
+  --chart-8: #a3a8b1;
+  --chart-axis: #71757e;
+  --input-placeholder: #71757e;
+  --chart-grid: rgb(113 117 126 / 24%);
+  --shadow-card: 0px 12px 24px 0px rgb(0 0 0 / 24%), 0px 0px 2px 0px rgb(0 0 0 / 24%);
+  --shadow-dropdown: -20px 20px 40px 0px rgb(0 0 0 / 56%), 0 0 2px 0 rgb(0 0 0 / 24%);
+  --sidebar: #1f2125;
+  --sidebar-foreground: #ebecf2;
+  --sidebar-primary: #3c6ff5;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: rgb(60 111 245 / 16%);
+  --sidebar-accent-foreground: #89affc;
+  --sidebar-border: #383a3f;
+  --sidebar-ring: #3c6ff5;
+}
+
+/* ccpayment's drawer: 280px (its nav scroller measures 279 + the 1px edge) at every width. The provider sets the width inline. */
+[data-slot='sidebar-wrapper'] {
+  --sidebar-width: 280px !important;
+}
+
+/* ccpayment cards carry no accent strips and no shouty labels: hide the 2px edge strips views draw inside a
+   card, and set their small uppercase captions in sentence case (the text itself is unchanged). */
+[data-slot='card'] > span[aria-hidden].absolute.inset-x-0:is(.top-0, .bottom-0) {
+  display: none;
+}
+[data-slot='card'] p.uppercase {
+  text-transform: none;
+  letter-spacing: normal;
+  font-size: 0.875rem;
+}
+
+.input-default {
+  @apply h-9;
+}
+.input-lg {
+  @apply h-10;
+}
+.input-sm {
+  @apply h-8;
+}
+.input-size-lg {
+  @apply size-10;
+}
+
+[data-slot='button'].h-10:not(.px-6),
+button[data-slot='button'].h-10:not(.px-6),
+[data-slot='dropdown-menu-trigger'].h-10:not(.px-6),
+[data-slot='dialog-trigger'].h-10:not(.px-6),
+[data-slot='dialog-close'].h-10:not(.px-6),
+[data-slot='popover-trigger'].h-10:not(.px-6),
+a[data-slot='button'].h-10:not(.px-6) {
+  @apply px-4;
+}
+
+[data-slot='button'].h-9:not(.px-6),
+button[data-slot='button'].h-9:not(.px-6),
+[data-slot='dropdown-menu-trigger'].h-9:not(.px-6),
+[data-slot='dialog-trigger'].h-9:not(.px-6),
+[data-slot='dialog-close'].h-9:not(.px-6),
+[data-slot='dropdown-menu-trigger'].h-9:not(.px-6),
+[data-slot='popover-trigger'].h-9:not(.px-6),
+a[data-slot='button'].h-9:not(.px-6) {
+  @apply px-3;
+}
+
+/* For native button elements and elements with role="button", e.g., button, checkbox, radio, switch etc. */
+button:not(:disabled),
+[role='checkbox']:not(:disabled),
+[role='radio']:not(:disabled),
+[role='switch']:not(:disabled),
+[role='button']:not(:disabled) {
+  cursor: pointer;
+}
+
+/* For labels associated with form controls */
+label[for],
+label:has([role='checkbox']):not(:disabled),
+label:has([role='radio']):not(:disabled),
+label:has([role='switch']):not(:disabled) {
+  cursor: pointer;
+}
+
+/* For slider component */
+[role='slider']:not([data-disabled]),
+[data-slot='slider-track']:not([data-disabled]),
+[data-slot='slider-thumb']:not([data-disabled]) {
+  cursor: pointer;
+}
+
+/* For components with menuitems, e.g., dropdown, context menu, etc. */
+[role='menuitem']:not(:disabled),
+[role='menuitemcheckbox']:not(:disabled),
+[role='menuitemradio']:not(:disabled) {
+  cursor: pointer !important;
+}
+
+/* For components with options, e.g., combobox, command, select etc. */
+[role='option']:not(:disabled),
+select[data-slot='native-select']:not(:disabled) {
+  cursor: pointer !important;
+}
+
+/* For number input spin buttons */
+input[type='number']::-webkit-inner-spin-button,
+input[type='number']::-webkit-outer-spin-button {
+  cursor: pointer;
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+  html {
+    @apply font-sans;
+  }
+
+  /* rainbet: a file input reads as an upload box with a real button, not plain text (Banners,
+     Blogs, Avatars, Providers, VIP badges…). Base layer: a view's own classes still win. */
+  input[type='file'] {
+    width: 100%;
+    padding: 0.5rem;
+    border: 1px dashed var(--border);
+    border-radius: var(--radius);
+    background: color-mix(in srgb, var(--muted-foreground) 6%, transparent);
+    color: var(--muted-foreground);
+    font-size: 0.875rem;
+    cursor: pointer;
+  }
+  input[type='file']:hover {
+    border-color: var(--primary);
+  }
+  input[type='file']::file-selector-button {
+    margin-right: 0.75rem;
+    padding: 0.4rem 0.9rem;
+    border: 0;
+    border-radius: calc(var(--radius) - 2px);
+    background: var(--primary);
+    color: var(--primary-foreground);
+    font-weight: 500;
+    cursor: pointer;
+  }
+  input[type='file']::file-selector-button:hover {
+    opacity: 0.9;
+  }
+}
+
+@theme inline {
+  --animate-heartbeat: heartbeat 2s infinite ease-in-out;
+
+  @keyframes heartbeat {
+    0% {
+      box-shadow: 0 0 0 0 var(--heartbeat-color, var(--primary));
+      transform: scale(1);
+    }
+    50% {
+      box-shadow: 0 0 0 6px transparent;
+      transform: scale(1.03);
+    }
+    100% {
+      box-shadow: 0 0 0 0 transparent;
+      transform: scale(1);
+    }
+  }
+}
+
+/* ── Motion, measured from Luno ──────────────────────────────────────
+   page in      body `fadeInAnimation` 1s ease (+ a 12px rise)
+   morph        `.dropdown.morphing.scale-left`: scale(0)→scale(1), origin top right, .2s ease-in-out
+   collapse     submenu = Bootstrap `.collapsing`: height .35s ease
+   sheet        `.modal-dialog-vertical`: translateX(±100%)→0, Bootstrap modal .3s ease-out
+   lift         `.card` transition .3s
+   shimmer      `placeholder-wave` 2s linear infinite
+   Everything here is off under prefers-reduced-motion (bottom of the file). */
+@theme inline {
+  --ease-luno: ease;
+  --animate-page-in: page-in 1s ease both;
+  --animate-morph-in: morph-in 0.2s ease-in-out both;
+  --animate-morph-out: morph-out 0.2s ease-in-out both;
+  --animate-sheet-in-right: sheet-in-right 0.3s ease-out both;
+  --animate-sheet-in-left: sheet-in-left 0.3s ease-out both;
+  --animate-shimmer: shimmer 2s linear infinite;
+  --animate-count-up: count-up 1s ease-out both;
+
+  @keyframes page-in {
+    from {
+      opacity: 0;
+      transform: translateY(12px);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+  @keyframes morph-in {
+    from {
+      opacity: 0;
+      transform: scale(0);
+    }
+    to {
+      opacity: 1;
+      transform: scale(1);
+    }
+  }
+  @keyframes morph-out {
+    from {
+      opacity: 1;
+      transform: scale(1);
+    }
+    to {
+      opacity: 0;
+      transform: scale(0);
+    }
+  }
+  @keyframes sheet-in-right {
+    from {
+      transform: translateX(100%);
+    }
+    to {
+      transform: none;
+    }
+  }
+  @keyframes sheet-in-left {
+    from {
+      transform: translateX(-100%);
+    }
+    to {
+      transform: none;
+    }
+  }
+  @keyframes shimmer {
+    from {
+      background-position: 200% 0;
+    }
+    to {
+      background-position: -200% 0;
+    }
+  }
+  @keyframes count-up {
+    from {
+      --count: 0;
+    }
+  }
+}
+
+/* Dropdowns open from their top-right corner, as Luno's "morphing scale-left". */
+@utility origin-morph {
+  transform-origin: top right;
+}
+
+/* Card hover lift (Luno cards ease over .3s). */
+@utility hover-lift {
+  transition:
+    transform 0.3s ease,
+    box-shadow 0.3s ease;
+  &:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 8px 16px 0 rgb(25 26 28 / 8%);
+  }
+}
+
+/* Skeleton shimmer: a light band sweeping across the muted surface. */
+@utility skeleton-shimmer {
+  background-image: linear-gradient(
+    90deg,
+    var(--muted) 25%,
+    color-mix(in oklab, var(--muted), var(--card) 70%) 50%,
+    var(--muted) 75%
+  );
+  background-size: 200% 100%;
+  animation: var(--animate-shimmer);
+}
+
+/* Count-up for a whole number, CSS only: <span class='count-up' style={{ '--to': 1234 }} />
+   shortcut: integers only (counter()), so money with decimals keeps its text; upgrade to a JS hook if needed. */
+@property --count {
+  syntax: '<integer>';
+  inherits: false;
+  initial-value: 0;
+}
+@utility count-up {
+  --count: var(--to, 0);
+  counter-reset: count var(--count);
+  animation: var(--animate-count-up);
+  &::after {
+    content: counter(count);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-page-in,
+  .animate-morph-in,
+  .animate-morph-out,
+  .animate-sheet-in-right,
+  .animate-sheet-in-left,
+  .animate-shimmer,
+  .skeleton-shimmer,
+  .count-up,
+  .hover-lift {
+    animation: none !important;
+    transition: none !important;
+  }
+  .hover-lift:hover {
+    transform: none;
+  }
+  [data-slot='sidebar'] *,
+  [data-slot='sidebar-container'] {
+    transition: none !important;
+  }
+}
+
+/*
+ * The owner's colour template (owner panel → Features & plan → Template), put on <html data-palette>
+ * by components/layout/PaletteSync.tsx. Same five as the player site: only the brand colour
+ * changes; grounds, cards and status colours stay. Tailwind's `primary` is both a fill and a text
+ * colour, so light mode uses `--pal-ink` (a tone that reads on white, with white on it) and dark
+ * mode the bright brand itself with `--pal-on` on it.
+ */
+html[data-palette='carbon_gold'] {
+  --pal: #fcee0a; --pal-rgb: 252 238 10; --pal-light: #fff34d; --pal-light-rgb: 255 243 77;
+  --pal-dark: #d6c900; --pal-dark-rgb: 214 201 0; --pal-on: #0b0b0b; --pal-ink: #7a6f00; --pal-ink-dark: #fcee0a;
+}
+html[data-palette='violet_night'] {
+  --pal: #8b5cf6; --pal-rgb: 139 92 246; --pal-light: #9d76f8; --pal-light-rgb: 157 118 248;
+  --pal-dark: #723ee8; --pal-dark-rgb: 114 62 232; --pal-on: #ffffff; --pal-ink: #723ee8; --pal-ink-dark: #b79cfa;
+}
+html[data-palette='emerald_dark'] {
+  --pal: #22c55e; --pal-rgb: 34 197 94; --pal-light: #4ade80; --pal-light-rgb: 74 222 128;
+  --pal-dark: #16a34a; --pal-dark-rgb: 22 163 74; --pal-on: #0b0f0c; --pal-ink: #15803d; --pal-ink-dark: #4ade80;
+}
+html[data-palette='neon_navy'] {
+  --pal: #1aff00; --pal-rgb: 26 255 0; --pal-light: #5cff48; --pal-light-rgb: 92 255 72;
+  --pal-dark: #14cc00; --pal-dark-rgb: 20 204 0; --pal-on: #0b0f1a; --pal-ink: #127a00; --pal-ink-dark: #5cff48;
+}
+html[data-palette] {
+  --primary: var(--pal-ink);
+  --primary-foreground: #ffffff;
+  --brand-secondary: var(--pal);
+  --icon-accent: var(--pal-ink);
+  --accent: rgb(var(--pal-rgb) / 8%);
+  --accent-foreground: var(--pal-ink);
+  --ring: var(--pal-ink);
+  --chart-1: var(--pal-ink);
+  --sidebar-primary: var(--pal-ink);
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: rgb(var(--pal-rgb) / 8%);
+  --sidebar-accent-foreground: var(--pal-ink);
+  --sidebar-ring: var(--pal-ink);
+}
+html.dark[data-palette] {
+  --pal-ink: var(--pal-ink-dark);
+  --primary: var(--pal);
+  --primary-foreground: var(--pal-on);
+  --ring: var(--pal);
+  --chart-1: var(--pal);
+  --sidebar-primary: var(--pal);
+  --sidebar-primary-foreground: var(--pal-on);
+  --sidebar-ring: var(--pal);
+  --accent: rgb(var(--pal-rgb) / 16%);
+  --sidebar-accent: rgb(var(--pal-rgb) / 16%);
+}
+/* MUI reads its own variables (theme/theme.ts, cssVariables prefix `mui`). */
+html[data-palette] {
+  --mui-palette-primary-main: var(--primary);
+  --mui-palette-primary-mainChannel: var(--pal-rgb);
+  --mui-palette-primary-light: var(--pal-light);
+  --mui-palette-primary-lightChannel: var(--pal-light-rgb);
+  --mui-palette-primary-dark: var(--pal-dark);
+  --mui-palette-primary-darkChannel: var(--pal-dark-rgb);
+  --mui-palette-primary-contrastText: var(--primary-foreground);
+}
+/* Dark mode also takes the palette's ground, card and border (same as the player site's
+   .theme-dark[data-palette] in tokens.css); light mode keeps the white ground. */
+html.dark[data-palette='carbon_gold'] { --pal-bg: #0b0b0b; --pal-card: #1c1c1c; --pal-border: #2c2c2c; --pal-input: #3a3a3a; }
+html.dark[data-palette='violet_night'] { --pal-bg: #0f0a1e; --pal-card: #1e1634; --pal-border: #30264c; --pal-input: #403460; }
+html.dark[data-palette='emerald_dark'] { --pal-bg: #0b0f0c; --pal-card: #18201a; --pal-border: #263229; --pal-input: #344238; }
+html.dark[data-palette='neon_navy'] { --pal-bg: #0b0f1a; --pal-card: #181e2e; --pal-border: #262e42; --pal-input: #343d54; }
+html.dark[data-palette] {
+  --background: var(--pal-bg);
+  --card: var(--pal-card);
+  --popover: var(--pal-card);
+  --sidebar: var(--pal-card);
+  --secondary: color-mix(in srgb, var(--pal-card), var(--pal-border));
+  --muted: color-mix(in srgb, var(--pal-card), var(--pal-border));
+  --border: var(--pal-border);
+  --sidebar-border: var(--pal-border);
+  --input: var(--pal-input);
+}
+html.dark[data-palette] {
+  --mui-palette-background-default: var(--pal-bg);
+  --mui-palette-background-paper: var(--pal-card);
+}
+
+/* The twelve Figma palettes (owner panel → Template), exact tokens from the admin themes board. They come
+   after the generic html[data-palette] rules so the designer's values win. */
+/* Lapis Ledger (lapis_ledger): Deep lapis buttons with an emerald sidebar. */
+html[data-palette='lapis_ledger'] {
+  --pal: #224074;
+  --pal-rgb: 34 64 116;
+  --pal-on: #ffffff;
+  --pal-ink: #224074;
+  --pal-ink-dark: #85a1f6;
+  --pal-light: #597097;
+  --pal-light-rgb: 89 112 151;
+  --pal-dark: #1b335d;
+  --pal-dark-rgb: 27 51 93;
+  --icon-accent: #224074;
+  --brand-secondary: #00A574;
+  --chart-1: #224074;
+  --background: #F3F5F8;
+  --foreground: #121824;
+  --card: #ffffff;
+  --card-foreground: #121824;
+  --primary: #224074;
+  --primary-foreground: #ffffff;
+  --secondary: #e9ecf1;
+  --muted: #e9ecf1;
+  --muted-foreground: #828489;
+  --accent: #dbf2ec;
+  --accent-foreground: #007c57;
+  --border: #dcdee2;
+  --ring: #224074;
+  --sidebar: #ffffff;
+  --sidebar-foreground: #121824;
+  --sidebar-primary: #00A574;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: rgb(0 165 116 / 8%);
+  --sidebar-accent-foreground: #00A574;
+  --sidebar-border: #dcdee2;
+  --sidebar-ring: #00A574;
+}
+html.dark[data-palette='lapis_ledger'] {
+  --pal: #678AF4;
+  --pal-rgb: 103 138 244;
+  --pal-on: #ffffff;
+  --pal-bg: #14181F;
+  --pal-card: #1B212B;
+  --pal-border: #30353e;
+  --pal-input: #444951;
+  --icon-accent: #59d9b2;
+  --brand-secondary: #00C588;
+  --chart-1: #678AF4;
+  --background: #14181F;
+  --foreground: #e4e8f0;
+  --card: #1B212B;
+  --card-foreground: #e4e8f0;
+  --primary: #678AF4;
+  --primary-foreground: #ffffff;
+  --secondary: #262c36;
+  --muted: #262c36;
+  --muted-foreground: #9599a1;
+  --accent: #15453f;
+  --accent-foreground: #59d9b2;
+  --border: #30353e;
+  --ring: #678AF4;
+  --sidebar: #1B212B;
+  --sidebar-foreground: #e4e8f0;
+  --sidebar-primary: #00C588;
+  --sidebar-primary-foreground: #141414;
+  --sidebar-accent: rgb(0 197 136 / 16%);
+  --sidebar-accent-foreground: #59d9b2;
+  --sidebar-border: #363c44;
+  --sidebar-ring: #00C588;
+}
+html.dark[data-palette='lapis_ledger'] {
+  --mui-palette-background-default: #14181F;
+  --mui-palette-background-paper: #1B212B;
+}
+
+/* Seashell Teal (seashell_teal): Warm seashell ground, ocean-blue actions, emerald highlights. */
+html[data-palette='seashell_teal'] {
+  --pal: #015A84;
+  --pal-rgb: 1 90 132;
+  --pal-on: #ffffff;
+  --pal-ink: #015A84;
+  --pal-ink-dark: #55a5cd;
+  --pal-light: #4183a3;
+  --pal-light-rgb: 65 131 163;
+  --pal-dark: #01486a;
+  --pal-dark-rgb: 1 72 106;
+  --icon-accent: #015A84;
+  --brand-secondary: #05B084;
+  --chart-1: #015A84;
+  --background: #F1EDEA;
+  --foreground: #0e1d23;
+  --card: #ffffff;
+  --card-foreground: #0e1d23;
+  --primary: #015A84;
+  --primary-foreground: #ffffff;
+  --secondary: #e5e6e5;
+  --muted: #e5e6e5;
+  --muted-foreground: #818180;
+  --accent: #dcf4ee;
+  --accent-foreground: #048463;
+  --border: #dbd7d5;
+  --ring: #015A84;
+  --sidebar: #ffffff;
+  --sidebar-foreground: #0e1d23;
+  --sidebar-primary: #05B084;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: rgb(5 176 132 / 8%);
+  --sidebar-accent-foreground: #05B084;
+  --sidebar-border: #dbd7d5;
+  --sidebar-ring: #05B084;
+}
+html.dark[data-palette='seashell_teal'] {
+  --pal: #2A8FC0;
+  --pal-rgb: 42 143 192;
+  --pal-on: #ffffff;
+  --pal-bg: #141A1C;
+  --pal-card: #1A2326;
+  --pal-border: #2f373a;
+  --pal-input: #434b4d;
+  --icon-accent: #5dccaf;
+  --brand-secondary: #05B084;
+  --chart-1: #2A8FC0;
+  --background: #141A1C;
+  --foreground: #e0e8ed;
+  --card: #1A2326;
+  --card-foreground: #e0e8ed;
+  --primary: #2A8FC0;
+  --primary-foreground: #ffffff;
+  --secondary: #252e31;
+  --muted: #252e31;
+  --muted-foreground: #929a9e;
+  --accent: #15423b;
+  --accent-foreground: #5dccaf;
+  --border: #2f373a;
+  --ring: #2A8FC0;
+  --sidebar: #1A2326;
+  --sidebar-foreground: #e0e8ed;
+  --sidebar-primary: #05B084;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: rgb(5 176 132 / 16%);
+  --sidebar-accent-foreground: #5dccaf;
+  --sidebar-border: #353d40;
+  --sidebar-ring: #05B084;
+}
+html.dark[data-palette='seashell_teal'] {
+  --mui-palette-background-default: #141A1C;
+  --mui-palette-background-paper: #1A2326;
+}
+
+/* Navy Coral (navy_coral): Banking navy with a slate-green sidebar and coral highlights. */
+html[data-palette='navy_coral'] {
+  --pal: #04529D;
+  --pal-rgb: 4 82 157;
+  --pal-on: #ffffff;
+  --pal-ink: #04529D;
+  --pal-ink-dark: #629fde;
+  --pal-light: #437db6;
+  --pal-light-rgb: 67 125 182;
+  --pal-dark: #03427e;
+  --pal-dark-rgb: 3 66 126;
+  --icon-accent: #04529D;
+  --brand-secondary: #3A6963;
+  --chart-1: #04529D;
+  --background: #F4F6F8;
+  --foreground: #0d1a26;
+  --card: #ffffff;
+  --card-foreground: #0d1a26;
+  --primary: #04529D;
+  --primary-foreground: #ffffff;
+  --secondary: #e8eef3;
+  --muted: #e8eef3;
+  --muted-foreground: #818487;
+  --accent: #fcedeb;
+  --accent-foreground: #b26155;
+  --border: #dddfe1;
+  --ring: #04529D;
+  --sidebar: #ffffff;
+  --sidebar-foreground: #0d1a26;
+  --sidebar-primary: #3A6963;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: rgb(58 105 99 / 8%);
+  --sidebar-accent-foreground: #3A6963;
+  --sidebar-border: #dddfe1;
+  --sidebar-ring: #3A6963;
+}
+html.dark[data-palette='navy_coral'] {
+  --pal: #3B87D6;
+  --pal-rgb: 59 135 214;
+  --pal-on: #ffffff;
+  --pal-bg: #12171C;
+  --pal-card: #19202A;
+  --pal-border: #2e343d;
+  --pal-input: #424850;
+  --icon-accent: #f3ada3;
+  --brand-secondary: #4F8C84;
+  --chart-1: #3B87D6;
+  --background: #12171C;
+  --foreground: #e1e8ee;
+  --card: #19202A;
+  --card-foreground: #e1e8ee;
+  --primary: #3B87D6;
+  --primary-foreground: #ffffff;
+  --secondary: #252b35;
+  --muted: #252b35;
+  --muted-foreground: #92999e;
+  --accent: #48353a;
+  --accent-foreground: #f3ada3;
+  --border: #2e343d;
+  --ring: #3B87D6;
+  --sidebar: #19202A;
+  --sidebar-foreground: #e1e8ee;
+  --sidebar-primary: #4F8C84;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: rgb(79 140 132 / 16%);
+  --sidebar-accent-foreground: #8db4af;
+  --sidebar-border: #353b44;
+  --sidebar-ring: #4F8C84;
+}
+html.dark[data-palette='navy_coral'] {
+  --mui-palette-background-default: #12171C;
+  --mui-palette-background-paper: #19202A;
+}
+
+/* Indigo Mint (indigo_mint): Electric indigo buttons on a deep-teal sidebar, mint for wins. */
+html[data-palette='indigo_mint'] {
+  --pal: #4750DD;
+  --pal-rgb: 71 80 221;
+  --pal-on: #ffffff;
+  --pal-ink: #4750DD;
+  --pal-ink-dark: #8b91f3;
+  --pal-light: #757ce6;
+  --pal-light-rgb: 117 124 230;
+  --pal-dark: #3940b1;
+  --pal-dark-rgb: 57 64 177;
+  --icon-accent: #4750DD;
+  --brand-secondary: #094542;
+  --chart-1: #4750DD;
+  --background: #F4F5FA;
+  --foreground: #151837;
+  --card: #ffffff;
+  --card-foreground: #151837;
+  --primary: #4750DD;
+  --primary-foreground: #ffffff;
+  --secondary: #ebedf9;
+  --muted: #ebedf9;
+  --muted-foreground: #81838d;
+  --accent: #dde5e5;
+  --accent-foreground: #073432;
+  --border: #dddee4;
+  --ring: #4750DD;
+  --sidebar: #ffffff;
+  --sidebar-foreground: #151837;
+  --sidebar-primary: #094542;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: rgb(9 69 66 / 8%);
+  --sidebar-accent-foreground: #094542;
+  --sidebar-border: #dddee4;
+  --sidebar-ring: #094542;
+}
+html.dark[data-palette='indigo_mint'] {
+  --pal: #6E76F0;
+  --pal-rgb: 110 118 240;
+  --pal-on: #ffffff;
+  --pal-bg: #121428;
+  --pal-card: #1A1C36;
+  --pal-border: #2f3048;
+  --pal-input: #43455a;
+  --icon-accent: #5dd7a5;
+  --brand-secondary: #05C274;
+  --chart-1: #6E76F0;
+  --background: #121428;
+  --foreground: #e4e7f0;
+  --card: #1A1C36;
+  --card-foreground: #e4e7f0;
+  --primary: #6E76F0;
+  --primary-foreground: #ffffff;
+  --secondary: #252740;
+  --muted: #252740;
+  --muted-foreground: #9497a4;
+  --accent: #154144;
+  --accent-foreground: #5dd7a5;
+  --border: #2f3048;
+  --ring: #6E76F0;
+  --sidebar: #1A1C36;
+  --sidebar-foreground: #e4e7f0;
+  --sidebar-primary: #05C274;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: rgb(5 194 116 / 16%);
+  --sidebar-accent-foreground: #5dd7a5;
+  --sidebar-border: #35374e;
+  --sidebar-ring: #05C274;
+}
+html.dark[data-palette='indigo_mint'] {
+  --mui-palette-background-default: #121428;
+  --mui-palette-background-paper: #1A1C36;
+}
+
+/* Cobalt Citrine (cobalt_citrine): Cobalt actions with an aquamarine sidebar and a sharp orange highlight. */
+html[data-palette='cobalt_citrine'] {
+  --pal: #072684;
+  --pal-rgb: 7 38 132;
+  --pal-on: #ffffff;
+  --pal-ink: #072684;
+  --pal-ink-dark: #7089e6;
+  --pal-light: #455ca3;
+  --pal-light-rgb: 69 92 163;
+  --pal-dark: #061e6a;
+  --pal-dark-rgb: 6 30 106;
+  --icon-accent: #072684;
+  --brand-secondary: #5D9F96;
+  --chart-1: #072684;
+  --background: #F3F6F8;
+  --foreground: #0c1326;
+  --card: #ffffff;
+  --card-foreground: #0c1326;
+  --primary: #072684;
+  --primary-foreground: #ffffff;
+  --secondary: #e7ecf2;
+  --muted: #e7ecf2;
+  --muted-foreground: #808389;
+  --accent: #feebdc;
+  --accent-foreground: #bc5604;
+  --border: #dcdfe2;
+  --ring: #072684;
+  --sidebar: #ffffff;
+  --sidebar-foreground: #0c1326;
+  --sidebar-primary: #5D9F96;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: rgb(93 159 150 / 8%);
+  --sidebar-accent-foreground: #5D9F96;
+  --sidebar-border: #dcdfe2;
+  --sidebar-ring: #5D9F96;
+}
+html.dark[data-palette='cobalt_citrine'] {
+  --pal: #4C6CE0;
+  --pal-rgb: 76 108 224;
+  --pal-on: #ffffff;
+  --pal-bg: #10141F;
+  --pal-card: #171D2D;
+  --pal-border: #2c3140;
+  --pal-input: #414653;
+  --icon-accent: #fca45d;
+  --brand-secondary: #6FB5AB;
+  --chart-1: #4C6CE0;
+  --background: #10141F;
+  --foreground: #e2e6ef;
+  --card: #171D2D;
+  --card-foreground: #e2e6ef;
+  --primary: #4C6CE0;
+  --primary-foreground: #ffffff;
+  --secondary: #232838;
+  --muted: #232838;
+  --muted-foreground: #9296a0;
+  --accent: #493024;
+  --accent-foreground: #fca45d;
+  --border: #2c3140;
+  --ring: #4C6CE0;
+  --sidebar: #171D2D;
+  --sidebar-foreground: #e2e6ef;
+  --sidebar-primary: #6FB5AB;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: rgb(111 181 171 / 16%);
+  --sidebar-accent-foreground: #a1cfc8;
+  --sidebar-border: #333846;
+  --sidebar-ring: #6FB5AB;
+}
+html.dark[data-palette='cobalt_citrine'] {
+  --mui-palette-background-default: #10141F;
+  --mui-palette-background-paper: #171D2D;
+}
+
+/* Copper Harbour (copper_harbour): Harbour slate sidebar and burnt-copper buttons. */
+html[data-palette='copper_harbour'] {
+  --pal: #C35627;
+  --pal-rgb: 195 86 39;
+  --pal-on: #ffffff;
+  --pal-ink: #C35627;
+  --pal-ink-dark: #de9471;
+  --pal-light: #d2805d;
+  --pal-light-rgb: 210 128 93;
+  --pal-dark: #9c451f;
+  --pal-dark-rgb: 156 69 31;
+  --icon-accent: #C35627;
+  --brand-secondary: #30525C;
+  --chart-1: #C35627;
+  --background: #F6F3F1;
+  --foreground: #271a15;
+  --card: #ffffff;
+  --card-foreground: #271a15;
+  --primary: #C35627;
+  --primary-foreground: #ffffff;
+  --secondary: #f3ebe7;
+  --muted: #f3ebe7;
+  --muted-foreground: #848382;
+  --accent: #e2e7e8;
+  --accent-foreground: #243e45;
+  --border: #dfdddb;
+  --ring: #C35627;
+  --sidebar: #ffffff;
+  --sidebar-foreground: #271a15;
+  --sidebar-primary: #30525C;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: rgb(48 82 92 / 8%);
+  --sidebar-accent-foreground: #30525C;
+  --sidebar-border: #dfdddb;
+  --sidebar-ring: #30525C;
+}
+html.dark[data-palette='copper_harbour'] {
+  --pal: #D6794D;
+  --pal-rgb: 214 121 77;
+  --pal-on: #ffffff;
+  --pal-bg: #161616;
+  --pal-card: #1F1E1D;
+  --pal-border: #333231;
+  --pal-input: #474746;
+  --icon-accent: #8bafb5;
+  --brand-secondary: #4C848D;
+  --chart-1: #D6794D;
+  --background: #161616;
+  --foreground: #ebe7e6;
+  --card: #1F1E1D;
+  --card-foreground: #ebe7e6;
+  --primary: #D6794D;
+  --primary-foreground: #ffffff;
+  --secondary: #2a2928;
+  --muted: #2a2928;
+  --muted-foreground: #9a9897;
+  --accent: #293436;
+  --accent-foreground: #8bafb5;
+  --border: #333231;
+  --ring: #D6794D;
+  --sidebar: #1F1E1D;
+  --sidebar-foreground: #ebe7e6;
+  --sidebar-primary: #4C848D;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: rgb(76 132 141 / 16%);
+  --sidebar-accent-foreground: #8bafb5;
+  --sidebar-border: #3a3938;
+  --sidebar-ring: #4C848D;
+}
+html.dark[data-palette='copper_harbour'] {
+  --mui-palette-background-default: #161616;
+  --mui-palette-background-paper: #1F1E1D;
+}
+
+/* Wisteria (wisteria): Amethyst actions over a periwinkle sidebar. */
+html[data-palette='wisteria'] {
+  --pal: #744B93;
+  --pal-rgb: 116 75 147;
+  --pal-on: #ffffff;
+  --pal-ink: #744B93;
+  --pal-ink-dark: #b595d0;
+  --pal-light: #9778ae;
+  --pal-light-rgb: 151 120 174;
+  --pal-dark: #5d3c76;
+  --pal-dark-rgb: 93 60 118;
+  --icon-accent: #744B93;
+  --brand-secondary: #736EAE;
+  --chart-1: #744B93;
+  --background: #F6F4F8;
+  --foreground: #1e1725;
+  --card: #ffffff;
+  --card-foreground: #1e1725;
+  --primary: #744B93;
+  --primary-foreground: #ffffff;
+  --secondary: #f0ecf3;
+  --muted: #f0ecf3;
+  --muted-foreground: #848287;
+  --accent: #ebebf4;
+  --accent-foreground: #565383;
+  --border: #dfdde1;
+  --ring: #744B93;
+  --sidebar: #ffffff;
+  --sidebar-foreground: #1e1725;
+  --sidebar-primary: #736EAE;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: rgb(115 110 174 / 8%);
+  --sidebar-accent-foreground: #736EAE;
+  --sidebar-border: #dfdde1;
+  --sidebar-ring: #736EAE;
+}
+html.dark[data-palette='wisteria'] {
+  --pal: #A27BC4;
+  --pal-rgb: 162 123 196;
+  --pal-on: #ffffff;
+  --pal-bg: #17141C;
+  --pal-card: #201C27;
+  --pal-border: #34303a;
+  --pal-input: #48454e;
+  --icon-accent: #b6b3e0;
+  --brand-secondary: #8F8AD0;
+  --chart-1: #A27BC4;
+  --background: #17141C;
+  --foreground: #e8e7ed;
+  --card: #201C27;
+  --card-foreground: #e8e7ed;
+  --primary: #A27BC4;
+  --primary-foreground: #ffffff;
+  --secondary: #2b2732;
+  --muted: #2b2732;
+  --muted-foreground: #99979e;
+  --accent: #38344c;
+  --accent-foreground: #b6b3e0;
+  --border: #34303a;
+  --ring: #A27BC4;
+  --sidebar: #201C27;
+  --sidebar-foreground: #e8e7ed;
+  --sidebar-primary: #8F8AD0;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: rgb(143 138 208 / 16%);
+  --sidebar-accent-foreground: #b6b3e0;
+  --sidebar-border: #3b3741;
+  --sidebar-ring: #8F8AD0;
+}
+html.dark[data-palette='wisteria'] {
+  --mui-palette-background-default: #17141C;
+  --mui-palette-background-paper: #201C27;
+}
+
+/* Jade Night (jade_night): Forest jade buttons, deep-plum sidebar. */
+html[data-palette='jade_night'] {
+  --pal: #2F7A44;
+  --pal-rgb: 47 122 68;
+  --pal-on: #ffffff;
+  --pal-ink: #2F7A44;
+  --pal-ink-dark: #68a777;
+  --pal-light: #639b73;
+  --pal-light-rgb: 99 155 115;
+  --pal-dark: #266236;
+  --pal-dark-rgb: 38 98 54;
+  --icon-accent: #2F7A44;
+  --brand-secondary: #3E2C5C;
+  --chart-1: #2F7A44;
+  --background: #F3F5F3;
+  --foreground: #141d16;
+  --card: #ffffff;
+  --card-foreground: #141d16;
+  --primary: #2F7A44;
+  --primary-foreground: #ffffff;
+  --secondary: #e9efea;
+  --muted: #e9efea;
+  --muted-foreground: #828382;
+  --accent: #f5f1f9;
+  --accent-foreground: #89749e;
+  --border: #dcdedc;
+  --ring: #2F7A44;
+  --sidebar: #ffffff;
+  --sidebar-foreground: #141d16;
+  --sidebar-primary: #3E2C5C;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: rgb(62 44 92 / 8%);
+  --sidebar-accent-foreground: #3E2C5C;
+  --sidebar-border: #dcdedc;
+  --sidebar-ring: #3E2C5C;
+}
+html.dark[data-palette='jade_night'] {
+  --pal: #429155;
+  --pal-rgb: 66 145 85;
+  --pal-on: #ffffff;
+  --pal-bg: #141414;
+  --pal-card: #1B1B1B;
+  --pal-border: #303030;
+  --pal-input: #444444;
+  --icon-accent: #d0bde2;
+  --brand-secondary: #7A5FA6;
+  --chart-1: #429155;
+  --background: #141414;
+  --foreground: #e2e8e7;
+  --card: #1B1B1B;
+  --card-foreground: #e2e8e7;
+  --primary: #429155;
+  --primary-foreground: #ffffff;
+  --secondary: #262626;
+  --muted: #262626;
+  --muted-foreground: #949797;
+  --accent: #3d3743;
+  --accent-foreground: #d0bde2;
+  --border: #303030;
+  --ring: #429155;
+  --sidebar: #1B1B1B;
+  --sidebar-foreground: #e2e8e7;
+  --sidebar-primary: #7A5FA6;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: rgb(122 95 166 / 16%);
+  --sidebar-accent-foreground: #a997c5;
+  --sidebar-border: #363636;
+  --sidebar-ring: #7A5FA6;
+}
+html.dark[data-palette='jade_night'] {
+  --mui-palette-background-default: #141414;
+  --mui-palette-background-paper: #1B1B1B;
+}
+
+/* Magma (magma): Obsidian sidebar with one hot magma colour for actions. */
+html[data-palette='magma'] {
+  --pal: #E2330F;
+  --pal-rgb: 226 51 15;
+  --pal-on: #ffffff;
+  --pal-ink: #E2330F;
+  --pal-ink-dark: #fe6244;
+  --pal-light: #e9664b;
+  --pal-light-rgb: 233 102 75;
+  --pal-dark: #b5290c;
+  --pal-dark-rgb: 181 41 12;
+  --icon-accent: #E2330F;
+  --brand-secondary: #3C3C4C;
+  --chart-1: #E2330F;
+  --background: #F4F4F3;
+  --foreground: #291412;
+  --card: #ffffff;
+  --card-foreground: #291412;
+  --primary: #E2330F;
+  --primary-foreground: #ffffff;
+  --secondary: #f3eae8;
+  --muted: #f3eae8;
+  --muted-foreground: #828283;
+  --accent: #e4e4e6;
+  --accent-foreground: #2d2d39;
+  --border: #dddddd;
+  --ring: #E2330F;
+  --sidebar: #ffffff;
+  --sidebar-foreground: #291412;
+  --sidebar-primary: #3C3C4C;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: rgb(60 60 76 / 8%);
+  --sidebar-accent-foreground: #3C3C4C;
+  --sidebar-border: #dddddd;
+  --sidebar-ring: #3C3C4C;
+}
+html.dark[data-palette='magma'] {
+  --pal: #FE3B15;
+  --pal-rgb: 254 59 21;
+  --pal-on: #ffffff;
+  --pal-bg: #141417;
+  --pal-card: #1D1D22;
+  --pal-border: #313136;
+  --pal-input: #46464a;
+  --icon-accent: #9494a2;
+  --brand-secondary: #5A5A70;
+  --chart-1: #FE3B15;
+  --background: #141417;
+  --foreground: #ede3e3;
+  --card: #1D1D22;
+  --card-foreground: #ede3e3;
+  --primary: #FE3B15;
+  --primary-foreground: #ffffff;
+  --secondary: #28282d;
+  --muted: #28282d;
+  --muted-foreground: #9b9495;
+  --accent: #2a2a33;
+  --accent-foreground: #9494a2;
+  --border: #313136;
+  --ring: #FE3B15;
+  --sidebar: #1D1D22;
+  --sidebar-foreground: #ede3e3;
+  --sidebar-primary: #5A5A70;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: rgb(90 90 112 / 16%);
+  --sidebar-accent-foreground: #9494a2;
+  --sidebar-border: #38383d;
+  --sidebar-ring: #5A5A70;
+}
+html.dark[data-palette='magma'] {
+  --mui-palette-background-default: #141417;
+  --mui-palette-background-paper: #1D1D22;
+}
+
+/* Royal Dusk (royal_dusk): Sky-blue actions on a royal-navy sidebar, ruby highlights. */
+html[data-palette='royal_dusk'] {
+  --pal: #0C7BD6;
+  --pal-rgb: 12 123 214;
+  --pal-on: #ffffff;
+  --pal-ink: #0C7BD6;
+  --pal-ink-dark: #3da5f6;
+  --pal-light: #499ce0;
+  --pal-light-rgb: 73 156 224;
+  --pal-dark: #0a62ab;
+  --pal-dark-rgb: 10 98 171;
+  --icon-accent: #0C7BD6;
+  --brand-secondary: #0C287B;
+  --chart-1: #0C7BD6;
+  --background: #F3F5F9;
+  --foreground: #0e1f32;
+  --card: #ffffff;
+  --card-foreground: #0e1f32;
+  --primary: #0C7BD6;
+  --primary-foreground: #ffffff;
+  --secondary: #e7eff7;
+  --muted: #e7eff7;
+  --muted-foreground: #81848b;
+  --accent: #f9dce8;
+  --accent-foreground: #9e0346;
+  --border: #dcdee3;
+  --ring: #0C7BD6;
+  --sidebar: #ffffff;
+  --sidebar-foreground: #0e1f32;
+  --sidebar-primary: #0C287B;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: rgb(12 40 123 / 8%);
+  --sidebar-accent-foreground: #0C287B;
+  --sidebar-border: #dcdee3;
+  --sidebar-ring: #0C287B;
+}
+html.dark[data-palette='royal_dusk'] {
+  --pal: #0C8EF4;
+  --pal-rgb: 12 142 244;
+  --pal-on: #ffffff;
+  --pal-bg: #111723;
+  --pal-card: #18202F;
+  --pal-border: #2d3442;
+  --pal-input: #424854;
+  --icon-accent: #e25c96;
+  --brand-secondary: #3A5BC7;
+  --chart-1: #0C8EF4;
+  --background: #111723;
+  --foreground: #dfe8f0;
+  --card: #18202F;
+  --card-foreground: #dfe8f0;
+  --primary: #0C8EF4;
+  --primary-foreground: #ffffff;
+  --secondary: #242b39;
+  --muted: #242b39;
+  --muted-foreground: #9199a2;
+  --accent: #411a39;
+  --accent-foreground: #e25c96;
+  --border: #2d3442;
+  --ring: #0C8EF4;
+  --sidebar: #18202F;
+  --sidebar-foreground: #dfe8f0;
+  --sidebar-primary: #3A5BC7;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: rgb(58 91 199 / 16%);
+  --sidebar-accent-foreground: #7f94db;
+  --sidebar-border: #343b48;
+  --sidebar-ring: #3A5BC7;
+}
+html.dark[data-palette='royal_dusk'] {
+  --mui-palette-background-default: #111723;
+  --mui-palette-background-paper: #18202F;
+}
+
+/* Tangerine Field (tangerine_field): Field-green actions on a linen ground, tangerine sidebar. */
+html[data-palette='tangerine_field'] {
+  --pal: #28694B;
+  --pal-rgb: 40 105 75;
+  --pal-on: #ffffff;
+  --pal-ink: #28694B;
+  --pal-ink-dark: #65ae8a;
+  --pal-light: #5e8f78;
+  --pal-light-rgb: 94 143 120;
+  --pal-dark: #20543c;
+  --pal-dark-rgb: 32 84 60;
+  --icon-accent: #28694B;
+  --brand-secondary: #E5501F;
+  --chart-1: #28694B;
+  --background: #F2F2E8;
+  --foreground: #141c18;
+  --card: #ffffff;
+  --card-foreground: #141c18;
+  --primary: #28694B;
+  --primary-foreground: #ffffff;
+  --secondary: #e8ebe0;
+  --muted: #e8ebe0;
+  --muted-foreground: #82827d;
+  --accent: #fbe7e0;
+  --accent-foreground: #ac3c17;
+  --border: #dcdcd3;
+  --ring: #28694B;
+  --sidebar: #ffffff;
+  --sidebar-foreground: #141c18;
+  --sidebar-primary: #E5501F;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: rgb(229 80 31 / 8%);
+  --sidebar-accent-foreground: #E5501F;
+  --sidebar-border: #dcdcd3;
+  --sidebar-ring: #E5501F;
+}
+html.dark[data-palette='tangerine_field'] {
+  --pal: #3E9A6D;
+  --pal-rgb: 62 154 109;
+  --pal-on: #ffffff;
+  --pal-bg: #151715;
+  --pal-card: #1D201D;
+  --pal-border: #313431;
+  --pal-input: #464846;
+  --icon-accent: #ff9777;
+  --brand-secondary: #FF5F2D;
+  --chart-1: #3E9A6D;
+  --background: #151715;
+  --foreground: #e2e9e8;
+  --card: #1D201D;
+  --card-foreground: #e2e9e8;
+  --primary: #3E9A6D;
+  --primary-foreground: #ffffff;
+  --secondary: #282b28;
+  --muted: #282b28;
+  --muted-foreground: #949998;
+  --accent: #4f2e21;
+  --accent-foreground: #ff9777;
+  --border: #313431;
+  --ring: #3E9A6D;
+  --sidebar: #1D201D;
+  --sidebar-foreground: #e2e9e8;
+  --sidebar-primary: #FF5F2D;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: rgb(255 95 45 / 16%);
+  --sidebar-accent-foreground: #ff9777;
+  --sidebar-border: #383b38;
+  --sidebar-ring: #FF5F2D;
+}
+html.dark[data-palette='tangerine_field'] {
+  --mui-palette-background-default: #151715;
+  --mui-palette-background-paper: #1D201D;
+}
+
+/* Ocean Ruby (ocean_ruby): Ocean-blue actions, emerald sidebar, ruby accents. */
+html[data-palette='ocean_ruby'] {
+  --pal: #005BB3;
+  --pal-rgb: 0 91 179;
+  --pal-on: #ffffff;
+  --pal-ink: #005BB3;
+  --pal-ink-dark: #589ee5;
+  --pal-light: #4084c6;
+  --pal-light-rgb: 64 132 198;
+  --pal-dark: #00498f;
+  --pal-dark-rgb: 0 73 143;
+  --icon-accent: #005BB3;
+  --brand-secondary: #029456;
+  --chart-1: #005BB3;
+  --background: #F2F6F8;
+  --foreground: #0b1b29;
+  --card: #ffffff;
+  --card-foreground: #0b1b29;
+  --primary: #005BB3;
+  --primary-foreground: #ffffff;
+  --secondary: #e6eef5;
+  --muted: #e6eef5;
+  --muted-foreground: #808487;
+  --accent: #fae0ea;
+  --accent-foreground: #a21a51;
+  --border: #dbdfe1;
+  --ring: #005BB3;
+  --sidebar: #ffffff;
+  --sidebar-foreground: #0b1b29;
+  --sidebar-primary: #029456;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: rgb(2 148 86 / 8%);
+  --sidebar-accent-foreground: #029456;
+  --sidebar-border: #dbdfe1;
+  --sidebar-ring: #029456;
+}
+html.dark[data-palette='ocean_ruby'] {
+  --pal: #2E86DE;
+  --pal-rgb: 46 134 222;
+  --pal-on: #ffffff;
+  --pal-bg: #10161C;
+  --pal-card: #172029;
+  --pal-border: #2c343c;
+  --pal-input: #414850;
+  --icon-accent: #e66f9f;
+  --brand-secondary: #05B46B;
+  --chart-1: #2E86DE;
+  --background: #10161C;
+  --foreground: #e1e8ef;
+  --card: #172029;
+  --card-foreground: #e1e8ef;
+  --primary: #2E86DE;
+  --primary-foreground: #ffffff;
+  --secondary: #232b34;
+  --muted: #232b34;
+  --muted-foreground: #92989f;
+  --accent: #412038;
+  --accent-foreground: #e66f9f;
+  --border: #2c343c;
+  --ring: #2E86DE;
+  --sidebar: #172029;
+  --sidebar-foreground: #e1e8ef;
+  --sidebar-primary: #05B46B;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: rgb(5 180 107 / 16%);
+  --sidebar-accent-foreground: #5dce9f;
+  --sidebar-border: #333b43;
+  --sidebar-ring: #05B46B;
+}
+html.dark[data-palette='ocean_ruby'] {
+  --mui-palette-background-default: #10161C;
+  --mui-palette-background-paper: #172029;
+}
+
+/* The dashboard's seven cards: one row only where each card has room (a laptop gets four across). */
+.dashboard-kpis {
+  grid-template-columns: minmax(0, 1fr);
+}
+@media (min-width: 640px) {
+  .dashboard-kpis {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+@media (min-width: 1280px) {
+  .dashboard-kpis {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+@media (min-width: 1800px) {
+  .dashboard-kpis {
+    grid-template-columns: repeat(7, minmax(0, 1fr));
+  }
+}

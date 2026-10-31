@@ -35,6 +35,8 @@ module.exports = function adminRoutes(deps) {
         status: req.query.status,
         userId: req.query.userid,
         chain: req.query.chain,
+        coin: req.query.coin,
+        channel: req.query.channel,
       });
       return response.paginated(res, result.rows, {
         page: req.query.page,

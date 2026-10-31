@@ -28,7 +28,7 @@ module.exports = (sequelize) => {
       field: "game_uuid",
     },
     played_at: {
-      type: 'TIMESTAMP',
+      type: DataTypes.DATE, // timestamptz (migration 083)
       allowNull: false,
       defaultValue: DataTypes.NOW,
       field: "played_at",

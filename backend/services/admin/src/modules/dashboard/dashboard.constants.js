@@ -37,11 +37,44 @@ const DEPOSIT_SUCCESS = Object.freeze({
   fiat_deposits: ['approved', 'success', 'done', 'completed'],
   apaydeposits: ['success'],
   pay_in_transactions: [1],
+  f2paydeposits: ['success'],
 });
 
+/**
+ * When a withdrawal counts as WITHDRAWN. One rule, read by every report that
+ * totals withdrawals: this dashboard, the stats routes (`audienceStats.constants`,
+ * `financeStats`, `playerStats`, `dashboardStats` and so the P&L cash flow) and
+ * `reports.service` (player list and export, agent P&L, risk). user-service's
+ * `deposit-reports` cannot require this file and keeps a copy
+ * (`depositReports.constants.js` FIAT_WITHDRAWN): keep the two in step.
+ *
+ *   bank   (`fiat_withdrawals`)  Approved OR Paid. Until ebfcdc0 a bank
+ *          withdrawal moved once, In Queue → Approved, and Approved was the
+ *          payout; since then it goes In Queue → Approved → Paid. Both mean the
+ *          operator released the money, and legacy rows stop at Approved.
+ *   crypto (`withdrawals`)       Sent: broadcast on chain. Its Approved is "not
+ *          broadcast yet, still recallable", so it does not count.
+ *
+ * The rest are older spellings of done. Lower-case: every reader compares
+ * LOWER(status). A row has one status, so no row is counted twice.
+ */
 const WITHDRAWAL_DONE = Object.freeze({
-  withdrawals: ['done', 'success', 'completed'],
-  fiat_withdrawals: ['done', 'approved', 'success', 'completed'],
+  withdrawals: Object.freeze(['sent', 'paid', 'done', 'success', 'completed', 'complete']),
+  fiat_withdrawals: Object.freeze(['approved', 'paid', 'sent', 'done', 'success', 'completed', 'complete']),
+  // F2Pay's automatic payout: Success once its callback says Completed (a Failed one is refunded).
+  f2paywithdrawals: Object.freeze(['success']),
+});
+
+/**
+ * Direct User Wallet credits / debits (`direct-wallet` module) — the Super Admin's
+ * manual deposit to a direct user. No table of their own: one `credits_ledger`
+ * row each, reason ADMIN_CREDIT / ADMIN_DEBIT, `meta.refType` DIRECT_WALLET.
+ * The debit's `amount` is stored NEGATIVE, so every reader takes ABS.
+ */
+const DIRECT_WALLET_LEDGER = Object.freeze({
+  refType: 'DIRECT_WALLET',
+  deposit: 'ADMIN_CREDIT',
+  withdrawal: 'ADMIN_DEBIT',
 });
 
 /**
@@ -156,6 +189,20 @@ const MOVEMENT_SOURCES = Object.freeze([
     /** SMALLINT. `LOWER(status)` on it is a type error, not a no-op. */
     statusIsText: false,
   },
+  /** F2Pay — the site's payment gateway: deposits (INR, USDT) and automatic INR payouts below. */
+  {
+    key: 'f2pay_deposit',
+    label: 'F2Pay deposit',
+    direction: 'deposit',
+    model: 'F2payDeposits',
+    id: 'id',
+    user: 'user_id',
+    date: 'created_at',
+    amount: 'amount',
+    currency: 'currency',
+    statuses: DEPOSIT_SUCCESS.f2paydeposits,
+    statusIsText: true,
+  },
   {
     key: 'crypto_withdrawal',
     label: 'Crypto withdrawal',
@@ -182,6 +229,49 @@ const MOVEMENT_SOURCES = Object.freeze([
     statuses: WITHDRAWAL_DONE.fiat_withdrawals,
     statusIsText: true,
   },
+  {
+    key: 'f2pay_withdrawal',
+    label: 'F2Pay withdrawal',
+    direction: 'withdrawal',
+    model: 'F2payWithdrawals',
+    id: 'id',
+    user: 'user_id',
+    date: 'created_at',
+    amount: 'amount',
+    currency: 'currency',
+    statuses: WITHDRAWAL_DONE.f2paywithdrawals,
+    statusIsText: true,
+  },
+  /**
+   * Direct User Wallet — `credits_ledger` rows, filtered by reason + refType
+   * instead of a status (a ledger row is only ever written once it is done).
+   */
+  {
+    key: 'direct_wallet_deposit',
+    label: 'Direct wallet credit',
+    direction: 'deposit',
+    model: 'CreditsLedger',
+    id: 'id',
+    user: 'user_id',
+    date: 'created_at',
+    amount: 'amount',
+    currency: 'currency',
+    ledgerReason: DIRECT_WALLET_LEDGER.deposit,
+  },
+  {
+    key: 'direct_wallet_withdrawal',
+    label: 'Direct wallet debit',
+    direction: 'withdrawal',
+    model: 'CreditsLedger',
+    id: 'id',
+    user: 'user_id',
+    date: 'created_at',
+    amount: 'amount',
+    currency: 'currency',
+    ledgerReason: DIRECT_WALLET_LEDGER.withdrawal,
+    /** Stored negative — flipped back to a positive withdrawal. */
+    negative: true,
+  },
 ]);
 
 const MOVEMENT_SOURCE_KEYS = Object.freeze(MOVEMENT_SOURCES.map((s) => s.key));
@@ -196,10 +286,47 @@ const MOVEMENT_SOURCE_KEYS = Object.freeze(MOVEMENT_SOURCES.map((s) => s.key));
  */
 const MAX_MOVEMENT_ROWS = 2_000;
 
+/**
+ * Display names for the sports feed's sport ids (`SportsBet.sport_id`) — a copy
+ * of `sports/src/modules/feed/feed.constants.js` SPORT_NAMES, which this
+ * service cannot require. An id missing here is shown as "Sport <id>".
+ */
+const SPORT_NAMES = Object.freeze({
+  1: 'Soccer',
+  2: 'Tennis',
+  3: 'Golf',
+  4: 'Cricket',
+  5: 'Rugby Union',
+  6: 'Boxing',
+  7: 'Horse Racing',
+  8: 'Motor Sport',
+  13: 'Horse Race Todays Card',
+  15: 'Greyhound Todays Card',
+  1477: 'Rugby League',
+  3503: 'Darts',
+  4339: 'Greyhound Racing',
+  6422: 'Snooker',
+  6423: 'American Football',
+  7511: 'Baseball',
+  7522: 'Basketball',
+  2152880: 'Gaelic Games',
+  26420387: 'Mixed Martial Arts',
+});
+
+/**
+ * `SportsBet.result_status` values that mean the stake came back — the sports
+ * service's REFUNDED_RESULTS (`bets/bets.constants.js`). Settlement leaves such
+ * a bet `status = 'closed'`, so `status` alone cannot tell it from a lost one.
+ */
+const SPORTS_REFUNDED_RESULTS = Object.freeze(['refund', 'refunded', 'voided_after_settlement']);
+
 module.exports = {
+  SPORT_NAMES,
+  SPORTS_REFUNDED_RESULTS,
   COIN_IDS,
   DEPOSIT_SUCCESS,
   WITHDRAWAL_DONE,
+  DIRECT_WALLET_LEDGER,
   VALUATION_NOTE,
   TREND_DAYS,
   TOP_COUNTRIES,

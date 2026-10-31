@@ -26,6 +26,8 @@ module.exports = {
   basePath: '/bonus',
   models: ['core', 'extended'],
   routers: {
+    // The first-deposit bonus terms, readable signed out (optional session).
+    public: require('./routes/public.routes'),
     user: require('./routes/user.routes'),
     admin: require('./routes/admin.routes'),
   },

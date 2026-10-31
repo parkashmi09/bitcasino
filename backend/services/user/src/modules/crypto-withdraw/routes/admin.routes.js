@@ -1,7 +1,7 @@
 'use strict';
 
 const { Router } = require('express');
-const { validate, createActivityRecorder } = require('@ibitplay/common');
+const { validate, createActivityRecorder, requireTxnPassword } = require('@ibitplay/common');
 const { PERMISSIONS } = require('@ibitplay/auth');
 
 const v = require('../cryptoWithdraw.validators');
@@ -27,6 +27,8 @@ module.exports = function adminRoutes(deps) {
   });
 
   const router = Router();
+  // Gives or takes balance: the staff caller's transaction code first.
+  const txnCode = requireTxnPassword({ clients });
   const canRead = auth.requirePermission(PERMISSIONS.WITHDRAWALS_READ);
 
   router.get('/', canRead, validate(v.listAll), ctrl.listAll);
@@ -36,6 +38,7 @@ module.exports = function adminRoutes(deps) {
   router.post(
     '/:withdrawalId/decision',
     auth.requirePermission(PERMISSIONS.WITHDRAWALS_APPROVE),
+    txnCode,
     validate(v.decide),
     withActivity({
       action: 'withdrawal.crypto.decision',

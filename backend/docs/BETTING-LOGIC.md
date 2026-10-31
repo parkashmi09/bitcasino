@@ -375,7 +375,7 @@ model.
 | `BM` odds normalisation | `normalizeOdds()` | none | ❌ |
 | `FAN` / fancy markets | fixed stake block, exposure off | not implemented | ❌ |
 | Three-way `count == 3` draw handling | yes | no draw concept | ❌ |
-| Parent-staff lock check | walks `staff_hierarchy` | own account only | ❌ |
+| Parent-staff lock check | walks `staff_hierarchy` | `betLockState` walks `staff_hierarchy`: sports lock, system lock or suspension (`status` ≠ active) on the parent or any ancestor | ✅ |
 | `usd_amount` FX conversion | live rate, 5-min cache, fallback 83 | not implemented | ❌ |
 | Row locking | `FOR UPDATE` on exposures ✅ | ✅ | ✅ |
 | Real transaction | ❌ `BEGIN` on the **shared** client | ✅ pooled | fixed |

@@ -49,9 +49,15 @@ function createControllers({ service }) {
     }),
 
     /** @legacy PUT /api/deposits/admin/approve/:depositId */
-    approve: asyncHandler(async (req, res) =>
-      response.ok(res, await service.approve({ depositId: req.params.depositId, ...req.body }, req.staff))
-    ),
+    approve: asyncHandler(async (req, res) => {
+      // Crediting a balance is a money move: the caller's transaction password, as on every other one.
+      const { transactionPassword, ...body } = req.body;
+      await service.wallet.checkTransactionPassword(req.staff.id, transactionPassword, {
+        required: true,
+        executiveId: req.staff.executiveId ?? null,
+      });
+      return response.ok(res, await service.approve({ depositId: req.params.depositId, ...body }, req.staff));
+    }),
 
     /** @legacy PUT /api/deposits/admin/reject/:depositId */
     reject: asyncHandler(async (req, res) =>

@@ -7,7 +7,7 @@ module.exports = defineErrors('CATALOGUE', {
     status: 503,
     /**
      * There is deliberately no fallback for any upstream credential. Legacy
-     * hardcoded `agent_code: "Skyla_USD"` and its token in three handlers; a
+     * hardcoded `agent_code: "<redacted, see backend/docs/ROTATION.md>"` and its token in three handlers; a
      * default here would mean a deployment that looks configured and is
      * playing through somebody else's aggregator account.
      */

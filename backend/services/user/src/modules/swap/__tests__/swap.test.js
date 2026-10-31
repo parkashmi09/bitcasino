@@ -9,6 +9,7 @@ const { createLogger, money } = require('@ibitplay/common');
 const { SwapService } = require('../swap.service');
 const { feeRateFor } = require('../swap.constants');
 const { resolveColumn } = require('../../wallet/wallet.constants');
+const v = require('../swap.validators');
 
 /**
  * Swap correctness, against a real PostgreSQL.
@@ -62,10 +63,11 @@ test('swap', async (t) => {
   });
 
   // Rates: 1 INR = 0.012 USD, 1 USDT = 1 USD.
-  await connection.models.Exchangerate.destroy({ where: { currency: ['INR', 'USDT'] } });
+  await connection.models.Exchangerate.destroy({ where: { currency: ['INR', 'USDT', 'BJB'] } });
   await connection.models.Exchangerate.bulkCreate([
     { currency: 'INR', usd_rate: '0.012', last_updated: new Date() },
     { currency: 'USDT', usd_rate: '1', last_updated: new Date() },
+    { currency: 'BJB', usd_rate: '1', last_updated: new Date() },
   ]);
 
   const seed = async (uid, columns) => {
@@ -110,36 +112,52 @@ test('swap', async (t) => {
       userId: uid, fromCurrency: 'INR', toCurrency: 'USDT', amount: '1000',
     });
 
-    // INR fee is 15%: 1000 -> 150 fee -> 850 converted.
-    // 850 INR * 0.012 = 10.2 USD / 1 = 10.2 USDT.
-    assert.equal(result.feeAmount, '150.00000000');
-    assert.equal(result.amountAfterFee, '850.00000000');
-    assert.equal(result.toAmount, '10.20000000');
+    // INR fee is 1%: 1000 -> 10 fee -> 990 converted.
+    // 990 INR * 0.012 = 11.88 USD / 1 = 11.88 USDT.
+    assert.equal(result.feeAmount, '10.00000000');
+    assert.equal(result.amountAfterFee, '990.00000000');
+    assert.equal(result.toAmount, '11.88000000');
 
     const after = await balances(uid);
     assert.equal(after.INR, '9000.00000000', 'the FULL amount leaves the source currency');
-    assert.equal(after.USDT, '10.20000000');
+    assert.equal(after.USDT, '11.88000000');
   });
 
-  await t.test('the 0.15 fee is exact — no float drift', async () => {
+  await t.test('the 0.01 fee is exact — no float drift', async () => {
     const uid = newUid();
     await seed(uid, { inr: '10000', usdt: '0' });
 
-    // 0.15 is not representable in binary floating point. 3333 * 0.15 in a
-    // double is 499.95000000000005; the fee must be exactly 499.95.
+    // 3333.33 * 0.01 in a double is 33.333299999999994; the fee must be exactly 33.3333.
     const estimate = await service.estimate({
-      fromCurrency: 'INR', toCurrency: 'USDT', amount: '3333',
+      fromCurrency: 'INR', toCurrency: 'USDT', amount: '3333.33',
     });
 
-    assert.equal(estimate.feeAmount, '499.95000000');
-    assert.equal(estimate.amountAfterFee, '2833.05000000');
+    assert.equal(estimate.feeAmount, '33.33330000');
+    assert.equal(estimate.amountAfterFee, '3299.99670000');
   });
 
   await t.test('fee rates are per-currency', async () => {
-    assert.equal(feeRateFor('INR'), '0.15');
-    assert.equal(feeRateFor('BJB'), '0');
+    assert.equal(feeRateFor('INR'), '0.01');
+    assert.equal(feeRateFor('BJB'), '0', 'a retired coin is free to swap OUT of');
     assert.equal(feeRateFor('USDT'), '0.01');
     assert.equal(feeRateFor('unknown'), '0.01');
+  });
+
+  await t.test('the Super Admin sets the swap fee; the quote uses it, a retired coin stays free', async () => {
+    const key = "DELETE FROM admin_configurations WHERE config_key = 'swap_fee'";
+    await connection.sequelize.query(key);
+    try {
+      assert.equal((await service.getFee()).fee, '0.01', 'no setting is the 1% default');
+      assert.equal((await service.setFee({ fee: '0.025' })).fee, '0.025');
+      const est = await service.estimate({ fromCurrency: 'INR', toCurrency: 'USDT', amount: '1000' });
+      assert.equal(est.feeAmount, '25.00000000');
+      assert.equal((await service.setFee({ fee: '0' })).fee, '0', 'a second set overwrites');
+      assert.ok(!v.setFee.body.safeParse({ fee: '0.6' }).success, 'over 50% is refused');
+      assert.ok(!v.setFee.body.safeParse({ fee: '-0.1' }).success);
+      assert.ok(v.setFee.body.safeParse({ fee: '0.0125' }).success);
+    } finally {
+      await connection.sequelize.query(key);
+    }
   });
 
   await t.test('an insufficient balance leaves both currencies untouched', async () => {
@@ -211,7 +229,41 @@ test('swap', async (t) => {
     const usdtLeg = rows.find((r) => r.currency === 'USDT');
 
     assert.equal(money.toDecimalString(money.toMinor(inrLeg.amount)), '-1000.00000000');
-    assert.equal(money.toDecimalString(money.toMinor(usdtLeg.amount)), '10.20000000');
+    assert.equal(money.toDecimalString(money.toMinor(usdtLeg.amount)), '11.88000000');
+  });
+
+  await t.test('the staff history takes a currency filter (a swap out of or into it)', async () => {
+    assert.equal(v.adminHistory.query.parse({ currency: 'usdt' }).currency, 'USDT');
+    assert.equal(v.adminHistory.query.safeParse({ currency: "INR' OR 1=1" }).success, false);
+
+    const uid = newUid();
+    await seed(uid, { inr: '10000', usdt: '0' });
+    await service.swap({ userId: uid, fromCurrency: 'INR', toCurrency: 'USDT', amount: '1000' });
+    // The root sees everyone: scope is the requested player only.
+    const scoped = new SwapService({ models: connection.models, db: connection, logger, config: { SERVICE_NAME: 'user-service', ROOT_STAFF_ID: 1 }, clients: { admin: { get: async () => ({ ids: [1] }) } } });
+    const list = async (currency) => (await scoped.listAllHistory({ staff: { id: 1 }, userId: uid, currency, limit: 10, offset: 0 })).count;
+    assert.equal(await list(undefined), 1);
+    assert.equal(await list('USDT'), 1, 'into USDT');
+    assert.equal(await list('INR'), 1, 'out of INR');
+    assert.equal(await list('BTC'), 0);
+  });
+
+  await t.test('the fee summary values each fee in USDT at its own swap\'s rate', async () => {
+    const uid = newUid();
+    await seed(uid, { inr: '10000', usdt: '0' });
+    const result = await service.swap({ userId: uid, fromCurrency: 'INR', toCurrency: 'USDT', amount: '1000' });
+    const scoped = new SwapService({ models: connection.models, db: connection, logger, config: { SERVICE_NAME: 'user-service', ROOT_STAFF_ID: 1 }, clients: { admin: { get: async () => ({ ids: [1] }) } } });
+
+    const summary = await scoped.feeSummary({ staff: { id: 1 }, userId: uid, channel: 'all' }) // the test player has no users row;
+    const row = await connection.models.SwapHistory.findByPk(result.swapId, { raw: true });
+    assert.equal(summary.swaps, 1);
+    assert.equal(Number(summary.feeUsdt), Number(row.fee_amount) * Number(row.usd_rate_from));
+    assert.equal(summary.todayUsdt, summary.feeUsdt, 'made today');
+
+    const days = await scoped.feeHistory({ staff: { id: 1 }, userId: uid, channel: 'all', limit: 10, offset: 0 });
+    assert.equal(days.count, 1);
+    assert.equal(days.rows[0].swaps, 1);
+    assert.equal(days.rows[0].feeUsdt, summary.feeUsdt);
   });
 
   await t.test('swap history records the rates used, so a swap can be re-derived', async () => {
@@ -230,11 +282,55 @@ test('swap', async (t) => {
     assert.equal(money.toDecimalString(money.toMinor(row.usd_rate_to)), '1.00000000');
   });
 
+  await t.test('a swap reads back at the time it was made, whatever the server time zone (082)', async () => {
+    // The column was `timestamp without time zone`: written as UTC wall time, read back in the
+    // process zone, so on an IST server every swap showed 5h30m early. Run in IST to prove it.
+    const tz = process.env.TZ;
+    process.env.TZ = 'Asia/Kolkata';
+    try {
+      const uid = newUid();
+      await seed(uid, { inr: '10000', usdt: '0' });
+      const before = Date.now();
+      await service.swap({ userId: uid, fromCurrency: 'INR', toCurrency: 'USDT', amount: '1000' });
+
+      const row = await connection.models.SwapHistory.findOne({ where: { uid }, order: [['id', 'DESC']], raw: true });
+      const skew = Math.abs(new Date(row.created_at).getTime() - before);
+      assert.ok(skew < 60_000, `created_at is ${Math.round(skew / 60_000)} min away from the swap`);
+    } finally {
+      if (tz === undefined) delete process.env.TZ; else process.env.TZ = tz;
+    }
+  });
+
   await t.test('balances only lists currencies the player actually holds', async () => {
     const uid = newUid();
     await seed(uid, { inr: '50', usdt: '0', btc: '0' });
 
     const held = await service.getBalances(uid);
     assert.deepEqual(Object.keys(held), ['INR']);
+  });
+  await t.test('a retired coin (BJB) can be swapped out of, never into', async () => {
+    const body = (from, to) => v.swap.body.safeParse({ fromCurrency: from, toCurrency: to, amount: '1' });
+    assert.equal(body('BJB', 'USDT').success, true);
+    assert.equal(body('USDT', 'BJB').success, false);
+    assert.equal(body('usdt', 'bjb').success, false);
+
+    const uid = newUid();
+    await seed(uid, { bjb: '4', usdt: '0' });
+    const result = await service.swap({ userId: uid, fromCurrency: 'BJB', toCurrency: 'USDT', amount: '4' });
+    assert.equal(result.feeAmount, '0.00000000');
+    assert.equal(result.toAmount, '4.00000000');
+
+    const row = await connection.models.Credits.findOne({ where: { uid }, raw: true });
+    assert.equal(money.toDecimalString(money.toMinor(row?.bjb ?? '0')), '0.00000000');
+    assert.equal(money.toDecimalString(money.toMinor(row?.usdt ?? '0')), '4.00000000');
+
+    // The service refuses it too, should anything bypass the validator.
+    await seed(uid, { bjb: '0', usdt: '5' });
+    await assert.rejects(
+      () => service.swap({ userId: uid, fromCurrency: 'USDT', toCurrency: 'BJB', amount: '1' }),
+      (error) => error.code === 'WALLET_CURRENCY_RETIRED'
+    );
+    const untouched = await connection.models.Credits.findOne({ where: { uid }, raw: true });
+    assert.equal(money.toDecimalString(money.toMinor(untouched?.usdt ?? '0')), '5.00000000', 'nothing moved');
   });
 });

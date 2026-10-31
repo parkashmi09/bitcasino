@@ -95,4 +95,12 @@ function play({ amount, winning, hash, logger, serverAuthority, state, hold }) {
   return { result: claimed, hash: hash ?? makeHash(), profit: String(profit), isWinner };
 }
 
-module.exports = { play, open, key: 'videopoker' };
+/**
+ * What the client may see of an opened round: the five cards dealt.
+ *
+ * Not `deck` — that is what a redraw comes from, so a client holding it would
+ * know which discards improve the hand before choosing.
+ */
+const publicState = (state = {}) => ({ cards: state.cards ?? [] });
+
+module.exports = { play, open, publicState, key: 'videopoker' };

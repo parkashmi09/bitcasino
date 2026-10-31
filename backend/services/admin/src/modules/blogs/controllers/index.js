@@ -1,6 +1,16 @@
 'use strict';
 
 const { response, asyncHandler } = require('@ibitplay/common');
+const { PERMISSIONS, hasPermission } = require('@ibitplay/auth');
+
+/**
+ * Who sees unpublished (draft) posts: staff holding the content grant's read variant
+ * (`config:read` — the writes require `config:write`). Any staff token used
+ * to be enough, so an AGENT (level 6) could list content the house had taken
+ * down or not yet published. Every other caller, staff or not, gets the
+ * public view.
+ */
+const canSeeDrafts = (req) => Boolean(req.staff) && hasPermission(req.staff.permissions, PERMISSIONS.CONFIG_READ);
 
 // Same cache window as a banner image — both are static bytes fetched by an
 // `<img>` tag, and there is no reason for two answers to that question.
@@ -18,7 +28,7 @@ function createControllers({ service }) {
      * posts by adding a query parameter.
      */
     list: asyncHandler(async (req, res) => {
-      const result = await service.list({ ...req.query, includeUnpublished: Boolean(req.staff) });
+      const result = await service.list({ ...req.query, includeUnpublished: canSeeDrafts(req) });
       return response.paginated(res, result, req.query);
     }),
 
@@ -30,12 +40,12 @@ function createControllers({ service }) {
 
     /** @legacy GET /by-slug?slug=… */
     bySlug: asyncHandler(async (req, res) =>
-      response.ok(res, await service.bySlug({ ...req.params, includeUnpublished: Boolean(req.staff) }))
+      response.ok(res, await service.bySlug({ ...req.params, includeUnpublished: canSeeDrafts(req) }))
     ),
 
     /** @legacy GET /by-id?id=5 */
     byId: asyncHandler(async (req, res) =>
-      response.ok(res, await service.byId({ ...req.params, includeUnpublished: Boolean(req.staff) }))
+      response.ok(res, await service.byId({ ...req.params, includeUnpublished: canSeeDrafts(req) }))
     ),
 
     /**
@@ -46,7 +56,7 @@ function createControllers({ service }) {
      * what made a client-chosen filename extension dangerous.
      */
     image: asyncHandler(async (req, res) => {
-      const image = await service.image({ ...req.params, includeUnpublished: Boolean(req.staff) });
+      const image = await service.image({ ...req.params, includeUnpublished: canSeeDrafts(req) });
 
       res.set({
         'Content-Type': image.contentType,

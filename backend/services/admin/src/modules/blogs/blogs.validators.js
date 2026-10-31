@@ -45,16 +45,39 @@ const category = z.string().trim().min(1).max(128);
  */
 const displayDate = z.coerce.date();
 
+/**
+ * A multipart boolean. `z.coerce.boolean()` is `Boolean(value)`, so the string `"false"` the
+ * site admin's FormData sends came out TRUE: every draft was published on save and a post could
+ * never be unpublished. Real booleans pass; the strings `true/false/1/0/on/off` are read as such.
+ */
+const formBoolean = z.preprocess((value) => {
+  if (typeof value !== 'string') return value;
+  const v = value.trim().toLowerCase();
+  if (v === 'true' || v === '1' || v === 'on') return true;
+  if (v === 'false' || v === '0' || v === 'off' || v === '') return false;
+  return value;
+}, z.boolean());
+
+/**
+ * `offset` beside `page`: the admin UI sends `limit` + `offset` as it does on
+ * every other list, and `.strict()` made that a 422. Folded into `page`.
+ */
+const offset = z.coerce.number().int().min(0).optional();
+const offsetToPage = ({ offset: skip, ...rest }) =>
+  skip === undefined ? rest : { ...rest, page: Math.floor(skip / rest.limit) + 1 };
+
 const list = {
   query: z
     .object({
       page: z.coerce.number().int().min(1).default(1),
       limit: z.coerce.number().int().min(1).max(MAX_PAGE_SIZE).default(DEFAULT_PAGE_SIZE),
+      offset,
       category: category.optional(),
       /** Free-text over title and subheading. Not a legacy capability. */
       search: z.string().trim().min(1).max(200).optional(),
     })
-    .strict(),
+    .strict()
+    .transform(offsetToPage),
 };
 
 /** @legacy GET /by-slug?slug=… */
@@ -70,8 +93,10 @@ const byCategory = {
     .object({
       page: z.coerce.number().int().min(1).default(1),
       limit: z.coerce.number().int().min(1).max(MAX_PAGE_SIZE).default(DEFAULT_PAGE_SIZE),
+      offset,
     })
-    .strict(),
+    .strict()
+    .transform(offsetToPage),
 };
 
 /**
@@ -94,7 +119,7 @@ const create = {
        * publish. Default false so a half-written post is not live the moment
        * it is saved.
        */
-      isPublished: z.coerce.boolean().default(false),
+      isPublished: formBoolean.default(false),
     })
     .strict(),
 };
@@ -119,7 +144,7 @@ const update = {
       author: author.optional(),
       category: category.optional(),
       date: displayDate.optional(),
-      isPublished: z.coerce.boolean().optional(),
+      isPublished: formBoolean.optional(),
       /**
        * Regenerate the address from the new title.
        *
@@ -128,7 +153,7 @@ const update = {
        * it. Opt-in here, and the old slug is what a reader's bookmark keeps
        * working against.
        */
-      regenerateSlug: z.coerce.boolean().default(false),
+      regenerateSlug: formBoolean.default(false),
     })
     .strict()
     .refine((body) => Object.keys(body).some((key) => key !== 'regenerateSlug'), {

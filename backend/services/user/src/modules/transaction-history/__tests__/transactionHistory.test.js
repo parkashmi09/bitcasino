@@ -170,6 +170,20 @@ test('transaction history: every rail', async (t) => {
     assert.deepEqual(rows.map((r) => r.method).sort(), ['apay', 'crypto', 'manual']);
   });
 
+  await t.test('admin Transactions → Fiat lists the payment-gateway rails, F2Pay included', async () => {
+    const uid = await seedPlayer();
+    await models.F2payDeposits.create({ user_id: uid, mch_order_no: `DEP_F2_${uid}`, amount: '600', currency: 'INR', status: 'Success' });
+
+    const deposits = await service.gatewayTransactions({ kind: 'deposit', userId: uid, limit: 50, offset: 0 });
+    assert.deepEqual(deposits.rows.map((r) => r.provider).sort(), ['apay', 'f2pay', 'waypay'], 'crypto and manual have their own tabs');
+    const f2 = deposits.rows.find((r) => r.provider === 'f2pay');
+    assert.deepEqual([String(f2.userId), f2.reference, f2.amount, f2.currency, f2.status], [String(uid), `DEP_F2_${uid}`, '600.00000000', 'INR', 'success']);
+    assert.ok(f2.createdAt, 'the UI reads createdAt');
+
+    const withdrawals = await service.gatewayTransactions({ kind: 'withdrawal', userId: uid, limit: 50, offset: 0 });
+    assert.deepEqual(withdrawals.rows.map((r) => r.provider), ['apay']);
+  });
+
   await t.test('the A-Pay rail is not returned twice', async () => {
     // Legacy merged A-Pay into `fiatWithdrawals` AND repeated it under
     // `apayWithdrawals`, so a client reading both double-counted every payout.
@@ -247,8 +261,16 @@ test('transaction history: every rail', async (t) => {
     const uid = await seedPlayer();
     const { rows } = await service.allWithdrawals({ userId: uid });
 
+    /*
+     * Masked, not full. `transactionHistory.constants.js` states the decision
+     * against this exact field: the tail is what lets a player recognise WHICH
+     * account they used, and the rest "is the part worth not repeating back
+     * over the wire". The row still says where the payout went, which is what
+     * this test is for — it just says it the way the crypto rail beside it
+     * already does.
+     */
     const manual = rows.find((r) => r.method === 'manual');
-    assert.equal(manual.destination.accountNumber, '938939939939393');
+    assert.equal(manual.destination.accountNumber, '••••9393');
 
     // A-Pay keeps the account inside a JSONB column whose shape varies per
     // payment system, which is why it is flattened rather than passed through.
@@ -288,4 +310,13 @@ test('transaction history: every rail', async (t) => {
     assert.equal(result.withdrawals.count, 3);
     assert.ok(Array.isArray(result.deposits.rows), 'rows is an ARRAY — the client maps it');
   });
+});
+
+test('a UPI fiat withdrawal names its UPI id, not "Bank: N/A, Acc: null"', () => {
+  const { WITHDRAWAL_SOURCES } = require('../transactionHistory.constants');
+  const manual = WITHDRAWAL_SOURCES.find((s) => s.method === 'manual');
+  const upi = manual.present({ id: 7, amount: '200', currency: 'INR', status: 'paid', upi_id: 'p10@testupi', date: new Date() });
+  assert.equal(upi.details, 'UPI: p10@testupi');
+  const bank = manual.present({ id: 8, amount: '200', currency: 'INR', status: 'paid', bank_name: 'SBI', account_number: '12349393', date: new Date() });
+  assert.equal(bank.details, 'Bank: SBI, Acc: ••••9393');
 });

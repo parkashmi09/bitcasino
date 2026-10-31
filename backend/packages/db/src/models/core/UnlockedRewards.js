@@ -45,7 +45,7 @@ module.exports = (sequelize) => {
     cointype: {
       type: DataTypes.TEXT,
       allowNull: true,
-      defaultValue: "sbc",
+      defaultValue: "USDT",
       field: "cointype",
     },
     wager_amount: {

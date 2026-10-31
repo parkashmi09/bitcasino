@@ -4,9 +4,11 @@ const test = require('node:test');
 const assert = require('node:assert');
 
 const db = require('@ibitplay/db');
+const { Op } = require('sequelize');
 const { createLogger, money } = require('@ibitplay/common');
 
 const { GameEngine } = require('../engine/gameEngine');
+const { GamesService } = require('../../games/games.service');
 const hash = require('../engine/hash');
 const limbo = require('../games/limbo');
 const mine = require('../games/mine');
@@ -19,16 +21,52 @@ const blackjack = require('../games/blackjack');
 const authority = require('../engine/serverAuthority');
 const classicDice = require('../games/classicDice');
 const magicWheel = require('../games/magicWheel');
+const wheel = require('../games/wheel');
+const singleKeno = require('../games/singleKeno');
 const diamond = require('../games/diamond');
+
+/** The real `reverseActivity` over a user-service that is down: what it queues for retry. */
+const outboxFeed = () => {
+  const queued = [];
+  const real = new GamesService({
+    models: {},
+    db: {
+      sequelize: {
+        async query(sql, opts) {
+          if (/INSERT INTO wager_reverse_outbox/.test(sql)) queued.push(opts.replacements);
+          return [[], 1];
+        },
+      },
+    },
+    config: {},
+    logger: { warn() {}, info() {}, error() {} },
+    clients: { user: { async post() { throw new Error('user-service down'); } } },
+  });
+  return {
+    queued,
+    games: {
+      async recordPlay() {},
+      async recordActivity() { return { counted: true }; },
+      reverseActivity: (args) => real.reverseActivity(args),
+    },
+  };
+};
 
 /**
  * The in-house games.
  *
- * The game arithmetic is legacy's, ported as-is — so these tests PIN what it
- * does rather than assert what it should do. Several of them document
- * behaviour that is almost certainly a bug; they are written that way on
- * purpose, so that changing the behaviour later fails a test and is a
+ * Most of the game arithmetic is legacy's, ported as-is — so most of these
+ * tests PIN what it does rather than assert what it should do. Several of them
+ * document behaviour that is almost certainly a bug; they are written that way
+ * on purpose, so that changing the behaviour later fails a test and is a
  * decision rather than an accident.
+ *
+ * FOUR OF THOSE PINS HAVE NOW BEEN RELEASED. Magic Wheel, High Low, Wheel and
+ * Single Keno did not depend on chance at all — three won every round and one
+ * could not win — and they have been fixed. Their tests now assert the fixed
+ * behaviour, and each says what it used to pin. The distinction still holds
+ * everywhere else: a test SHOUTING in capitals is pinning a defect, not
+ * endorsing it. See `BACKEND-INTEGRATION.md` §8.6.
  *
  * The engine tests are different: the stake path is not ported as-is, and
  * those assert the guarantee.
@@ -109,24 +147,141 @@ test('the ported game arithmetic', async (t) => {
     assert.equal(anyWin, true);
   });
 
-  await t.test('MAGIC WHEEL ALWAYS WINS — the condition compares an array to a number', () => {
+  await t.test('MAGIC WHEEL loses on the landed symbol, and pays the fair 0.25', () => {
     /**
      * ═══════════════════════════════════════════════════════════════════
-     *     if (result !== 24) { isWinner = true; profit = (amount*3 - amount/2)/4; }
+     * This test used to pin the OPPOSITE — "every round wins, 0.625 × stake,
+     * every time" — with a note that it was pinned "so that fixing it is a
+     * deliberate change with a failing test in front of it". That fix has now
+     * been made deliberately, so the pin is released and reversed.
      *
-     * `result` is the three-element ARRAY from `makeResult`. An array is never
-     * strictly equal to `24`, so every round wins and pays `0.625 × stake`.
-     * Presumably `result[0] !== 24` was meant.
-     *
-     * Ported as written, on instruction. Pinned so that fixing it is a
-     * deliberate change with a failing test in front of it.
+     * `play()` compares `result[0]`, the landed symbol, against 24. One of
+     * five symbols loses, so the player wins four rounds in five, and the
+     * payout is the fair profit at that chance rather than legacy's 0.625.
      * ═══════════════════════════════════════════════════════════════════
      */
-    for (let i = 0; i < 100; i += 1) {
-      const outcome = magicWheel.play({ amount: 100, canProfit: false });
-      assert.equal(outcome.isWinner, true, 'every round wins');
-      assert.equal(Number(outcome.profit), 62.5, '0.625 × stake, every time');
+    let wins = 0;
+    const rounds = 4000;
+
+    for (let i = 0; i < rounds; i += 1) {
+      const outcome = magicWheel.play({ amount: 100, canProfit: true });
+      const landed = Number(outcome.result[0]);
+
+      assert.equal(outcome.isWinner, landed !== 24, 'the landed symbol decides it');
+
+      if (outcome.isWinner) {
+        wins += 1;
+        assert.ok(Math.abs(Number(outcome.profit) - 25) < 1e-9, '0.25 × stake on a win');
+      } else {
+        assert.equal(Number(outcome.profit), -100, 'the stake on a loss');
+      }
     }
+
+    // Five symbols, one of them losing. Generous bounds — this is a smoke test
+    // for "not always", not a test of the RNG's uniformity.
+    const rate = wins / rounds;
+    assert.ok(rate > 0.75 && rate < 0.85, `win rate ${rate} should sit near 0.8`);
+  });
+
+  await t.test('HIGH LOW rolls uniformly over 0–999, so both calls can win', () => {
+    /**
+     * The roll used to be the shared `0.98/(1 − U)` curve scaled by 1000, whose
+     * minimum is 980 — so `high` (`> 500`) won every round and `low` (`< 500`)
+     * could not win at all. Measured live: 40/40 on `high`.
+     */
+    let high = 0;
+    let low = 0;
+    const rounds = 4000;
+
+    for (let i = 0; i < rounds; i += 1) {
+      const roll = highLow.play({ amount: 100, type: 'high', canProfit: true });
+      assert.ok(roll.result >= 0 && roll.result <= 999, 'inside 0–999');
+      if (roll.isWinner) high += 1;
+      if (highLow.play({ amount: 100, type: 'low', canProfit: true }).isWinner) low += 1;
+    }
+
+    assert.ok(high / rounds > 0.45 && high / rounds < 0.55, `high ${high / rounds}`);
+    assert.ok(low / rounds > 0.45 && low / rounds < 0.55, `low ${low / rounds}`);
+  });
+
+  await t.test('WHEEL can land on the losing pocket, and ignores a client risk', () => {
+    /**
+     * The draw used to be `min(round(curve), segments − 1)` with a curve whose
+     * minimum rounds to 1, so pocket 0 was unreachable and `result > 0` was
+     * every round. Measured live: 40/40 at segment 8. Payout came from a
+     * client-supplied `risk` divisor.
+     */
+    let losses = 0;
+    const rounds = 4000;
+
+    for (let i = 0; i < rounds; i += 1) {
+      // A risk that would have paid 10,000× under the old arithmetic.
+      const outcome = wheel.play({ amount: 100, segment: 8, risk: 0.0001, canProfit: true });
+      if (!outcome.isWinner) losses += 1;
+      else assert.ok(Math.abs(Number(outcome.profit) - 100 / 7) < 1e-9, 'stake / (segments − 1)');
+    }
+
+    assert.ok(losses > 0, 'pocket 0 is reachable');
+    assert.ok(losses / rounds > 0.08 && losses / rounds < 0.17, `loss rate ${losses / rounds}`);
+
+    // The house switch must select the LOSING pocket, not a winning one.
+    assert.equal(wheel.play({ amount: 100, segment: 8, canProfit: false }).isWinner, false);
+    // A segment count legacy would have thrown a TypeError on.
+    assert.ok(wheel.play({ amount: 100, segment: 12, canProfit: true }));
+    // And one there is nothing to land on.
+    assert.equal(wheel.play({ amount: 100, segment: 1, canProfit: true }), null);
+  });
+
+  await t.test('SINGLE KENO draws plain numbers, so a pick can match', () => {
+    /**
+     * `createNums` runs twice and wraps each element as `{num, hash}`, so the
+     * single `.map(m => m.num)` returned objects and `picks.includes(object)`
+     * was never true. Measured live: 0 wins in 40. The house switch was also
+     * inverted, stripping the player's picks from the pool on the normal path.
+     */
+    const picks = [1, 2, 3, 4, 5];
+    let wins = 0;
+    const rounds = 3000;
+
+    for (let i = 0; i < rounds; i += 1) {
+      const outcome = singleKeno.play({ amount: 100, numbers: picks, canProfit: true });
+
+      assert.equal(outcome.result.length, 10);
+      for (const drawn of outcome.result) {
+        assert.equal(typeof drawn, 'number', 'a drawn number, not a wrapper object');
+      }
+      assert.equal(outcome.isWinner, outcome.matches >= 3);
+      if (outcome.isWinner) wins += 1;
+    }
+
+    // Hypergeometric says 8.9%; the digest-rotation shuffle biases it to ~11%.
+    // Bounded loosely — the point is that it is neither 0 nor most rounds.
+    const rate = wins / rounds;
+    assert.ok(rate > 0.04 && rate < 0.2, `win rate ${rate} should be a real minority`);
+  });
+
+  await t.test('SINGLE KENO refuses a card bigger than ten', () => {
+    /**
+     * Ten numbers are drawn and three matches win, at a flat `stake / 3`
+     * however many are marked — so an unbounded card was a standing edge for
+     * the player. Measured before the cap: 13 marks turned the round positive
+     * (+1.2%), 20 marks paid +30.5% and 40 marks won every time.
+     *
+     * The cap is the control, so it is pinned rather than left to the board.
+     */
+    const card = (n) => Array.from({ length: n }, (_unused, i) => i + 1);
+
+    assert.ok(singleKeno.play({ amount: 100, numbers: card(10), canProfit: true }), '10 is allowed');
+    assert.equal(singleKeno.play({ amount: 100, numbers: card(11), canProfit: true }), null);
+    assert.equal(singleKeno.play({ amount: 100, numbers: card(40), canProfit: true }), null);
+
+    // And the rest of what makes a card a card.
+    assert.equal(singleKeno.play({ amount: 100, numbers: [], canProfit: true }), null, 'empty');
+    assert.equal(singleKeno.play({ amount: 100, numbers: [1, 1, 2], canProfit: true }), null, 'dupes');
+    assert.equal(singleKeno.play({ amount: 100, numbers: [41], canProfit: true }), null, 'off pool');
+    assert.equal(singleKeno.play({ amount: 100, numbers: [0], canProfit: true }), null, 'zero');
+    assert.equal(singleKeno.play({ amount: 100, numbers: [2.5], canProfit: true }), null, 'fraction');
+    assert.equal(singleKeno.play({ amount: 100, numbers: 'all', canProfit: true }), null, 'not a list');
   });
 
   await t.test('DIAMOND wins on ADJACENT pairs only, and pays a third of the stake', () => {
@@ -290,7 +445,8 @@ test('the engine against a database', async (t) => {
   }
 
   const { models } = connection;
-  const engine = new GameEngine({ models, db: connection, logger, config: {} });
+  // user-service's responsible-gambling check, stubbed to allow every stake.
+  const engine = new GameEngine({ models, db: connection, logger, config: {}, clients: { user: { async post() { return {}; } } } });
 
   const player = newId();
 
@@ -314,6 +470,8 @@ test('the engine against a database', async (t) => {
     await models.Bets.destroy({ where: { uid: player } });
     await models.House.destroy({ where: { uid: player } });
     await models.Credits.destroy({ where: { uid: player } });
+    await models.CreditsLedger.destroy({ where: { user_id: String(player) } });
+    await models.WalletHistory.destroy({ where: { uid: player } });
     await models.Users.destroy({ where: { id: player } });
     if (connection) await connection.close();
   });
@@ -374,46 +532,91 @@ test('the engine against a database', async (t) => {
     assert.equal(await balanceOf(), '1098.00000000');
   });
 
-  await t.test('A WIN WHOSE FLOAT PROFIT OVERFLOWS THE SCALE STILL PAYS', async () => {
-    /**
-     * Every in-house game computes its profit in JS floats and hands it over
-     * as `String(profit)`, because the arithmetic was ported as-is. Limbo's is
-     * `stake * target - stake`, and `10 * 1.01 - 10` is `0.09999999999999964`
-     * — seventeen decimal places.
-     *
-     * `toMinor` refused that with `BAD_REQUEST: amount supports at most 8
-     * decimal places`, from inside `settle`. The handler's catch refunded the
-     * stake and re-raised, so no money was lost — but the WIN paid nothing and
-     * the player got a message about decimal places.
-     *
-     * It was deterministic per (stake, payout) pair, not intermittent:
-     * `10 @ 1.01` never paid and `10 @ 2.00` always did. Reproduced against
-     * the running service on 2026-09-09, three attempts out of three.
-     *
-     * 0.1 is what the arithmetic MEANS; the trailing digits are the float's
-     * error. Quantising recovers it.
-     */
-    const float = 10 * 1.01 - 10;
-    assert.equal(String(float), '0.09999999999999964', 'the float this guards against');
+  const ledgerFor = (betId) =>
+    models.CreditsLedger.findAll({
+      where: { user_id: String(player), source_service: 'casino-service' },
+      raw: true,
+    }).then((rows) => rows.filter((r) => r.meta?.refType === 'INHOUSE' && r.meta?.refId === String(betId)));
 
+  await t.test('RECORDED PROFIT IS WHAT WAS PAID: a 2× win records +9.80, not +10', async () => {
     await setBalance('1000');
     const bet = await engine.placeBet({ userId: player, game: 'limbo', coin: 'INR', amount: '10' });
-
     const settled = await engine.settle({
-      userId: player,
-      betId: bet.betId,
-      profit: String(float),
-      result: '6.97',
-      hash: 'float',
-      isWinner: true,
-      coin: 'INR',
-      amount: '10',
+      userId: player, betId: bet.betId, profit: '10', result: 2.5, hash: `h-${Date.now()}-${Math.random()}`, isWinner: true, coin: 'INR', amount: '10',
     });
 
-    assert.equal(settled.profit, '0.10000000', 'quantised to the platform scale');
-    // 990 left after the stake, plus the profit and the stake less 2%:
-    // 990 + 0.1 + 9.8 = 999.90.
-    assert.equal(await balanceOf(), '999.90000000');
+    assert.equal(settled.payout, '19.80000000');
+    assert.equal(settled.profit, '9.80000000', 'socket reply carries the net');
+    const row = await models.Bets.findByPk(bet.betId, { raw: true });
+    assert.equal(money.toDecimalString(money.toMinor(String(row.profit))), '9.80000000', 'bets.profit is the net');
+    assert.equal(await balanceOf(), '1009.80000000');
+  });
+
+  await t.test('a loss records −stake and pays nothing', async () => {
+    await setBalance('1000');
+    const bet = await engine.placeBet({ userId: player, game: 'limbo', coin: 'INR', amount: '10' });
+    const settled = await engine.settle({
+      userId: player, betId: bet.betId, profit: '-10', result: 1.2, hash: `h-${Date.now()}-${Math.random()}`, isWinner: false, coin: 'INR', amount: '10',
+    });
+    assert.equal(settled.payout, '0.00000000');
+    assert.equal(settled.profit, '-10.00000000');
+    assert.equal(await balanceOf(), '990.00000000');
+    const ledger = await ledgerFor(bet.betId);
+    assert.deepEqual(ledger.map((r) => r.reason), ['BET_STAKE'], 'no payout row on a loss');
+  });
+
+  await t.test('A PUSH (profit 0) RETURNS THE FULL STAKE and records 0', async () => {
+    await setBalance('1000');
+    const bet = await engine.placeBet({ userId: player, game: 'limbo', coin: 'INR', amount: '10' });
+    const settled = await engine.settle({
+      userId: player, betId: bet.betId, profit: '0', result: 2, hash: `h-${Date.now()}-${Math.random()}`, isWinner: false, coin: 'INR', amount: '10',
+    });
+    assert.equal(settled.payout, '10.00000000');
+    assert.equal(settled.profit, '0.00000000');
+    assert.equal(await balanceOf(), '1000.00000000');
+  });
+
+  await t.test('STAKE, PAYOUT AND REFUND WRITE LEDGER + HISTORY ROWS that sum to the balance change', async () => {
+    await setBalance('1000');
+    const win = await engine.placeBet({ userId: player, game: 'limbo', coin: 'INR', amount: '10' });
+    await engine.settle({
+      userId: player, betId: win.betId, profit: '10', result: 2.5, hash: `h-${Date.now()}-${Math.random()}`, isWinner: true, coin: 'INR', amount: '10',
+    });
+    const refunded = await engine.placeBet({ userId: player, game: 'limbo', coin: 'INR', amount: '10' });
+    await engine.refund({ userId: player, betId: refunded.betId, coin: 'INR', amount: '10' });
+
+    const winRows = await ledgerFor(win.betId);
+    assert.deepEqual(winRows.map((r) => [r.reason, money.toDecimalString(money.toMinor(String(r.amount))), r.currency]).sort(), [
+      ['BET_PAYOUT', '19.80000000', 'INR'],
+      ['BET_STAKE', '-10.00000000', 'INR'],
+    ]);
+    const stakeRow = winRows.find((r) => r.reason === 'BET_STAKE');
+    assert.equal(stakeRow.idempotency_key, `casino-service:BET_STAKE:INHOUSE:${win.betId}`);
+    assert.equal(money.toDecimalString(money.toMinor(String(stakeRow.meta.previousBalance))), '1000.00000000');
+    assert.equal(money.toDecimalString(money.toMinor(String(stakeRow.balance))), '990.00000000');
+
+    const refundRows = await ledgerFor(refunded.betId);
+    assert.deepEqual(refundRows.map((r) => r.reason).sort(), ['BET_REFUND', 'BET_STAKE']);
+
+    const all = [...winRows, ...refundRows].reduce((sum, r) => sum + money.toMinor(String(r.amount)), 0n);
+    assert.equal(money.toDecimalString(all), '9.80000000', 'ledger sums to the balance change');
+    assert.equal(await balanceOf(), '1009.80000000');
+
+    const history = await models.WalletHistory.count({ where: { uid: player, description: { [Op.like]: `%#${win.betId}` } } });
+    assert.equal(history, 2, 'wallet_history mirrors the ledger');
+  });
+
+  await t.test('games_played counts a SETTLED round, never a refunded one', async () => {
+    const before = (await models.Users.findByPk(player, { raw: true })).games_played ?? 0;
+    await setBalance('1000');
+    const a = await engine.placeBet({ userId: player, game: 'limbo', coin: 'INR', amount: '10' });
+    await engine.refund({ userId: player, betId: a.betId, coin: 'INR', amount: '10' });
+    const b = await engine.placeBet({ userId: player, game: 'limbo', coin: 'INR', amount: '10' });
+    await engine.settle({
+      userId: player, betId: b.betId, profit: '-10', result: 1, hash: `h-${Date.now()}-${Math.random()}`, isWinner: false, coin: 'INR', amount: '10',
+    });
+    const after = (await models.Users.findByPk(player, { raw: true })).games_played ?? 0;
+    assert.equal(Number(after) - Number(before), 1);
   });
 
   await t.test('A BET SETTLES ONCE', async () => {
@@ -459,6 +662,67 @@ test('the engine against a database', async (t) => {
     assert.equal(await balanceOf(), '1000.00000000');
   });
 
+  await t.test('wager feed: a bet counts once in its coin under its bet id; a refund un-counts it once', async () => {
+    const real = engine.games;
+    const recorded = [];
+    const reversed = [];
+    engine.games = {
+      async recordActivity(args) { recorded.push(args); return { counted: true }; },
+      async reverseActivity(args) { reversed.push(args); return { reversed: true }; },
+    };
+    try {
+      await setBalance('1000');
+      const bet = await engine.placeBet({ userId: player, game: 'limbo', coin: 'INR', amount: '250' });
+      assert.equal(recorded.length, 1);
+      assert.equal(recorded[0].source, 'inhouse');
+      assert.equal(String(recorded[0].ref), String(bet.betId));
+      assert.equal(String(recorded[0].currency).toUpperCase(), 'INR');
+      assert.equal(recorded[0].wagered, '250.00000000');
+
+      await engine.refund({ userId: player, betId: bet.betId, coin: 'INR', amount: '250' });
+      await engine.refund({ userId: player, betId: bet.betId, coin: 'INR', amount: '250' });
+      assert.deepEqual(reversed, [{ userId: player, source: 'inhouse', ref: bet.betId, outbox: true }]);
+    } finally {
+      engine.games = real;
+    }
+  });
+
+  await t.test('wager feed: a refund whose reversal fails is queued in the outbox for retry', async () => {
+    const real = engine.games;
+    const { games, queued } = outboxFeed();
+    engine.games = games;
+    try {
+      await setBalance('1000');
+      const bet = await engine.placeBet({ userId: player, game: 'limbo', coin: 'INR', amount: '100' });
+      const refunded = await engine.refund({ userId: player, betId: bet.betId, coin: 'INR', amount: '100' });
+      assert.equal(refunded.refunded, true);
+      assert.equal(queued.length, 1);
+      assert.equal(queued[0].source, 'inhouse');
+      assert.equal(queued[0].ref, String(bet.betId));
+      assert.equal(queued[0].userId, String(player));
+    } finally {
+      engine.games = real;
+    }
+  });
+
+  await t.test('wager feed: a failing feed never fails the bet or the refund', async () => {
+    const real = engine.games;
+    engine.games = {
+      async recordActivity() { throw new Error('down'); },
+      async reverseActivity() { throw new Error('down'); },
+    };
+    try {
+      await setBalance('1000');
+      const bet = await engine.placeBet({ userId: player, game: 'limbo', coin: 'INR', amount: '100' });
+      assert.equal(await balanceOf(), '900.00000000');
+      const refunded = await engine.refund({ userId: player, betId: bet.betId, coin: 'INR', amount: '100' });
+      assert.equal(refunded.refunded, true);
+      assert.equal(await balanceOf(), '1000.00000000');
+    } finally {
+      engine.games = real;
+    }
+  });
+
   await t.test('a stake beyond the balance is refused and moves nothing', async () => {
     await setBalance('10');
     await assert.rejects(
@@ -466,6 +730,20 @@ test('the engine against a database', async (t) => {
       (err) => err.code === 'INHOUSE_INSUFFICIENT_BALANCE'
     );
     assert.equal(await balanceOf(), '10.00000000');
+  });
+
+  await t.test('a casino-locked player is refused and moves nothing', async () => {
+    await setBalance('100');
+    await models.Users.update({ casino_locked: true }, { where: { id: player } });
+    try {
+      await assert.rejects(
+        () => engine.placeBet({ userId: player, game: 'limbo', coin: 'INR', amount: '10' }),
+        (err) => err.code === 'INHOUSE_CASINO_LOCKED'
+      );
+      assert.equal(await balanceOf(), '100.00000000');
+    } finally {
+      await models.Users.update({ casino_locked: false }, { where: { id: player } });
+    }
   });
 
   await t.test('a currency carrying SQL is refused', async () => {
@@ -736,4 +1014,26 @@ test('SERVER AUTHORITY closes the four client-controlled payouts', async (t) => 
       Math.random = original;
     }
   });
+});
+
+test('a single-shot round validates BEFORE the stake is taken', async () => {
+  const sockets = require('../sockets');
+  const handlers = new Map();
+  const touched = [];
+  const fake = (name) => new Proxy({}, { get: (_, op) => async () => { touched.push(`${name}.${String(op)}`); return null; } });
+  const deps = {
+    models: { House: { findOne: async () => null }, Credits: fake('Credits'), Bets: fake('Bets'), Users: fake('Users') },
+    db: { sequelize: { query: async () => { throw new Error('no db in this test'); } }, transaction: async () => { touched.push('db.transaction'); } },
+    logger: createLogger({ name: 'in-house-sockets-test', level: 'silent' }),
+    config: {},
+    io: { emit() {}, to: () => ({ emit() {} }) },
+  };
+  sockets.register({ on: (event, spec) => handlers.set(event, spec.handle), deps });
+
+  const { EVENTS } = require('@ibitplay/socket');
+  const limbo = handlers.get(EVENTS.PLAY_LIMBO);
+  const reply = await limbo({ amount: '10', coin: 'INR', payout: '1.00' }, { userId: 1 });
+
+  assert.equal(reply.code, 'INHOUSE_INVALID_STAKE');
+  assert.deepEqual(touched, [], 'no debit, no bet row, no transaction for an invalid round');
 });

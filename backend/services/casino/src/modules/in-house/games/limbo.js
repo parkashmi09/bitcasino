@@ -80,10 +80,41 @@ function play({ amount, payout, canProfit }) {
    * still consumed, so an exact tie loses the stake and pays nothing back
    * beyond the engine's house-edge return.
    */
-  if (result > target) {
+  /**
+   * ═══════════════════════════════════════════════════════════════════════
+   * FIXED — THIS COMPARED TWO STRINGS, SO THE LEADING DIGIT DECIDED THE ROUND
+   *
+   * `target` and `result` are both produced by `.toFixed(2)`, which returns a
+   * STRING. `result > target` was therefore lexicographic, not numeric:
+   *
+   *     "3.94"  >  "1000000.00"   →  true    ("3" > "1")
+   *     "10.50" >  "9.00"         →  false   ("1" < "9")
+   *
+   * So a 1,000,000× target paid out about half the time, and a 9× target paid
+   * almost never. Measured before this change, 3,000 rounds each:
+   *
+   *        target      observed     true odds (98 / target)
+   *          2.00       44.33%        49.0000%
+   *          9.00        0.83%        10.8889%   ← player robbed
+   *         10.00       50.10%         9.8000%   ← house robbed 5×
+   *        100.00       49.10%         0.9800%   ← house robbed 50×
+   *       1000000       48.90%         0.0001%   ← house robbed ~500,000×
+   *
+   * Worse than the four in §8.6: those were always-win or never-win and showed
+   * up on the first round. This one is target-dependent and looks almost
+   * correct at the default 2.00×, which is why it survived every earlier test.
+   *
+   * Compared as numbers. `target` stays a string for the payout arithmetic
+   * below, which JS coerces anyway — only the comparison was wrong.
+   * ═══════════════════════════════════════════════════════════════════════
+   */
+  const rolled = Number(result);
+  const goal = Number(target);
+
+  if (rolled > goal) {
     isWinner = true;
-    profit = stake * target - stake;
-  } else if (result < target) {
+    profit = stake * goal - stake;
+  } else if (rolled < goal) {
     isWinner = false;
     profit = -stake;
   }

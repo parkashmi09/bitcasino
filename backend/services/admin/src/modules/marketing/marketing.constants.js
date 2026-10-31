@@ -58,6 +58,15 @@ const DEPOSIT_SOURCES = Object.freeze([
     success: [1],
     statusIsNumeric: true,
   },
+  {
+    model: 'F2payDeposits',
+    userColumn: 'user_id',
+    userIsText: false,
+    amountColumn: 'amount',
+    dateColumn: 'created_at',
+    currencyColumn: 'currency',
+    success: ['success'],
+  },
 ]);
 
 /** CCPayment coin ids. The same table the dashboard and crypto modules use. */

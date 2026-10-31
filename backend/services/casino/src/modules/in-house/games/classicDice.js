@@ -116,9 +116,33 @@ function play({ amount, payout, chance, type, canProfit }) {
   let isWinner = false;
   let profit = 0.0;
 
+  /**
+   * ═══════════════════════════════════════════════════════════════════════
+   * FIXED — TWO STRINGS, COMPARED LEXICOGRAPHICALLY
+   *
+   * `roll` is `odds.toFixed(2)` and `calc` is the generator's `.toFixed(2)`,
+   * so both are STRINGS and `calc < roll` sorted them by leading digit rather
+   * than by value — the same defect as Limbo's, in the sibling file.
+   *
+   * Measured before this change, 4,000 rounds per threshold, betting Under:
+   *
+   *      threshold   observed     true (1 − 0.98/r)
+   *          5        89.92%        80.40%
+   *          9        98.55%        89.11%   ← house robbed
+   *         10        51.78%        90.20%   ← player robbed
+   *         50        91.77%        98.04%   ← player robbed
+   *
+   * The distortion flips direction at each digit boundary, which is why it
+   * reads as plausible noise at any single threshold and only shows up when
+   * several are compared against their true odds.
+   * ═══════════════════════════════════════════════════════════════════════
+   */
+  const rolled = Number(calc);
+  const threshold = Number(roll);
+
   if (type === 'Under') {
-    if (calc < roll) isWinner = true;
-  } else if (calc > roll) {
+    if (rolled < threshold) isWinner = true;
+  } else if (rolled > threshold) {
     isWinner = true;
   }
 

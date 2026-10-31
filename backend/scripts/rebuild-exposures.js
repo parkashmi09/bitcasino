@@ -63,8 +63,8 @@ const {
   betDelta,
   applyDelta,
   worstCase,
-} = require('../services/sports/src/modules/bets/exposure');
-const { GAME_TYPE, SIDE, FANCY_SIDE } = require('../services/sports/src/modules/bets/bets.constants');
+} = require('../services/sports/src/modules/bet-admin/exposure');
+const { GAME_TYPE, SIDE, FANCY_SIDE } = require('../services/sports/src/modules/bet-admin/bets.constants');
 
 /**
  * Statuses that mean the stake has left the wallet and nothing has settled it.

@@ -8,6 +8,7 @@ const {
   loadModules,
   mountModules,
   internalAuth,
+  createContentNotifier,
 } = require('@ibitplay/common');
 
 /** Assemble the admin-service HTTP app. Every route comes from a module under src/modules. */
@@ -30,6 +31,11 @@ function buildApp(container) {
       modules,
       deps: container,
       logger,
+      // rainbet: staff content writes → user-service → player sockets (contentPush.js).
+      onAdminWrite: createContentNotifier({
+        logger,
+        send: (content) => container.clients.user.post('/internal/user/preferences/site-config', { content }),
+      }),
       guards: {
         public: [],
         user: [auth.authenticate(), auth.requireActive()],

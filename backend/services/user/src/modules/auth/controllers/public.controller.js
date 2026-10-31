@@ -1,71 +1,105 @@
 'use strict';
 
 const { response, asyncHandler } = require('@ibitplay/common');
+const google = require('../google');
+// rainbet: refresh token in an httpOnly cookie for clients that ask (../refreshCookie.js).
+const refreshCookie = require('../refreshCookie');
 
-const { PURPOSE } = require('../../email/email.constants');
-
-/** What an OTP has to have been issued for before it can reset a password. */
-const RESET_PASSWORD_PURPOSE = PURPOSE.RESET_PASSWORD;
-
-/**
- * Unauthenticated auth endpoints.
- *
- * Three of them mint a session; `resetPassword` deliberately does not — see
- * its own note below.
- */
-function createPublicController({ service, emails }) {
-  const context = (req) => ({ ip: req.ip, userAgent: req.headers['user-agent'] });
+/** Unauthenticated auth endpoints — the ones that MINT a session. */
+function createPublicController({ service }) {
+  const context = (req) => ({ ip: req.ip, userAgent: req.headers['user-agent'], origin: req.headers.origin });
 
   return {
     register: asyncHandler(async (req, res) => {
       const result = await service.registerAndSignIn(req.body, context(req));
       // 201: the account is new. The session in the body is what makes this
       // one round trip instead of two.
-      return response.created(res, result);
+      return response.created(res, refreshCookie.deliver(req, res, result));
     }),
 
     login: asyncHandler(async (req, res) => {
       const result = await service.login(req.body, context(req));
-      return response.ok(res, result);
+      return response.ok(res, refreshCookie.deliver(req, res, result));
     }),
+
+    /** The Demo button: a throwaway demo account, signed in (`AuthService.demoLogin`). */
+    demoLogin: asyncHandler(async (req, res) => response.created(res, refreshCookie.deliver(req, res, await service.demoLogin(context(req))))),
 
     refresh: asyncHandler(async (req, res) => {
       const result = await service.refresh(req.body, context(req));
-      return response.ok(res, result);
+      return response.ok(res, refreshCookie.deliver(req, res, result));
+    }),
+
+    /** Whether the player site should draw the Google button. */
+    // rainbet: `enabled` is the owner's switch (the button shows even before keys are set); `configured` is the keys.
+    googleStatus: asyncHandler(async (_req, res) =>
+      response.ok(res, { enabled: await service.googleAllowed(), configured: service.googleEnabled() })
+    ),
+
+    /** 302 to Google, after setting the signed state cookie the callback needs. */
+    googleStart: asyncHandler(async (req, res) => {
+      // A browser navigation, not a fetch: switched off or no keys goes back to the site with a message.
+      const unavailable = await service.googleUnavailable();
+      if (unavailable) return res.redirect(302, service.googleReturnUrl({ error: unavailable }));
+      const { url, cookie } = service.googleStart({ nonce: req.query.nonce });
+      res.cookie(google.COOKIE, cookie, {
+        httpOnly: true,
+        secure: req.secure || req.headers['x-forwarded-proto'] === 'https',
+        sameSite: 'lax', // Google's redirect back is a top-level GET, which Lax still carries.
+        path: google.COOKIE_PATH,
+        maxAge: 10 * 60_000,
+      });
+      return res.redirect(302, url);
+    }),
+
+    /** Google's redirect back → 302 to the player site with a one-time code (or an error code). */
+    googleCallback: asyncHandler(async (req, res) => {
+      const target = await service.googleCallback(
+        { code: req.query.code, state: req.query.state, cookie: google.readCookie(req.headers.cookie) },
+        context(req)
+      );
+      res.clearCookie(google.COOKIE, { path: google.COOKIE_PATH });
+      return res.redirect(302, target);
+    }),
+
+    /** The one-time code → the token pair, as login answers it. */
+    googleExchange: asyncHandler(async (req, res) => response.ok(res, refreshCookie.deliver(req, res, await service.googleExchange(req.body, context(req))))),
+
+    /**
+     * Create an account.
+     *
+     * `201`, because this is the one endpoint in the module that makes a row.
+     * The service answers `{ id, name, email }` and deliberately no password
+     * and no session — legacy returned the password to the client that had
+     * just typed it, and registering does not sign you in here. The client
+     * calls `login` next, which is also what the socket flow did.
+     *
+     * `id` is serialised because it is a bigint: `JSON.stringify` turns a JS
+     * number past 2^53 into something that is not the id. Every other id on
+     * this service's wire is a string for the same reason.
+     */
+    register: asyncHandler(async (req, res) => {
+      const created = await service.register(req.body, context(req));
+      return response.created(res, { ...created, id: String(created.id) });
     }),
 
     /**
-     * Finish a password reset. The one endpoint here that does NOT mint a
-     * session.
+     * Begin a password reset.
      *
-     * ═══════════════════════════════════════════════════════════════════════
-     * IT DELIBERATELY DOES NOT SIGN THE PLAYER IN.
-     *
-     * `register` answers with a session because creating an account and using
-     * it are one intent. A reset is the opposite: the service has just revoked
-     * every session on the account, because a reset is what somebody does when
-     * they believe it is compromised. Handing back a fresh session in the same
-     * response would re-open the door that was just closed — and it would do
-     * so for whoever made this call, which on a reset flow is precisely the
-     * party whose identity is least established.
-     *
-     * So it answers `{reset, revokedSessions}` and the client sends the player
-     * to the login form with their new password.
-     * ═══════════════════════════════════════════════════════════════════════
-     *
-     * `emails.spendProofWithCode` is passed as a closure rather than the auth
-     * service reaching for the email module — the same seam
-     * `profile.changeEmail` uses for its own proof.
+     * THE REPLY IS THE SAME WHETHER OR NOT THE ADDRESS IS REGISTERED, and the
+     * service computes it before it branches so the two paths cost the same
+     * time as well. Passing that value straight through is the point — any
+     * shaping here (a 404 for an unknown address, a different message) would
+     * turn this into an account-enumeration oracle and undo that care.
      */
-    resetPassword: asyncHandler(async (req, res) => {
-      const { email, code, newPassword } = req.body;
+    requestPasswordReset: asyncHandler(async (req, res) => {
+      const result = await service.requestPasswordReset(req.body, context(req));
+      return response.ok(res, result);
+    }),
 
-      const result = await service.resetPasswordWithCode({
-        newPassword,
-        spendProof: () =>
-          emails.spendProofWithCode({ email, code, purpose: RESET_PASSWORD_PURPOSE }),
-      });
-
+    /** Finish a reset. The token is the credential, so there is no session. */
+    completePasswordReset: asyncHandler(async (req, res) => {
+      const result = await service.completePasswordReset(req.body);
       return response.ok(res, result);
     }),
   };

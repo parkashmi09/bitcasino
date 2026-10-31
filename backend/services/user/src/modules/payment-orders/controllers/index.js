@@ -18,7 +18,7 @@ function createControllers({ service }) {
      * @legacy POST /create-order            (UPI, inline in index.js)
      */
     createDeposit: asyncHandler(async (req, res) =>
-      response.created(res, await service.createDeposit({ ...req.body, userId: req.user.id }))
+      response.created(res, await service.createDeposit({ ...req.body, userId: req.user.id, ip: req.ip }))
     ),
 
     /**
@@ -60,6 +60,11 @@ function createControllers({ service }) {
     ),
 
     // ── Staff ─────────────────────────────────────────────────────────
+
+    /** Payment Methods page — A-Pay systems overview. */
+    paymentSystems: asyncHandler(async (req, res) =>
+      response.ok(res, await service.paymentSystemsOverview({ fresh: ['1', 'true'].includes(req.query.fresh) }))
+    ),
 
     /** @legacy POST /api/payments/utr/repair — was unauthenticated */
     repairUtr: asyncHandler(async (req, res) =>

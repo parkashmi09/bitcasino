@@ -3,6 +3,7 @@
 const test = require('node:test');
 const assert = require('node:assert');
 
+const { Op } = require('sequelize');
 const db = require('@ibitplay/db');
 const { createLogger } = require('@ibitplay/common');
 
@@ -246,6 +247,270 @@ test('spin wheel', async (t) => {
     assert.equal(result.slice.label, 'prize');
   });
 
+  /** One claim, its cooldown already over: the next spin is down to the deposit rule. */
+  const pastCooldown = async (uid) => {
+    await service.spin({ userId: uid });
+    await connection.models.SpinWheelClaims.update(
+      { claimed_at: new Date(Date.now() - 30 * 86_400_000) },
+      { where: { user_id: uid } }
+    );
+  };
+
+  await t.test('eligibility says DEPOSIT_REQUIRED, with a readable minimum, after the cooldown', async () => {
+    await configure({
+      unlimitedSpin: false,
+      claimCooldownDays: 7,
+      minDeposit: '100',
+      slices: [{ label: 'prize', rewardPct: '10', weight: 1 }],
+    });
+
+    const uid = newUid();
+    await seed(uid);
+    await pastCooldown(uid);
+
+    const view = await service.eligibility({ userId: uid });
+    assert.equal(view.eligible, false);
+    // The client branches on `code`; the sentence is for people and carries no 8-dp figure.
+    assert.equal(view.code, 'DEPOSIT_REQUIRED');
+    assert.equal(view.minDeposit, '100');
+    assert.ok(!/100\.0/.test(view.reason), `reason shows a raw decimal: ${view.reason}`);
+  });
+
+  await t.test('the cooldown refusal carries COOLDOWN_ACTIVE', async () => {
+    await configure({ unlimitedSpin: false, claimCooldownDays: 7, slices: [{ label: 'prize', rewardPct: '10', weight: 1 }] });
+    const uid = newUid();
+    await seed(uid);
+    await service.spin({ userId: uid });
+
+    const view = await service.eligibility({ userId: uid });
+    assert.equal(view.code, 'COOLDOWN_ACTIVE');
+  });
+
+  await t.test('an approved manual (fiat) deposit qualifies; a pending one does not', async () => {
+    await configure({
+      unlimitedSpin: false,
+      claimCooldownDays: 7,
+      minDeposit: '100',
+      slices: [{ label: 'prize', rewardPct: '10', weight: 1 }],
+    });
+
+    const uid = newUid();
+    await seed(uid);
+    await connection.models.FiatDeposits.destroy({ where: { user_id: uid } });
+    await pastCooldown(uid);
+
+    const fiat = await connection.models.FiatDeposits.create({
+      user_id: uid, amount: '150', currency: 'USDT', transaction_id: `SPIN-F-${uid}`, status: 'pending',
+    });
+    assert.equal((await service.eligibility({ userId: uid })).code, 'DEPOSIT_REQUIRED', 'pending is not a deposit yet');
+    await assert.rejects(() => service.spin({ userId: uid }), (err) => err.code === 'SPIN_DEPOSIT_REQUIRED');
+
+    await fiat.update({ status: 'approved' });
+    assert.equal((await service.eligibility({ userId: uid })).eligible, true);
+    const result = await service.spin({ userId: uid });
+    assert.equal(result.slice.label, 'prize');
+  });
+
+  await t.test('a small first deposit does not lock the player out once a qualifying one lands', async () => {
+    // Legacy compared only the FIRST deposit: under the minimum, and no later deposit ever counted.
+    await configure({
+      unlimitedSpin: false,
+      claimCooldownDays: 7,
+      minDeposit: '100',
+      slices: [{ label: 'prize', rewardPct: '10', weight: 1 }],
+    });
+
+    const uid = newUid();
+    await seed(uid);
+    await pastCooldown(uid);
+
+    await connection.models.Ccdeposit.create({
+      userid: String(uid), amount: '20', status: 'Success', chain: 'TRX', orderid: `SPIN-S-${uid}`,
+      created_at: new Date(Date.now() - 20 * 86_400_000),
+    });
+    assert.equal((await service.eligibility({ userId: uid })).code, 'DEPOSIT_REQUIRED');
+
+    await connection.models.Ccdeposit.create({
+      userid: String(uid), amount: '250', status: 'Success', chain: 'TRX', orderid: `SPIN-L-${uid}`,
+    });
+    const view = await service.eligibility({ userId: uid });
+    assert.equal(view.eligible, true);
+    assert.equal(view.depositAmount, '250.00000000');
+  });
+
+  await t.test('a deposit is priced in the reward currency before it is compared', async () => {
+    // 500 INR is about 5.7 USDT. A raw compare let it clear a 100 USDT minimum.
+    const perUsdt = { USDT: '1', INR: '88' };
+    const priced = new SpinWheelService({
+      models: connection.models,
+      db: connection,
+      logger,
+      config: { SERVICE_NAME: 'user-service' },
+      rewardMoney: {
+        currency: async () => 'USDT',
+        toReward: async (amount, from) => (perUsdt[from]
+          ? { currency: 'USDT', amount: (Number(amount) / Number(perUsdt[from])).toFixed(8) }
+          : null),
+      },
+    });
+
+    await configure({
+      unlimitedSpin: false,
+      claimCooldownDays: 7,
+      minDeposit: '100',
+      slices: [{ label: 'prize', rewardPct: '10', weight: 1 }],
+    });
+
+    const uid = newUid();
+    await seed(uid);
+    await connection.models.FiatDeposits.destroy({ where: { user_id: uid } });
+    await pastCooldown(uid);
+
+    await connection.models.FiatDeposits.create({
+      user_id: uid, amount: '500', currency: 'INR', transaction_id: `SPIN-I1-${uid}`, status: 'approved',
+    });
+    const small = await priced.eligibility({ userId: uid });
+    assert.equal(small.code, 'DEPOSIT_REQUIRED', '500 INR must not clear 100 USDT');
+    assert.equal(small.currency, 'USDT');
+
+    // A currency with no rate cannot be priced, so it does not count either.
+    await connection.models.FiatDeposits.create({
+      user_id: uid, amount: '999999', currency: 'XYZ', transaction_id: `SPIN-X-${uid}`, status: 'approved',
+    });
+    assert.equal((await priced.eligibility({ userId: uid })).code, 'DEPOSIT_REQUIRED');
+
+    await connection.models.FiatDeposits.create({
+      user_id: uid, amount: '10000', currency: 'INR', transaction_id: `SPIN-I2-${uid}`, status: 'approved',
+    });
+    assert.equal((await priced.eligibility({ userId: uid })).eligible, true, '10,000 INR is about 113 USDT');
+  });
+
+  // ══════════════════════════════════════════════════════════════════════
+  //  Spin on every deposit: only a deposit made AFTER the last spin counts
+  // ══════════════════════════════════════════════════════════════════════
+
+  const DAY = 86_400_000;
+  /** One claim `daysAgo` days back (cooldown over); returns its time. */
+  const claimedDaysAgo = async (uid, daysAgo) => {
+    await service.spin({ userId: uid });
+    const at = new Date(Date.now() - daysAgo * DAY);
+    await connection.models.SpinWheelClaims.update({ claimed_at: at }, { where: { user_id: uid } });
+    return at;
+  };
+  const cc = (uid, amount, tag, createdAt) => connection.models.Ccdeposit.create({
+    userid: String(uid), amount, status: 'Success', chain: 'TRX', orderid: `SPIN-A-${uid}-${tag}`,
+    ...(createdAt ? { created_at: createdAt } : {}),
+  });
+  const everyWheel = () => configure({
+    unlimitedSpin: false, claimCooldownDays: 7, minDeposit: '100',
+    slices: [{ label: 'prize', rewardPct: '10', weight: 1 }],
+  });
+
+  await t.test('a qualifying deposit made BEFORE the last spin does not earn the next one', async () => {
+    await everyWheel();
+    const uid = newUid();
+    await seed(uid);
+    const claimedAt = await claimedDaysAgo(uid, 30);
+
+    // A big deposit a day before that spin: it was already behind the player when they spun.
+    await cc(uid, '500', 'before', new Date(claimedAt.getTime() - DAY));
+    // And one an hour before it — inside any server time-zone offset, so a missed naive-UTC
+    // correction would show here.
+    await cc(uid, '500', 'hour-before', new Date(claimedAt.getTime() - 3_600_000));
+
+    const view = await service.eligibility({ userId: uid });
+    assert.equal(view.eligible, false);
+    assert.equal(view.code, 'DEPOSIT_REQUIRED');
+    assert.equal(view.sinceLastSpin, true);
+    assert.match(view.reason, /since your last spin/);
+    await assert.rejects(() => service.spin({ userId: uid }), (err) => err.code === 'SPIN_DEPOSIT_REQUIRED');
+  });
+
+  await t.test('a qualifying deposit made AFTER the last spin earns the next one', async () => {
+    await everyWheel();
+    const uid = newUid();
+    await seed(uid);
+    const claimedAt = await claimedDaysAgo(uid, 30);
+    await cc(uid, '500', 'before', new Date(claimedAt.getTime() - DAY));
+
+    // An hour after the spin (naive-UTC column, so the time-zone correction matters).
+    await cc(uid, '150', 'after', new Date(claimedAt.getTime() + 3_600_000));
+    const view = await service.eligibility({ userId: uid });
+    assert.equal(view.eligible, true);
+    assert.equal(view.depositAmount, '150.00000000', 'the deposit after the spin, not the bigger one before it');
+
+    await service.spin({ userId: uid });
+    // That spin used it: back to the cooldown, and after it, another deposit is needed.
+    assert.equal((await service.eligibility({ userId: uid })).code, 'COOLDOWN_ACTIVE');
+    await connection.models.SpinWheelClaims.update(
+      { claimed_at: new Date(Date.now() - 10 * DAY) },
+      { where: { user_id: uid, claimed_at: { [Op.gt]: claimedAt } } }
+    );
+    assert.equal((await service.eligibility({ userId: uid })).code, 'DEPOSIT_REQUIRED', 'the deposit before the newest spin is spent');
+  });
+
+  await t.test('a deposit after the last spin but below the minimum does not count', async () => {
+    await everyWheel();
+    const uid = newUid();
+    await seed(uid);
+    const claimedAt = await claimedDaysAgo(uid, 30);
+    await cc(uid, '500', 'before', new Date(claimedAt.getTime() - DAY));
+    await cc(uid, '99', 'small', new Date(claimedAt.getTime() + DAY));
+
+    assert.equal((await service.eligibility({ userId: uid })).code, 'DEPOSIT_REQUIRED');
+    await cc(uid, '100', 'exact', new Date(claimedAt.getTime() + 2 * DAY));
+    assert.equal((await service.eligibility({ userId: uid })).eligible, true, 'exactly the minimum counts');
+  });
+
+  await t.test('a deposit after the last spin is priced in the reward currency', async () => {
+    const perUsdt = { USDT: '1', INR: '88' };
+    const priced = new SpinWheelService({
+      models: connection.models,
+      db: connection,
+      logger,
+      config: { SERVICE_NAME: 'user-service' },
+      rewardMoney: {
+        currency: async () => 'USDT',
+        toReward: async (amount, from) => (perUsdt[from]
+          ? { currency: 'USDT', amount: (Number(amount) / Number(perUsdt[from])).toFixed(8) }
+          : null),
+      },
+    });
+    await everyWheel();
+    const uid = newUid();
+    await seed(uid);
+    await connection.models.FiatDeposits.destroy({ where: { user_id: uid } });
+    const claimedAt = await claimedDaysAgo(uid, 30);
+    const fiat = (amount, currency, tag, at) => connection.models.FiatDeposits.create({
+      user_id: uid, amount, currency, transaction_id: `SPIN-AF-${uid}-${tag}`, status: 'approved', handled_at: at,
+    });
+
+    // 10,000 INR (about 113 USDT) — but approved before the spin.
+    await fiat('10000', 'INR', 'before', new Date(claimedAt.getTime() - DAY));
+    // 500 INR (about 5.7 USDT) after it.
+    await fiat('500', 'INR', 'small', new Date(claimedAt.getTime() + DAY));
+    const small = await priced.eligibility({ userId: uid });
+    assert.equal(small.code, 'DEPOSIT_REQUIRED');
+    assert.equal(small.currency, 'USDT');
+
+    await fiat('10000', 'INR', 'after', new Date(claimedAt.getTime() + 2 * DAY));
+    const view = await priced.eligibility({ userId: uid });
+    assert.equal(view.eligible, true);
+    assert.equal(view.depositAmount, '10000.00000000');
+  });
+
+  await t.test('the cooldown still applies to a deposit made after the last spin', async () => {
+    await everyWheel();
+    const uid = newUid();
+    await seed(uid);
+    await service.spin({ userId: uid }); // just now: the cooldown runs for 7 days
+    await cc(uid, '500', 'after');
+
+    const view = await service.eligibility({ userId: uid });
+    assert.equal(view.code, 'COOLDOWN_ACTIVE');
+    await assert.rejects(() => service.spin({ userId: uid }), (err) => err.code === 'SPIN_COOLDOWN_ACTIVE');
+  });
+
   // ══════════════════════════════════════════════════════════════════════
   //  Codes
   // ══════════════════════════════════════════════════════════════════════
@@ -355,6 +620,118 @@ test('spin wheel', async (t) => {
     // Staff still see them.
     const staffView = await service.listSlices();
     assert.equal(staffView[0].weight, 7);
+  });
+
+  // ══════════════════════════════════════════════════════════════════════
+  //  The owner's grant options (owner panel only)
+  // ══════════════════════════════════════════════════════════════════════
+
+  const DEFAULTS = {
+    grant_on_registration: true, grant_on_first_deposit: false, grant_on_every_deposit: true,
+    bonus_on_first_deposit: true, bonus_on_later_deposits: true,
+  };
+  const withOptions = (options) => new SpinWheelService({
+    models: connection.models,
+    db: connection,
+    logger,
+    config: { SERVICE_NAME: 'user-service' },
+    spinWheelOptions: async () => ({ ...DEFAULTS, ...options }),
+  });
+  const deposit = (uid, amount, tag) => connection.models.Ccdeposit.create({
+    userid: String(uid), amount, status: 'Success', chain: 'TRX', orderid: `SPIN-O-${uid}-${tag}`,
+  });
+  const ruleWheel = () => configure({
+    unlimitedSpin: false, claimCooldownDays: 7, minDeposit: '100',
+    slices: [{ label: 'prize', rewardPct: '10', weight: 1 }],
+  });
+
+  await t.test('registration OFF: a new player has no free spin; a qualifying deposit earns one', async () => {
+    await ruleWheel();
+    const svc = withOptions({ grant_on_registration: false });
+    const uid = newUid();
+    await seed(uid);
+
+    const before = await svc.eligibility({ userId: uid });
+    assert.equal(before.eligible, false);
+    assert.equal(before.code, 'DEPOSIT_REQUIRED');
+    await assert.rejects(() => svc.spin({ userId: uid }), (err) => err.code === 'SPIN_DEPOSIT_REQUIRED');
+
+    await deposit(uid, '150', 'a');
+    const after = await svc.eligibility({ userId: uid });
+    assert.equal(after.eligible, true);
+    assert.equal(after.firstSpin, false, '"first spin is free" is the registration grant only');
+    await svc.spin({ userId: uid });
+  });
+
+  await t.test('every grant OFF: nobody spins (NOT_ELIGIBLE), not even with a deposit', async () => {
+    await ruleWheel();
+    const svc = withOptions({ grant_on_registration: false, grant_on_every_deposit: false, grant_on_first_deposit: false });
+    const uid = newUid();
+    await seed(uid);
+    await deposit(uid, '500', 'a');
+
+    assert.equal((await svc.eligibility({ userId: uid })).code, 'NOT_ELIGIBLE');
+    await assert.rejects(() => svc.spin({ userId: uid }), (err) => err.code === 'SPIN_NOT_ELIGIBLE' && err.status === 403);
+  });
+
+  await t.test('first-deposit ON: the first qualifying deposit earns one spin despite the cooldown, once', async () => {
+    await ruleWheel();
+    const svc = withOptions({ grant_on_first_deposit: true, grant_on_every_deposit: false });
+    const uid = newUid();
+    await seed(uid);
+
+    await svc.spin({ userId: uid }); // the registration spin
+    assert.equal((await svc.eligibility({ userId: uid })).code, 'DEPOSIT_REQUIRED');
+
+    await deposit(uid, '150', 'a');
+    assert.equal((await svc.eligibility({ userId: uid })).eligible, true, 'no cooldown for the first-deposit spin');
+    await svc.spin({ userId: uid });
+
+    // Spent: with every-deposit OFF there is nothing more, even after another deposit.
+    await deposit(uid, '150', 'b');
+    assert.equal((await svc.eligibility({ userId: uid })).code, 'NOT_ELIGIBLE');
+  });
+
+  await t.test('first-deposit ON does not count a deposit below the minimum', async () => {
+    await ruleWheel();
+    const svc = withOptions({ grant_on_registration: false, grant_on_first_deposit: true, grant_on_every_deposit: false });
+    const uid = newUid();
+    await seed(uid);
+    await deposit(uid, '20', 'a');
+    assert.equal((await svc.eligibility({ userId: uid })).code, 'DEPOSIT_REQUIRED');
+  });
+
+  await t.test('every-deposit OFF: after the cooldown a deposit earns nothing', async () => {
+    await ruleWheel();
+    const svc = withOptions({ grant_on_every_deposit: false });
+    const uid = newUid();
+    await seed(uid);
+    await svc.spin({ userId: uid });
+    await connection.models.SpinWheelClaims.update(
+      { claimed_at: new Date(Date.now() - 30 * 86_400_000) },
+      { where: { user_id: uid } }
+    );
+    await deposit(uid, '500', 'a');
+    assert.equal((await svc.eligibility({ userId: uid })).code, 'NOT_ELIGIBLE');
+  });
+
+  await t.test('the per-deposit cap is config, public, and eligibility shows the active bonus', async () => {
+    const before = (await service.getConfig()).maxBonus;
+    await configure({ isActive: true, unlimitedSpin: true, slices: [{ label: 'prize', rewardPct: '20', weight: 1 }] });
+    await service.updateConfig({ maxBonus: '250' });
+    assert.equal((await service.getConfig()).maxBonus, '250.00000000');
+
+    const view = await service.publicSlices();
+    assert.equal(view.maxBonus, '250');
+    assert.equal(view.currency, 'USDT');
+
+    const uid = newUid();
+    await seed(uid);
+    assert.equal((await service.eligibility({ userId: uid })).activeBonus, null);
+    await service.spin({ userId: uid });
+    assert.deepEqual((await service.eligibility({ userId: uid })).activeBonus, { pct: '20', maxBonus: '250', currency: 'USDT' });
+
+    await service.updateConfig({ maxBonus: before });
   });
 
   await t.test('updating the config edits the existing row rather than adding one', async () => {

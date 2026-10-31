@@ -37,7 +37,9 @@ database, runs the migrations and seeds. It is safe to re-run — real values in
 an existing `.env` are never overwritten.
 
 Want accounts to log in with? `npm run setup:demo` adds a staff tree, players
-with balances and some content, and prints the credentials.
+in every state (with balances that reconcile with their ledger) and some content,
+and writes each account's random password to the gitignored
+`.demo-credentials.local.md` (never printed).
 
 Full detail, flags and troubleshooting: **[docs/SETUP.md](docs/SETUP.md)**.
 

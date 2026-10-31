@@ -9,6 +9,7 @@ const db = require('@ibitplay/db');
 const { createLogger, money } = require('@ibitplay/common');
 
 const { FiatDepositService } = require('../fiatDeposit.service');
+const { configureAgentPlayers, resetAgentPlayers } = require('@ibitplay/auth');
 const { FiatWithdrawService } = require('../../fiat-withdraw/fiatWithdraw.service');
 
 /**
@@ -126,6 +127,22 @@ test('fiat deposit and withdrawal', async (t) => {
     );
   });
 
+  await t.test('a pending deposit of a CHILD user (any parent) cannot be approved', async () => {
+    const uid = newUid();
+    await seed(uid, '100');
+    const created = await lodge(uid, '500');
+    configureAgentPlayers({ isAgentPlayer: async (id) => Number(id) === uid });
+    try {
+      await assert.rejects(
+        () => deposits.approve({ depositId: created.depositId }, { id: 1 }),
+        (err) => err.code === 'DEPOSIT_NOT_FOR_AGENT_USERS' && err.status === 403
+      );
+    } finally {
+      resetAgentPlayers();
+    }
+    assert.equal(await balanceOf(uid), '100.00000000');
+  });
+
   await t.test('approval credits credits.inr — legacy credited users.balance', async () => {
     const uid = newUid();
     await seed(uid, '100');
@@ -169,7 +186,7 @@ test('fiat deposit and withdrawal', async (t) => {
     const created = await lodge(uid, '500');
 
     // The bank statement says 450.
-    const result = await deposits.approve({ depositId: created.depositId, creditAmount: '450' }, { id: 1 });
+    const result = await deposits.approve({ depositId: created.depositId, creditAmount: '450', comment: 'Bank statement shows 450' }, { id: 1 });
 
     assert.equal(result.claimedAmount, '500.00000000');
     assert.equal(result.creditedAmount, '450.00000000');

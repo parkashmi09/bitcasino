@@ -114,7 +114,7 @@ backend/
 │   ├── user/                 wallet, auth, payments, KYC, bonus, P2P…
 │   ├── admin/                staff, RBAC, banners, reports, site-config…
 │   ├── casino/               providers, games, bets, seamless wallet…
-│   └── sports/               feed, bets, exposure, settlement, results
+│   └── sports/               the mssports sportsbook: odds, bets, settlement (§3a)
 │
 ├── scripts/                  process launchers + one-off ops scripts
 │   ├── dev.js                spawn all six processes
@@ -141,7 +141,7 @@ and must be safe to run against any checkout.
 ## 3. Anatomy of a service
 
 Every service is the same six files plus a `modules/` folder. Use
-[services/sports/](../services/sports/) as the reference.
+[services/casino/](../services/casino/) as the reference.
 
 ```
 services/<name>/
@@ -247,7 +247,7 @@ Creates the `socket.io` server, authenticates handshakes with the **shared**
 live in the module, not here:
 
 ```js
-const SOCKET_MODULES = [require('./modules/feed/sockets')];
+const SOCKET_MODULES = [require('./modules/<module>/sockets')];
 ```
 
 > **Rule:** a service owns the sockets that touch the things it owns. Do not
@@ -259,13 +259,58 @@ A second process that mounts **no routers** and runs only the `jobs` declared
 in module manifests. Same modules, different host — which is why settlement
 logic is reachable from both HTTP and cron without being written twice.
 
+A manifest may also declare `workers` — `{ name, script, env?, maxRestarts? }` —
+for background work that must be its own process. The worker forks one child
+per declaration and restarts it if it exits (sports: §3a).
+
+## 3a. services/sports — the mssports sportsbook
+
+sports-service runs the sports code exported from TENEXCH ("mssports"), moved
+in unchanged and laid out in this structure. Its API is TENEXCH's: 69 routes,
+same methods, same paths under `/api/v1/...`, and the gateway keeps the
+TENEXCH paths (`/api/user/place`, `/api/internalsettle/...`,
+`/api/admin/betting-config/...`) working through `legacyRoutes.js`.
+
+```
+services/sports/src/
+├── index.js · app.js · config.js · container.js · sockets.js · worker.js
+├── lib/                      shared mssports code (ES modules, .mjs)
+│   ├── core.mjs              the core's exports (TENEXCH's sports-core.js)
+│   ├── mssports.js           loads it from CommonJS: mssports(), lazy()
+│   ├── config/ constants/ helper/ middleware/ services/ utils/ wallet/ jobs/
+│   ├── identity/platformAccounts.mjs   our tokens → mssports accounts
+│   └── sportsEnabled.js      plan + site switch, in front of bet placement
+├── models/                   mssports' Sequelize models (schema mssports)
+└── modules/
+    ├── odds-events/          events, live odds, score, bet settings + odds/events workers
+    ├── bets/                 place bet (buffer), current bets, exposure, balance socket
+    ├── statement/            account statement (point_ledger)
+    ├── settlement/           owner manual settle + results/settlement workers
+    ├── sports-config/        locks, buffers, limits, max odds, auto-void, commission
+    ├── bet-admin/            (platform) staff reports over public."SportsBet"
+    └── wager-report/         (platform) turnover for user-service
+```
+
+- **Moved, not rewritten.** Each `.mjs` file starts with the TENEXCH path it
+  came from. The only edits: token verification (three call sites →
+  `lib/identity/platformAccounts.mjs`) and `search_path` on the mssports pools.
+- **Its own schema.** mssports' tables (`users`, `staff`, `Owners`, `Wallets`,
+  `SportsBet`, `point_ledger` …) are in Postgres schema `mssports`
+  (migration `094-mssports-schema`), so they never meet the platform's
+  `public` tables of the same name.
+- **Accounts.** A platform player or staff member gets their mssports row and
+  `Wallets` row on their first authenticated call; Super Admin is the mssports
+  OWNER. The mssports wallet is separate from the platform's `credits`.
+- **Workers.** `odds`, `events`, `results`, `settlement` are child processes
+  of `worker.js` (manifest `workers`), one each — settlement must never run
+  twice.
+
 ---
 
 ## 4. Anatomy of a module
 
 **A module is a feature folder that is self-contained.** This is where you will
-spend all of your time. Reference implementations:
-[services/sports/src/modules/settlement/](../services/sports/src/modules/settlement/) and
+spend all of your time. Reference implementation:
 [services/user/src/modules/wallet/](../services/user/src/modules/wallet/).
 
 ```
@@ -466,7 +511,7 @@ must prove**. The loader — not the module — attaches the guard, so a module
 | `admin` | `/api/v1/admin/<service><basePath>` | staff token + permissions |
 | `internal` | `/internal/<service><basePath>` | internal API key only |
 
-Worked example — `settlement` in `sports`, `basePath: '/settlement'`:
+Worked example — a module `settlement` in a service `sports`, `basePath: '/settlement'`:
 
 ```
 GET /api/v1/sports/settlement/my-settled-bets          user
@@ -671,7 +716,7 @@ failure blast radius. Otherwise add a module.
 
 1. `services/<name>/package.json` — name it `@ibitplay/<name>-service`, depend
    on `@ibitplay/common`, `@ibitplay/db`, `@ibitplay/auth`.
-2. Copy the six `src/` files from [services/sports/src/](../services/sports/src/)
+2. Copy the six `src/` files from [services/casino/src/](../services/casino/src/)
    and change the service name, port and env shape.
 3. Add the domain list to `SERVICE_DOMAINS` in
    [packages/db/src/models/index.js](../packages/db/src/models/index.js).

@@ -46,6 +46,13 @@ test('lock validators', async (t) => {
     assert.deepEqual(parsed.locks, { sports: true });
   });
 
+  await t.test('the Original Games lock has its own field and no alias', () => {
+    assert.equal(LOCK_FIELDS.originals, 'originals_locked');
+    assert.deepEqual(v.updateLocks.body.parse({ userId: 1, originals: true, casino: false }).locks, { casino: false, originals: true });
+    assert.equal(v.updateLocks.body.safeParse({ userId: 1, originals: 'yes' }).success, false);
+    assert.equal(v.updateLocks.body.safeParse({ userId: 1, originals_locked: true }).success, false);
+  });
+
   await t.test('a current name wins over its legacy alias', () => {
     const parsed = v.updateLocks.body.parse({ userId: 1, system: false, all_system_blocked: true });
     assert.equal(parsed.locks.system, false);
@@ -97,7 +104,11 @@ test('locks against a database', async (t) => {
   const { models } = connection;
   const service = new LocksService({ models, db: connection, logger, config: {} });
 
-  const roleId = (await models.Roles.findOne({ raw: true }))?.id ?? 1;
+  // An AGENT's role, not the first one in the table: Super Admin, Admin and Sub
+  // Admin are the back office and see every player on the site, so rivals
+  // modelled with one of those would not be rivals at all.
+  const roleId = (await models.Roles.findOne({ where: { level: 6 }, raw: true }))?.id;
+  assert.ok(roleId, 'the test database needs a level-6 (agent) role');
 
   /**
    * A three-level tree:
@@ -254,6 +265,10 @@ test('locks against a database', async (t) => {
     assert.equal(Boolean(row.system_locked), true);
     assert.equal(Boolean(row.casino_locked), true);
     assert.equal(Boolean(row.sports_betlocked), true);
+    assert.equal(row.originals_locked, false, 'the casino lock no longer covers Original Games');
+
+    await service.updateLocks({ actor: asOwner, userId: ownerPlayer, locks: { originals: true } });
+    assert.equal((await models.Users.findOne({ where: { id: ownerPlayer }, raw: true })).originals_locked, true);
   });
 
   await t.test("a rival's transfer history is not readable", async () => {

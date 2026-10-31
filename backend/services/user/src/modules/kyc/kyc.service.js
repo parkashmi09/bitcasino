@@ -13,6 +13,8 @@ const {
   MAX_FILE_BYTES,
   DOCUMENT_FIELDS,
 } = require('./kyc.constants');
+const { ownerWhere, assertPlayerVisible, withChannel } = require('../directory/playerScope');
+const { notifyPlayer } = require('../notifications/notifyPlayer');
 
 /**
  * Identity verification.
@@ -37,8 +39,9 @@ const {
  *    whatever the client sends. Files are now checked against their magic bytes.
  */
 class KycService {
-  constructor({ models, db, config, logger }) {
+  constructor({ models, db, config, logger, clients }) {
     this.models = models;
+    this.clients = clients;
     this.db = db;
     this.config = config;
     this.logger = logger;
@@ -58,6 +61,22 @@ class KycService {
     if (!row) return { status: 'NotSubmitted', submitted: false };
 
     return {
+      /**
+       * The row's own id, and WITHOUT IT `GET /kyc/documents/:kycId/:field` IS
+       * UNREACHABLE FROM A CLIENT.
+       *
+       * That route takes a kycId, resolves the row and refuses unless the
+       * caller owns it — correctly, and with the same error for "not yours" as
+       * for "not found" so ids cannot be enumerated. But this was the only
+       * player-facing read of a KYC record and it did not say which record,
+       * so a player had no way to learn their own id and no way to ask for
+       * their own document. The route could only be exercised by staff.
+       *
+       * Naming it `kycId` rather than `id` because that is what the route
+       * parameter, the service argument and every log line in this module
+       * already call it.
+       */
+      kycId: row.id,
       status: row.status,
       submitted: true,
       submittedAt: row.created_at,
@@ -129,11 +148,21 @@ class KycService {
       throw errors.REJECTION_REASON_REQUIRED();
     }
 
+    // `users:write` reaches masters; the player still has to be theirs.
+    await assertPlayerVisible(this, staff?.id, userId);
+
+    // KYC is for direct users only (docs/KYC.md).
+    const player = await this.models.Users.findByPk(userId, { attributes: ['parent_staff_id'], raw: true });
+    if (player?.parent_staff_id != null) throw errors.DIRECT_USERS_ONLY({ userId });
+
     const row = await this.models.UserKyc.findOne({
       where: { user_id: String(userId) },
       order: [['id', 'DESC']],
     });
     if (!row) throw errors.NOT_FOUND({ userId });
+    /* The submission this decision is about — a rejected application is
+       resubmitted IN PLACE, so the row id alone does not name one review. */
+    const submission = `${row.id}:${new Date(row.updated_at ?? row.created_at ?? 0).getTime()}`;
 
     await row.update({
       status,
@@ -144,13 +173,38 @@ class KycService {
       { userId, kycId: row.id, status, staffId: staff?.id },
       'KYC application reviewed'
     );
+    void notifyPlayer(userId, {
+      [KYC_STATUS.VERIFIED]: {
+        kind: 'kyc_approved',
+        key: `kyc:verified:${submission}`,
+        title: 'Identity verified',
+        body: 'Your KYC documents were approved. Withdrawals are now open to you.',
+        link: '/settings',
+      },
+      [KYC_STATUS.REJECTED]: {
+        kind: 'kyc_rejected',
+        key: `kyc:rejected:${submission}`,
+        title: 'Identity verification rejected',
+        body: `Your KYC documents were not accepted. Reason: ${rejectionReason}. Please submit them again.`,
+        link: '/settings',
+        meta: { reason: rejectionReason },
+      },
+    }[status]);
 
     return { userId, status, kycId: row.id };
   }
 
-  /** @legacy GET /kyc/admin/applications */
-  async listApplications({ status, search, limit, offset }) {
-    const where = {
+  /**
+   * @legacy GET /kyc/admin/applications
+   *
+   * The caller's tree only. `users:read` reaches every agent, and this listed
+   * every player's name, date of birth and address site-wide.
+   */
+  async listApplications({ staff, status, search, limit, offset }) {
+    // `user_kyc.user_id` VARCHAR hai. KYC is for direct users only (docs/KYC.md), so the queue is
+    // always the direct channel; an old agent-tree row stays in the table but is never listed.
+    const where = withChannel({
+      ...(await ownerWhere(this, staff?.id, 'user_id')),
       ...(status ? { status } : {}),
       ...(search
         ? {
@@ -161,7 +215,7 @@ class KycService {
             ],
           }
         : {}),
-    };
+    }, 'user_id', 'direct', { text: true });
 
     const result = await this.models.UserKyc.findAndCountAll({
       where,
@@ -208,6 +262,17 @@ class KycService {
   async readDocument({ kycId, field, requesterId, isStaff }) {
     const row = await this.models.UserKyc.findByPk(kycId, { raw: true });
     if (!row) throw errors.DOCUMENT_NOT_FOUND({ kycId });
+
+    if (isStaff) {
+      // A staff reader may open only their own tree's documents — and an
+      // out-of-tree record answers exactly like a missing one.
+      try {
+        await assertPlayerVisible(this, requesterId, row.user_id);
+      } catch (error) {
+        if (error?.status === 404) throw errors.DOCUMENT_NOT_FOUND({ kycId });
+        throw error;
+      }
+    }
 
     if (!isStaff && Number(row.user_id) !== Number(requesterId)) {
       // Same error as "not found": confirming the record exists would let

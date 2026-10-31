@@ -10,8 +10,8 @@
  *
  *     const response = await axios.post('https://api.nexusggreu.com', {
  *       method: "game_list",
- *       agent_code: "Skyla_USD",
- *       agent_token: "83eb5e7c8f7a1852f61692442a5ead9c",
+ *       agent_code: "<redacted, see backend/docs/ROTATION.md>",
+ *       agent_token: "<redacted, see backend/docs/ROTATION.md>",
  *       provider_code: providerCode
  *     });
  *

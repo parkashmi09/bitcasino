@@ -24,6 +24,36 @@ const config = loadEnv(
     ...serviceDiscoveryEnvShape,
     CASINO_SERVICE_PORT: coercers.int(4003),
 
+    /**
+     * Whether the four client-authoritative games settle on the SERVER's
+     * outcome instead of the number in the player's message.
+     *
+     * ═════════════════════════════════════════════════════════════════════
+     * THIS WAS READ IN TWO PLACES AND DECLARED IN NEITHER
+     *
+     * `in-house/sockets.js` and `engine/crashLoop.js` both do
+     *
+     *     config?.INHOUSE_SERVER_AUTHORITY === true || … === 'true'
+     *
+     * and `loadEnv` only exposes keys a shape DECLARES — the same failure the
+     * comment above `cacheEnvShape` records for `REDIS_URL`. So the flag was
+     * `undefined` whatever `.env` said, the switch could not be thrown, and
+     * plinko, videopoker, blackjack and crash paid on numbers supplied by the
+     * client. `bonus: 1000000` on a stake of 1 pays 999,999.
+     *
+     * Declared here, so setting it in `.env` does what the file says it does.
+     * See `engine/serverAuthority.js` for what each game computes instead.
+     * ═════════════════════════════════════════════════════════════════════
+     */
+    INHOUSE_SERVER_AUTHORITY: coercers.bool(false),
+
+    /**
+     * Extra sportsbook / esports book game uids, comma-separated, beyond the
+     * ones `modules/games/gameEntitlement.js` knows. A launch of one needs the
+     * owner's `sports` flag instead of `casino` — docs/OWNER-PANEL.md §4.
+     */
+    SPORTS_BOOK_GAME_UIDS: coercers.optionalStr(),
+
     // ── Seamless wallet (the casino provider's bet/win callbacks) ─────
     // The key was hard-coded in legacy/index.js:2376 and is in the repository
     // history — rotate it with the provider before this goes live.
@@ -48,6 +78,13 @@ const config = loadEnv(
     SEAMLESS_SIGN_MODE: coercers.str('legacy'),
 
     /**
+     * The provider's callback source IPs. The legacy signature covers neither the member nor the
+     * amount, so this is what stops a captured one being replayed: set it on any live server.
+     * Empty = any source (local development).
+     */
+    SEAMLESS_ALLOWED_IPS: coercers.list([]),
+
+    /**
      * The operator API — the outbound half of the same integration.
      *
      * Legacy hard-coded `https://staging.gsimw.com/api/operators`. A STAGING
@@ -66,6 +103,20 @@ const config = loadEnv(
      * pointed at their own machine.
      */
     SEAMLESS_LOBBY_URL: coercers.optionalStr(),
+
+    // ── Original Games Aggregator (BC Originals) — modules/original-games ──
+    // All three secrets come from onboarding. `OG_ENV` follows the CREDENTIAL:
+    // a sandbox key opens `demo` sessions only, production opens `real`.
+    OG_BASE_URL: coercers.optionalStr(),
+    OG_API_KEY: coercers.optionalStr(),
+    OG_API_SECRET: coercers.optionalStr(),
+    OG_WEBHOOK_SECRET: coercers.optionalStr(),
+    OG_ENV: coercers.str('sandbox'),
+    OG_TIMEOUT_MS: coercers.int(10_000),
+    OG_RETURN_URL: coercers.optionalStr(),
+    OG_DEPOSIT_URL: coercers.optionalStr(),
+    // Our test user that answers for `__aggregator_validation__` in their validation run.
+    OG_VALIDATION_USER_ID: coercers.optionalStr(),
 
     // ── Slotegrator / GIS ─────────────────────────────────────────────
     // The merchant id and key were hard-coded at the top of
@@ -136,11 +187,29 @@ const config = loadEnv(
     /** Where a player lands when they close a jsGames title. */
     JSGAMES_HOME_URL: coercers.optionalStr(),
 
-    // ── jsGames v2 (games.ibitplay.com) ───────────────────────────────
+    // ── jsGames v2 (gamesv2.ibitplay.com) ─────────────────────────────
     // From `legacy/jsgamesv2/config.js`, committed in plain text.
-    JSGAMES_V2_BASE_URL: coercers.str('https://games.ibitplay.com/api/game'),
+    /**
+     * The GAME api: launch, game lists, search.
+     *
+     * `games.ibitplay.com` was wrong — that host serves the USER api below.
+     * Launch lives on `gamesv2`, and pointing the two at one base is what made
+     * every history read resolve to a path that does not exist.
+     */
+    JSGAMES_V2_BASE_URL: coercers.str('https://gamesv2.ibitplay.com/api/game'),
+    /** The USER api: a player's bet history, and the admin history feed. */
+    JSGAMES_V2_USER_BASE_URL: coercers.str('https://games.ibitplay.com/api/user'),
     JSGAMES_V2_API_KEY: coercers.optionalStr(),
     JSGAMES_V2_API_SECRET: coercers.optionalStr(),
+
+    /**
+     * Must a `win` callback name a round that was already staked?
+     *
+     * Yes, unless a provider is confirmed IN WRITING to settle bonus rounds
+     * under a fresh round id. With it off, a signed callback carrying
+     * `bet_amount: 0` and any `win_amount` mints credit from nothing.
+     */
+    JSGAMES_REQUIRE_BET_FOR_WIN: coercers.bool(true),
 
     /**
      * How stale a jsGames callback timestamp may be, in seconds.

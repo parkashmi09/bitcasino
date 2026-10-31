@@ -6,6 +6,13 @@
  *   node tools/probe-api.mjs --json               # machine-readable
  *   node tools/probe-api.mjs --only=user          # one service
  *   node tools/probe-api.mjs --fail-on-500        # exit 1 if anything 5xx's unexpectedly
+ *   node tools/probe-api.mjs --gateway=http://127.0.0.1:4600 --user=demo_player01
+ *
+ * The gateway defaults to http://127.0.0.1:$GATEWAY_PORT (4600 in backend/.env).
+ * The player password is NEVER taken on the command line (argv lands in shell
+ * history and `ps`): it is read from PROBE_PASSWORD, or asked for with a hidden
+ * prompt when stdin is a terminal. `--password` is refused. Without either, the
+ * probe runs unauthenticated and player rows read 401.
  *
  * WHY THIS EXISTS, NEXT TO `verify-routes` AND `api-surface`
  *
@@ -35,21 +42,46 @@
 
 import fs from 'node:fs';
 import path from 'node:path';
+import readline from 'node:readline';
 import { fileURLToPath } from 'node:url';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
 const args = process.argv.slice(2);
 const has = (f) => args.includes(f);
+// `--flag=value` or `--flag value`.
 const val = (f, d) => {
   const hit = args.find((a) => a.startsWith(`${f}=`));
-  return hit ? hit.slice(f.length + 1) : d;
+  if (hit) return hit.slice(f.length + 1);
+  const i = args.indexOf(f);
+  return i !== -1 && args[i + 1] && !args[i + 1].startsWith('--') ? args[i + 1] : d;
 };
 
-const GATEWAY = val('--gateway', process.env.PROBE_GATEWAY || 'http://127.0.0.1:4000');
+if (args.some((a) => a === '--password' || a.startsWith('--password='))) {
+  console.error('! --password is not accepted: a password in argv leaks into shell history and the process list.');
+  console.error('  Set PROBE_PASSWORD in the environment, or run in a terminal and type it at the hidden prompt.');
+  process.exit(2);
+}
+
+const GATEWAY = val('--gateway', process.env.PROBE_GATEWAY || `http://127.0.0.1:${process.env.GATEWAY_PORT || 4600}`);
 const IDENTIFIER = val('--user', process.env.PROBE_USER || 'demo_player01');
-const PASSWORD = val('--password', process.env.PROBE_PASSWORD || 'Demo@12345');
 const ONLY = val('--only', null);
+
+/** Ask for the password without echoing it. Resolves '' when there is no terminal. */
+function promptHidden(question) {
+  if (!process.stdin.isTTY) return Promise.resolve('');
+  return new Promise((resolve) => {
+    const rl = readline.createInterface({ input: process.stdin, output: process.stderr, terminal: true });
+    rl._writeToOutput = (s) => { if (s.includes(question)) process.stderr.write(question); };
+    rl.question(question, (answer) => {
+      rl.close();
+      process.stderr.write('\n');
+      resolve(answer);
+    });
+  });
+}
+
+const PASSWORD = process.env.PROBE_PASSWORD || await promptHidden(`Password for ${IDENTIFIER} (empty = skip sign-in): `);
 
 const SURFACE = path.join(ROOT, 'docs', 'api-surface.json');
 if (!fs.existsSync(SURFACE)) {
@@ -62,9 +94,13 @@ if (!fs.existsSync(SURFACE)) {
  *
  * Without one the `user`-audience rows all read 401, which is a useless answer —
  * so say plainly that the probe is partial rather than reporting 60 false
- * failures. `--demo` seeded credentials are the default.
+ * failures. Demo accounts come from `npm run db:seed:demo`.
  */
 async function signIn() {
+  if (!PASSWORD) {
+    console.error('! no password (set PROBE_PASSWORD or type it at the prompt); probing unauthenticated.');
+    return null;
+  }
   try {
     const res = await fetch(`${GATEWAY}/api/v1/user/auth/login`, {
       method: 'POST',

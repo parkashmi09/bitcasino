@@ -367,6 +367,32 @@ test('gift cards', async (t) => {
     );
   });
 
+  await t.test('a code redeems the card it names, and only that one', async () => {
+    const service = build();
+    const uid = newUid();
+    await seed(uid);
+    const card = await makeCard(service);
+
+    const out = await service.redeem({ userId: uid, code: card.uniqueKey });
+    assert.strictEqual(out.giftCardId, card.id);
+    assert.strictEqual(out.status, 'Activated');
+    assert.strictEqual(out.card.uniqueKey, card.uniqueKey);
+  });
+
+  await t.test('an unknown code and someone else\'s targeted card answer the same', async () => {
+    const service = build();
+    const uid = newUid();
+    await seed(uid);
+    const targeted = await makeCard(service, { allUsers: false });
+
+    for (const code of [`${newKey()}-nope`, targeted.uniqueKey]) {
+      await assert.rejects(
+        () => service.redeem({ userId: uid, code }),
+        (err) => err.code === 'GIFTCARD_NOT_FOUND'
+      );
+    }
+  });
+
   await t.test('a card with activations cannot be deleted', async () => {
     const service = build();
     const uid = newUid();

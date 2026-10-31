@@ -1,8 +1,8 @@
 'use strict';
 
 const { Router } = require('express');
-const { validate, createActivityRecorder } = require('@ibitplay/common');
-const { PERMISSIONS } = require('@ibitplay/auth');
+const { validate, createActivityRecorder, noBody } = require('@ibitplay/common');
+const { PERMISSIONS, denyAgentTree } = require('@ibitplay/auth');
 
 const v = require('../bonus.validators');
 const { BonusService } = require('../bonus.service');
@@ -25,8 +25,16 @@ module.exports = function adminRoutes(deps) {
   });
 
   const router = Router();
+
+  // Promotions are house business: SUPER_MASTER / MASTER / AGENT (and their
+  // executives) are refused every route below — PROMOTIONS_NOT_FOR_AGENTS.
+  router.use(denyAgentTree());
   const canRead = auth.requirePermission(PERMISSIONS.REPORTS_READ);
   const canWrite = auth.requirePermission(PERMISSIONS.CONFIG_WRITE);
+  const canIssueRedeemCode = auth.requireAnyPermission(
+    PERMISSIONS.CONFIG_WRITE,
+    PERMISSIONS.REDEEM_CODES_WRITE
+  );
   const audit = (action, describe) => withActivity({ action, describe });
 
   router.get('/records', canRead, validate(v.listRecords), ctrl.listRecords);
@@ -138,6 +146,7 @@ module.exports = function adminRoutes(deps) {
 
   router.delete(
     '/events/:id',
+    noBody(),
     canWrite,
     validate(v.eventParam),
     audit('bonus.event.delete', (req) => ({ targetType: 'BONUS_EVENT', targetId: req.params.id })),
@@ -148,7 +157,7 @@ module.exports = function adminRoutes(deps) {
 
   router.post(
     '/codes',
-    canWrite,
+    canIssueRedeemCode,
     validate(v.createCode),
     audit('bonus.code.create', (req) => ({
       targetType: 'REDEEM_CODE', targetId: req.body.code,

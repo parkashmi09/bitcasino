@@ -1,0 +1,147 @@
+/* ---------------------------------------------------------------------------
+ * bitcasino: the sports exchange's look (components/exchange, pages/Exchange).
+ *
+ * The exchange markup is hash-game-exchange's, kept as is so its logic ports 1:1; its colour
+ * utilities (`bg-layer4`, `text-secondary`, `bg-back`…) are aliased HERE onto this site's own
+ * Moon tokens, so the owner's palette (tokens.css [data-palette]) and light/dark recolour it
+ * like every other page. Back is blue, lay is pink, as on hash, in both themes.
+ * Surfaces step up from `gohan` towards the text colour, which raises them in either theme.
+ * ------------------------------------------------------------------------- */
+@theme inline {
+  --color-layer1: rgb(var(--goku));
+  --color-layer2: rgb(var(--goku));
+  --color-layer3: rgb(var(--gohan));
+  --color-layer4: color-mix(in srgb, rgb(var(--bulma)) 5%, rgb(var(--gohan)));
+  --color-layer5: color-mix(in srgb, rgb(var(--bulma)) 9%, rgb(var(--gohan)));
+  --color-layer6: color-mix(in srgb, rgb(var(--bulma)) 14%, rgb(var(--gohan)));
+
+  --color-primary: rgb(var(--bulma));
+  --color-secondary: rgb(var(--trunks));
+  --color-tertiary: color-mix(in srgb, rgb(var(--trunks)) 80%, rgb(var(--goku)));
+  --color-third: rgb(var(--beerus));
+  --color-brand: rgb(var(--piccolo));
+  --color-button-brand: rgb(var(--piccolo));
+  --color-error: rgb(var(--chichi));
+  --color-success: rgb(var(--roshi));
+  --color-warning: rgb(var(--krillin));
+  --color-input_bright: rgb(var(--goku));
+  --color-alw_dark: #10161a;
+  --color-alw_white: #ffffff;
+
+  --color-back: #72bbef;
+  --color-back-hover: #8ccaf5;
+  --color-lay: #f5a3b5;
+  --color-lay-hover: #f9bccb;
+  --color-back-muted: color-mix(in srgb, #72bbef 28%, rgb(var(--gohan)));
+  --color-lay-muted: color-mix(in srgb, #f5a3b5 28%, rgb(var(--gohan)));
+  --color-exchange-ink: #10161a;
+}
+
+/* hash's shared primitives the exchange markup names, drawn in this site's tokens. Layered, so a
+   utility on the same element still wins (as on hash). */
+@layer components {
+  .button {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 3rem;
+    padding-inline: 0.5rem;
+    cursor: pointer;
+    border-radius: 0.5rem;
+    user-select: none;
+    transition: background-color 150ms;
+  }
+  .button:disabled { opacity: 0.5; cursor: default; }
+  .button-m { height: 2.5rem; }
+  .button-s { height: 2rem; padding-inline: 0.25rem; border-radius: 0.375rem; }
+  .button-brand { font-weight: 700; background-color: rgb(var(--piccolo)); color: rgb(var(--on-piccolo)); }
+  .button-brand:hover { background-color: rgb(var(--piccolo-80)); }
+  .button-second { font-weight: 700; background-color: rgb(var(--hit)); color: rgb(var(--bulma)); }
+  .button-second:hover { background-color: rgb(var(--beerus)); }
+
+  .input {
+    display: flex;
+    align-items: center;
+    height: 2.5rem;
+    gap: 0.5rem;
+    padding-inline: 0.5rem;
+    border: 1px solid rgb(var(--beerus));
+    border-radius: 0.5rem;
+    background-color: rgb(var(--goku));
+    color: rgb(var(--bulma));
+  }
+  .input:focus-within { border-color: rgb(var(--piccolo)); }
+  .input > input { flex: 1; width: 8rem; align-self: stretch; background-color: transparent; outline: none; }
+  .input > input::placeholder { color: rgb(var(--trunks)); }
+
+  .tabs-title {
+    display: flex;
+    flex: none;
+    height: 2.5rem;
+    position: relative;
+    border-radius: 0.5rem;
+    background-color: rgb(var(--gohan));
+    color: rgb(var(--trunks));
+  }
+  .tabs-btn {
+    border-radius: 0.5rem;
+    flex: 1;
+    align-self: stretch;
+    text-wrap: nowrap;
+    padding-inline: 0.5rem;
+    color: rgb(var(--trunks));
+  }
+  .tabs-btn[aria-selected] { background-color: rgb(var(--piccolo)); color: rgb(var(--on-piccolo)); font-weight: 700; }
+
+  .ellipsis { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .hide-scroll { scrollbar-width: none; }
+  .hide-scroll::-webkit-scrollbar { width: 0; height: 0; background: transparent; }
+
+  /* The exchange's top bar: Exchange / My Bets / Statement cells and the stake-buttons action. */
+  .sports-rail {
+    position: relative;
+    display: flex;
+    align-items: center;
+    height: 56px;
+    padding-inline: 4px;
+    border-radius: 0.75rem;
+    background-color: rgb(var(--gohan));
+  }
+  .sports-rail-scroll { display: flex; align-items: center; flex: 1 1 auto; min-width: 0; overflow-x: auto; }
+  .sports-rail-cell {
+    position: relative;
+    flex: none;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 48px;
+    height: 48px;
+    border-radius: 0.5rem;
+    color: rgb(var(--trunks));
+  }
+  .sports-rail-cell svg { fill: rgb(var(--trunks)); }
+  .sports-rail-cell:hover,
+  .sports-rail-cell:focus-visible,
+  .sports-rail-cell.is-active { color: rgb(var(--piccolo)); }
+  .sports-rail-cell:hover svg,
+  .sports-rail-cell:focus-visible svg,
+  .sports-rail-cell.is-active svg { fill: rgb(var(--piccolo)); }
+  .sports-rail-cell.is-active { background-color: rgb(var(--jiren)); }
+  .sports-rail-icon { width: 28px; height: 28px; }
+  .sports-rail-icon svg { width: 100%; height: 100%; }
+  .sports-rail-divider { flex: none; width: 1px; height: 32px; margin-inline: 4px; background-color: rgb(var(--beerus)); }
+  .sports-rail-tip {
+    position: absolute;
+    top: calc(100% + 4px);
+    z-index: 20;
+    transform: translateX(-50%);
+    padding: 4px 8px;
+    border-radius: 0.375rem;
+    background-color: rgb(var(--bulma));
+    color: rgb(var(--goku));
+    font-size: 0.75rem;
+    font-weight: 600;
+    white-space: nowrap;
+    pointer-events: none;
+  }
+}

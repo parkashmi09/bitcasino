@@ -15,6 +15,11 @@ module.exports = defineErrors('EXCHANGE_RATE', {
     status: 422,
     message: 'The rate must be greater than zero',
   },
+  /** A custom coin's rate is the platform owner's (owner panel → Coins), not the site's. */
+  OWNER_MANAGED: {
+    status: 409,
+    message: 'This rate cannot be changed here',
+  },
   RATE_IN_USE: {
     status: 409,
     message: 'This currency still holds player balances and cannot be removed',

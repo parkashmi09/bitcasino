@@ -48,6 +48,17 @@ const LOCK_FIELDS = Object.freeze({
   casino: 'casino_locked',
   /** The one legacy name that matched a real column. */
   sports: 'sports_betlocked',
+  /**
+   * Money may not leave the account (migration 091). Not legacy; it has no
+   * alias. Every payout path refuses it — `packages/common/src/withdrawBlock.js`.
+   * Not the timed `withdraw_locked_until` cooldown after a password change.
+   */
+  withdraw: 'withdraw_locked',
+  /**
+   * Original Games (casino-service `modules/original-games`) may not be played
+   * (migration 141). No alias. `casino` no longer covers them.
+   */
+  originals: 'originals_locked',
 });
 
 /**

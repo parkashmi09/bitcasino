@@ -1,7 +1,7 @@
 'use strict';
 
 const { Router } = require('express');
-const { validate, z, response, asyncHandler } = require('@ibitplay/common');
+const { validate, z, response, asyncHandler, noQuery } = require('@ibitplay/common');
 
 const { PreferencesService } = require('../preferences.service');
 const { THEMES, LANGUAGES } = require('../preferences.constants');
@@ -25,6 +25,16 @@ module.exports = function userRoutes(deps) {
         emailNotifications: z.coerce.boolean().optional(),
         pushNotifications: z.coerce.boolean().optional(),
         hideBalance: z.coerce.boolean().optional(),
+        // rainbet: the Settings privacy switches (migration 169).
+        showBetsPublicly: z.boolean().optional(),
+        showStatistics: z.boolean().optional(),
+        tipNotifications: z.boolean().optional(),
+        // Plain booleans: z.coerce would read the string "false" as true.
+        hideGamingData: z.boolean().optional(),
+        hideUsername: z.boolean().optional(),
+        maxProfitAlert: z.boolean().optional(),
+        depositEmail: z.boolean().optional(),
+        withdrawEmail: z.boolean().optional(),
       })
       .strict(),
   };
@@ -32,6 +42,7 @@ module.exports = function userRoutes(deps) {
   /** @legacy SOCKET identify */
   router.get(
     '/',
+    noQuery(),
     asyncHandler(async (req, res) => response.ok(res, await service.get({ userId: req.user.id })))
   );
 

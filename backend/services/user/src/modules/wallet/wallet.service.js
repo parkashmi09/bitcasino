@@ -1,10 +1,27 @@
 'use strict';
 
-const { money } = require('@ibitplay/common');
+const crypto = require('node:crypto');
+
+const { money, currencyRegistry, directLedger } = require('@ibitplay/common');
+const { isRestrictedPlayer } = require('@ibitplay/auth');
+const { EVENTS, roomForUser, encode } = require('@ibitplay/socket');
 
 const errors = require('./wallet.errors');
 const { WalletRepository } = require('./wallet.repository');
-const { OPERATION, REASON, CREDIT_REASONS, resolveColumn, CURRENCY_COLUMN } = require('./wallet.constants');
+const {
+  OPERATION, REASON, CREDIT_REASONS, resolveColumn, CURRENCY_COLUMN, assertCreditable, isRetiredCurrency,
+  isCustomCurrency, KNOWN_CURRENCIES,
+} = require('./wallet.constants');
+
+/**
+ * The ledger idempotency key for a staff balance adjustment: the caller's own
+ * per-submit key, namespaced by the staff account so two operators' keys can
+ * never collide. Without one, a unique key — nothing is deduplicated that the
+ * caller did not ask to be.
+ */
+function adjustKey(staffId, clientKey) {
+  return `adm:${staffId}:${clientKey ? String(clientKey) : `auto-${crypto.randomUUID()}`}`;
+}
 
 /**
  * The money spine.
@@ -25,8 +42,42 @@ const { OPERATION, REASON, CREDIT_REASONS, resolveColumn, CURRENCY_COLUMN } = re
  *   4. Every movement carries an idempotency key. A replay returns the original
  *      ledger row; it does not move money a second time.
  */
+/**
+ * The `C.CREDIT` payload: balances keyed by the LOWERCASE coin code, which is
+ * what the client indexes by — see `sockets.js`. Shared by the reply to the
+ * player's ask and by the push after a movement, so the two cannot drift.
+ */
+const creditPayload = (balances) => ({
+  status: true,
+  credit: Object.fromEntries(Object.entries(balances).map(([code, value]) => [code.toLowerCase(), value])),
+});
+
+/* Staff-written ledger rows (admin adjust, agent float, Super Admin direct wallet, transfers) carry
+   the staff's own note in `description`; the player sees what happened instead. */
+const PLAYER_LABEL = Object.freeze({
+  ADMIN_CREDIT: 'Credit by admin',
+  ADMIN_DEBIT: 'Debit by admin',
+  TRANSFER_IN: 'Transfer in',
+  TRANSFER_OUT: 'Transfer out',
+});
+const STAFF_REFS = new Set(['STAFF', 'STAFF_TRANSFER', 'DIRECT_WALLET', 'TRANSFER']);
+function forPlayer(row) {
+  const ref = row.meta?.refType;
+  if (!STAFF_REFS.has(ref) && !String(row.reason).startsWith('ADMIN_')) return row;
+  const agent = ref === 'STAFF_TRANSFER' && (String(row.amount).startsWith('-') ? 'Debited by agent' : 'Credited by agent');
+  return { ...row, description: agent || PLAYER_LABEL[row.reason] || row.reason };
+}
+
 class WalletService {
-  constructor({ models, db, config, logger, clients }) {
+  constructor(deps) {
+    const { models, db, config, logger, clients } = deps;
+    /**
+     * Held whole, not destructured: the socket server is assigned to the
+     * container (`deps.io`) AFTER the services are built, so the balance push
+     * reads it at the moment it fires. A worker process has no `io` and simply
+     * does not push.
+     */
+    this.deps = deps;
     this.repo = new WalletRepository({ models, db });
     this.db = db;
     this.config = config;
@@ -53,6 +104,9 @@ class WalletService {
     if (!wallet) return {};
 
     const { uid, ...balances } = wallet;
+
+    // An agent's player runs on INR alone (user, 2026-10-17), and so does a demo account: no other coin is listed for them.
+    if (await isRestrictedPlayer(userId)) return { INR: money.fromStored(balances.inr ?? '0') };
     /**
      * Canonical decimal strings, so a client never sees "0" for one currency
      * and "0.00000000" for another.
@@ -64,12 +118,31 @@ class WalletService {
      * and fatally for a read: this endpoint 400'd for those accounts, and the
      * header rendered its zero fallback against a wallet with money in it.
      */
-    return Object.fromEntries(
-      Object.entries(balances).map(([code, value]) => [
-        code.toUpperCase(),
-        money.fromStored(value ?? '0'),
-      ])
-    );
+    /*
+     * A retired coin (BJB) is listed only while it still holds something, so
+     * a player who never had one does not see it and one who does can still
+     * spend or swap it out. A built-in coin the owner or site switched off in
+     * the registry follows the same rule (a registry outage hides nothing).
+     */
+    const disabled = await currencyRegistry.disabledCodes();
+    const builtin = Object.entries(balances)
+      // Only the coin columns: `credits` also carries `credit_limit` (062).
+      .filter(([column]) => Object.prototype.hasOwnProperty.call(CURRENCY_COLUMN, column.toUpperCase()))
+      .map(([code, value]) => [code.toUpperCase(), money.fromStored(value ?? '0')])
+      .filter(([code, value]) => (!isRetiredCurrency(code) && !disabled.has(code)) || money.gt(value, '0'));
+
+    /*
+     * Custom coins (migration 065), by the same rule as a retired one: an
+     * enabled coin is always listed, a disabled one only while it still holds
+     * something — so a player keeps seeing (and can spend or swap out) a
+     * balance in a coin the owner or site switched off.
+     */
+    const custom = (await this.repo.listCustomBalances(userId))
+      .map((row) => ({ code: row.code, value: money.fromStored(row.balance ?? '0'), enabled: row.enabled === true }))
+      .filter(({ value, enabled }) => enabled || money.gt(value, '0'))
+      .map(({ code, value }) => [code, value]);
+
+    return Object.fromEntries([...builtin, ...custom]);
   }
 
   /**
@@ -88,15 +161,24 @@ class WalletService {
    * a currency-switchable table, and 200 rows of lazily-loaded coins is 200
    * requests to render one column.
    */
-  async listBalances({ staffId, search, limit, offset }) {
+  async listBalances({ staffId, search, heldCurrency, limit, offset }) {
     const visible = await this.#visibleStaffIds(staffId);
 
     const { rows, total } = await this.repo.listPlayerWallets({
       parentStaffIds: visible.all ? null : visible.ids,
       search,
+      heldCurrency,
       limit,
       offset,
     });
+
+    // Custom coins (065): every one the registry knows, read for the page in one query.
+    const [customCodes, customRows, disabled] = await Promise.all([
+      this.repo.listCustomCodes(),
+      this.repo.listCustomBalancesFor(rows.map((r) => r.uid)),
+      currencyRegistry.disabledCodes(),
+    ]);
+    const customOf = new Map(customRows.map((r) => [`${Number(r.uid)}:${r.currency}`, r.balance]));
 
     return {
       rows: rows.map(({ uid, name, wallet }) => ({
@@ -104,14 +186,17 @@ class WalletService {
         name,
         // Every supported currency on every row, so the table can switch
         // currency without a refetch — and a player with no wallet row reads
-        // as zeros rather than as gaps.
-        balances: Object.fromEntries(
-          Object.entries(CURRENCY_COLUMN).map(([code, column]) => [
+        // as zeros rather than as gaps. A coin switched off in the registry
+        // is left out of a row where it holds nothing (the screen reads a
+        // missing coin as zero).
+        balances: Object.fromEntries([
+          ...Object.entries(CURRENCY_COLUMN).map(([code, column]) => [
             code,
             // `fromStored` for the same reason as `getBalances` — see there.
             money.fromStored(wallet?.[column] ?? '0'),
-          ])
-        ),
+          ]),
+          ...customCodes.map((code) => [code, money.fromStored(customOf.get(`${uid}:${code}`) ?? '0')]),
+        ].filter(([code, value]) => !disabled.has(code) || money.gt(value, '0'))),
       })),
       total,
     };
@@ -135,10 +220,30 @@ class WalletService {
     return { all: false, ids: ids.map(Number) };
   }
 
+  /**
+   * The per-player staff routes (balances, history, reconcile, adjust) take a
+   * player id from the URL/body, so they must be scoped the same way the
+   * listing is: the player's parent has to be in the caller's visible tree.
+   */
+  async assertPlayerVisible(staffId, userId) {
+    const visible = await this.#visibleStaffIds(staffId);
+    if (visible.all) return;
+
+    const player = await this.deps.models.Users.findOne({
+      where: { id: userId, parent_staff_id: visible.ids },
+      attributes: ['id'],
+      raw: true,
+    });
+    if (!player) throw errors.PLAYER_NOT_IN_YOUR_TREE({ userId });
+  }
+
   async getBalance(userId, currency) {
     const wallet = await this.repo.findWallet(userId);
     if (!wallet) throw errors.WALLET_NOT_FOUND({ userId });
+    // Agent's player sees INR alone, like getBalances.
+    if (CURRENCY_COLUMN[String(currency ?? '').toUpperCase()] !== 'inr' && (await isRestrictedPlayer(userId))) return money.fromStored('0');
 
+    if (isCustomCurrency(currency)) return money.fromStored(await this.repo.customBalance(userId, currency));
     const column = resolveColumn(currency);
     return money.fromStored(wallet[column] ?? '0');
   }
@@ -148,8 +253,15 @@ class WalletService {
     return this.repo.listHistory(params);
   }
 
+  /** The staff Ledger tab: wallet history plus swaps and sports bets (repo.listStaffHistory). */
+  async listStaffHistory(params) {
+    return this.repo.listStaffHistory(params);
+  }
+
+  /** The PLAYER's ledger: a row a staff member wrote reads as a plain label, never the staff note. */
   async listLedger(params) {
-    return this.repo.listLedger(params);
+    const result = await this.repo.listLedger(params);
+    return { ...result, rows: result.rows.map(forPlayer) };
   }
 
   // ══════════════════════════════════════════════════════════════════════
@@ -176,6 +288,23 @@ class WalletService {
    * JavaScript comparison that a concurrent request could invalidate.
    */
   async debit(input, context = {}) {
+    // Agent's player: no stake / spend in any coin but INR (casino, originals, every debit path).
+    // Credits stay open so refunds and rollbacks of an old bet still settle.
+    if (CURRENCY_COLUMN[String(input.currency ?? '').toUpperCase()] !== 'inr' && (await isRestrictedPlayer(input.userId))) {
+      throw errors.AGENT_PLAYER_INR_ONLY({ userId: input.userId, currency: input.currency });
+    }
+    // rainbet: every stake from every provider lands here, so this is where a player's own break
+    // or loss / wager limit is enforced (responsible-gambling). A sports stake carries its event.
+    if (input.reason === REASON.BET_STAKE) {
+      const { ResponsibleService } = require('../responsible-gambling/responsible.service');
+      this.responsible ??= new ResponsibleService(this.deps);
+      await this.responsible.assertMayStake({
+        userId: input.userId,
+        currency: input.currency,
+        amount: input.amount,
+        sports: context.sourceService === 'sports-service' || Boolean(input.sportId || input.matchId || input.marketType),
+      });
+    }
     return this.#move({ ...input, direction: OPERATION.DEBIT }, context);
   }
 
@@ -188,13 +317,16 @@ class WalletService {
   async #move(input, context) {
     const {
       userId, currency, amount, reason, idempotencyKey, direction,
-      refType, refId, description, matchId, marketType, sportId, eventId, betId,
+      refType, refId, description, matchId, marketType, sportId, eventId, betId, gameType,
     } = input;
 
     if (!idempotencyKey) throw errors.IDEMPOTENCY_KEY_REQUIRED({ userId, reason });
     if (money.lte(amount, '0')) throw errors.NEGATIVE_AMOUNT({ amount });
 
     const isCredit = direction === OPERATION.CREDIT;
+    // Before the transaction, so a refused credit opens nothing. The repository
+    // checks again; this is the clean early answer.
+    if (isCredit) assertCreditable(currency);
 
     // An ambient transaction means the caller is composing this movement with
     // its own writes — approving a fiat deposit flips the deposit row AND
@@ -225,6 +357,18 @@ class WalletService {
       const previousBalance = money.fromStored(locked.balance);
 
       // ── 3. Move the money ─────────────────────────────────────────
+      // Tells the direct-ledger trigger what this update is; without it the row reads BALANCE_CHANGE / OTHER.
+      await directLedger.directLedgerContext(this.db.sequelize, transaction, {
+        userId,
+        eventType: reason,
+        category: directLedger.categoryFor(reason, refType),
+        ref: refType ? `${refType}:${refId ?? ''}` : undefined,
+        source: context.sourceService,
+        betId,
+        sportId,
+        gameType,
+        remark: description,
+      });
       let newBalance;
 
       if (isCredit) {
@@ -256,6 +400,13 @@ class WalletService {
         transaction
       );
 
+      // After COMMIT, never before: a push inside the transaction would show a
+      // balance that a rollback then takes back. When the movement rides a
+      // caller's transaction, it fires on that transaction's commit.
+      if (typeof transaction?.afterCommit === 'function') {
+        transaction.afterCommit(() => this.#pushBalances(userId));
+      }
+
       return {
         ledgerId: ledger.id,
         userId,
@@ -268,6 +419,25 @@ class WalletService {
         replayed: false,
       };
     }, { transaction: context.transaction });
+  }
+
+  /**
+   * Push the player's balances to their own sockets — real time, with no timer
+   * on the client. Every open tab of that player is in `user:<id>` and hears
+   * `C.CREDIT`, the event the header wallet already listens on.
+   *
+   * Best effort: the money has moved and is the truth. A failed push is
+   * logged; the next ask reads the row.
+   */
+  async #pushBalances(userId) {
+    const io = this.deps?.io;
+    if (!io) return;
+    try {
+      const balances = await this.getBalances(String(userId));
+      io.to(roomForUser(String(userId))).emit(EVENTS.CREDIT, encode(creditPayload(balances)));
+    } catch (error) {
+      this.logger?.warn({ err: error.message, userId: String(userId) }, 'Could not push the balance to the player');
+    }
   }
 
   /** Ledger + history, written inside the caller's transaction. */
@@ -404,7 +574,8 @@ class WalletService {
       let newBalance;
 
       if (isCredit) {
-        newBalance = await this.repo.credit(userId, currency, amount, transaction);
+        // `restore`: giving back what a debit took, so a retired coin is allowed.
+        newBalance = await this.repo.credit(userId, currency, amount, transaction, { restore: true });
       } else {
         const result = await this.repo.debit(userId, currency, amount, transaction);
         if (!result.ok) {
@@ -432,6 +603,13 @@ class WalletService {
         transaction
       );
 
+      // After COMMIT, never before: a push inside the transaction would show a
+      // balance that a rollback then takes back. When the movement rides a
+      // caller's transaction, it fires on that transaction's commit.
+      if (typeof transaction?.afterCommit === 'function') {
+        transaction.afterCommit(() => this.#pushBalances(userId));
+      }
+
       return {
         ledgerId: ledger.id,
         reversedEntry: ledgerId,
@@ -454,6 +632,8 @@ class WalletService {
    */
   async transfer({ fromUserId, toUserId, currency, amount, idempotencyKey, description }, context = {}) {
     if (fromUserId === toUserId) throw errors.SAME_ACCOUNT_TRANSFER({ userId: fromUserId });
+    // The receiving leg is a credit; refuse a retired coin before locking anything.
+    assertCreditable(currency);
     if (!idempotencyKey) throw errors.IDEMPOTENCY_KEY_REQUIRED({ fromUserId, toUserId });
 
     return this.db.transaction(async (transaction) => {
@@ -534,16 +714,18 @@ class WalletService {
    * @legacy POST /updatebalance
    * @legacy POST /adminwalletadd
    *
-   * The idempotency key is derived rather than caller-supplied: an admin UI
-   * double-click is the retry that matters here, and it will not think to send
-   * a key. Deriving it from (staff, player, currency, amount, operation, minute)
-   * makes a double-click a replay while leaving a deliberate second adjustment a
-   * minute later free to go through.
+   * The idempotency key is the CALLER's: the admin UI sends a fresh key per
+   * submit (`idempotencyKey` in the body, or an `Idempotency-Key` header), so a
+   * double-click or a network retry of that submit is a replay, while a second,
+   * deliberate adjustment with identical figures is a new movement. It used to
+   * be derived from (staff, player, currency, amount, operation, minute), which
+   * silently swallowed a genuine second adjustment made within the same minute.
+   * No key → a unique one: nothing is deduplicated that the caller did not ask
+   * to be.
    */
-  async adminAdjust({ userId, currency, amount, operation, description }, context = {}) {
+  async adminAdjust({ userId, currency, amount, operation, description, idempotencyKey: clientKey }, context = {}) {
     const staffId = context.staffId ?? 'system';
-    const minute = Math.floor(Date.now() / 60_000);
-    const idempotencyKey = `adm:${staffId}:${userId}:${currency}:${operation}:${amount}:${minute}`;
+    const idempotencyKey = adjustKey(staffId, clientKey);
 
     const input = {
       userId,
@@ -559,6 +741,56 @@ class WalletService {
     return operation === OPERATION.CREDIT
       ? this.credit(input, context)
       : this.debit(input, context);
+  }
+
+  /**
+   * The agent-tree adjust: a transfer between the caller's float and the
+   * player, never new money.
+   *
+   * The float is `staff_balances` (admin domain, not loaded here), and the two
+   * legs must commit together — so admin-service does the whole movement in
+   * one transaction (`POST /internal/admin/accounts/player-adjust`): guarded
+   * float debit (down to −credit_limit), player credit, `staff_transfers` row
+   * for both statements, ledger + history rows for this wallet. A short float
+   * is a 422 `INSUFFICIENT_FUNDS` (`details.party`), and the caller's transaction
+   * password is REQUIRED there; both codes come back through `ServiceClient`
+   * unchanged.
+   *
+   * The same caller-supplied idempotency key as `adminAdjust`, so a
+   * double-click or a retry of one submit is a replay, not a second transfer.
+   */
+  async agentAdjust({ userId, currency, amount, operation, description, transactionPassword, idempotencyKey: clientKey }, context = {}) {
+    const staffId = context.staffId;
+    const idempotencyKey = adjustKey(staffId, clientKey);
+
+    const result = await this.clients.admin.post('/internal/admin/accounts/player-adjust', {
+      staffId,
+      userId,
+      currency,
+      amount,
+      operation,
+      description,
+      idempotencyKey,
+      ...(transactionPassword ? { transactionPassword } : {}),
+      ...(context.executiveId ? { executiveId: context.executiveId } : {}),
+    });
+
+    if (!result?.replayed) await this.#pushBalances(userId);
+    return result;
+  }
+
+  /**
+   * The caller's transaction password, checked by admin-service (which owns
+   * the hash). `required: false` enforces it only once the account has one.
+   * A refusal arrives as a 403 `TXN_PASSWORD_*`.
+   */
+  async checkTransactionPassword(staffId, transactionPassword, { required = true, executiveId = null } = {}) {
+    return this.clients.admin.post('/internal/admin/auth/transaction-password/check', {
+      staffId,
+      required,
+      ...(executiveId ? { executiveId } : {}),
+      ...(transactionPassword ? { transactionPassword } : {}),
+    });
   }
 
   /**
@@ -585,6 +817,29 @@ class WalletService {
       balanced: drift === 0n,
     };
   }
+
+  /**
+   * `reconcile` for EVERY currency the wallet has: each one the balance read
+   * lists, plus any the player has ledger rows in (a retired or switched-off
+   * coin at zero is hidden from the balance read, and a zero balance against a
+   * non-zero ledger is exactly the drift this exists to find).
+   */
+  async reconcileAll({ userId }) {
+    const wallet = await this.repo.findWallet(userId);
+    if (!wallet) throw errors.WALLET_NOT_FOUND({ userId });
+
+    const [balances, ledgerCurrencies] = await Promise.all([
+      this.getBalances(userId),
+      this.repo.ledgerCurrencies(userId),
+    ]);
+    const known = (code) => KNOWN_CURRENCIES.includes(code) || isCustomCurrency(code);
+    const codes = [...new Set([...Object.keys(balances), ...ledgerCurrencies.filter(known)])].sort();
+
+    const currencies = [];
+    for (const currency of codes) currencies.push(await this.reconcile({ userId, currency }));
+
+    return { userId, balanced: currencies.every((c) => c.balanced), currencies };
+  }
 }
 
-module.exports = { WalletService, CREDIT_REASONS };
+module.exports = { WalletService, CREDIT_REASONS, creditPayload, forPlayer };

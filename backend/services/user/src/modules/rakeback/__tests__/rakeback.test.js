@@ -62,6 +62,7 @@ test('rakeback', async (t) => {
   t.after(async () => {
     if (users.length) {
       await models.CreditsLedger.destroy({ where: { user_id: users.map(String) } });
+      await models.RakebackAccrual.destroy({ where: { user_id: users } });
       await models.Userbonus.destroy({ where: { userid: users } });
       await models.Credits.destroy({ where: { uid: users } });
       await models.Users.destroy({ where: { id: users } });
@@ -119,6 +120,110 @@ test('rakeback', async (t) => {
       () => service.amount({ userId: 2_147_483_600 }),
       (error) => error.code === 'RAKEBACK_USER_NOT_FOUND'
     );
+  });
+
+  // ── The accrual ───────────────────────────────────────────────────────
+
+  let accrualSeq = 0;
+  const newRef = () => `R-${process.pid}-${(accrualSeq += 1)}`;
+
+  await t.test('an accrual adds to the claimable balance', async () => {
+    const userId = await seed('0');
+
+    const result = await service.accrue({ userId, amount: '0.10', source: 'jsgames-v2', ref: newRef() });
+
+    assert.strictEqual(result.duplicate, false);
+    assert.strictEqual(Number(result.accrued), 0.1);
+    assert.strictEqual(Number(await accruedOf(userId)), 0.1);
+  });
+
+  await t.test('accruals add up', async () => {
+    const userId = await seed('5');
+
+    await service.accrue({ userId, amount: '0.10', source: 'jsgames-v2', ref: newRef() });
+    await service.accrue({ userId, amount: '0.25', source: 'jsgames-v2', ref: newRef() });
+
+    assert.strictEqual(Number(await accruedOf(userId)), 5.35);
+  });
+
+  await t.test('a retried accrual adds nothing', async () => {
+    /**
+     * The accrual crosses a service boundary now, and `ServiceClient` retries a
+     * 5xx or a timeout. A response lost on the way back looks exactly like a
+     * call that never arrived — `(source, ref)` is what tells them apart.
+     */
+    const userId = await seed('0');
+    const ref = newRef();
+    const call = () => service.accrue({ userId, amount: '0.10', source: 'jsgames-v2', ref });
+
+    const first = await call();
+    const second = await call();
+    const third = await call();
+
+    assert.strictEqual(first.duplicate, false);
+    assert.strictEqual(second.duplicate, true);
+    assert.strictEqual(third.duplicate, true);
+    assert.strictEqual(Number(second.amount), 0, 'a replay accrues nothing');
+    assert.strictEqual(Number(await accruedOf(userId)), 0.1);
+  });
+
+  await t.test('concurrent retries of one accrual apply once', async () => {
+    const userId = await seed('0');
+    const ref = newRef();
+    const call = () => service.accrue({ userId, amount: '0.40', source: 'jsgames-v2', ref });
+
+    await Promise.allSettled([call(), call(), call(), call(), call()]);
+
+    assert.strictEqual(Number(await accruedOf(userId)), 0.4);
+  });
+
+  await t.test('the same ref from a different source is a different accrual', async () => {
+    // Two integrations numbering their rounds independently must not silence
+    // each other. The key is the pair.
+    const userId = await seed('0');
+    const ref = newRef();
+
+    await service.accrue({ userId, amount: '0.10', source: 'jsgames-v2', ref });
+    await service.accrue({ userId, amount: '0.10', source: 'jsgames-v1', ref });
+
+    assert.strictEqual(Number(await accruedOf(userId)), 0.2);
+  });
+
+  await t.test('a zero or negative accrual is refused', async () => {
+    const userId = await seed('1');
+
+    for (const amount of ['0', '0.00000000']) {
+      await assert.rejects(
+        () => service.accrue({ userId, amount, source: 'jsgames-v2', ref: newRef() }),
+        (error) => error.code === 'RAKEBACK_ACCRUAL_NOT_POSITIVE',
+        `${amount} must be refused`
+      );
+    }
+
+    assert.strictEqual(Number(await accruedOf(userId)), 1, 'and nothing was written');
+  });
+
+  await t.test('accruing to an unknown player is a 404, and writes nothing', async () => {
+    const ref = newRef();
+
+    await assert.rejects(
+      () => service.accrue({ userId: 2_147_483_601, amount: '0.10', source: 'jsgames-v2', ref }),
+      (error) => error.code === 'RAKEBACK_USER_NOT_FOUND'
+    );
+
+    // The transaction unwound, so the ref is still free for a corrected retry.
+    assert.strictEqual(await models.RakebackAccrual.count({ where: { ref } }), 0);
+  });
+
+  await t.test('an accrual is claimable', async () => {
+    const userId = await seed('0', '0');
+
+    await service.accrue({ userId, amount: '2.50', source: 'jsgames-v2', ref: newRef() });
+    const result = await service.claim({ userId });
+
+    assert.strictEqual(Number(result.amount ?? result.claimed), 2.5);
+    assert.strictEqual(Number(await balanceOf(userId)), 2.5);
+    assert.strictEqual(Number(await accruedOf(userId)), 0);
   });
 
   // ── The claim ─────────────────────────────────────────────────────────

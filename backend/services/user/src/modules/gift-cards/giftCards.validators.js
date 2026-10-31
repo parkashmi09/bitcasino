@@ -44,16 +44,18 @@ const listing = {
     search: z.string().trim().max(80).optional(),
     limit: z.coerce.number().int().min(1).max(200).default(50),
     offset: z.coerce.number().int().min(0).default(0),
-  }),
+  }).strict(),
 };
 
 const records = {
   query: z.object({
     status: z.enum(['Activated', 'Claimed', 'Expired']).optional(),
     userId: id.optional(),
+    // Direct Users | Agent Users — na ho to sab (purana jawab).
+    channel: z.enum(['direct', 'agent']).optional(),
     limit: z.coerce.number().int().min(1).max(200).default(50),
     offset: z.coerce.number().int().min(0).default(0),
-  }),
+  }).strict(),
 };
 
 const idParam = { params: z.object({ id }) };
@@ -66,11 +68,17 @@ const search = { body: z.object({ uniqueKey: z.string().trim().min(1).max(80) })
  */
 const cardAction = { body: z.object({ giftCardId: id }).strict() };
 
+/**
+ * A code typed by the player. Matched exactly (keys are case-sensitive), and
+ * resolved to the card server-side so the player never needs its id.
+ */
+const redeem = { body: z.object({ code: z.string().trim().min(1).max(80) }).strict() };
+
 const paging = {
   query: z.object({
     limit: z.coerce.number().int().min(1).max(200).default(50),
     offset: z.coerce.number().int().min(0).default(0),
-  }),
+  }).strict(),
 };
 
-module.exports = { create, listing, records, idParam, search, cardAction, paging };
+module.exports = { create, listing, records, idParam, search, cardAction, redeem, paging };

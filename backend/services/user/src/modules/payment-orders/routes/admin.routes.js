@@ -33,6 +33,14 @@ module.exports = function adminRoutes(deps) {
     ctrl.listUserOrders
   );
 
+  // Settings → Payment Methods (zip jaisa): A-Pay ke payment systems, sirf padhna.
+  router.get(
+    '/payment-systems',
+    auth.requirePermission(PERMISSIONS.CONFIG_READ),
+    validate(v.paymentSystems),
+    ctrl.paymentSystems
+  );
+
   router.post(
     '/utr-repair',
     auth.requirePermission(PERMISSIONS.DEPOSITS_APPROVE),

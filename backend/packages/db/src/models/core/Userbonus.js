@@ -47,13 +47,13 @@ module.exports = (sequelize) => {
       field: "generalbonus",
     },
     createdat: {
-      type: 'TIMESTAMP',
+      type: DataTypes.DATE, // timestamptz (migration 083)
       allowNull: false,
       defaultValue: DataTypes.NOW,
       field: "createdat",
     },
     updatedat: {
-      type: 'TIMESTAMP',
+      type: DataTypes.DATE, // timestamptz (migration 083)
       allowNull: false,
       defaultValue: DataTypes.NOW,
       field: "updatedat",

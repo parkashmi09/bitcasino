@@ -32,7 +32,7 @@
  * ── ON THE FIREBASE CREDENTIAL ───────────────────────────────────────────
  *
  * The service account key is committed to the repository as
- * `bitcoinjito-e3078-firebase-adminsdk-*.json`. It is on the rotation list and
+ * `<redacted, see backend/docs/ROTATION.md>-*.json`. It is on the rotation list and
  * has been since the first batch — a Firebase admin key can send to every
  * device the project knows about and read the project's data.
  */

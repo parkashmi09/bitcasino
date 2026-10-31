@@ -7,7 +7,7 @@ const { SUPPORTED_COINS } = require('./crypto.constants');
 const paging = z.object({
   limit: z.coerce.number().int().min(1).max(200).default(50),
   offset: z.coerce.number().int().min(0).default(0),
-});
+}).strict();
 
 /**
  * A coin symbol.
@@ -16,7 +16,14 @@ const paging = z.object({
  * a `credits` column, and legacy interpolated whatever arrived into the SQL —
  * a regex would still be a value from outside choosing an identifier.
  */
-const coinDetails = { query: z.object({ symbol: z.enum(SUPPORTED_COINS) }) };
+const coinDetails = { query: z.object({ symbol: z.enum(SUPPORTED_COINS) }).strict() };
+
+/** `?coin=USDT` for one coin's networks; absent = every crypto coin's. */
+const networks = {
+  query: z
+    .object({ coin: z.string().trim().toUpperCase().pipe(z.enum(SUPPORTED_COINS)).optional() })
+    .strict(),
+};
 
 /** No `name`. Legacy read it from the body on an unauthenticated route. */
 const inrHistory = { query: paging };
@@ -42,4 +49,4 @@ const recordInrDeposit = {
     .strict(),
 };
 
-module.exports = { coinDetails, inrHistory, recordInrDeposit };
+module.exports = { coinDetails, networks, inrHistory, recordInrDeposit };

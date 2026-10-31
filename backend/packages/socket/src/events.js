@@ -279,6 +279,117 @@ const LITERAL_EVENTS = Object.freeze({
 });
 
 /**
+ * Names this project added. NOT part of the legacy protocol.
+ *
+ * ═════════════════════════════════════════════════════════════════════════
+ * A SEPARATE TABLE ON PURPOSE
+ *
+ * `EVENTS` and `LITERAL_EVENTS` are a RECORD of what legacy speaks — every
+ * entry in either traces to a shipped client, which is why neither may be
+ * renamed. Putting a new name in one of them would make that record false.
+ *
+ * So new events live here, and the boundary stays readable: anything above is
+ * archaeology, anything here is ours and may be changed as long as this
+ * project's own clients change with it.
+ * ═════════════════════════════════════════════════════════════════════════
+ */
+const PLATFORM_EVENTS = Object.freeze({
+  /**
+   * A casino round settled — pushed to every client on the casino socket.
+   *
+   * The live bets ticker, the leaderboard and `LAST_BETS` are all PULL: they
+   * answer a request with the most recent rows and nothing tells a client that
+   * new rows exist. Legacy had no push for it either — its board only moved
+   * when the page asked again.
+   *
+   * The reference product's feed moves on its own, so this exists to make that
+   * possible without polling. It carries the settled round, so a client can
+   * prepend a row rather than re-reading the whole feed.
+   *
+   * NOTE: without `REDIS_URL` a broadcast reaches only the clients attached to
+   * the emitting process. One casino process is the dev default, so this works
+   * there and needs the Redis adapter before it works behind more than one.
+   */
+  BET_SETTLED: 'betSettled',
+  /**
+   * The site's public feature list changed — pushed to every client on the
+   * USER socket, alongside `siteConfigUpdated` for the flags.
+   *
+   * The flags and the features are written by admin-service, and the player
+   * sockets live on user-service, so the write does not emit directly: it
+   * calls `POST /internal/user/preferences/site-config` and user-service
+   * emits from there. That is the same reason the operator's moderation
+   * events sit on the player transport (see services/user/src/sockets.js).
+   * The payload is exactly what `GET /admin/features/public` returns, so a
+   * client replaces its list rather than re-reading it.
+   */
+  FEATURES_UPDATED: 'featuresUpdated',
+  /**
+   * rainbet: staff changed player-visible content (`{ scopes: ['casino:games', …] }`, names only).
+   * Emitted by user-service from `POST /internal/user/preferences/site-config` `{ content }`; the
+   * player site re-reads what it shows. See packages/common/src/contentPush.js.
+   */
+  CONTENT_UPDATED: 'contentUpdated',
+  /**
+   * The site's coin registry changed (a coin renamed, re-imaged, switched, a
+   * network renamed or switched) — pushed to every client on the USER socket
+   * the same way as `featuresUpdated`: admin-service owns `currencies` and
+   * calls `POST /internal/user/preferences/site-config` with `{ currencies }`.
+   * The payload is exactly what `GET /admin/currencies/public` returns.
+   */
+  CURRENCIES_UPDATED: 'currenciesUpdated',
+  /**
+   * The signed-in player's own account changed — an operator locked or
+   * unlocked it (system / casino / sports / withdrawal) or changed its status.
+   * Pushed to `user:<id>` only, `{ reason: 'account' }`; the client re-reads
+   * `/user/auth/me` and its capabilities. The source is the `account_changed`
+   * database notification (migration 113), so it fires whichever service made
+   * the change.
+   */
+  ACCOUNT_UPDATED: 'accountUpdated',
+  /** rainbet: a stake was counted or reversed, so rank progress and rewards re-read. */
+  WAGER_UPDATED: 'wagerUpdated',
+  /**
+   * The whole client state in one read — the player's record and capabilities, balances and
+   * preferences (signed in), plus the site's flags, features and coin list. The Parker567 client
+   * asks every 2 s over its one socket instead of polling six HTTP routes. PUBLIC: a signed-out
+   * visitor gets the site half. The name is opaque and the reply is scrambled
+   * (`services/user/src/modules/sync/`) so the frames are not readable at a glance.
+   */
+  SYNC_STATE: '3b84d3951808e13e1b8c65a67d6b7235',
+  /**
+   * Load the site's public config over the socket — the flags and the
+   * feature list together, as `{ flags, features }` on the ack.
+   *
+   * PUBLIC audience: a signed-out visitor needs the config as much as a
+   * player does. The handler also emits `siteConfigUpdated` and
+   * `featuresUpdated` to the asking socket, so a client that only listens
+   * for the pushes is filled by the same call. user-service reads the
+   * snapshot from admin-service (`GET /internal/admin/site-config/public`),
+   * the owner of both tables.
+   */
+  GET_SITE_CONFIG: 'getSiteConfig',
+  /**
+   * The signed-in player's own record over the socket: the same fields as
+   * `GET /user/auth/me`, including where they last signed in and signed up
+   * from (IP, city, country, ISP — migration 058-login-geo). USER audience.
+   */
+  GET_ME: 'getMe',
+  /**
+   * The player's unread notification count, `{ unread }` — what
+   * `GET /user/notifications/unread-count` answers. The client asks on connect
+   * and on an interval over the open socket instead of polling HTTP. USER.
+   */
+  NOTIFICATIONS_UNREAD: 'notificationsUnread',
+  /**
+   * The live wins ticker over the socket, `{ rows }` — exactly the rows
+   * `GET /casino/bet-history/live` returns (settled, non-voided rounds, newest
+   * first). PUBLIC. Clients poll it over the open socket instead of HTTP.
+   */
+  LIVE_BETS: 'liveBets',
+});
+
+/**
  * Reverse lookup: wire name -> the readable key, for logs and errors.
  *
  * ONE wire name is shared by two keys: `ERROR_CLASSIC_DICE` and
@@ -295,8 +406,12 @@ const NAME_OF = Object.freeze(
   Object.fromEntries(
     // Literals first, so a hashed name always wins a collision — there is none
     // today, and if one ever appeared the constant table is the authority.
-    [...Object.entries(LITERAL_EVENTS), ...Object.entries(EVENTS)].map(([key, wire]) => [wire, key])
+    [
+      ...Object.entries(PLATFORM_EVENTS),
+      ...Object.entries(LITERAL_EVENTS),
+      ...Object.entries(EVENTS),
+    ].map(([key, wire]) => [wire, key])
   )
 );
 
-module.exports = { EVENTS, LITERAL_EVENTS, NAME_OF };
+module.exports = { EVENTS, LITERAL_EVENTS, PLATFORM_EVENTS, NAME_OF };

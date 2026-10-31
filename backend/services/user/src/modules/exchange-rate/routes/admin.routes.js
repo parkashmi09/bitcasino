@@ -1,7 +1,7 @@
 'use strict';
 
 const { Router } = require('express');
-const { validate, createActivityRecorder } = require('@ibitplay/common');
+const { validate, createActivityRecorder, noBody } = require('@ibitplay/common');
 const { PERMISSIONS } = require('@ibitplay/auth');
 
 const v = require('../exchangeRate.validators');
@@ -43,7 +43,7 @@ module.exports = function adminRoutes(deps) {
 
   router.put('/rates/:currency', auth.requirePermission(PERMISSIONS.CONFIG_WRITE), validate(v.updateRate), audit('rate.update'), ctrl.update);
 
-  router.delete('/rates/:currency', auth.requirePermission(PERMISSIONS.CONFIG_WRITE), validate(v.currencyParam), audit('rate.delete'), ctrl.remove);
+  router.delete('/rates/:currency', noBody(), auth.requirePermission(PERMISSIONS.CONFIG_WRITE), validate(v.currencyParam), audit('rate.delete'), ctrl.remove);
 
   return router;
 };

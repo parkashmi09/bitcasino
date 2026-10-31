@@ -20,19 +20,25 @@
  * and there is no parameter for it.
  */
 const UNLOCK_TIERS = Object.freeze([
-  { wager: '1000', reward: '0.50' },
-  { wager: '5000', reward: '2.50' },
-  { wager: '17000', reward: '5.00' },
-  { wager: '49000', reward: '12.00' },
-  { wager: '129000', reward: '25.00' },
-  { wager: '321000', reward: '50.00' },
-  { wager: '769000', reward: '80.00' },
-  { wager: '1793000', reward: '120.00' },
-  { wager: '4097000', reward: '205.00' },
-  { wager: '9217000', reward: '500.00' },
+  // hash.game /referral/rules — $1,000 per friend in ten steps, by the friend's VIP level.
+  // Only the FALLBACK: the site admin's table (siteconfig.referral_unlock_tiers) pays.
+  { level: 'Bronze I', wager: '1000', reward: '0.50' },
+  { level: 'Bronze II', wager: '3000', reward: '2.50' },
+  { level: 'Bronze IV', wager: '15000', reward: '5.00' },
+  { level: 'Silver I', wager: '30000', reward: '12.00' },
+  { level: 'Silver III', wager: '120000', reward: '25.00' },
+  { level: 'Silver IV', wager: '240000', reward: '50.00' },
+  { level: 'Gold I', wager: '500000', reward: '80.00' },
+  { level: 'Gold II', wager: '1000000', reward: '120.00' },
+  { level: 'Gold IV', wager: '3500000', reward: '205.00' },
+  { level: 'Platinum II', wager: '8500000', reward: '500.00' },
 ]);
 
-/** Affiliate rewards are paid into the bonus balance, as legacy did. */
-const REWARD_CURRENCY = 'BJB';
+/**
+ * Every affiliate payout — register bonus, joining bonus, tier unlocks,
+ * commission — is paid in USDT. Legacy paid into the bonus-only BJB balance;
+ * that coin is retired. Not an operator setting: see `currencies.js`.
+ */
+const { REWARD_CURRENCY } = require('@ibitplay/common');
 
 module.exports = { UNLOCK_TIERS, REWARD_CURRENCY };

@@ -11,6 +11,14 @@ module.exports = defineErrors('FIAT_DEPOSIT', {
     status: 409,
     message: 'This deposit has already been approved or rejected',
   },
+  NETWORK_REQUIRED: {
+    status: 422,
+    message: 'Choose the network you sent the crypto on',
+  },
+  NETWORK_NOT_ENABLED: {
+    status: 422,
+    message: 'This network is not enabled for the coin',
+  },
   SCREENSHOT_REQUIRED: {
     status: 422,
     message: 'Proof of payment is required',
@@ -36,5 +44,15 @@ module.exports = defineErrors('FIAT_DEPOSIT', {
   REJECTION_REASON_REQUIRED: {
     status: 422,
     message: 'A reason is required when rejecting a deposit',
+  },
+  /** Approving for more than the player asked to deposit — details `{ claimed, credit }`. */
+  CREDIT_ABOVE_CLAIMED: {
+    status: 422,
+    message: 'The credited amount cannot be more than the amount the player deposited',
+  },
+  /** Approving for less than claimed needs the reason the player will see — details `{ claimed, credit }`. */
+  CREDIT_REASON_REQUIRED: {
+    status: 422,
+    message: 'A reason is required when crediting less than the amount the player deposited',
   },
 });

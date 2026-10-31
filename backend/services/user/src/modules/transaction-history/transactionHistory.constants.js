@@ -19,6 +19,7 @@
  *   withdrawals           crypto payouts           modules/crypto-withdraw
  *   fiat_withdrawals      manual bank payouts      modules/fiat-withdraw
  *   apaywithdrawals       A-Pay payouts            modules/psp
+ *   f2paywithdrawals      F2Pay payouts            modules/payment-orders
  *
  * `deposits` is NOT in that list. Nothing in the new backend writes it — only
  * `legacy/Wallet/Deposit.js` ever did — so a history built from it shows a
@@ -164,6 +165,25 @@ const DEPOSIT_SOURCES = Object.freeze([
       date: row.created_at,
     }),
   },
+  {
+    method: 'f2pay',
+    type: 'Fiat',
+    model: 'F2payDeposits',
+    userColumn: 'user_id',
+    userIdIsText: false,
+    dateColumn: 'created_at',
+    orderColumn: 'id',
+    currencyColumn: 'currency',
+    present: (row) => ({
+      id: row.id,
+      reference: row.mch_order_no,
+      amount: row.amount,
+      currency: row.currency,
+      status: row.status,
+      details: `UTR: ${row.utr_number ?? 'N/A'}`,
+      date: row.created_at,
+    }),
+  },
 ]);
 
 /**
@@ -175,6 +195,18 @@ const DEPOSIT_SOURCES = Object.freeze([
  * masked for the same reason `crypto-withdraw` masks it: it is a permanent
  * on-chain identifier, and the player already knows their own.
  */
+/**
+ * The last four digits of an account number, or `null`. The crypto rail is
+ * handed a `maskWallet` by the service for the same job; this one is local
+ * because only the fiat source needs it and the shape is different — a bank
+ * account is recognised by its tail, where a wallet needs both ends.
+ */
+const maskTail = (value) => {
+  const text = String(value ?? '');
+  if (!text) return null;
+  return text.length <= 4 ? text : `••••${text.slice(-4)}`;
+};
+
 const WITHDRAWAL_SOURCES = Object.freeze([
   {
     method: 'crypto',
@@ -214,12 +246,29 @@ const WITHDRAWAL_SOURCES = Object.freeze([
       amount: row.amount,
       currency: row.currency,
       status: row.status,
-      details: `Bank: ${row.bank_name ?? 'N/A'}, Acc: ${row.account_number ?? 'N/A'}`,
+      /**
+       * THE ACCOUNT NUMBER IS MASKED, AND `ifscCode` IS GONE, BECAUSE THIS FILE
+       * AND THE FIAT RAIL'S OWN SERVICE USED TO DISAGREE.
+       *
+       * `FiatWithdrawService.#present` puts `account_number` and `ifsc_code`
+       * behind its `forStaff` gate, so `GET /user/withdrawals/fiat` never sends
+       * them. This source handed both to the same player on the same record —
+       * their own details either way, so nothing leaked to a stranger, but the
+       * two modules plainly disagreed and a reader of either would draw the
+       * wrong conclusion about the other.
+       *
+       * Settled towards the narrower of the two, which is also what the crypto
+       * rail beside it already does: it masks the destination wallet rather
+       * than printing it. A masked tail is what a player needs to recognise
+       * which account they used; the full number adds nothing on a history
+       * screen and is the part worth not repeating back over the wire.
+       */
+      // A UPI payout has no bank or account number — name its UPI id instead.
+      details: row.upi_id && !row.account_number ? `UPI: ${row.upi_id}` : `Bank: ${row.bank_name ?? 'N/A'}, Acc: ${maskTail(row.account_number)}`,
       destination: {
         bankName: row.bank_name ?? null,
-        accountNumber: row.account_number ?? null,
+        accountNumber: maskTail(row.account_number),
         accountHolderName: row.account_holder_name ?? row.name ?? null,
-        ifscCode: row.ifsc_code ?? null,
         upiId: row.upi_id ?? null,
       },
       date: row.date,
@@ -260,6 +309,31 @@ const WITHDRAWAL_SOURCES = Object.freeze([
         date: row.created_at,
       };
     },
+  },
+  {
+    method: 'f2pay',
+    type: 'Fiat',
+    model: 'F2payWithdrawals',
+    userColumn: 'user_id',
+    userIdIsText: false,
+    dateColumn: 'created_at',
+    orderColumn: 'id',
+    currencyColumn: 'currency',
+    present: (row) => ({
+      id: row.id,
+      reference: row.mch_order_no,
+      amount: row.amount,
+      currency: row.currency,
+      status: row.status,
+      details: `Bank: ${row.ifsc ?? 'N/A'}, Acc: ${maskTail(row.account_number)}`,
+      destination: {
+        accountNumber: maskTail(row.account_number),
+        accountHolderName: row.account_holder_name ?? null,
+        ifscCode: row.ifsc ?? null,
+      },
+      errorReason: row.error_reason ?? null,
+      date: row.created_at,
+    }),
   },
 ]);
 

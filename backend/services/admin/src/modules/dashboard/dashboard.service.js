@@ -18,16 +18,30 @@ const { money } = require('@ibitplay/common');
 const statusIn = (statuses) => sqlWhere(fn('LOWER', col('status')), { [Op.in]: statuses });
 
 const errors = require('./dashboard.errors');
+const { visibleStaffIds } = require('../staff-directory/staffDirectory.service');
 const {
   COIN_IDS,
   DEPOSIT_SUCCESS,
   WITHDRAWAL_DONE,
+  DIRECT_WALLET_LEDGER,
   VALUATION_NOTE,
   TREND_DAYS,
   TOP_COUNTRIES,
   MOVEMENT_SOURCES,
   MAX_MOVEMENT_ROWS,
 } = require('./dashboard.constants');
+
+/** `credits_ledger` rows the Direct User Wallet wrote with this reason (see DIRECT_WALLET_LEDGER). */
+const directWalletWhere = (reason) => ({
+  reason,
+  [Op.and]: [sqlWhere(literal(`meta->>'refType'`), DIRECT_WALLET_LEDGER.refType)],
+});
+
+/** A summed / single amount from a source whose withdrawals are stored negative, made positive. */
+const unsign = (source, amount) => {
+  const minor = money.toMinorQuantised(String(amount ?? '0'));
+  return money.toDecimalString(source.negative ? -minor : minor);
+};
 
 /**
  * The operator dashboard.
@@ -62,17 +76,19 @@ class DashboardService {
    * is always today, and `range` exists only when one was asked for.
    * ─────────────────────────────────────────────────────────────────────
    */
-  async overview({ from, to } = {}) {
+  async overview({ actor, from, to } = {}) {
     const startOfToday = this.#startOfToday();
     const rates = await this.#rates();
     const range = this.#range(from, to);
+    const scope = await this.#scope(actor);
+    const mine = this.#playerWhere(scope);
 
     const [users, newToday, usersInRange, deposits, withdrawals] = await Promise.all([
-      this.models.Users.count(),
-      this.models.Users.count({ where: { created: { [Op.gte]: startOfToday } } }),
-      range ? this.models.Users.count({ where: { created: this.#between(range) } }) : null,
-      this.#depositTotals(rates, startOfToday, range),
-      this.#withdrawalTotals(rates, startOfToday, range),
+      this.models.Users.count({ where: mine }),
+      this.models.Users.count({ where: { ...mine, created: { [Op.gte]: startOfToday } } }),
+      range ? this.models.Users.count({ where: { ...mine, created: this.#between(range) } }) : null,
+      this.#depositTotals(rates, startOfToday, range, scope),
+      this.#withdrawalTotals(rates, startOfToday, range, scope),
     ]);
 
     const net = (side) =>
@@ -121,8 +137,10 @@ class DashboardService {
    *
    * Registration and verification, over time.
    */
-  async userStats({ from, to } = {}) {
+  async userStats({ actor, from, to } = {}) {
     const startOfToday = this.#startOfToday();
+    const scope = await this.#scope(actor);
+    const mine = this.#playerWhere(scope);
     const thirtyDaysAgo = new Date(Date.now() - TREND_DAYS * 86_400_000);
     const sixtyDaysAgo = new Date(Date.now() - 2 * TREND_DAYS * 86_400_000);
     const range = this.#range(from, to);
@@ -139,16 +157,19 @@ class DashboardService {
 
     const [total, newToday, registeredRecently, registeredPreviously, verified, inRange, countries, trend] =
       await Promise.all([
-        this.models.Users.count(),
-        this.models.Users.count({ where: { created: { [Op.gte]: startOfToday } } }),
-        this.models.Users.count({ where: { created: { [Op.gte]: thirtyDaysAgo } } }),
+        this.models.Users.count({ where: mine }),
+        this.models.Users.count({ where: { ...mine, created: { [Op.gte]: startOfToday } } }),
+        this.models.Users.count({ where: { ...mine, created: { [Op.gte]: thirtyDaysAgo } } }),
         this.models.Users.count({
-          where: { created: { [Op.gte]: sixtyDaysAgo, [Op.lt]: thirtyDaysAgo } },
+          where: { ...mine, created: { [Op.gte]: sixtyDaysAgo, [Op.lt]: thirtyDaysAgo } },
         }),
-        this.models.UserKyc.count({ where: { status: { [Op.iLike]: 'Verified' } } }),
-        range ? this.models.Users.count({ where: { created: this.#between(range) } }) : null,
+        this.models.UserKyc.count({
+          where: { ...this.#ownerWhere(scope, 'user_id'), status: { [Op.iLike]: 'Verified' } },
+        }),
+        range ? this.models.Users.count({ where: { ...mine, created: this.#between(range) } }) : null,
         this.models.Users.findAll({
           where: {
+            ...mine,
             country: { [Op.ne]: null },
             ...(range ? { created: this.#between(range) } : {}),
           },
@@ -159,7 +180,7 @@ class DashboardService {
           raw: true,
         }),
         this.models.Users.findAll({
-          where: { created: trendWhere },
+          where: { ...mine, created: trendWhere },
           attributes: [[fn('DATE', col('created')), 'date'], [fn('COUNT', literal('*')), 'count']],
           group: [fn('DATE', col('created'))],
           order: [[fn('DATE', col('created')), 'ASC']],
@@ -226,13 +247,14 @@ class DashboardService {
    * summaries with the identifying columns left out; the full row is available
    * through the deposits module, which is guarded and audited.
    */
-  async today({ kind = 'both', limit = 100, offset = 0 }) {
+  async today({ actor, kind = 'both', limit = 100, offset = 0 }) {
     const startOfToday = this.#startOfToday();
+    const scope = await this.#scope(actor);
     const rows = [];
 
     if (kind === 'deposits' || kind === 'both') {
       const deposits = await this.models.Deposits.findAll({
-        where: { date: { [Op.gte]: startOfToday } },
+        where: { ...this.#ownerWhere(scope, 'uid'), date: { [Op.gte]: startOfToday } },
         order: [['date', 'DESC']],
         raw: true,
       });
@@ -246,7 +268,7 @@ class DashboardService {
        * request and has never returned a withdrawal.
        */
       const withdrawals = await this.models.Withdrawals.findAll({
-        where: { date: { [Op.gte]: startOfToday } },
+        where: { ...this.#ownerWhere(scope, 'uid'), date: { [Op.gte]: startOfToday } },
         order: [['date', 'DESC']],
         raw: true,
       });
@@ -282,9 +304,22 @@ class DashboardService {
    * transaction hash. Legacy's `SELECT *` returned all of them, unauthenticated.
    * ═════════════════════════════════════════════════════════════════════
    */
-  async movements({ kind = 'both', from, to, userId, source, limit = 50, offset = 0 }) {
+  async movements({ actor, kind = 'both', from, to, userId, source, limit = 50, offset = 0 }) {
     const rates = await this.#rates();
     const range = this.#range(from, to);
+
+    /**
+     * The owners this drill-down may show. A `userId` outside the caller's
+     * tree narrows to nobody rather than answering 404 — the totals on this
+     * screen are a filter, and an empty filter is the honest answer to it.
+     */
+    const scope = await this.#scope(actor);
+    let owners = null;
+    if (userId != null) {
+      owners = scope.userIds.includes(String(userId)) ? [String(userId)] : [];
+    } else {
+      owners = scope.userIds;
+    }
 
     const wanted = MOVEMENT_SOURCES.filter(
       (s) =>
@@ -303,11 +338,11 @@ class DashboardService {
 
     const perSource = await Promise.all(
       wanted.map(async (s) => {
-        const where = this.#movementWhere(s, { range, userId });
+        const where = this.#movementWhere(s, { range, owners });
         const [rows, grouped, count] = await Promise.all([
           this.models[s.model].findAll({
             where,
-            attributes: [s.id, s.user, s.date, s.amount, 'status', s.currency ?? s.coinId],
+            attributes: [s.id, s.user, s.date, s.amount, ...(s.ledgerReason ? [] : ['status']), s.currency ?? s.coinId],
             order: [[s.date, 'DESC']],
             limit: depth,
             raw: true,
@@ -329,7 +364,7 @@ class DashboardService {
           count,
           groups: grouped.map((row) => ({
             currency: s.coinId ? COIN_IDS[row[s.coinId]] ?? null : row[s.currency],
-            total: row.total,
+            total: unsign(s, row.total),
             count: Number(row.count),
           })),
           rows: rows.map((row) => ({
@@ -340,8 +375,9 @@ class DashboardService {
             at: row[s.date] ?? null,
             userId: row[s.user] != null ? String(row[s.user]) : null,
             currency: s.coinId ? COIN_IDS[row[s.coinId]] ?? null : row[s.currency] ?? null,
-            amount: money.toDecimalString(money.toMinor(row[s.amount] ?? '0')),
-            status: row.status != null ? String(row.status) : null,
+            amount: unsign(s, row[s.amount]),
+            // A ledger row exists only once the move is done.
+            status: s.ledgerReason ? 'success' : row.status != null ? String(row.status) : null,
           })),
         };
       })
@@ -352,7 +388,7 @@ class DashboardService {
       .sort((a, b) => new Date(b.at ?? 0).getTime() - new Date(a.at ?? 0).getTime());
 
     const page = merged.slice(offset, offset + limit);
-    const owners = await this.#ownersOf(page.map((row) => row.userId));
+    const names = await this.#ownersOf(page.map((row) => row.userId));
 
     return {
       total: perSource.reduce((sum, s) => sum + s.count, 0),
@@ -370,7 +406,7 @@ class DashboardService {
       rows: page.map((row) => ({
         ...row,
         usd: this.#toUsd(row.amount, row.currency, rates),
-        user: owners.get(String(row.userId)) ?? null,
+        user: names.get(String(row.userId)) ?? null,
       })),
     };
   }
@@ -382,10 +418,12 @@ class DashboardService {
    * joined, because `user_kyc` holds one row per SUBMISSION and a join would
    * multiply a player by their attempts.
    */
-  async registrations({ from, to, search, limit = 50, offset = 0 }) {
+  async registrations({ actor, from, to, search, limit = 50, offset = 0 }) {
     const range = this.#range(from, to);
+    const scope = await this.#scope(actor);
 
     const where = {
+      ...this.#playerWhere(scope),
       ...(range ? { created: this.#between(range) } : {}),
       ...(search
         ? {
@@ -451,14 +489,18 @@ class DashboardService {
    * Grouped by coin here — one row per currency regardless of history size.
    * ─────────────────────────────────────────────────────────────────────
    */
-  async lifetimeTotals({ kind }) {
+  async lifetimeTotals({ actor, kind }) {
     const rates = await this.#rates();
+    const scope = await this.#scope(actor);
 
     const model = kind === 'withdrawals' ? this.models.Withdrawals : this.models.Deposits;
     const statuses = kind === 'withdrawals' ? WITHDRAWAL_DONE.withdrawals : null;
 
     const grouped = await model.findAll({
-      where: statuses ? { [Op.and]: [statusIn(statuses)] } : {},
+      where: {
+        ...(statuses ? { [Op.and]: [statusIn(statuses)] } : {}),
+        ...this.#ownerWhere(scope, 'uid'),
+      },
       attributes: ['coin', [fn('COALESCE', fn('SUM', col('amount')), 0), 'total'], [fn('COUNT', literal('*')), 'count']],
       group: ['coin'],
       raw: true,
@@ -474,9 +516,10 @@ class DashboardService {
    *
    * Legacy served this with no authentication, keyed on a raw uid.
    */
-  async memberTeam({ userId }) {
+  async memberTeam({ actor, userId }) {
+    const scope = await this.#scope(actor);
     const user = await this.models.Users.findOne({
-      where: { id: userId },
+      where: { id: userId, ...this.#playerWhere(scope) },
       attributes: ['id', 'name'],
       raw: true,
     });
@@ -512,13 +555,14 @@ class DashboardService {
 
   // ══════════════════════════════════════════════════════════════════════
 
-  /** Every deposit source, converted, with what could not be converted. */
-  async #depositTotals(rates, startOfToday, range) {
+  /** Every deposit source, converted, with what could not be converted. The Direct User Wallet credit is not a deposit (owner, 19 Oct 2026). */
+  async #depositTotals(rates, startOfToday, range, scope) {
     const window = (since) => [
-      this.#groupCcdeposit(since),
-      this.#groupByCurrency(this.models.FiatDeposits, DEPOSIT_SUCCESS.fiat_deposits, 'created_at', since),
-      this.#groupByCurrency(this.models.Apaydeposits, DEPOSIT_SUCCESS.apaydeposits, 'created_at', since),
-      this.#groupPayIn(since),
+      this.#groupCcdeposit(since, scope),
+      this.#groupByCurrency(this.models.FiatDeposits, DEPOSIT_SUCCESS.fiat_deposits, 'created_at', since, 'currency', this.#ownerWhere(scope, 'user_id')),
+      this.#groupByCurrency(this.models.Apaydeposits, DEPOSIT_SUCCESS.apaydeposits, 'created_at', since, 'currency', this.#ownerWhere(scope, 'user_id')),
+      this.#groupPayIn(since, scope),
+      this.#groupByCurrency(this.models.F2payDeposits, DEPOSIT_SUCCESS.f2paydeposits, 'created_at', since, 'currency', this.#ownerWhere(scope, 'user_id')),
     ];
 
     const [lifetime, today, inRange] = await Promise.all([
@@ -534,10 +578,11 @@ class DashboardService {
     };
   }
 
-  async #withdrawalTotals(rates, startOfToday, range) {
+  async #withdrawalTotals(rates, startOfToday, range, scope) {
     const window = (since) => [
-      this.#groupByCurrency(this.models.Withdrawals, WITHDRAWAL_DONE.withdrawals, 'date', since, 'coin'),
-      this.#groupByCurrency(this.models.FiatWithdrawals, WITHDRAWAL_DONE.fiat_withdrawals, 'date', since),
+      this.#groupByCurrency(this.models.Withdrawals, WITHDRAWAL_DONE.withdrawals, 'date', since, 'coin', this.#ownerWhere(scope, 'uid')),
+      this.#groupByCurrency(this.models.FiatWithdrawals, WITHDRAWAL_DONE.fiat_withdrawals, 'date', since, 'currency', this.#ownerWhere(scope, 'uid')),
+      this.#groupByCurrency(this.models.F2payWithdrawals, WITHDRAWAL_DONE.f2paywithdrawals, 'created_at', since, 'currency', this.#ownerWhere(scope, 'user_id')),
     ];
 
     const [lifetime, today, inRange] = await Promise.all([
@@ -560,11 +605,12 @@ class DashboardService {
    * times in one handler. Grouped by id here and mapped in JavaScript, which is
    * the same arithmetic with one copy of the table.
    */
-  async #groupCcdeposit(since) {
+  async #groupCcdeposit(since, scope) {
     const rows = await this.models.Ccdeposit.findAll({
       where: {
         [Op.and]: [statusIn(DEPOSIT_SUCCESS.ccdeposit)],
         ...this.#windowWhere('created_at', since),
+        ...this.#ownerWhere(scope, 'userid'),
       },
       attributes: ['coinid', [fn('COALESCE', fn('SUM', col('price')), 0), 'total'], [fn('COUNT', literal('*')), 'count']],
       group: ['coinid'],
@@ -578,11 +624,12 @@ class DashboardService {
     }));
   }
 
-  async #groupPayIn(since) {
+  async #groupPayIn(since, scope) {
     const rows = await this.models.PayInTransactions.findAll({
       where: {
         status: { [Op.in]: DEPOSIT_SUCCESS.pay_in_transactions },
         ...this.#windowWhere('created_at', since),
+        ...this.#ownerWhere(scope, 'user_id'),
       },
       attributes: ['currency', [fn('COALESCE', fn('SUM', col('amount')), 0), 'total'], [fn('COUNT', literal('*')), 'count']],
       group: ['currency'],
@@ -591,11 +638,12 @@ class DashboardService {
     return rows.map((row) => ({ currency: row.currency, total: row.total, count: Number(row.count) }));
   }
 
-  async #groupByCurrency(model, statuses, dateColumn, since, currencyColumn = 'currency') {
+  async #groupByCurrency(model, statuses, dateColumn, since, currencyColumn = 'currency', ownerWhere = {}) {
     const rows = await model.findAll({
       where: {
         ...(statuses ? { [Op.and]: [statusIn(statuses)] } : {}),
         ...this.#windowWhere(dateColumn, since),
+        ...ownerWhere,
       },
       attributes: [
         currencyColumn,
@@ -760,17 +808,70 @@ class DashboardService {
     return { [column]: this.#between(since) };
   }
 
-  /** The `where` for one movement source: its statuses, the window, the player. */
-  #movementWhere(source, { range, userId }) {
+  /**
+   * The `where` for one movement source: its statuses, the window, the owners.
+   *
+   * `owners` is `null` for "everyone" or a list of STRING ids — strings bind
+   * against both the BIGINT owner columns and `ccdeposit.userid` (VARCHAR),
+   * where a number would be `character varying = integer`.
+   */
+  #movementWhere(source, { range, owners }) {
     return {
-      ...(source.statusIsText
-        ? { [Op.and]: [statusIn(source.statuses)] }
-        : { status: { [Op.in]: source.statuses } }),
+      ...(source.ledgerReason
+        ? directWalletWhere(source.ledgerReason)
+        : source.statusIsText
+          ? { [Op.and]: [statusIn(source.statuses)] }
+          : { status: { [Op.in]: source.statuses } }),
       ...this.#windowWhere(source.date, range),
-      ...(userId != null
-        ? { [source.user]: source.userIsText ? String(userId) : userId }
-        : {}),
+      ...(owners ? { [source.user]: owners } : {}),
     };
+  }
+
+  // ══════════════════════════════════════════════════════════════════════
+  //  Whose figures these are
+  // ══════════════════════════════════════════════════════════════════════
+
+  /**
+   * The players this dashboard covers: DIRECT USERS ONLY.
+   *
+   * This is the admin "Direct Users" tab. A direct user is a player with no
+   * parent (`parent_staff_id IS NULL`) — a site signup, referral signups
+   * included (a referral sets `refree`, never a parent). A player WITH a
+   * parent belongs to an agent and is shown on the "Agent System" tab
+   * (Sports Exchange), never here.
+   *
+   * Only a tree that contains the platform root (staff 1 — the owner, and the
+   * back office `visibleStaffIds` widens to the whole site) sees direct users;
+   * every other tree holds agent players only, so it gets an empty scope.
+   *
+   * No actor is an empty scope rather than everything — failing open is the
+   * leak this exists to close.
+   */
+  async #scope(actor) {
+    const none = { empty: true, userIds: [] };
+    if (!actor?.id) return none;
+
+    const staffIds = (await visibleStaffIds(this.models, actor.id, { logger: this.logger })).map(Number);
+    const root = Number(this.config?.ROOT_STAFF_ID ?? 1);
+    if (!staffIds.includes(root)) return none;
+
+    const users = await this.models.Users.findAll({
+      where: { parent_staff_id: null, is_demo: false },
+      attributes: ['id'],
+      raw: true,
+    });
+
+    return { empty: false, userIds: users.map((u) => String(u.id)) };
+  }
+
+  /** `users` rows inside the scope — direct users (never a demo user), or nobody. */
+  #playerWhere(scope) {
+    return scope.empty ? { id: [] } : { parent_staff_id: null, is_demo: false };
+  }
+
+  /** Rows of another table whose owner column belongs to a direct user. */
+  #ownerWhere(scope, column) {
+    return { [column]: scope.userIds };
   }
 
   /**

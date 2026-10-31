@@ -21,7 +21,8 @@ const CODE_STATUS = Object.freeze({
 const CODE_LENGTH = 8;
 
 /**
- * Where a qualifying deposit can have come from.
+ * Where a qualifying deposit can have come from. A source without `currency` reads it from the
+ * row's `currency` column.
  *
  * Wider than the gift-card list on purpose: this one includes `fiat_deposits`,
  * matching the legacy spin-wheel query, which counted operator-approved manual
@@ -30,10 +31,14 @@ const CODE_LENGTH = 8;
  * a product decision.
  */
 const DEPOSIT_SOURCES = Object.freeze([
-  { provider: 'crypto', model: 'Ccdeposit', userColumn: 'userid', userIdIsText: true, successValues: ['Success', 'success', 'Completed', 'completed'] },
+  // `ccdeposit` has no currency column: priced as USDT, like the gift-card check.
+  { provider: 'crypto', model: 'Ccdeposit', userColumn: 'userid', userIdIsText: true, successValues: ['Success', 'success', 'Completed', 'completed'], currency: 'USDT' },
   { provider: 'apay', model: 'Apaydeposits', userColumn: 'user_id', userIdIsText: false, successValues: ['Success', 'success', 'Completed', 'completed'] },
   { provider: 'waypay', model: 'PayInTransactions', userColumn: 'user_id', userIdIsText: false, successValues: [1] },
-  { provider: 'manual', model: 'FiatDeposits', userColumn: 'user_id', userIdIsText: false, successValues: ['approved', 'Approved'] },
+  // `atColumn`: when the money landed. A manual deposit lands when staff approve it, not when it was filed.
+  { provider: 'manual', model: 'FiatDeposits', userColumn: 'user_id', userIdIsText: false, successValues: ['approved', 'Approved'], atColumn: 'handled_at' },
+  // F2Pay lands when its callback settles the row.
+  { provider: 'f2pay', model: 'F2payDeposits', userColumn: 'user_id', userIdIsText: false, successValues: ['Success'], atColumn: 'updated_at' },
 ]);
 
 module.exports = { CODE_SOURCE, CODE_STATUS, CODE_LENGTH, DEPOSIT_SOURCES };

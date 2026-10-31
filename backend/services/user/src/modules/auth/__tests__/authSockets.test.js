@@ -25,7 +25,13 @@ async function harness({ tokens = {} } = {}) {
   const server = http.createServer();
   const io = new Server(server, { cors: { origin: '*' } });
 
-  const authenticate = async (token) => (tokens[token] ? { userId: tokens[token] } : null);
+  // A token maps to a user id, or to `{ userId, expiresAt }` for a token with an expiry.
+  const authenticate = async (token) => {
+    const t = tokens[token];
+    if (!t) return null;
+    if (typeof t === 'string') return { userId: t };
+    return t.expiresAt > Date.now() ? t : null;
+  };
 
   const socketServer = createSocketServer({ io, authenticate, logger, config: {} });
 
@@ -87,6 +93,7 @@ async function harness({ tokens = {} } = {}) {
     });
 
   return {
+    port,
     open,
     ask,
     seen,
@@ -283,4 +290,34 @@ test('registration refuses what would silently never fire', async (t) => {
     assert.strictEqual(AUDIENCE.STAFF, 'staff');
     assert.notStrictEqual(AUDIENCE.STAFF, AUDIENCE.USER);
   });
+});
+
+test('A SOCKET SIGNS OUT WHEN ITS ACCESS TOKEN EXPIRES', async (t) => {
+  /**
+   * Revocation (logout-all, password change or reset, lock) stops the refresh, so the
+   * token's expiry is where a stolen session ends. A socket bound with it must end there too.
+   */
+  const h = await harness({ tokens: { short: { userId: '77', expiresAt: Date.now() + 300 } } });
+  t.after(() => h.close());
+
+  const client = connect(`http://127.0.0.1:${h.port}`, {
+    transports: ['websocket'],
+    auth: { token: 'short' },
+    forceNew: true,
+  });
+  await new Promise((resolve, reject) => {
+    client.on('connect', resolve);
+    client.on('connect_error', reject);
+  });
+  assert.equal((await h.ask(client, EVENTS.CREDIT)).userId, '77');
+
+  // At expiry the server closes the transport, so user:<id> pushes stop as well.
+  const reason = await new Promise((resolve) => client.once('disconnect', resolve));
+  assert.equal(reason, 'transport close');
+
+  // Past expiry USER events are refused (the reconnect carries the same expired token).
+  await new Promise((resolve) => setTimeout(resolve, 350));
+  const reply = await h.ask(client, EVENTS.CREDIT);
+  assert.equal(reply.error.code, 'SOCKET_UNAUTHENTICATED');
+  client.close();
 });

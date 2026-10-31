@@ -71,11 +71,18 @@ function attachSockets({ server, container }) {
      * user-service it has no boundary to cross.
      */
     const staff = await models.Staff.findByPk(payload.sub, {
-      attributes: ['id', 'name', 'email', 'role_id', 'status'],
+      attributes: ['id', 'name', 'email', 'role_id', 'status', 'token_version'],
       raw: true,
     });
 
     if (!staff || staff.status === 'disabled' || staff.status === 'inactive') return null;
+    // Logout / password change bump the version; an older token opens no socket (as the HTTP guard).
+    if (Number(payload.tv ?? 0) !== Number(staff.token_version ?? 0)) return null;
+    // An executive's own logout bumps its row's version instead.
+    if (payload.executiveId) {
+      const executive = await models.Executives.findByPk(payload.executiveId, { attributes: ['status', 'token_version'], raw: true });
+      if (!executive || executive.status !== 'active' || Number(payload.etv ?? 0) !== Number(executive.token_version ?? 0)) return null;
+    }
     return staff;
   };
 

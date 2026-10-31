@@ -18,7 +18,7 @@ const { moneyAmount } = require('../wallet/wallet.validators');
  * where the provider reported the result.
  */
 
-const provider = z.enum(['waypay', 'apay', 'cricpay', 'upi', 'ccpayment']);
+const provider = z.enum(['waypay', 'apay', 'cricpay', 'upi', 'ccpayment', 'f2pay']);
 
 /** Provider payment-system identifiers: lowercase, underscores. */
 const method = z
@@ -84,6 +84,9 @@ const createWithdrawal = {
        * balance is held. Passthrough here, strict there.
        */
       details: z.record(z.string(), z.union([z.string(), z.number()])),
+      // The player confirmed that an active (unwagered) bonus is forfeited by this withdrawal.
+      // Without it, a player holding one gets 409 BONUS_FORFEIT_REQUIRED (player-bonuses).
+      forfeitBonus: z.boolean().optional(),
     })
     .strict(),
 };
@@ -97,10 +100,15 @@ const listOrders = {
     flow: z.enum(['payin', 'payout']).optional(),
     limit: z.coerce.number().int().min(1).max(200).default(50),
     offset: z.coerce.number().int().min(0).default(0),
-  }),
+  }).strict(),
 };
 
 const providerParam = { params: z.object({ provider }) };
+
+/** Payment Methods page: `?fresh=1` = A-Pay se abhi dobara laao (cache chhod ke). */
+const paymentSystems = {
+  query: z.object({ fresh: z.enum(['0', '1', 'true', 'false']).optional() }).strict(),
+};
 
 const repairUtr = {
   body: z
@@ -112,4 +120,4 @@ const repairUtr = {
     .strict(),
 };
 
-module.exports = { createDeposit, createWithdrawal, orderParams, listOrders, providerParam, repairUtr };
+module.exports = { createDeposit, createWithdrawal, orderParams, listOrders, providerParam, repairUtr, paymentSystems };

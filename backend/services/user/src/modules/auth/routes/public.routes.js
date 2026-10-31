@@ -4,8 +4,8 @@ const { Router } = require('express');
 const { validate, createRateLimiter } = require('@ibitplay/common');
 
 const v = require('../auth.validators');
+const refreshCookie = require('../refreshCookie');
 const { AuthService } = require('../auth.service');
-const { EmailService } = require('../../email/email.service');
 const { createPublicController } = require('../controllers/public.controller');
 
 /**
@@ -18,20 +18,7 @@ const { createPublicController } = require('../controllers/public.controller');
  */
 module.exports = function publicRoutes(deps) {
   const service = new AuthService(deps);
-
-  /**
-   * The email module's service, instantiated here rather than imported as a
-   * singleton, because that is how every module in this platform takes its
-   * dependencies — from `deps`, at construction.
-   *
-   * Both modules declare `models: ['core']` or a superset of it (`auth` takes
-   * `['core', 'extended']`), and `user_otps` is a core model, so the same
-   * `deps` satisfies both. A second instance is cheap: these services hold no
-   * state of their own, only the handles they were given.
-   */
-  const emails = new EmailService(deps);
-
-  const ctrl = createPublicController({ service, emails });
+  const ctrl = createPublicController({ service });
 
   const router = Router();
 
@@ -68,52 +55,51 @@ module.exports = function publicRoutes(deps) {
     enabled: deps.config.RATE_LIMIT_ENABLED !== false,
   });
 
-  /**
-   * Metered harder than login, and for a different reason.
-   *
-   * ═══════════════════════════════════════════════════════════════════════
-   * THIS ROUTE IS A SIX-DIGIT GUESS AGAINST AN ACCOUNT TAKEOVER.
-   *
-   * The code itself has three attempts and a two-minute life, and the proof
-   * it leaves behind lives five minutes — so the per-code limits are tight.
-   * What they do NOT bound is how many DIFFERENT verified proofs a caller can
-   * attack: `spendProofWithCode` deliberately does not destroy the row on a
-   * wrong code (a mistyped digit must not send a legitimate player back to
-   * the start), which leaves a five-minute window open to guessing.
-   *
-   * A million possibilities over five minutes is safe at ten attempts and is
-   * not safe at ten thousand. Ten per fifteen minutes per IP makes the guess
-   * hopeless while leaving room for somebody who fat-fingers the code twice
-   * and requests a fresh one.
-   * ═══════════════════════════════════════════════════════════════════════
-   */
+  router.post('/register', registerLimiter, validate(v.register), ctrl.register);
+
   const resetLimiter = createRateLimiter({
-    name: 'auth:reset-password',
-    windowMs: 15 * 60_000,
-    max: 10,
+    name: 'auth:reset',
+    windowMs: 60 * 60_000,
+    max: 5,
     enabled: deps.config.RATE_LIMIT_ENABLED !== false,
   });
 
-  router.post('/register', registerLimiter, validate(v.register), ctrl.register);
   router.post('/login', loginLimiter, validate(v.login), ctrl.login);
-  router.post('/refresh', validate(v.refresh), ctrl.refresh);
+  // Each press makes an account, so it is metered like registration.
+  router.post('/demo-login', registerLimiter, ctrl.demoLogin);
+  router.post('/refresh', refreshCookie.fromCookie, validate(v.refresh), ctrl.refresh);
+
+  // Google sign-in (../google.js). Metered with login: every path ends in a session.
+  router.get('/google/status', ctrl.googleStatus);
+  router.get('/google/start', loginLimiter, ctrl.googleStart);
+  router.get('/google/callback', loginLimiter, ctrl.googleCallback);
+  router.post('/google/exchange', loginLimiter, validate(v.googleExchange), ctrl.googleExchange);
 
   /**
-   * The third leg of password recovery, and the reason the other two were
-   * unreachable.
+   * @legacy SOCKET `C.REGISTER_USER` / `C.RESET_PASSWORD`
    *
-   *   POST /user/email/otp         {email, purpose: 'reset-password'}
-   *   POST /user/email/otp/verify  {email, purpose, code}
-   *   POST /user/auth/reset-password  {email, code, newPassword}   ← here
+   * The three below are HTTP over service methods that already existed and
+   * were reachable only from `sockets.js`. Nothing about the logic is new —
+   * `AuthService.register`, `.requestPasswordReset` and `.completePasswordReset`
+   * are unchanged. Until these existed a browser client could not create an
+   * account at all, which made every other player route unreachable for a new
+   * visitor.
    *
-   * Both `/email/*` routes have existed since the port and neither had
-   * anything to hand its result to: nothing on the platform spent a
-   * `reset-password` proof, and `AuthService.completePasswordReset` — which
-   * does set a password — was exposed on no route and no socket event. So
-   * the platform could issue a recovery code, confirm it was correct, and
-   * then had no way to change the password. This closes that.
+   * The paths are the ones the front-end already declares in
+   * `src/services/endpoints.js`.
    */
-  router.post('/reset-password', resetLimiter, validate(v.resetPassword), ctrl.resetPassword);
+  router.post(
+    '/forgot-password',
+    resetLimiter,
+    validate(v.requestPasswordReset),
+    ctrl.requestPasswordReset
+  );
+  router.post(
+    '/reset-password',
+    resetLimiter,
+    validate(v.completePasswordReset),
+    ctrl.completePasswordReset
+  );
 
   return router;
 };

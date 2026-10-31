@@ -29,6 +29,9 @@ module.exports = defineErrors('CRYPTO_WITHDRAW', {
 
   INVALID_AMOUNT: { status: 422, message: 'That amount is not valid' },
 
+  /** The named network is not one this coin is offered on now (coin registry, migration 061). */
+  NETWORK_UNAVAILABLE: { status: 422, message: 'That network is not available for this coin' },
+
   INVALID_ADDRESS: {
     status: 422,
     /**
@@ -54,6 +57,23 @@ module.exports = defineErrors('CRYPTO_WITHDRAW', {
     // missing did not stop the payout.
     message: 'That account cannot withdraw'
   },
+
+  /**
+   * Inside the 24-hour window that follows a password change — migration 040.
+   * The fiat rail's twin; both rails have to refuse or the freeze is only a
+   * freeze on one of them, which is the class of disagreement Part 4b.5 and
+   * 4b.6 already had to fix twice on these two.
+   */
+  WITHDRAW_COOLDOWN: {
+    status: 403,
+    message: 'Withdrawals are paused for 24 hours after a password change'
+  },
+
+  /** The fiat rail's twin: the same `WITHDRAW_MINIMUM`, the same refusal. */
+  BELOW_MINIMUM: { status: 422, message: 'The amount is below the minimum withdrawal' },
+
+  /** The fiat rail's twin: the `withdrawal_requirements` policy (and WITHDRAW_REQUIRE_KYC) gate both rails, or neither. */
+  KYC_REQUIRED: { status: 403, message: 'Verify your identity before withdrawing' },
 
   INSUFFICIENT_BALANCE: {
     status: 422,

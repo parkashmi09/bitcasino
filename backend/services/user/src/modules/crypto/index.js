@@ -18,7 +18,7 @@
  *
  * The webhook signature IS verified first, which is the only reason this is not
  * trivially reachable — and the secret it is verified against is
- * `48e60e26e298f7bb6023209f9c48b91c`, hardcoded in `legacy/index.js`. Anyone
+ * `<redacted, see backend/docs/ROTATION.md>`, hardcoded in `legacy/index.js`. Anyone
  * holding this repository can sign a webhook. It is on the rotation list, and
  * so is the column name: the currency is looked up in a fixed map here and a
  * symbol that is not in it is refused rather than interpolated.

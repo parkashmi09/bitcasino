@@ -11,7 +11,7 @@
  * See `docs/SOCKETS.md` for the audit this was built from.
  */
 
-const { EVENTS, LITERAL_EVENTS, NAME_OF } = require('./events');
+const { EVENTS, LITERAL_EVENTS, PLATFORM_EVENTS, NAME_OF } = require('./events');
 const { encode, decode, MAX_FRAME_BYTES } = require('./wire');
 const { createSocketServer, AUDIENCE, roomForUser } = require('./createSocketServer');
 const { createRateLimiter } = require('./rateLimit');
@@ -21,6 +21,8 @@ module.exports = {
   EVENTS,
   /** Events legacy wrote as string literals rather than through its constant table. */
   LITERAL_EVENTS,
+  /** Names THIS project added — not part of the legacy protocol. */
+  PLATFORM_EVENTS,
   NAME_OF,
   AUDIENCE,
   encode,

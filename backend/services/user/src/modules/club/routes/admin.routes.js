@@ -1,8 +1,8 @@
 'use strict';
 
 const { Router } = require('express');
-const { validate, createActivityRecorder } = require('@ibitplay/common');
-const { PERMISSIONS } = require('@ibitplay/auth');
+const { validate, createActivityRecorder, noBody } = require('@ibitplay/common');
+const { PERMISSIONS, denyAgentTree } = require('@ibitplay/auth');
 
 const v = require('../club.validators');
 const { ClubService } = require('../club.service');
@@ -24,6 +24,10 @@ module.exports = function adminRoutes(deps) {
   });
 
   const router = Router();
+
+  // Promotions are house business: SUPER_MASTER / MASTER / AGENT (and their
+  // executives) are refused every route below — PROMOTIONS_NOT_FOR_AGENTS.
+  router.use(denyAgentTree());
   const canRead = auth.requirePermission(PERMISSIONS.REPORTS_READ);
   const canWrite = auth.requirePermission(PERMISSIONS.CONFIG_WRITE);
 
@@ -57,6 +61,7 @@ module.exports = function adminRoutes(deps) {
 
   router.delete(
     '/:clubId',
+    noBody(),
     canWrite,
     validate(v.clubParam),
     withActivity({

@@ -34,6 +34,7 @@ function buildJsGamesService(deps) {
       deps.v2 ??
       new XGamesApiClient({
         baseUrl: deps.config.JSGAMES_V2_BASE_URL,
+        userBaseUrl: deps.config.JSGAMES_V2_USER_BASE_URL,
         apiKey: deps.config.JSGAMES_V2_API_KEY,
         apiSecret: deps.config.JSGAMES_V2_API_SECRET,
         timeoutMs: deps.config.JSGAMES_TIMEOUT_MS,

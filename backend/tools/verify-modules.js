@@ -21,7 +21,9 @@ const { loadModules, mountModules } = require('@ibitplay/common');
 const { markAuthorization } = require('@ibitplay/auth');
 
 const ROOT = path.resolve(__dirname, '..');
-const SERVICES = ['user', 'admin', 'casino', 'sports'];
+const SERVICES = process.env.VERIFY_SERVICES
+  ? process.env.VERIFY_SERVICES.split(',').map((s) => s.trim()).filter(Boolean)
+  : ['user', 'admin', 'casino', 'sports'];
 
 const passthrough = () => function guard(_req, _res, next) { next(); };
 
@@ -49,12 +51,6 @@ const fakeDeps = {
     // so a missing value fails at MOUNT rather than at use — which is the
     // behaviour we want in production and has to be satisfied here.
     CLUB_BANNER_STORAGE_DIR: '/tmp/verify-club-banners',
-    // The odds feed. `FeedClient` validates these at CONSTRUCTION — which is
-    // the point: a plain-http feed or a missing key stops the service at boot
-    // rather than on the first bet. https here so the insecure check is
-    // exercised in its refusing direction on every CI run.
-    SPORTS_FEED_URL: 'https://feed.verify.invalid/api',
-    SPORTS_FEED_KEY: 'verify-feed-key',
     KYC_STORAGE_DIR: '/tmp/verify-kyc',
     DEPOSIT_STORAGE_DIR: '/tmp/verify-deposits',
   },
@@ -65,7 +61,7 @@ const fakeDeps = {
     advisoryLock: async () => ({ acquired: true, result: null }),
   },
   models: {},
-  clients: { user: {}, admin: { post: async () => {} }, casino: {}, sports: {} },
+  clients: { user: {}, admin: { post: async () => {}, get: async () => ({}) }, casino: {}, sports: {} },
   auth: {
     // Authentication — NOT tagged. Proving who is calling is not an
     // authorization decision, and tagging it would make the admin-write check
@@ -296,7 +292,11 @@ function checkProxyRouting() {
 console.log(`\n${'─'.repeat(70)}`);
 console.log(`${totalModules} modules, ${totalRoutes} routes`);
 
-if (!failed) {
+// Partial service lists (e.g. sports not mountable locally) skip gateway checks —
+// rewrites for the omitted service would false-fail.
+const partialVerify = Boolean(process.env.VERIFY_SERVICES);
+
+if (!failed && !partialVerify) {
   console.log('\nGateway legacy rewrites:');
   const broken = checkGatewayTargets();
   if (broken) {

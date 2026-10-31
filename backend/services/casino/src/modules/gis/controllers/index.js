@@ -47,6 +47,16 @@ function createControllers({ service }) {
     /** @legacy GET /api/gis/freespins/bets */
     freespinBets: asyncHandler(async (req, res) => response.ok(res, await service.freespinBets(req.query))),
 
+    /**
+     * The caller's own active freespin campaigns. `req.user.id` and never a
+     * body or query parameter — this is the read `POST /games/init` got wrong
+     * in the other direction, where a `player_id` in the body opened a session
+     * on any named account.
+     */
+    listMyFreespins: asyncHandler(async (req, res) =>
+      response.ok(res, await service.listMyFreespins({ userId: req.user.id }))
+    ),
+
     /** @legacy GET /api/gis/self-validate */
     selfValidate: asyncHandler(async (_req, res) => response.ok(res, await service.selfValidate())),
 

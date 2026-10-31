@@ -9,7 +9,7 @@ function createControllers({ service, logger }) {
   return {
     /** @legacy GET /gethouse */
     list: asyncHandler(async (req, res) => {
-      const result = await service.list(req.query);
+      const result = await service.list({ ...req.query, staff: req.staff });
       return response.paginated(res, result.rows, {
         page: Math.floor(req.query.offset / req.query.limit) + 1,
         limit: req.query.limit,

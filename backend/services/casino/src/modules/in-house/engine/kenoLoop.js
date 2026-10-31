@@ -110,7 +110,7 @@ class KenoLoop {
           amount: player.amount,
         });
 
-        await this.engine.settle({
+        const settled = await this.engine.settle({
           userId,
           betId: player.betId,
           profit: outcome.profit,
@@ -121,7 +121,7 @@ class KenoLoop {
           amount: player.amount,
         });
 
-        if (outcome.isWinner) winners.push({ uid: String(userId), won: outcome.profit, matches: outcome.matches });
+        if (outcome.isWinner) winners.push({ uid: String(userId), won: settled.profit, matches: outcome.matches });
       } catch (error) {
         // One player's failure must not stop the rest — which is the whole
         // point of the bug above.

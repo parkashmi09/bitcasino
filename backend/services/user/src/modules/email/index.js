@@ -4,8 +4,8 @@
  * One-time codes and outbound player email.
  *
  *   `POST /send-otp` RETURNED THE CODE IN ITS OWN RESPONSE. Unauthenticated,
- *   sent to any address in the body, with `support@camelbit.games` /
- *   `camelbit@123` in the source. A code the requester is handed is not a
+ *   sent to any address in the body, with `<redacted, see backend/docs/ROTATION.md>` /
+ *   `<redacted, see backend/docs/ROTATION.md>` in the source. A code the requester is handed is not a
  *   second factor.
  *
  *   `POST /email/send` AND `/email/bulk` WERE AN OPEN RELAY — unauthenticated,
@@ -26,7 +26,7 @@
  *   `expires_at` WAS WRITTEN AND THEN IGNORED, with the deadline recomputed
  *   from `created_at` at verification time.
  *
- * The `support@camelbit.games` password is in the repository history. Rotate it.
+ * The support mailbox password is in the repository history (see backend/docs/ROTATION.md). Rotate it.
  */
 module.exports = {
   name: 'email',

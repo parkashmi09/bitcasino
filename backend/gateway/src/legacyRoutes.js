@@ -212,49 +212,6 @@ const EXACT = {
   // replacement takes the player from the token.
   'GET /getWithdrawDataUser': '/api/v1/user/withdrawals/crypto',
 
-  // ── sports/feed — the odds board ─────────────────────────────────────
-  //
-  // Every one of these went through a BullMQ queue and blocked on
-  // `job.waitUntilFinished()` with no timeout. They are in-process reads now,
-  // against a cached and timeout-bounded feed client.
-  //
-  // The feed itself was read over `http://46.202.164.63:6565/api` — cleartext,
-  // to a bare IP, carrying match RESULTS.
-  'GET /sports/allinplay': '/api/v1/sports/feed/inplay/all',
-  'GET /sports/all-matches': '/api/v1/sports/feed/matches',
-  'GET /sports/getSeries': '/api/v1/sports/feed/series',
-  'GET /sports/getMatchesBySportsID': '/api/v1/sports/feed/events',
-  'GET /sports/getMatchesBySportsIDSeriesID': '/api/v1/sports/feed/events/by-series',
-  'GET /sports/allSportsID': '/api/v1/sports/feed/sports',
-  'GET /sports/market-ids-v1': '/api/v1/sports/feed/markets/ids',
-  'GET /sports/market-ids-v2': '/api/v1/sports/feed/markets/ids/v2',
-  'GET /sports/market-odds': '/api/v1/sports/feed/markets/odds',
-  'GET /sports/bookmakerFancy': '/api/v1/sports/feed/markets/fancy',
-  'GET /sports/lineMarket': '/api/v1/sports/feed/markets/line',
-  'GET /sports/marketDetails': '/api/v1/sports/feed/markets/details',
-  'GET /sports/eventList': '/api/v1/sports/feed/events/list',
-  'GET /sports/event-details': '/api/v1/sports/feed/events/details',
-  'GET /sports/event-result': '/api/v1/sports/feed/results/event',
-  'GET /sports/event-list-result': '/api/v1/sports/feed/results/list',
-  // The same two controllers were ALSO mounted at the root, without even the
-  // sports-enabled check their `/sports` twins had.
-  'GET /event-result': '/api/v1/sports/feed/results/event',
-  'GET /event-list-result': '/api/v1/sports/feed/results/list',
-  /**
-   * NOT rewritten: `POST /sports/inplay`.
-   *
-   * It reads nothing and writes nothing — the optional `gameId` was in the
-   * request BODY, which is the only reason it was a POST. The replacement is
-   * `GET /feed/inplay?gameId=`, and a rewrite cannot turn a POST body into a
-   * query string. The client changes verb.
-   *
-   * NOT rewritten either: `GET /sports/inplayGameId/:gameId`,
-   * `GET /sports/matches/:gameId`, `GET /sports/matches-by-date/:dateType` and
-   * `GET /sports/matches/:dateType/:gameId`. The gateway's EXACT map is keyed
-   * on a literal path and these all carry a parameter segment; the prefix rules
-   * below cover the ones that can be covered.
-   */
-
   // ── admin/deposit — a SECOND manual-deposit surface, unauthenticated ──
   //
   // `legacy/system/deposit/` served `/api/deposit/*` — singular — over the same
@@ -384,8 +341,8 @@ const EXACT = {
 
   // ── casino/catalogue — the lobby ─────────────────────────────────────
   //
-  // Every upstream credential was in the source (`agent_code: "Skyla_USD"`,
-  // `agent_token: "83eb5e…"`, `SECREATEkEYCASINO = 'Hja934U1nz'`), the
+  // Every upstream credential was in the source (`agent_code: "<redacted, see backend/docs/ROTATION.md>"`,
+  // `agent_token: "<redacted, see backend/docs/ROTATION.md>"`, `SECREATEkEYCASINO = '<redacted, see backend/docs/ROTATION.md>'`), the
   // catalogue was fetched upstream on EVERY request with no cache, and the
   // aggregator's own errors were forwarded verbatim — and those errors quote
   // the request back, agent token included.
@@ -515,12 +472,6 @@ const EXACT = {
   // `/api/admin/balance-sheet/:userId` is `/api/v1/admin/reports/balance-sheet/:userId`;
   // `/api/report/player/:uid` is `/api/v1/admin/reports/player-sheet/:uid`.
   //
-  // `/api/admin/agent-users` lived in `siteconfig/routes/adminRiskRoutes.js`
-  // and was missed by the port entirely — there was no target to rewrite it to
-  // until the reports module grew one, so the Agent System tab 404'd rather
-  // than merely changing shape.
-  'GET /api/admin/agent-users': '/api/v1/admin/reports/agent-users',
-  //
   // `POST /api/admin/user-lock` is NOT here. The locks module already owns that
   // write at `POST /api/v1/admin/locks`, it reaches the whole subtree where
   // legacy reached one level, and its body names the locks rather than the
@@ -572,7 +523,7 @@ const EXACT = {
   'GET /marketing/analytics/top-agents': '/api/v1/admin/marketing/analytics/top-agents',
   'GET /marketing/customers': '/api/v1/admin/marketing/customers',
 
-  // ── admin/players — creating and closing a player account ────────────
+  // ── admin/players — editing and closing a player account ────────────
   //
   // `DELETE /api/staff/players/:id` read `information_schema.columns` for
   // anything named `user_id`/`userid`/`uid`/`id_user`/`user` and DELETEd from
@@ -580,9 +531,8 @@ const EXACT = {
   // produced, unrecoverably, on a licensed gambling platform. It now closes and
   // anonymises the account and keeps the financial record.
   //
-  // `POST` and the two `/:id` routes carry parameter segments except the
-  // create: `/api/v1/admin/players`, then `/api/v1/admin/players/:playerId`.
-  'POST /api/staff/players': '/api/v1/admin/players',
+  // Create ab nahi (naya user sirf Sports Exchange se); edit / close
+  // `/api/v1/admin/players/:playerId` pe hain.
 
   // ── admin/locks — locking an account out ─────────────────────────────
   //
@@ -647,20 +597,9 @@ const EXACT = {
 
   // ── admin/staff — the hierarchy and the money in it ──────────────────
   //
-  // `legacy/system/` is the best-built code in this platform: real token
-  // authentication, a closure table for the tree, an audit recorder on every
-  // write. Two of its routes were nonetheless unreachable —
-  // `/api/staff/transactions` was shadowed by `/:id`, and
-  // `/api/staff/transfers/summary` by `/transfers/:id?`.
-  'GET /api/staff': '/api/v1/admin/staff',
-  'POST /api/staff': '/api/v1/admin/staff',
-  'GET /api/staff/tree': '/api/v1/admin/staff/tree',
-  'GET /api/staff/players': '/api/v1/admin/staff/players',
-  'GET /api/staff/transactions': '/api/v1/admin/staff/transactions',
-  'GET /api/staff/transfers': '/api/v1/admin/staff/transfers',
-  'GET /api/staff/transfers/summary': '/api/v1/admin/staff/transfers/summary',
+  // Bahar wala agent system hata diya — sirf password aur transfer bache hain
+  // (Sports Exchange aur My Account ke liye).
   'PATCH /api/staff/password': '/api/v1/admin/staff/password',
-  'POST /api/staff/patch-bulk-status': '/api/v1/admin/staff/bulk-status',
   /**
    * NOT rewritten: `POST /api/staff/reset-password-for-staff`.
    *
@@ -676,27 +615,6 @@ const EXACT = {
    * whose token lacks it gets a 403 where it used to get a 200.
    */
   'POST /api/staff/transfer': '/api/v1/admin/staff/transfer',
-  // The parameterised staff paths — `/api/staff/:id` and the rest — are in
-  // PATTERNS below.
-
-  // ── sports/bets — the money routes ───────────────────────────────────
-  //
-  // THREE legacy implementations. Two of them insert into `sports_bets`, a
-  // table that does not exist, so `POST /sportsbetting/place` and `POST /bets`
-  // have never placed a bet. The one that works reads `user_id`, `odds`,
-  // `team_one`, `team_two` and the runner count from the REQUEST BODY on an
-  // unauthenticated route.
-  //
-  // `/api/v1/sports/bets` is a VERBATIM port of the one that works, so the
-  // legacy payload and the legacy response body are unchanged — the only
-  // difference a caller sees is that the route authenticates and `user_id` in
-  // the body is ignored in favour of the token.
-  'POST /sportsbetting/place': '/api/v1/sports/bets',
-  'POST /api/sportsmain/place-bet': '/api/v1/sports/bets',
-  'POST /bets': '/api/v1/sports/bets',
-
-  'GET /api/sportsmain/user-open-bets': '/api/v1/sports/bets',
-  'GET /api/sportsmain/user-sports-open-bets': '/api/v1/sports/bets',
 
   // ── sports/bet-admin ─────────────────────────────────────────────────
   //
@@ -715,30 +633,6 @@ const EXACT = {
   'GET /sportsbetting/admin/bets': '/api/v1/admin/sports/bet-admin/bets',
   'GET /admin/bets': '/api/v1/admin/sports/bet-admin/bets',
 
-  // ── sports/results ───────────────────────────────────────────────────
-  //
-  // `GET /sportsbetting` — the bare root of the betting router — was a listing
-  // of every settled market with no scoping whatsoever.
-  'GET /sportsbetting': '/api/v1/admin/sports/results/markets',
-  'GET /sportsbetting/marketwins': '/api/v1/admin/sports/results/markets',
-  'GET /sportsbetting/fanwins': '/api/v1/admin/sports/results/fancy',
-
-  // ── sports/feed — the second provider ────────────────────────────────
-  //
-  // `sportsmain` reads from `http://159.198.77.241:8100` (a second bare IP
-  // over cleartext) and from a host with `-demo-` in its name for the live
-  // video stream and scorecard, with the key in the query string.
-  //
-  // All five were POSTs carrying their parameters in the body, and all five
-  // are reads. A client must change verb — a rewrite cannot move a JSON body
-  // into a query string, so these are deliberately absent from the map:
-  //
-  //   POST /api/sportsmain/get-all-sports-data → GET /feed/live/data
-  //   POST /api/sportsmain/get-sports-data-id  → GET /feed/live/match
-  //   POST /api/sportsmain/get-result          → GET /feed/live/result
-  //   POST /api/sportsmain/get-live-stream     → GET /feed/live/stream
-  //   POST /api/sportsmain/get-scorecard       → GET /feed/live/scorecard
-
   // ── The three routes that were never sports concerns ─────────────────
   //
   // A wallet read, a transfer history and a PASSWORD CHANGE, all mounted
@@ -752,19 +646,6 @@ const EXACT = {
   // honest answer rather than a redirect to an endpoint that will reject it.
   'GET /sportsbetting/wallet/:uuid': '/api/v1/user/wallet/balances',
   'GET /sportsbetting/transfers/:userUuid': '/api/v1/user/history/transfers',
-
-  // ── sports/catalogue — what is switched on ───────────────────────────
-  //
-  // Twelve administrative writes with NO authentication, guarded only by a
-  // middleware that checks whether sports are globally enabled. And
-  // `admin_fancy_control` — the table five of them read and write — was never
-  // created, so all five have returned 500 since they were written.
-  'GET /sports/sports-config': '/api/v1/admin/sports/catalogue/sports',
-  'POST /sports/sports-config': '/api/v1/admin/sports/catalogue/sports',
-  'GET /sports/sports': '/api/v1/sports/catalogue/sports',
-  'GET /sports/admin/fancy-controls': '/api/v1/admin/sports/catalogue/fancy',
-  'POST /sports/admin/update-fancy-status': '/api/v1/admin/sports/catalogue/fancy',
-  'POST /sports/admin/bulk-update-fancy-status': '/api/v1/admin/sports/catalogue/fancy/bulk',
 
   // ── platform ─────────────────────────────────────────────────────────
   // `siteconfig.sports` is admin-owned, so the flag lives with the rest of the
@@ -1041,7 +922,6 @@ const EXACT = {
   'GET /api/gis/livecasino': '/api/v1/casino/games/collections/live-casino',
   'GET /api/gis/popularslots': '/api/v1/casino/games/collections/popular-slots',
   'GET /api/gis/crashgames': '/api/v1/casino/games/collections/crash',
-  'GET /api/gis/indiangames': '/api/v1/casino/games/collections/indian',
   'GET /api/gis/games/recently-played': '/api/v1/casino/games/recently-played',
 
   // Every one of these was unauthenticated in legacy, under a comment reading
@@ -1050,7 +930,6 @@ const EXACT = {
   'PUT /api/gis/admin/gis/livecasino': '/api/v1/admin/casino/games/collections/live-casino',
   'PUT /api/gis/admin/gis/popularslots': '/api/v1/admin/casino/games/collections/popular-slots',
   'PUT /api/gis/admin/gis/crashgames': '/api/v1/admin/casino/games/collections/crash',
-  'PUT /api/gis/admin/gis/indiangames': '/api/v1/admin/casino/games/collections/indian',
   'GET /api/gis/admin/gis/vendors': '/api/v1/admin/casino/games/vendors',
   'GET /api/gis/admin/gis/vendor-search': '/api/v1/admin/casino/games/vendor-search',
   'GET /api/gis/admin/gis/types': '/api/v1/admin/casino/games/types',
@@ -1062,9 +941,11 @@ const EXACT = {
   // ── casino/js-games — huidu.bet (v1) and games.ibitplay.com (v2) ────
   //
   // Both callback paths are configured on the PROVIDERS' side.
-  //launching callback
   'POST /jsGames/game/bet-callback': '/api/v1/casino/js-games/v1/bet-callback',
   'POST /jsGamesv2/bet-callback': '/api/v1/casino/js-games/v2/bet-callback',
+  // The same callback as playbro's provider account has it (`/jsGamesv2/v2/bet-callback`): without
+  // this alias a book's rounds settle against a 404 when the account points at the /v2/ path.
+  'POST /jsGamesv2/v2/bet-callback': '/api/v1/casino/js-games/v2/bet-callback',
 
   'GET /jsGames/games': '/api/v1/casino/js-games/v1/games',
   'GET /jsGames/games/search': '/api/v1/casino/js-games/v1/games/search',
@@ -1121,19 +1002,46 @@ const EXACT = {
   'GET /xGaming/vendors': '/api/v1/casino/x-gaming/vendors',
   'GET /xGaming/games/search': '/api/v1/casino/x-gaming/games/search',
 
-  // ── sports/settlement (was legacy/mannualsettlement, mounted at /api/internalsettle) ──
-  'GET /api/internalsettle/momatches': '/api/v1/admin/sports/settlement/mo-matches',
-  'GET /api/internalsettle/fanmatches': '/api/v1/admin/sports/settlement/fancy-matches',
-  'GET /api/internalsettle/open-bets': '/api/v1/admin/sports/settlement/open-bets',
-  'POST /api/internalsettle/declareresult': '/api/v1/admin/sports/settlement/declare-result',
-  'POST /api/internalsettle/void': '/api/v1/admin/sports/settlement/void-market',
-  'POST /api/internalsettle/void-single-bet': '/api/v1/admin/sports/settlement/void-bet',
-  'GET /api/internalsettle/settled-markets': '/api/v1/admin/sports/settlement/settled-markets',
-  'GET /api/internalsettle/settled-bets': '/api/v1/admin/sports/settlement/settled-bets',
-  'POST /api/internalsettle/void-market-after-settlement':
-    '/api/v1/admin/sports/settlement/void-market/post-settlement',
-  'POST /api/internalsettle/void-bet-after-settlement':
-    '/api/v1/admin/sports/settlement/void-bet/post-settlement',
+  // ── sports (mssports) — the TENEXCH player API ───────────────────────
+  //
+  // services/sports runs the sportsbook exported from TENEXCH (mssports) unchanged, so these
+  // are TENEXCH's own paths, one line per route, onto the same path under /api/v1/sports/user.
+  // Auth is mssports' own, per route. The two with an id segment are in PATTERNS.
+  //
+  // odds, events, score, bet settings (modules/odds-events)
+  'GET /api/user/all/sports/tree': '/api/v1/sports/user/all/sports/tree',
+  'GET /api/user/all/sports/events': '/api/v1/sports/user/all/sports/events',
+  'POST /api/user/cricket/all-data': '/api/v1/sports/user/cricket/all-data',
+  'POST /api/user/cricket/get-sport-data-by-id': '/api/v1/sports/user/cricket/get-sport-data-by-id',
+  'POST /api/user/cricket/get-match-private-data': '/api/v1/sports/user/cricket/get-match-private-data',
+  'GET /api/user/v1/sports-get_latest_events': '/api/v1/sports/user/v1/sports-get_latest_events',
+  'GET /api/user/v1/sports-gamedetailPrivate': '/api/v1/sports/user/v1/sports-gamedetailPrivate',
+  'POST /api/user/cricket/market-list': '/api/v1/sports/user/cricket/market-list',
+  'POST /api/user/cricket/score-card': '/api/v1/sports/user/cricket/score-card',
+  'GET /api/user/cricket/score-url': '/api/v1/sports/user/cricket/score-url',
+  'GET /api/user/virtual/event-media': '/api/v1/sports/user/virtual/event-media',
+  'GET /api/user/virtual/cricketv-cards': '/api/v1/sports/user/virtual/cricketv-cards',
+  'GET /api/user/betting-config': '/api/v1/sports/user/betting-config',
+  'GET /api/user/stake-button-values': '/api/v1/sports/user/stake-button-values',
+  'POST /api/user/stake-button-values': '/api/v1/sports/user/stake-button-values',
+  'GET /api/user/buttonlist': '/api/v1/sports/user/buttonlist',
+  'POST /api/user/updatebuttonlist': '/api/v1/sports/user/updatebuttonlist',
+  // place bet, current bets, exposure (modules/bets)
+  'POST /api/user/place': '/api/v1/sports/user/place',
+  'POST /api/user/place-combined': '/api/v1/sports/user/place-combined',
+  'POST /api/user/cancel-bet': '/api/v1/sports/user/cancel-bet',
+  'POST /api/user/matchexposures/match': '/api/v1/sports/user/matchexposures/match',
+  'GET /api/user/fancy-bets': '/api/v1/sports/user/fancy-bets',
+  'GET /api/user/cricket/sports-bets/user': '/api/v1/sports/user/cricket/sports-bets/user',
+  'GET /api/user/cricket/user-open-bets': '/api/v1/sports/user/cricket/user-open-bets',
+  'GET /api/user/cricket/user-open-bets-grouped': '/api/v1/sports/user/cricket/user-open-bets-grouped',
+  'GET /api/user/cricket/matched-bets/all': '/api/v1/sports/user/cricket/matched-bets/all',
+  // account statement (modules/statement)
+  'POST /api/user/account-statement-v2': '/api/v1/sports/user/account-statement-v2',
+  'POST /api/user/account-statement-v2/bets': '/api/v1/sports/user/account-statement-v2/bets',
+  // market locks (modules/sports-config); the rest of /api/admin/* sports config is in PREFIXES
+  'POST /api/admin/betlock/toggle-market-lock': '/api/v1/admin/sports/config/betlock/toggle-market-lock',
+  'POST /api/admin/betlock/bulk-toggle-market-lock': '/api/v1/admin/sports/config/betlock/bulk-toggle-market-lock',
 };
 
 /**
@@ -1169,41 +1077,16 @@ const EXACT = {
  * ═══════════════════════════════════════════════════════════════════════════
  */
 const PATTERNS = [
-  // ── admin/staff ─────────────────────────────────────────────────────
-  //
-  // `rollupStaff` and `metrics` were three legacy handlers over the same two
-  // counts and one balance sum; they are one route with `?includeSubtree=`.
-  ['GET /api/staff/rollup/:id', '/api/v1/admin/staff/rollup/:id'],
-  ['GET /api/staff/rollupStaff/:id', '/api/v1/admin/staff/rollup/:id?includeSubtree=true'],
-  ['GET /api/staff/metrics/:id', '/api/v1/admin/staff/rollup/:id'],
-  ['GET /api/staff/analytics/:id', '/api/v1/admin/staff/analytics/:id'],
-
-  // `/transfers/summary/:id` scopes by a path segment in legacy and by a query
-  // parameter now — the summary route is literal so that `/transfers/:id` can
-  // stay reachable beneath it.
-  ['GET /api/staff/transfers/summary/:id', '/api/v1/admin/staff/transfers/summary?staffId=:id'],
-  ['GET /api/staff/transfers/:id', '/api/v1/admin/staff/transfers/:id'],
-
-  ['GET /api/staff/:id/percent-chain', '/api/v1/admin/staff/:id/percent-chain'],
-  ['GET /api/staff/:id/percent-tree', '/api/v1/admin/staff/:id/percent-tree'],
-  ['GET /api/staff/:id/whatsapp-ref', '/api/v1/admin/staff/:id/whatsapp-ref'],
-
-  ['GET /api/staff/:id', '/api/v1/admin/staff/:id'],
-  ['PATCH /api/staff/:id', '/api/v1/admin/staff/:id'],
-  /**
-   * `DELETE /api/staff/:id` refuses an account that still has descendants, a
-   * balance or players, where legacy deleted the row and orphaned the subtree.
-   * The path is unchanged, so this is a rewrite; the outcome is not, so a
-   * caller deleting a populated account now gets a 409 where it used to get a
-   * 200 and an invisible branch.
-   */
-  ['DELETE /api/staff/:id', '/api/v1/admin/staff/:id'],
-
   // ── admin/risk ──────────────────────────────────────────────────────
   //
   // From `siteconfig/routes/adminRiskRoutes.js`, which the port missed in full.
   // The reviewer's view of one player now lives with the other player reports.
   ['GET /api/admin/user-risk/:userId', '/api/v1/admin/reports/user-risk/:userId'],
+
+  // ── sports (mssports) — the TENEXCH paths with an id segment ─────────
+  ['GET /api/user/bet-result/:client_ref([\\w.:-]+)', '/api/v1/sports/user/bet-result/:client_ref'],
+  ['GET /api/user/bet-limits/:event_id([\\w.:-]+)', '/api/v1/sports/user/bet-limits/:event_id'],
+  ['GET /api/admin/betlock/market-locks/:event_id([\\w.:-]+)', '/api/v1/admin/sports/config/betlock/market-locks/:event_id'],
 ];
 
 /**
@@ -1211,7 +1094,12 @@ const PATTERNS = [
  * wins, so a more specific mapping can shadow a broader one.
  */
 const PREFIXES = [
-  // e.g. ['/api/internalsettle', '/api/v1/admin/sports/settlement'],
+  // ── sports (mssports) — TENEXCH back-office mount points, ported as a unit ──
+  // Owner manual settle (modules/settlement) and the sports config routers (modules/sports-config).
+  ['/api/internalsettle', '/api/v1/admin/sports/internalsettle'],
+  ['/api/admin/sports-lock', '/api/v1/admin/sports/config/sports-lock'],
+  ['/api/admin/betting-config', '/api/v1/admin/sports/config/betting-config'],
+  ['/api/admin/commission-config', '/api/v1/admin/sports/config/commission-config'],
 ];
 
 /** `'<METHOD> /a/:id/b'` -> `{ method, regex, params: ['id'] }`. */

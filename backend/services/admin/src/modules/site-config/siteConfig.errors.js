@@ -1,8 +1,11 @@
 'use strict';
 
-const { defineErrors } = require('@ibitplay/common');
+const { defineErrors, entitlements } = require('@ibitplay/common');
 
-module.exports = defineErrors('SITE_CONFIG', {
+module.exports = Object.freeze({
+  /** A flag the owner has not put in the site's plan — details `{ kind: 'flag', key }`. */
+  NOT_ENTITLED: entitlements.entitlementErrors.ENTITLED,
+  ...defineErrors('SITE_CONFIG', {
   NOT_CONFIGURED: {
     status: 409,
     /**
@@ -14,10 +17,21 @@ module.exports = defineErrors('SITE_CONFIG', {
     message: 'There is no site configuration row to update',
   },
 
+  /**
+   * A body named a reward payout coin other than the site's reward currency.
+   * Every reward pays in that ONE coin (owner-set); details
+   * `{ field, rewardCurrency }`. Wire code `SITE_CONFIG_REWARD_CURRENCY_FIXED`.
+   */
+  REWARD_CURRENCY_FIXED: {
+    status: 409,
+    message: "Rewards are paid in the site's reward currency, which cannot be changed here",
+  },
+
   NO_ALERT_INBOX: {
     status: 422,
     message: 'Set a notification email address before sending a test',
   },
+
 
   /**
    * The body named nothing this endpoint is willing to write.
@@ -35,4 +49,29 @@ module.exports = defineErrors('SITE_CONFIG', {
     status: 403,
     message: 'That player is not in your tree',
   },
+
+  /**
+   * `settings` is a set of decisions the code names, not a bag. A key nobody
+   * declared would be written, read by nothing, and quietly mean nothing.
+   */
+  UNKNOWN_SETTING: {
+    status: 422,
+    message: 'That is not a setting this site keeps',
+  },
+
+  /**
+   * The setting's column is not in the database yet — the server has the new
+   * code and has not run the migration. Details `{ migration }`.
+   */
+  MIGRATION_PENDING: {
+    status: 503,
+    message: 'This setting needs a database migration that has not been run yet',
+  },
+
+  /** A limit outside what it may be — below its floor, or under its own minimum. */
+  INVALID_SETTING: {
+    status: 422,
+    message: 'That value is not allowed for this setting',
+  },
+}),
 });

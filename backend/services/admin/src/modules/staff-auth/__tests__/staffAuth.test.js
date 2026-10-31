@@ -3,11 +3,21 @@
 const test = require('node:test');
 const assert = require('node:assert');
 
+/**
+ * `npm test` loads backend/.env, and a dev .env may set
+ * STAFF_2FA_REQUIRED_LEVEL=0 (password-only sign-in on a restored database).
+ * The senior-role tests below assert the SECURE default (level 3 and above
+ * must enrol), so pin it here. It must be set before staffAuth.constants is
+ * required — the threshold is read once, at module load.
+ */
+process.env.STAFF_2FA_REQUIRED_LEVEL = '3';
+
 const db = require('@ibitplay/db');
 const { createLogger } = require('@ibitplay/common');
 const speakeasy = require('speakeasy');
 
-const { hashPassword, totp } = require('@ibitplay/auth');
+const { hashPassword, totp, createAuthMiddleware } = require('@ibitplay/auth');
+const { resolveStaff } = require('../../staff-directory/staffDirectory.service');
 
 const { StaffAuthService } = require('../staffAuth.service');
 const { LOGIN_MAX_ATTEMPTS } = require('../staffAuth.constants');
@@ -152,6 +162,9 @@ test('staff auth', async (t) => {
     );
     await connection.models.StaffHierarchy.destroy({ where: { descendant_id: id } });
     await connection.models.Executives.destroy({ where: { parent_staff_id: id } });
+    // Ids are pid-derived, so a row another test file left behind can name this
+    // id as its parent; detach it rather than fail the FK on the delete.
+    await connection.models.Staff.update({ parent_id: null }, { where: { parent_id: id } });
     await connection.models.Staff.destroy({ where: { id } });
 
     await connection.models.Staff.create({
@@ -300,6 +313,66 @@ test('staff auth', async (t) => {
     );
   });
 
+  await t.test('the lock follows the account across addresses, like a player\'s', async () => {
+    // A combined identifier|ip key gave a botnet 8 guesses per address. The
+    // account's count now stands on its own (player thresholds: 8 / 15 min).
+    const email = await seedStaff(newStaffId());
+    const service = build();
+
+    for (let i = 0; i < LOGIN_MAX_ATTEMPTS; i += 1) {
+      await service.login({ email, password: 'wrong' }, { ip: `198.51.100.${i + 1}` }).catch(() => {});
+    }
+
+    await assert.rejects(
+      () => service.login({ email, password: PASSWORD }, { ip: '198.51.100.200' }),
+      (err) => err.code === 'STAFF_AUTH_TOO_MANY_ATTEMPTS' && err.status === 429
+    );
+  });
+
+  await t.test('one address walking a list of staff accounts is locked at 3x the per-account limit', async () => {
+    const service = build();
+    const ip = '198.51.100.77';
+    const emails = [];
+    for (let i = 0; i < 4; i += 1) emails.push(await seedStaff(newStaffId()));
+
+    // 24 failures, 6 per account: no single account reaches 8.
+    for (let i = 0; i < LOGIN_MAX_ATTEMPTS * 3; i += 1) {
+      await service.login({ email: emails[i % 4], password: 'wrong' }, { ip }).catch(() => {});
+    }
+
+    const fresh = await seedStaff(newStaffId());
+    await assert.rejects(
+      () => service.login({ email: fresh, password: PASSWORD }, { ip }),
+      (err) => err.code === 'STAFF_AUTH_TOO_MANY_ATTEMPTS'
+    );
+    // The same account from elsewhere is fine: the lock is the address's.
+    const ok = await service.login({ email: fresh, password: PASSWORD }, { ip: '198.51.100.78' });
+    assert.ok(ok.token);
+  });
+
+  await t.test('executive sign-in is throttled the same way', async () => {
+    const staffId = newStaffId();
+    await seedStaff(staffId);
+    const username = `exec-lock-${staffId}`;
+    await connection.models.Executives.create({
+      username,
+      password: await hashPassword(PASSWORD, 4),
+      parent_staff_id: staffId,
+      permissions: { authority: [] },
+      status: 'active',
+      kind: 'executive',
+    });
+    const service = build();
+
+    for (let i = 0; i < LOGIN_MAX_ATTEMPTS; i += 1) {
+      await service.executiveLogin({ username, password: 'wrong' }, { ip: `198.51.101.${i + 1}` }).catch(() => {});
+    }
+    await assert.rejects(
+      () => service.executiveLogin({ username, password: PASSWORD }, { ip: '198.51.101.200' }),
+      (err) => err.code === 'STAFF_AUTH_TOO_MANY_ATTEMPTS' && err.status === 429
+    );
+  });
+
   await t.test('a successful sign-in clears the failure count', async () => {
     const email = await seedStaff(newStaffId());
     const service = build();
@@ -358,7 +431,11 @@ test('staff auth', async (t) => {
 
     const row = await connection.models.Staff.findByPk(id, { raw: true });
     assert.match(row.password, /^\$2[aby]\$/);
-    assert.ok(!row.password2, 'password2 must stay empty');
+    assert.equal(row.password2, null, 'password2 must stay NULL');
+
+    // Login reads the bcrypt hash only — it works with password2 NULL.
+    const again = await build().login({ email, password: 'another long password' }, { ip: '203.0.113.16' });
+    assert.ok(again.token);
   });
 
   await t.test('an executive signs in as its parent, with intersected authority', async () => {
@@ -385,6 +462,41 @@ test('staff auth', async (t) => {
     assert.equal(result.actor.staffId, staffId);
     assert.ok(result.actor.executiveId);
     assert.ok(!result.actor.permissions.includes('*'), 'the wildcard must not survive the intersection');
+  });
+
+  await t.test("an executive's logout ends its token, not its parent's", async () => {
+    const staffId = newStaffId();
+    const email = await seedStaff(staffId);
+    await connection.models.Executives.create({
+      username: `exec-out-${staffId}`,
+      password: await hashPassword(PASSWORD, 4),
+      parent_staff_id: staffId,
+      permissions: { authority: [] },
+      status: 'active',
+      kind: 'executive',
+    });
+
+    // The guard every service runs, loading the staff row as admin-service does.
+    const guard = createAuthMiddleware({
+      config,
+      loadUser: async () => null,
+      loadStaff: (id, executiveId) => resolveStaff(connection.models, id, executiveId),
+    }).authenticateStaff();
+    const check = (token) =>
+      new Promise((resolve) => guard({ headers: { authorization: `Bearer ${token}` }, method: 'GET', path: '/x' }, {}, resolve));
+
+    const parent = await build().login({ email, password: PASSWORD }, { ip: '203.0.113.30' });
+    const { token, actor } = await build().executiveLogin(
+      { username: `exec-out-${staffId}`, password: PASSWORD },
+      { ip: '203.0.113.31' }
+    );
+    assert.equal(await check(token), undefined, 'accepted before logout');
+
+    await build().logout({ actor: { id: staffId, executiveId: actor.executiveId } });
+
+    const refused = await check(token);
+    assert.equal(refused?.details?.code, 'SESSION_REVOKED', 'the same token is refused after logout');
+    assert.equal(await check(parent.token), undefined, 'the parent stays signed in');
   });
 
   // ══════════════════════════════════════════════════════════════════════

@@ -15,7 +15,7 @@ const { UPSTREAM_CACHE_MS } = require('./catalogue.constants');
  * The upstreams, and the settings that name their credentials.
  *
  * There is deliberately NO fallback value for any of them. Legacy hardcoded
- * `agent_code: "Skyla_USD"` and `agent_token: "83eb5e…"` in three handlers; a
+ * `agent_code: "<redacted, see backend/docs/ROTATION.md>"` and `agent_token: "<redacted, see backend/docs/ROTATION.md>"` in three handlers; a
  * default here would mean a deployment that looks configured and is playing
  * through somebody else's aggregator account.
  */

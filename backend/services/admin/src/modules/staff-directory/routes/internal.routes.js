@@ -5,9 +5,10 @@ const { validate, z, response, asyncHandler, NotFoundError, ForbiddenError } = r
 
 const {
   resolveStaff,
-  descendantIds,
+  visibleStaffIds,
   verifyTransactionPassword,
   betLockState,
+  uplineBlock,
   betLockList,
   setBetLock,
   transfersForUser,
@@ -56,7 +57,7 @@ module.exports = function internalRoutes({ models, logger }) {
     '/staff/:staffId/descendants',
     validate({ params: z.object({ staffId: z.coerce.number().int().positive() }) }),
     asyncHandler(async (req, res) => {
-      const ids = await descendantIds(models, req.params.staffId, { logger });
+      const ids = await visibleStaffIds(models, req.params.staffId, { logger });
       return response.ok(res, { staffId: req.params.staffId, ids });
     })
   );
@@ -79,12 +80,13 @@ module.exports = function internalRoutes({ models, logger }) {
         .object({
           staffId: z.coerce.number().int().positive(),
           transactionPassword: z.string().min(1).max(200),
+          executiveId: z.coerce.number().int().positive().nullish(),
         })
         .strict(),
     }),
     asyncHandler(async (req, res) => {
-      const { staffId, transactionPassword } = req.body;
-      const valid = await verifyTransactionPassword(models, staffId, transactionPassword);
+      const { staffId, transactionPassword, executiveId } = req.body;
+      const valid = await verifyTransactionPassword(models, staffId, transactionPassword, { executiveId: executiveId ?? null });
 
       if (!valid) {
         logger?.warn({ staffId }, 'Transaction password rejected');
@@ -109,6 +111,25 @@ module.exports = function internalRoutes({ models, logger }) {
     asyncHandler(async (req, res) =>
       response.ok(res, await betLockState(models, req.params.staffId, { logger }))
     )
+  );
+
+  /**
+   * May players under this staff account sign in: blocked when the account
+   * itself or any ancestor (`staff_hierarchy`) is suspended, inactive or
+   * system-locked. user-service asks at player login and refresh, and fails
+   * closed if this is unreachable.
+   */
+  router.get(
+    '/staff/:staffId/access',
+    validate({ params: z.object({ staffId: z.coerce.number().int().positive() }) }),
+    asyncHandler(async (req, res) => {
+      const block = await uplineBlock(models, req.params.staffId, { includeSelf: true });
+      return response.ok(res, {
+        staffId: Number(req.params.staffId),
+        blocked: Boolean(block),
+        ...(block ? { blockedBy: block.staffId, reason: block.reason } : {}),
+      });
+    })
   );
 
   /** The staff accounts a caller may lock, with their current state. */

@@ -53,18 +53,18 @@ function createControllers({ service }) {
     // ── Staff ─────────────────────────────────────────────────────────
 
     /** @legacy GET /bonus/admin/userbonus */
-    listRecords: asyncHandler(async (req, res) => paged(res, req.query, service.listRecords(req.query))),
+    listRecords: asyncHandler(async (req, res) => paged(res, req.query, service.listRecords({ ...req.query, staff: req.staff }))),
 
     /** @legacy GET /bonus/admin/bonusgame */
-    listBonusGames: asyncHandler(async (req, res) => paged(res, req.query, service.listBonusGames(req.query))),
+    listBonusGames: asyncHandler(async (req, res) => paged(res, req.query, service.listBonusGames({ ...req.query, staff: req.staff }))),
 
     /** @legacy GET /bonus/admin/bonushistory */
-    listEvents: asyncHandler(async (req, res) => paged(res, req.query, service.listEvents(req.query))),
+    listEvents: asyncHandler(async (req, res) => paged(res, req.query, service.listEvents({ ...req.query, staff: req.staff }))),
 
-    listAwards: asyncHandler(async (req, res) => paged(res, req.query, service.listAwards(req.query))),
+    listAwards: asyncHandler(async (req, res) => paged(res, req.query, service.listAwards({ ...req.query, staff: req.staff }))),
 
     /** @legacy GET /bonus/users */
-    listUserIds: asyncHandler(async (req, res) => response.ok(res, await service.listUserIds(req.query))),
+    listUserIds: asyncHandler(async (req, res) => response.ok(res, await service.listUserIds({ ...req.query, staff: req.staff }))),
 
     /** @legacy POST /bonus/createuserbonus */
     createRecord: asyncHandler(async (req, res) => response.created(res, await service.createRecord(req.body))),
@@ -79,7 +79,7 @@ function createControllers({ service }) {
     createCode: asyncHandler(async (req, res) => response.created(res, await service.createCode(req.body))),
 
     /** @legacy GET /bonus/redeem-bonus */
-    listCodes: asyncHandler(async (req, res) => paged(res, req.query, service.listCodes(req.query))),
+    listCodes: asyncHandler(async (req, res) => paged(res, req.query, service.listCodes({ ...req.query, staff: req.staff }))),
 
     // ── Per-game counters ─────────────────────────────────────────────
 
@@ -117,11 +117,11 @@ function createControllers({ service }) {
     ),
 
     /** @legacy GET /Adminbonus/api/admin/bonuses */
-    dashboard: asyncHandler(async (req, res) => response.ok(res, await service.adminDashboard(req.query))),
+    dashboard: asyncHandler(async (req, res) => response.ok(res, await service.adminDashboard({ ...req.query, staff: req.staff }))),
 
     /** @legacy GET /Userbonus/debug-bonus/:userId */
     inspect: asyncHandler(async (req, res) =>
-      response.ok(res, await service.overview({ userId: req.params.userId }))
+      response.ok(res, await service.overviewForStaff({ staff: req.staff, userId: req.params.userId }))
     ),
   };
 }

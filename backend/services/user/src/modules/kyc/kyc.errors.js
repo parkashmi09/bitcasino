@@ -35,4 +35,8 @@ module.exports = defineErrors('KYC', {
     status: 404,
     message: 'Document not found',
   },
+  DIRECT_USERS_ONLY: {
+    status: 403,
+    message: 'KYC is for direct users only; this player belongs to an agent',
+  },
 });

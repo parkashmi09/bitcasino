@@ -2,7 +2,7 @@
 
 const { defineErrors } = require('@ibitplay/common');
 
-const { MIN_CLAIM, RAKEBACK_CURRENCY } = require('./rakeback.constants');
+const { MIN_CLAIM } = require('./rakeback.constants');
 
 /**
  * Legacy had no error path at all on the read:
@@ -16,7 +16,7 @@ const { MIN_CLAIM, RAKEBACK_CURRENCY } = require('./rakeback.constants');
 module.exports = defineErrors('RAKEBACK', {
   NOTHING_TO_CLAIM: {
     status: 409,
-    message: `There is less than ${MIN_CLAIM} ${RAKEBACK_CURRENCY} of rakeback to claim`,
+    message: `There is less than ${MIN_CLAIM} USD of rakeback to claim`,
   },
 
   USER_NOT_FOUND: {
@@ -27,6 +27,14 @@ module.exports = defineErrors('RAKEBACK', {
      * an unhandled rejection, which under legacy's setup takes the process out.
      */
     message: 'Player not found',
+  },
+
+  ACCRUAL_NOT_POSITIVE: {
+    status: 422,
+    // Rakeback is a share of a stake. A zero share is nothing to record and a
+    // negative one is not a share — either is a caller bug, said out loud
+    // rather than written to the balance.
+    message: 'A rakeback accrual must be a positive amount',
   },
 
   CLAIM_IN_PROGRESS: {

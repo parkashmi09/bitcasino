@@ -6,6 +6,7 @@ const config = require('./config');
 const { createContainer } = require('./container');
 const { buildApp } = require('./app');
 const { attachSockets } = require('./sockets');
+const { startAggregatorSwitch } = require('./modules/games/catalogueSwitch');
 
 async function main() {
   const container = await createContainer();
@@ -22,7 +23,15 @@ async function main() {
   // The in-house games are socket events; see `sockets.js` for why casino
   // holds its own server rather than sharing user-service's.
   const sockets = attachSockets({ server, container });
-  container.onShutdown = () => sockets.close();
+
+  // The owner's casino aggregator (JSGames / Slotegrator): the lobby's catalogue table holds
+  // that one's games only. Applied now and re-checked on an interval, so a switch in the
+  // owner panel reaches the lobby without a restart.
+  const stopSwitch = startAggregatorSwitch(container);
+  container.onShutdown = () => {
+    stopSwitch();
+    sockets.close();
+  };
 }
 
 main().catch((error) => {

@@ -3,7 +3,7 @@
 const { defineErrors } = require('@ibitplay/common');
 
 module.exports = defineErrors('CLUBCAST', {
-  NOT_CLUB_OWNER: { status: 403, message: 'Only the club owner can do that' },
+  NOT_CLUB_OWNER: { status: 403, message: 'Only the club leader can do that' },
   CLUB_NOT_FOUND: { status: 404, message: 'Club not found' },
   BANNER_NOT_FOUND: { status: 404, message: 'Banner not found' },
   NOTIFICATION_NOT_FOUND: { status: 404, message: 'Notification not found' },

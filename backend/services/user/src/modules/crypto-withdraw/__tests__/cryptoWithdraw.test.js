@@ -273,6 +273,17 @@ test('crypto withdrawals', async (t) => {
     assert.equal(staffView.rows[0].username, `cw-${uid}`);
   });
 
+  await t.test('the staff summary follows the coin filter', async () => {
+    const uid = newUid();
+    await seed(uid, { amount: '25', coin: 'USDT' });
+    await connection.models.Withdrawals.create({ uid, amount: '0.5', coin: 'BTC', chain: 'BTC', wallet: `bc1q${uid}`, status: STATUS.IN_QUEUE, date: new Date() });
+
+    const all = await service.summary({ userId: uid });
+    assert.deepEqual(all.map((r) => r.coin).sort(), ['BTC', 'USDT']);
+    const usdt = await service.summary({ userId: uid, coin: 'USDT' });
+    assert.deepEqual(usdt.map((r) => [r.coin, r.count, r.total]), [['USDT', 1, '25.00000000']]);
+  });
+
   await t.test('a withdrawal that does not exist is a 404', async () => {
     await assert.rejects(
       () => service.decide({ withdrawalId: 2_147_000_003, status: STATUS.APPROVED }, staff),

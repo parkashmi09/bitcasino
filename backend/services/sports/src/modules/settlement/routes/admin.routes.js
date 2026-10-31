@@ -1,140 +1,49 @@
 'use strict';
 
 const { Router } = require('express');
-const { validate, createActivityRecorder } = require('@ibitplay/common');
 
-const v = require('../settlement.validators');
-const { ACTIVITY, PERMISSION } = require('../settlement.constants');
-const { SettlementService } = require('../settlement.service');
-const { createAdminController } = require('../controllers/admin.controller');
+const { PERMISSIONS } = require('@ibitplay/auth');
+
+const { lazy } = require('../../../lib/mssports');
 
 /**
- * Staff settlement routes.
+ * mssports `api/settlementStatement.api.js` → `manualSettleRouter`, route for route.
+ * Mounted at `/api/v1/admin/sports/internalsettle` (staff token, then mssports' own checks).
  *
- * Mounted by the module loader at `/api/v1/admin/sports/settlement`, behind
- * `authenticateStaff()`. The loader applies that guard — this file cannot
- * forget it, which is exactly what happened in
- * `legacy/mannualsettlement/routes.js`: `protectStaff` on four routes, absent
- * on the two `*-after-settlement` handlers that reverse real money. Those two
- * authenticated off a raw `x-staff-id` header, so anyone who could reach the
- * port could void a settled market.
- *
- * Per-route this file still declares:
- *   - the permission required (RBAC, resolved from the live staff record)
- *   - the request schema
- *   - the audit action
- *
- * Order matters: permission before validation before audit before the handler.
- * There is no point validating a body the caller was never allowed to send.
+ *  GET  /momatches                        match-odds/bookmaker markets with open bets
+ *  GET  /fanmatches                       fancy markets with open bets
+ *  POST /declareresult                    declare a result → settles via the settlement worker
+ *  POST /void                             void a market / one fancy session
+ *  GET  /open-bets                        open bets of one market
+ *  POST /void-single-bet                  void one open bet
+ *  GET  /settled-markets                  settled markets (last 24 h)
+ *  GET  /settled-bets                     settled bets of one market
+ *  POST /void-bet-after-settlement    🔑  reverse a settled bet      (needs transaction password)
+ *  POST /void-market-after-settlement 🔑  reverse a settled market   (needs transaction password)
  */
-module.exports = function adminRoutes(deps) {
-  const { auth, clients, logger, config } = deps;
-  const service = new SettlementService(deps);
-  const ctrl = createAdminController({ service });
-
-  const withActivity = createActivityRecorder({
-    client: clients.admin,
-    logger,
-    serviceName: config.SERVICE_NAME,
-  });
-
+module.exports = function adminRoutes({ auth }) {
   const router = Router();
+  // Platform permissions first, so a Super Admin executive can be given exactly these (user, 2026-10-17).
+  const canSettle = auth.requirePermission(PERMISSIONS.SPORTS_SETTLE);
+  const canVoidSettled = auth.requirePermission(PERMISSIONS.SPORTS_VOID_SETTLED);
+  const authMiddleware = lazy((m) => m.authMiddleware);
+  const requireOwner = lazy((m) => m.requireOwner);
+  const verifyTransactionPassword = lazy((m) => m.verifyTransactionPassword);
+  const settle = (name) => lazy((m) => m.ManualSettleController[name]);
 
-  // ── Read: markets awaiting settlement ───────────────────────────────
-  router.get('/mo-matches', auth.requirePermission(PERMISSION.READ), validate(v.listMarketMatches), ctrl.listMarketMatches);
+  router.get('/momatches', canSettle, authMiddleware, requireOwner, settle('getMoMatches'));
+  router.get('/fanmatches', canSettle, authMiddleware, requireOwner, settle('getFanOpenBets'));
+  router.post('/declareresult', canSettle, authMiddleware, requireOwner, verifyTransactionPassword, settle('declareResult'));
+  router.post('/void', canSettle, authMiddleware, requireOwner, verifyTransactionPassword, settle('voidResult'));
+  router.get('/open-bets', canSettle, authMiddleware, requireOwner, settle('getOpenBetsForMarket'));
+  router.post('/void-single-bet', canSettle, authMiddleware, requireOwner, verifyTransactionPassword, settle('voidSingleOpenBet'));
+  // Sports — settle ho chuke markets ka void (admin "Void Bets (After Settlement)" page).
+  router.get('/settled-markets', canSettle, authMiddleware, requireOwner, settle('getSettledMarkets'));
+  router.get('/settled-bets', canSettle, authMiddleware, requireOwner, settle('getSettledBets'));
+  router.post('/void-bet-after-settlement', canVoidSettled, authMiddleware, requireOwner, verifyTransactionPassword, settle('voidBetAfterSettlement'));
+  router.post('/void-market-after-settlement', canVoidSettled, authMiddleware, requireOwner, verifyTransactionPassword, settle('voidMarketAfterSettlement'));
 
-  router.get('/fancy-matches', auth.requirePermission(PERMISSION.READ), validate(v.listFancyMatches), ctrl.listFancyMatches);
-
-  router.get('/open-bets', auth.requirePermission(PERMISSION.READ), validate(v.listOpenBets), ctrl.listOpenBets);
-
-  // ── Write: declare a result ─────────────────────────────────────────
-  router.post(
-    '/declare-result',
-    auth.requirePermission(PERMISSION.DECLARE),
-    validate(v.declareResult),
-    withActivity({
-      action: ACTIVITY.DECLARE_RESULT,
-      describe: (req) => ({
-        targetType: 'MARKET',
-        targetId: req.body.match_id,
-        details: {
-          eventid: req.body.eventid,
-          market_type: req.body.market_type,
-          game_type: req.body.game_type,
-          winnerName: req.body.winnerName,
-          winnerId: req.body.winnerId,
-          fancyName: req.body.fancyName,
-        },
-      }),
-    }),
-    ctrl.declareResult
-  );
-
-  // ── Write: void before settlement ───────────────────────────────────
-  router.post(
-    '/void-market',
-    auth.requirePermission(PERMISSION.VOID),
-    validate(v.voidMarket),
-    withActivity({
-      action: ACTIVITY.VOID_MARKET,
-      describe: (req) => ({
-        targetType: 'MARKET',
-        targetId: req.body.match_id,
-        details: {
-          eventid: req.body.eventid,
-          market_type: req.body.market_type,
-          gametype: req.body.gametype,
-          selection_name: req.body.selection_name,
-        },
-      }),
-    }),
-    ctrl.voidMarket
-  );
-
-  router.post(
-    '/void-bet',
-    auth.requirePermission(PERMISSION.VOID),
-    validate(v.voidBet),
-    withActivity({
-      action: ACTIVITY.VOID_BET,
-      describe: (req) => ({ targetType: 'BET', targetId: req.body.bet_id }),
-    }),
-    ctrl.voidBet
-  );
-
-  // ── Read: already settled ───────────────────────────────────────────
-  router.get('/settled-markets', auth.requirePermission(PERMISSION.READ), validate(v.listSettledMarkets), ctrl.listSettledMarkets);
-
-  router.get('/settled-bets', auth.requirePermission(PERMISSION.READ), validate(v.listSettledBets), ctrl.listSettledBets);
-
-  // ── Write: reverse a settlement ─────────────────────────────────────
-  // The most dangerous pair in the module — they move money that has already
-  // been paid out — and the two that legacy left unauthenticated.
-  router.post(
-    '/void-market/post-settlement',
-    auth.requirePermission(PERMISSION.VOID_AFTER_SETTLEMENT),
-    validate(v.voidMarketAfterSettlement),
-    withActivity({
-      action: ACTIVITY.VOID_MARKET_AFTER,
-      describe: (req) => ({
-        targetType: 'MARKET',
-        targetId: req.body.match_id,
-        details: { market_type: req.body.market_type },
-      }),
-    }),
-    ctrl.voidMarketAfterSettlement
-  );
-
-  router.post(
-    '/void-bet/post-settlement',
-    auth.requirePermission(PERMISSION.VOID_AFTER_SETTLEMENT),
-    validate(v.voidBetAfterSettlement),
-    withActivity({
-      action: ACTIVITY.VOID_BET_AFTER,
-      describe: (req) => ({ targetType: 'LEDGER_ENTRY', targetId: req.body.ledger_id }),
-    }),
-    ctrl.voidBetAfterSettlement
-  );
-
+  router.authorizationReviewed =
+    'platform permission first (sports:settle; sports:void-settled for the post-settlement voids), then mssports: authMiddleware then requireOwner (the Super Admin or its executive), plus the transaction password on the two post-settlement voids';
   return router;
 };

@@ -95,13 +95,14 @@ test('casino aggregators', async (t) => {
 
   const broadcasts = [];
 
-  const build = (balances, config = {}) => {
+  const build = (balances, config = {}, games = undefined) => {
     const wallet = makeWallet(balances);
     const service = new AggregatorsService({
       models,
       db: connection,
       logger,
       wallet,
+      games,
       onSettled: (event) => broadcasts.push(event),
       config: {
         AGGREGATOR_ASIA_SECRET: ASIA_KEY,
@@ -449,5 +450,58 @@ test('casino aggregators', async (t) => {
     assert.equal(broadcasts.length, 1);
     assert.equal(broadcasts[0].userId, uid);
     assert.equal(broadcasts[0].balance, '105.00000000', 'and it carries the balance AFTER the movement');
+  });
+
+  // ── The wager feed (USD wager / VIP XP / affiliate / rakeback) ────────
+
+  /** Captures what the settlement hands the wager feed. */
+  const feed = ({ fail = false } = {}) => {
+    const recorded = [];
+    return {
+      recorded,
+      async recordActivity(args) {
+        recorded.push(args);
+        if (fail) throw new Error('user-service down');
+        return { counted: true };
+      },
+    };
+  };
+
+  await t.test('wager feed: a settled round counts its gross stake once, in the settlement coin', async () => {
+    const { uid, balances } = player('100');
+    const games = feed();
+    const { service } = build(balances, {}, games);
+    const tradeId = newRef();
+    const settle = () =>
+      service.asia({ body: { cmd: 'writeBet', login: uid, bet: '10', win: '25', tradeId }, headers: asiaHeaders });
+
+    await settle();
+    await settle(); // provider retry
+
+    assert.equal(games.recorded.length, 1, 'the retry counts nothing');
+    assert.deepEqual(games.recorded[0], {
+      userId: uid, gameRef: null, wagered: '10.00000000', currency: 'USDT', source: 'agg-asia', ref: tradeId,
+    });
+  });
+
+  await t.test('wager feed: a pure win (no stake) counts nothing', async () => {
+    const { uid, balances } = player('100');
+    const games = feed();
+    const { service } = build(balances, {}, games);
+    await service.evo({ body: evoBody(uid, { round: newRef(), bet: '0', win: '5' }), headers: evoHeaders });
+    assert.equal(games.recorded.length, 0);
+  });
+
+  await t.test('wager feed: a failing feed never fails the settlement', async () => {
+    const { uid, balances } = player('100');
+    const { service } = build(balances, {}, feed({ fail: true }));
+    // A real GamesService swallows its own errors; this stub throws to prove
+    // the money is committed before the feed is touched.
+    const result = await service
+      .asia({ body: { cmd: 'writeBet', login: uid, bet: '10', win: '0', tradeId: newRef() }, headers: asiaHeaders })
+      .catch((e) => ({ thrown: e }));
+    assert.equal(balances.get(String(uid)), '90.00000000', 'the stake was taken');
+    assert.ok(!result.thrown);
+    assert.equal(result.status, 'success', 'the provider is told the round settled');
   });
 });

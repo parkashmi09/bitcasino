@@ -45,6 +45,25 @@ const APAY_DEPOSIT_SYSTEMS = Object.freeze({
   NPR: 'esewa_p2p',
 });
 
+/** A-Pay system names → what staff see on the Payment Methods page. Unlisted ones show the raw name. */
+const APAY_SYSTEM_LABELS = Object.freeze({
+  imps: 'Bank Transfer (IMPS)',
+  upi_p2p: 'UPI',
+  upi_fast_v: 'UPI Fast',
+  phonepe: 'PhonePe',
+  paytm: 'Paytm',
+  bkash_api_v: 'bKash',
+  nagad_api_v: 'Nagad',
+  nagad_b: 'Nagad (Bank)',
+  easypaisa: 'EasyPaisa',
+  jazzcash_fast: 'JazzCash',
+  nayapay_l: 'NayaPay',
+  raast_p2p: 'Raast',
+  pkr_w: 'Bank Transfer',
+  khalti_l: 'Khalti',
+  esewa_p2p: 'eSewa',
+});
+
 /** A-Pay's payout rails. Deliberately not the same set as deposits. */
 const APAY_WITHDRAWAL_SYSTEMS = Object.freeze({
   INR: 'imps',
@@ -113,5 +132,6 @@ module.exports = {
   WAYPAY_MERCHANT_IDS,
   APAY_DEPOSIT_SYSTEMS,
   APAY_WITHDRAWAL_SYSTEMS,
+  APAY_SYSTEM_LABELS,
   WAYPAY_CODES,
 };

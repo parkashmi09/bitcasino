@@ -49,6 +49,11 @@ module.exports = function publicRoutes(deps) {
     // this credential opens other people's balances.
     max: 12,
     keyBy: 'ip',
+    // Only FAILED attempts spend the budget (any response >= 400 counts; a
+    // 2xx is handed back). Stuffing is all failures, so it still trips at 12,
+    // while an office of operators behind one NAT signing in successfully
+    // all morning never locks itself out.
+    skipSuccessfulRequests: true,
     message: 'Too many sign-in attempts from this address. Try again in 15 minutes.',
     enabled: config.RATE_LIMIT_ENABLED !== false,
     logger,

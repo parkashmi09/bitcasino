@@ -166,6 +166,12 @@ const MUST_REQUIRE_AUTH = [
   ['PUT', '/api/v1/admin/user/bank-details/INR/1'],
   ['DELETE', '/api/v1/admin/user/bank-details/INR/1'],
 
+  // A player's saved payout accounts — adding one is adding where money goes
+  ['GET', '/api/v1/user/bank-accounts'],
+  ['POST', '/api/v1/user/bank-accounts'],
+  ['PUT', '/api/v1/user/bank-accounts/1/default'],
+  ['DELETE', '/api/v1/user/bank-accounts/1'],
+
   // Wallet
   ['GET', '/api/v1/user/wallet/balances'],
   ['GET', '/api/v1/user/wallet/history'],

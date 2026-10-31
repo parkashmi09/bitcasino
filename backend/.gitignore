@@ -1,0 +1,2 @@
+# Demo seed output (node scripts/seed-data.js --demo): per-account random passwords. Never commit.
+.demo-credentials.local.md

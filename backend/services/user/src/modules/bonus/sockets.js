@@ -2,6 +2,7 @@
 
 const { Op } = require('sequelize');
 const { LITERAL_EVENTS, AUDIENCE, encode } = require('@ibitplay/socket');
+const { promotionsBlocked } = require('@ibitplay/auth');
 
 /**
  * Bonus countdown timers, over the socket.
@@ -62,7 +63,8 @@ function register({ on, deps }) {
     handle: async (_payload, context) => {
       const now = Date.now();
 
-      const rows = await models.BonusHistoryEngine.findAll({
+      // Agent-tree players have no promotions: no timers to count down.
+      const rows = (await promotionsBlocked(context.userId)) ? [] : await models.BonusHistoryEngine.findAll({
         where: {
           userid: context.userId,
           is_claimed: false,

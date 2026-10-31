@@ -7,9 +7,11 @@ const express = require('express');
 
 const {
   createRateLimiter,
+  watchOwnerRateLimit,
   configureRateLimitStore,
   closeRateLimitStore,
   SharedStore,
+  resolveRedisUrl,
 } = require('../src/middleware/rateLimit');
 
 /**
@@ -202,4 +204,218 @@ test('rate limiting', async (t) => {
 
     assert.equal((await store.increment('u2')).totalHits, 1);
   });
+});
+
+/**
+ * Parker567 bug #10: the staff sign-in bucket kept answering 429 after its
+ * Redis key was deleted, and no key reappeared — it was counting in the
+ * admin process's heap (the root `.env` ships `REDIS_URL` blank), silently,
+ * and it counted successful sign-ins too.
+ */
+test('shared store wiring (bug #10)', async (t) => {
+  const savedUrl = process.env.REDIS_URL;
+  t.after(async () => {
+    await closeRateLimitStore();
+    if (savedUrl === undefined) delete process.env.REDIS_URL;
+    else process.env.REDIS_URL = savedUrl;
+    configureRateLimitStore(null);
+  });
+
+  /** A fake ioredis: the INCR script and the guarded DECR script, from a Map. */
+  function fakeRedis({ failing = () => false } = {}) {
+    const counts = new Map();
+    return {
+      counts,
+      async eval(script, _n, key, windowMs) {
+        if (failing()) throw new Error('Connection is closed.');
+        if (script.includes('INCR')) {
+          const hits = (counts.get(key) ?? 0) + 1;
+          counts.set(key, hits);
+          return [hits, Number(windowMs)];
+        }
+        const hits = counts.get(key) ?? 0;
+        if (hits > 0) counts.set(key, hits - 1);
+        return hits > 0 ? hits - 1 : 0;
+      },
+      async del(key) { counts.delete(key); },
+    };
+  }
+
+  function recorder() {
+    const lines = [];
+    return {
+      lines,
+      warn: (...a) => lines.push(['warn', a.at(-1)]),
+      info: (...a) => lines.push(['info', a.at(-1)]),
+      error() {},
+      debug() {},
+    };
+  }
+
+  async function serveLogin(limiter) {
+    const app = express();
+    app.post('/login', limiter, (req, res) => res.status(req.query.ok ? 200 : 401).json({}));
+    const server = http.createServer(app);
+    await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
+    const base = `http://127.0.0.1:${server.address().port}/login`;
+    return {
+      post: async (ok) => (await fetch(base + (ok ? '?ok=1' : ''), { method: 'POST' })).status,
+      close: () => new Promise((resolve) => server.close(resolve)),
+    };
+  }
+
+  await t.test('RATE_LIMIT_REDIS_URL wins over REDIS_URL, outside node --test', () => {
+    const saved = { ...process.env };
+    try {
+      delete process.env.NODE_TEST_CONTEXT;
+      process.env.REDIS_URL = 'redis://general:6379';
+      process.env.RATE_LIMIT_REDIS_URL = 'redis://limits:6379';
+      assert.equal(resolveRedisUrl(), 'redis://limits:6379');
+      process.env.RATE_LIMIT_REDIS_URL = '';
+      assert.equal(resolveRedisUrl(), 'redis://general:6379', 'blank falls through to REDIS_URL');
+      process.env.NODE_TEST_CONTEXT = 'child-v8';
+      process.env.RATE_LIMIT_REDIS_URL = 'redis://limits:6379';
+      assert.equal(resolveRedisUrl(), 'redis://general:6379', 'a test run never counts into the live store');
+    } finally {
+      for (const k of ['NODE_TEST_CONTEXT', 'REDIS_URL', 'RATE_LIMIT_REDIS_URL']) {
+        if (saved[k] === undefined) delete process.env[k];
+        else process.env[k] = saved[k];
+      }
+    }
+  });
+
+  await t.test('counts land in the shared store; deleting the key clears the lockout', async () => {
+    const redis = fakeRedis();
+    configureRateLimitStore(redis);
+    const limiter = createRateLimiter({
+      name: 'staff-auth:signin', windowMs: 60_000, max: 2, keyBy: 'ip', skipSuccessfulRequests: true, logger: silent,
+    });
+    const app = await serveLogin(limiter);
+
+    assert.deepEqual([await app.post(), await app.post(), await app.post()], [401, 401, 429]);
+    const [key] = [...redis.counts.keys()];
+    assert.match(key, /^staff-auth:signin:/, 'the counter lives in Redis under the bucket name');
+
+    await redis.del(key); // what an operator (or scripts/clear-staff-login-rate-limits.js) does
+    assert.equal(await app.post(), 401, 'the lockout is gone the moment the key is');
+    assert.equal(redis.counts.get(key), 1, 'and a fresh key appears');
+    await app.close();
+  });
+
+  await t.test('only failed sign-ins spend the budget when skipSuccessfulRequests is set', async () => {
+    const redis = fakeRedis();
+    configureRateLimitStore(redis);
+    const app = await serveLogin(createRateLimiter({
+      name: `skip-${process.pid}`, windowMs: 60_000, max: 2, keyBy: 'ip', skipSuccessfulRequests: true, logger: silent,
+    }));
+
+    for (let i = 0; i < 6; i += 1) assert.equal(await app.post(true), 200, 'successful sign-ins never lock anyone out');
+    await new Promise((resolve) => setTimeout(resolve, 20)); // decrement runs after the response
+    assert.equal([...redis.counts.values()][0], 0);
+    assert.deepEqual([await app.post(), await app.post(), await app.post()], [401, 401, 429]);
+    await app.close();
+  });
+
+  await t.test('falling back to memory warns ONCE per outage, and recovery is logged', async () => {
+    let down = true;
+    const redis = fakeRedis({ failing: () => down });
+    configureRateLimitStore(redis);
+    const log = recorder();
+    const app = await serveLogin(createRateLimiter({
+      name: `fb-${process.pid}`, windowMs: 60_000, max: 3, keyBy: 'ip', logger: log,
+    }));
+
+    const codes = [];
+    for (let i = 0; i < 5; i += 1) codes.push(await app.post());
+    assert.deepEqual(codes, [401, 401, 401, 429, 429], 'still enforced while Redis is down');
+    assert.equal(log.lines.filter(([lvl]) => lvl === 'warn').length, 1, 'one warning, not one per request');
+
+    down = false;
+    await app.post();
+    assert.equal(log.lines.filter(([lvl]) => lvl === 'info').length, 1, 'recovery is logged');
+    assert.equal(redis.counts.size, 1, 'and counting is back in Redis');
+    await app.close();
+  });
+
+  await t.test('a hit counted locally during an outage is handed back locally', async () => {
+    let down = true;
+    const redis = fakeRedis({ failing: () => down });
+    configureRateLimitStore(redis);
+    const store = new SharedStore({ name: 'mixed', logger: silent });
+    store.init({ windowMs: 60_000 });
+
+    assert.equal((await store.increment('k')).totalHits, 1);
+    await store.decrement('k');
+    assert.equal((await store.increment('k')).totalHits, 1, 'local decrement applied');
+
+    down = false;
+    assert.equal((await store.increment('k')).totalHits, 1, 'Redis takes over');
+    await store.decrement('k');
+    assert.equal(redis.counts.get('k'), 0, 'and the decrement follows it to Redis');
+  });
+
+  await t.test('real Redis: a decrement on a missing key does not create a negative, TTL-less key', async (st) => {
+    const Redis = require('ioredis');
+    const probe = new Redis('redis://127.0.0.1:6379', { lazyConnect: true, maxRetriesPerRequest: 0, connectTimeout: 500, retryStrategy: () => null });
+    probe.on('error', () => {});
+    try {
+      await probe.connect();
+    } catch {
+      st.skip('no Redis on 127.0.0.1:6379');
+      return;
+    }
+
+    configureRateLimitStore(undefined);
+    process.env.REDIS_URL = 'redis://127.0.0.1:6379';
+    const store = new SharedStore({ name: 'real', logger: silent });
+    store.init({ windowMs: 60_000 });
+    const key = `rl-test-${process.pid}-${Date.now()}`;
+    const fullKey = `${process.env.REDIS_PREFIX || 'ibitplay'}:rl:${key}`;
+
+    try {
+      assert.equal((await store.increment(key)).totalHits, 1);
+      assert.ok((await probe.pttl(fullKey)) > 0, 'the key carries the window as its TTL');
+      await probe.del(fullKey); // operator clears it
+      await store.decrement(key); // a late skipSuccessfulRequests hand-back
+      assert.equal(await probe.exists(fullKey), 0, 'DECR must not resurrect the key at -1');
+    } finally {
+      await probe.del(fullKey);
+      probe.disconnect();
+      await closeRateLimitStore();
+      delete process.env.REDIS_URL;
+    }
+  });
+});
+
+test('owner rate_limit switch: off stops counting, except the login / code guards', async (t) => {
+  delete process.env.REDIS_URL;
+  configureRateLimitStore(null);
+
+  let variant = 'off';
+  const admin = http.createServer((_req, res) => {
+    res.setHeader('Content-Type', 'application/json');
+    res.end(JSON.stringify({ success: true, data: [{ feature: 'rate_limit', kind: 'policy', variant }] }));
+  });
+  await new Promise((resolve) => admin.listen(0, '127.0.0.1', resolve));
+  const poll = watchOwnerRateLimit({ config: { ADMIN_SERVICE_URL: `http://127.0.0.1:${admin.address().port}` }, logger: silent });
+  await poll();
+
+  const api = await serve(createRateLimiter({ name: `owner-${process.pid}`, max: 1, logger: silent }));
+  const login = await serve(createRateLimiter({ name: 'auth:login', max: 1, logger: silent }));
+  t.after(async () => {
+    await api.close();
+    await login.close();
+    await new Promise((resolve) => admin.close(resolve));
+    await closeRateLimitStore();
+  });
+
+  assert.equal((await api.get()).status, 200);
+  assert.equal((await api.get()).status, 200, 'off: a plain bucket does not count');
+  assert.equal((await login.get()).status, 200);
+  assert.equal((await login.get()).status, 429, 'off: the login guard still counts');
+
+  variant = 'on';
+  await poll();
+  assert.equal((await api.get()).status, 200);
+  assert.equal((await api.get()).status, 429, 'on: the bucket counts again');
 });

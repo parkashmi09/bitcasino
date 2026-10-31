@@ -1,7 +1,7 @@
 'use strict';
 
 const { money } = require('@ibitplay/common');
-const { Op, fn, col } = require('@ibitplay/db');
+const { Op, fn, col, literal } = require('@ibitplay/db');
 
 const {
   DEPOSIT_SOURCES,
@@ -182,32 +182,22 @@ class TransactionHistoryService {
    * `modules/crypto-withdraw`. This is the read-only view; nothing here can
    * change a withdrawal's state, which is the point of the split.
    */
-  async withdrawals({ userId, currency, status, from, to, limit, offset }) {
-    const result = await this.models.FiatWithdrawals.findAndCountAll({
-      where: {
-        ...(userId ? { uid: userId } : {}),
-        ...(currency ? { currency } : {}),
-        ...(status ? { status } : {}),
-        ...this.#dateRange('date', from, to),
-      },
-      order: [['id', 'DESC']],
-      limit,
-      offset,
-      raw: true,
-    });
-
+  /**
+   * Admin Transactions → Deposit / Withdraw → Fiat: every payment-gateway rail (F2Pay, A-Pay, WayPay),
+   * all players, newest first. Crypto and manual (bank transfer) have their own tabs.
+   */
+  async gatewayTransactions({ kind, ...query }) {
+    const sources = (kind === 'withdrawal' ? WITHDRAWAL_SOURCES : DEPOSIT_SOURCES).filter((s) => s.method !== 'crypto' && s.method !== 'manual');
+    const { count, rows } = await this.#fromSources(sources, { ...query, kind });
     return {
-      count: result.count,
-      rows: result.rows.map((r) => ({
-        id: r.id,
-        userId: r.uid,
-        amount: money.toDecimalString(money.toMinor(r.amount ?? '0')),
-        currency: r.currency,
-        status: r.status,
-        createdAt: r.date,
+      count,
+      rows: rows.map((r) => ({
+        provider: r.method, id: r.id, userId: r.userId, reference: r.reference ?? null,
+        amount: r.amount, currency: r.currency, status: r.status, createdAt: r.date,
       })),
     };
   }
+
 
   async withdrawalStats({ userId, currency }) {
     return this.#sumBy(this.models.FiatWithdrawals, {
@@ -239,9 +229,10 @@ class TransactionHistoryService {
    * other, so the screen consuming it had a branch per type. One shape here.
    * ─────────────────────────────────────────────────────────────────────
    */
-  async allDeposits({ userId, currency, status, from, to, limit = 50, offset = 0 }) {
+  async allDeposits({ userId, branchId, currency, status, from, to, limit = 50, offset = 0 }) {
     return this.#fromSources(DEPOSIT_SOURCES, {
       userId,
+      branchId,
       currency,
       status,
       from,
@@ -267,9 +258,10 @@ class TransactionHistoryService {
    * needed". A client that read both keys double-counted every A-Pay payout.
    * There is one list here, and `method` says which rail each row came from.
    */
-  async allWithdrawals({ userId, currency, status, from, to, limit = 50, offset = 0 }) {
+  async allWithdrawals({ userId, branchId, currency, status, from, to, limit = 50, offset = 0 }) {
     return this.#fromSources(WITHDRAWAL_SOURCES, {
       userId,
+      branchId,
       currency,
       status,
       from,
@@ -314,13 +306,13 @@ class TransactionHistoryService {
    * table with no limit at all and sorted the lot.
    * ─────────────────────────────────────────────────────────────────────
    */
-  async #fromSources(sources, { userId, currency, status, from, to, limit, offset, kind }) {
+  async #fromSources(sources, { userId, branchId, currency, status, from, to, limit, offset, kind }) {
     const ticker = (coinId) => ccpaymentTicker(coinId, this.config) ?? (coinId == null ? null : String(coinId));
     const helpers = { maskWallet: (w) => this.#maskWallet(w) };
 
     const results = await Promise.all(
       sources.map(async (source) => {
-        const where = this.#whereFor(source, { userId, currency, status, from, to });
+        const where = this.#whereFor(source, { userId, branchId, currency, status, from, to });
 
         // A currency filter this rail cannot express means the rail holds
         // nothing the caller asked for — not that the filter should be ignored.
@@ -374,13 +366,19 @@ class TransactionHistoryService {
    * number against the VARCHAR column returns nothing rather than erroring,
    * which is why this is a per-rail flag and not a cast at the call site.
    */
-  #whereFor(source, { userId, currency, status, from, to }) {
+  #whereFor(source, { userId, branchId, currency, status, from, to }) {
     const where = {
       ...(userId !== undefined && userId !== null
         ? { [source.userColumn]: source.userIdIsText ? String(userId) : userId }
         : {}),
       ...this.#dateRange(source.dateColumn, from, to),
     };
+
+    // A branch's players (admin modules/branches): its direct users. `branchId` is a validated integer.
+    if (branchId !== undefined && branchId !== null) {
+      const ids = `SELECT id${source.userIdIsText ? '::text' : ''} FROM users WHERE branch_id = ${Number(branchId)} AND parent_staff_id IS NULL`;
+      where[Op.and] = [{ [source.userColumn]: { [Op.in]: literal(`(${ids})`) } }];
+    }
 
     if (status) {
       /**

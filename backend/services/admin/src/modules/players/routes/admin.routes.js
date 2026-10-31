@@ -11,7 +11,10 @@ const { createControllers } = require('../controllers');
 /**
  * Player accounts.
  *
- * All three are audited, and the close carries its reason into the audit row —
+ * Sirf edit aur close. Naya user bahar se nahi banta — agent / client ab sirf
+ * Sports Exchange ke Create Account se banta hai.
+ *
+ * Both are audited, and the close carries its reason into the audit row —
  * legacy recorded that a delete happened and nothing about why, for an action
  * that destroyed the player's entire financial history.
  */
@@ -27,27 +30,6 @@ module.exports = function adminRoutes(deps) {
 
   const router = Router();
   const canWrite = auth.requirePermission(PERMISSIONS.USERS_WRITE);
-
-  /** @legacy POST /api/staff/players */
-  router.post(
-    '/',
-    canWrite,
-    validate(v.create),
-    withActivity({
-      action: 'user.create',
-      describe: (req) => ({
-        targetType: 'USER',
-        details: {
-          // The password is NOT here. Legacy's `describe` named `username` and
-          // `email` too, but its handler logged `req.body` whole a line later.
-          username: req.body.username,
-          email: req.body.email ?? null,
-          openingBalance: req.body.initialBalance,
-        },
-      }),
-    }),
-    ctrl.create
-  );
 
   /** @legacy PATCH /api/staff/players/:id */
   router.patch(

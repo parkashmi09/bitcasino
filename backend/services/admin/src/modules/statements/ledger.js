@@ -64,18 +64,38 @@ function place(ts, from, to) {
 }
 
 /**
+ * A row that records the wallet right after it (`post`: the Sports Exchange's `closing` /
+ * `balance`) moved exactly post − running — the balance sheet's rule. Its `amount` is not the
+ * wallet move: a fancy settlement's `amount` is the profit while the wallet also got the stake
+ * back, and a hedged bet debits less than its stake. A post row that moved nothing (a lost bet
+ * settling at 0) is dropped. Other rows pass through unchanged.
+ */
+function withPostMoves(events) {
+  let running = 0n;
+  const out = [];
+  for (const event of events) {
+    const { post, ...rest } = event;
+    const minor = post == null ? money.toMinorQuantised(event.amount) : money.toMinorQuantised(String(post)) - running;
+    if (post != null && minor === 0n) continue;
+    running += minor;
+    out.push(post == null ? rest : { ...rest, amount: money.toDecimalString(minor) });
+  }
+  return out;
+}
+
+/**
  * Build the ledger.
  *
  * @param {Array<{ts: Date|string, kind: string, amount: string}>} events Oldest first.
  * @param {string} live The wallet balance right now, as a decimal string.
  */
-function buildLedger(events, live, { from, to, page = 1, limit = 100, category = 'all' }) {
+function buildLedger(events, live, { from, to, page = 1, limit = 100, category = 'all', anchor = 'wallet' }) {
   let lifetimeNet = 0n;
   let afterEndNet = 0n;
   let periodNet = 0n;
   const inside = [];
 
-  for (const event of events) {
+  for (const event of withPostMoves(events)) {
     const minor = money.toMinorQuantised(event.amount);
     lifetimeNet += minor;
 
@@ -91,7 +111,9 @@ function buildLedger(events, live, { from, to, page = 1, limit = 100, category =
   }
 
   const liveMinor = money.toMinorQuantised(live);
-  const closing = liveMinor - afterEndNet;
+  // `anchor: 'events'` (a player's statement): opening = every event before the range, so a new
+  // account opens at 0 and drift stays in `unexplained` instead of "brought forward".
+  const closing = anchor === 'events' ? lifetimeNet - afterEndNet : liveMinor - afterEndNet;
   const opening = closing - periodNet;
 
   let running = opening;
@@ -204,4 +226,48 @@ function finaliseGaming({ sportsPlayerPnl, casinoPlayerPnl, headlineFor }) {
   };
 }
 
-module.exports = { buildLedger, dailyFromEvents, finishDaily, finaliseGaming, place, dayOf };
+/**
+ * What the PERIOD's movement does not account for.
+ *
+ *     unexplained = (closing − opening) − (in − out) − play
+ *
+ * `in`/`out` are the statement's own money totals (`totalIn`/`totalOut`), and
+ * `play` the in-period gaming movement on the same ledger (sports + casino
+ * rows, which are neither in nor out). Zero means every figure on the page
+ * adds up.
+ *
+ * ── WHY NOT `live − lifetimeNet` ─────────────────────────────────────────
+ * That was the old figure. It measures the WALLET against every event ever
+ * read, so money that reached the wallet before the window by a path the
+ * statement does not read (a seeded balance, a direct write) showed up as
+ * "unexplained" on a week where opening 1000 + in 5000 − out 5000 = closing
+ * 1000 balanced exactly. The anchoring already puts that drift in `opening`
+ * ("brought forward"); it is still reported, as `lifetimeUnreconciled`.
+ *
+ * @param {object} p decimal strings
+ */
+function periodUnexplained({ opening, closing, totalIn, totalOut, play = '0' }) {
+  const m = money.toMinorQuantised;
+  return money.toDecimalString(m(closing) - m(opening) - (m(totalIn) - m(totalOut)) - m(play));
+}
+
+/** In-period gaming movement (sports + casino rows) on a ledger's `inside`. */
+function periodPlay(inside) {
+  let total = 0n;
+  for (const event of inside) {
+    const category = KIND_CATEGORY[event.kind];
+    if (category === 'sports' || category === 'casino') total += money.toMinorQuantised(event.amount);
+  }
+  return money.toDecimalString(total);
+}
+
+module.exports = {
+  buildLedger,
+  dailyFromEvents,
+  finishDaily,
+  finaliseGaming,
+  periodUnexplained,
+  periodPlay,
+  place,
+  dayOf,
+};

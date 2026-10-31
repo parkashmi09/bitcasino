@@ -62,7 +62,7 @@ module.exports = {
   name: 'staff',
   service: 'admin',
   basePath: '/staff',
-  models: ['admin', 'core'],
+  models: ['admin', 'core', 'extended'],
   routers: {
     admin: require('./routes/admin.routes'),
   },

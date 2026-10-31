@@ -91,16 +91,16 @@ function createControllers({ service }) {
      * @legacy GET /deposits
      * @legacy GET /getDepositData
      *
-     * The `deposits` table, flat and paged. Legacy served it twice: once as
-     * `SELECT * FROM deposits` with a per-row USDT conversion, and once with a
-     * `JOIN users` for the name. Both unauthenticated.
+     * Admin Transactions → Fiat: every payment-gateway rail (F2Pay, A-Pay, WayPay), flat and paged —
+     * `gatewayTransactions`. It read the legacy crypto `deposits` table (and `fiat_withdrawals`),
+     * so no gateway order ever showed on that tab.
      */
     deposits: asyncHandler(async (req, res) =>
-      response.paginated(res, await service.cryptoDeposits(req.query), page(req.query))
+      response.paginated(res, await service.gatewayTransactions({ ...req.query, kind: 'deposit' }), page(req.query))
     ),
 
     withdrawals: asyncHandler(async (req, res) =>
-      response.paginated(res, await service.withdrawals(req.query), page(req.query))
+      response.paginated(res, await service.gatewayTransactions({ ...req.query, kind: 'withdrawal' }), page(req.query))
     ),
 
     userCombined: asyncHandler(async (req, res) =>

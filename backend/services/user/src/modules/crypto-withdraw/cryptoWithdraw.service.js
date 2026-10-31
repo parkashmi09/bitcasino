@@ -1,12 +1,25 @@
 'use strict';
 
+const crypto = require('node:crypto');
 const { Op, fn, col } = require('sequelize');
-const { money } = require('@ibitplay/common');
+const { money, sitePolicy, currencyRegistry, assertCurrencySupportedFor, withdrawBlock } = require('@ibitplay/common');
+const { assertPlayerCapability } = require('@ibitplay/auth');
 
 const errors = require('./cryptoWithdraw.errors');
-const { STATUS, TRANSITIONS, REFUNDING_STATUSES } = require('./cryptoWithdraw.constants');
+const {
+  STATUS, TRANSITIONS, REFUNDING_STATUSES, COIN_COLUMNS, BLOCKED_COINS, normaliseCoin,
+} = require('./cryptoWithdraw.constants');
 const { WalletService } = require('../wallet/wallet.service');
 const { REASON } = require('../wallet/wallet.constants');
+const { notifyPlayer } = require('../notifications/notifyPlayer');
+const { withdrawalNotice } = require('../notifications/notices');
+const { networksFor } = require('../crypto/crypto.networks');
+const { PlayerBonusService } = require('../player-bonuses/playerBonus.service');
+const { createWithdrawRequirements } = require('../withdraw-requirements/withdrawRequirements');
+const { withChannel } = require('../directory/playerScope');
+
+/** Thrown inside the request transaction to roll back a double submit's row. */
+class ReplayedRequest extends Error {}
 
 /**
  * The crypto withdrawal queue.
@@ -25,6 +38,179 @@ class CryptoWithdrawService {
     this.logger = logger;
     this.config = config;
     this.wallet = new WalletService(deps);
+    this.playerBonuses = deps.playerBonuses ?? new PlayerBonusService({ ...deps, walletService: this.wallet });
+    // The fiat rail's policy, read from the same keys: one minimum, one KYC switch.
+    this.minimum = config?.WITHDRAW_MINIMUM ?? '1';
+    // The owner's `withdrawal_requirements` policy (KYC / wagering), with WITHDRAW_REQUIRE_KYC.
+    this.requirements = deps.withdrawRequirements ?? createWithdrawRequirements({ ...deps, playerBonuses: this.playerBonuses });
+  }
+
+  // ══════════════════════════════════════════════════════════════════════
+  //  The request
+  // ══════════════════════════════════════════════════════════════════════
+
+  /**
+   * @legacy SOCKET 7c0b37955cf21c7f2f3773c1268edc08 (`C.SUBMIT_NEW_WITHDRAWL`)
+   *
+   * Request a payout, holding the funds.
+   *
+   * ─────────────────────────────────────────────────────────────────────
+   * THE SOCKET USED TO DO THIS ITSELF, AND GOT TWO THINGS WRONG
+   *
+   *   It debited `credits` with a raw `UPDATE … SET usdt = usdt - x`, so no
+   *   ledger row recorded the hold and `WalletService.reconcile` drifted for
+   *   every player who withdrew crypto.
+   *
+   *   It inserted the row as `'pending'` — a status `TRANSITIONS` does not
+   *   know — so `decide()` answered INVALID_TRANSITION and staff could neither
+   *   pay nor refund the request.
+   *
+   * This is the fiat rail's `create`, step for step: site policy, minimum,
+   * cooldown, KYC, bonus forfeit, then ONE transaction holding the guarded
+   * `WalletService.debit` (row lock, `>= amount`, a WITHDRAWAL ledger row) and
+   * the `In Queue` request row. The coin is stored upper-case, as the ledger
+   * spells it.
+   *
+   * A double submit within the minute (same coin, amount and destination)
+   * replays the hold and returns the first request rather than making a
+   * second row against one debit.
+   * ─────────────────────────────────────────────────────────────────────
+   */
+  async request({ userId, coin, amount, wallet, chain, forfeitBonus = false }) {
+    const currency = normaliseCoin(coin);
+
+    // Agent-tree players are paid out by their agent only — no withdrawal rail.
+    await assertPlayerCapability(userId, 'withdraw');
+    // A crypto payout request is reviewed and sent by the cashier team — the manual route.
+    await sitePolicy.assertAllowed(this.models, 'withdrawal_mode', 'manual', this.logger);
+    // An owner-created coin has no chain to pay out on: CURRENCY_NOT_SUPPORTED_FOR_WITHDRAWAL.
+    assertCurrencySupportedFor('WITHDRAWAL', currency);
+    if (BLOCKED_COINS.includes(currency) || !COIN_COLUMNS[currency]) throw errors.UNSUPPORTED_COIN({ coin: currency });
+
+    // The coin registry (migration 061): a coin the site or the owner switched
+    // off is not paid out, and a named network must be one of the coin's
+    // networks that is on. A registry outage fails open.
+    await currencyRegistry.assertRegistryReadable();
+    if (!(await currencyRegistry.isEnabled(currency))) throw errors.UNSUPPORTED_COIN({ coin: currency });
+    const network = chain ? String(chain) : null;
+    if (network) {
+      const offered = await networksFor(currency);
+      if (!offered.some((n) => n.key === network)) {
+        throw errors.NETWORK_UNAVAILABLE({ coin: currency, chain: network.slice(0, 20), offered: offered.map((n) => n.key) });
+      }
+    }
+
+    let requested;
+    try {
+      requested = money.toMinor(String(amount ?? '0'));
+    } catch {
+      throw errors.INVALID_AMOUNT({ amount });
+    }
+    if (requested <= 0n) throw errors.INVALID_AMOUNT({ amount });
+    const decimal = money.toDecimalString(requested);
+    if (money.lt(decimal, this.minimum)) throw errors.BELOW_MINIMUM({ minimum: this.minimum, amount: decimal });
+
+    const address = String(wallet ?? '').trim();
+    if (!address) throw errors.INVALID_ADDRESS();
+
+    // Cooldown before KYC, as on the fiat rail: the temporary blocker first.
+    await this.#assertMayWithdraw(userId);
+    // KYC (CRYPTO_WITHDRAW_KYC_REQUIRED), wagering (WITHDRAW_WAGER_REQUIRED) and the deposit
+    // cap (WITHDRAW_CAP_EXCEEDED), per the policy.
+    const applied = await this.requirements.assertMet(userId, {
+      forfeitBonus,
+      kycError: (kycStatus) => errors.KYC_REQUIRED({ userId, kycStatus }),
+      amount: decimal,
+      currency,
+    });
+
+    // Cash only; an unwagered bonus needs the player's confirmation (BONUS_FORFEIT_REQUIRED).
+    await this.playerBonuses.beforeWithdrawal(userId, { forfeitBonus });
+
+    // Derived from the request itself, so a double-submitted request within the
+    // same minute collapses onto one hold. Hashed to fit VARCHAR(120).
+    const fingerprint = crypto
+      .createHash('sha256')
+      .update(`${currency}|${decimal}|${network ?? ''}|${address}`)
+      .digest('hex')
+      .slice(0, 32);
+    const idempotencyKey = `crypto-withdraw:${userId}:${fingerprint}:${Math.floor(Date.now() / 60_000)}`;
+
+    try {
+      return await this.db.transaction(async (transaction) => {
+        /* TWO SUBMITS AT ONCE: the same lock as the fiat rail. The wallet's replay check reads
+           the ledger before it locks the balance, so two concurrent requests could both miss it.
+           Keyed on the request and released at commit, it makes the second wait and then see the
+           first hold; taken before the bonus and wallet locks, so their order is unchanged. */
+        await this.db.sequelize.query('SELECT pg_advisory_xact_lock(hashtext(:key))', {
+          replacements: { key: idempotencyKey },
+          transaction,
+        });
+
+        // The deposit cap again, under a per-player lock: two requests at once cannot both fit.
+        await this.requirements.assertCapInTransaction(userId, { amount: decimal, currency, transaction, applied });
+
+        // Confirmed: forfeit the active bonuses first (bonuses → wallet lock order).
+        await this.playerBonuses.beforeWithdrawal(userId, { forfeitBonus, transaction });
+
+        const row = await this.models.Withdrawals.create(
+          {
+            uid: userId,
+            amount: decimal,
+            wallet: address,
+            status: STATUS.IN_QUEUE,
+            coin: currency,
+            chain: network,
+            date: new Date(),
+          },
+          { transaction }
+        );
+
+        let movement;
+        try {
+          movement = await this.wallet.debit(
+            {
+              userId,
+              currency,
+              amount: decimal,
+              reason: REASON.WITHDRAWAL,
+              idempotencyKey,
+              // The refund in `decide` carries the same pair.
+              refType: 'CRYPTO_WITHDRAWAL',
+              refId: String(row.id),
+              description: `Withdrawal #${row.id} requested — funds held`,
+            },
+            { sourceService: 'user-service', transaction }
+          );
+        } catch (error) {
+          if (error.code === 'WALLET_INSUFFICIENT_FUNDS') {
+            throw errors.INSUFFICIENT_BALANCE({ coin: currency, requested: decimal, available: error.details?.available });
+          }
+          throw error;
+        }
+
+        // The hold already exists: undo this row and answer with the first one.
+        if (movement.replayed) throw new ReplayedRequest();
+
+        this.logger?.warn(
+          {
+            userId: String(userId),
+            amount: decimal,
+            coin: currency,
+            withdrawalId: String(row.id),
+            ledgerId: movement.ledgerId,
+            // The address is NOT logged in full — it is a payment destination.
+            address: this.#maskWallet(address),
+          },
+          'Crypto withdrawal requested, funds held'
+        );
+
+        return { ...this.#present(row.get({ plain: true })), heldLedgerId: movement.ledgerId, replayed: false };
+      });
+    } catch (error) {
+      if (!(error instanceof ReplayedRequest)) throw error;
+      return this.#replayedRequest(idempotencyKey, userId);
+    }
   }
 
   // ══════════════════════════════════════════════════════════════════════
@@ -79,15 +265,15 @@ class CryptoWithdrawService {
    * a caller that wants a total in one currency asks it once.
    * ─────────────────────────────────────────────────────────────────────
    */
-  async listAll({ status, userId, coin, from, to, limit = 50, offset = 0 }) {
-    const where = {
+  async listAll({ status, userId, coin, from, to, channel, limit = 50, offset = 0 }) {
+    const where = withChannel({
       ...(status ? { status } : {}),
       ...(userId ? { uid: userId } : {}),
       ...(coin ? { coin } : {}),
       ...(from || to
         ? { date: { ...(from ? { [Op.gte]: from } : {}), ...(to ? { [Op.lte]: to } : {}) } }
         : {}),
-    };
+    }, 'uid', channel);
 
     const { rows, count } = await this.models.Withdrawals.findAndCountAll({
       where,
@@ -127,10 +313,11 @@ class CryptoWithdrawService {
   }
 
   /** Totals per status, for the queue header. */
-  async summary({ userId }) {
+  async summary({ userId, coin } = {}) {
     const rows = await this.models.Withdrawals.findAll({
       attributes: ['status', 'coin', [fn('COUNT', col('id')), 'count'], [fn('SUM', col('amount')), 'total']],
-      where: userId ? { uid: userId } : {},
+      // `coin`: the site admin's currency filter (staff route only; a player's own summary never passes it).
+      where: { ...(userId ? { uid: userId } : {}), ...(coin ? { coin } : {}) },
       group: ['status', 'coin'],
       raw: true,
     });
@@ -177,7 +364,8 @@ class CryptoWithdrawService {
    * ─────────────────────────────────────────────────────────────────────
    */
   async decide({ withdrawalId, status, txid, comment }, staff) {
-    return this.db.transaction(async (transaction) => {
+    let player = null;
+    const result = await this.db.transaction(async (transaction) => {
       const row = await this.models.Withdrawals.findOne({
         where: { id: withdrawalId },
         transaction,
@@ -209,7 +397,9 @@ class CryptoWithdrawService {
         refund = await this.wallet.credit(
           {
             userId: row.uid,
-            currency: row.coin,
+            // Upper-case, as the hold was written: a lower-case `'usdt'` row
+            // would otherwise refund under a currency `reconcile('USDT')` skips.
+            currency: normaliseCoin(row.coin),
             amount: money.toDecimalString(money.toMinor(row.amount ?? '0')),
             reason: REASON.WITHDRAWAL_REVERSAL,
             /**
@@ -239,6 +429,7 @@ class CryptoWithdrawService {
         },
         { transaction }
       );
+      player = { userId: row.uid, amount: row.amount, currency: normaliseCoin(row.coin) };
 
       this.logger?.info(
         {
@@ -264,9 +455,69 @@ class CryptoWithdrawService {
         newBalance: refund?.newBalance ?? null,
       };
     });
+    void notifyPlayer(player.userId, withdrawalNotice('crypto-withdraw', withdrawalId, status, player, comment));
+    return result;
   }
 
   // ══════════════════════════════════════════════════════════════════════
+
+  /** The request that already holds this key's funds. */
+  async #replayedRequest(idempotencyKey, userId) {
+    const hold = await this.models.CreditsLedger.findOne({
+      where: { idempotency_key: idempotencyKey },
+      attributes: ['id', 'meta'],
+      raw: true,
+    });
+    const row = hold?.meta?.refId
+      ? await this.models.Withdrawals.findOne({ where: { id: hold.meta.refId, uid: userId }, raw: true })
+      : null;
+    if (!row) throw errors.NOT_FOUND({ idempotencyKey });
+    return { ...this.#present(row), heldLedgerId: hold.id, replayed: true };
+  }
+
+  /**
+   * The cheap refusals, for a caller that has its own gate to run after them (the socket's
+   * password check): an agent-tree player, a locked or withdraw-blocked account, and the
+   * site's withdrawal policy. So a blocked player is told they are blocked, not that their
+   * password is wrong. `request` asks all of them again; this only puts them first.
+   */
+  async assertMayRequest(userId) {
+    await assertPlayerCapability(userId, 'withdraw');
+    await this.#assertAccountOpen(userId);
+    await sitePolicy.assertAllowed(this.models, 'withdrawal_mode', 'manual', this.logger);
+  }
+
+  /** The account exists and is neither locked nor withdraw-blocked. Answers the row. */
+  async #assertAccountOpen(userId) {
+    const user = await this.models.Users.findOne({
+      where: { id: userId },
+      attributes: ['id', 'status', 'system_locked', 'withdraw_locked', 'withdraw_locked_until'],
+      raw: true,
+    });
+    if (!user) throw errors.PLAYER_NOT_FOUND();
+
+    // A lock applied because money was going missing stops the payout too.
+    if (user.system_locked || user.status === 'closed') throw errors.ACCOUNT_LOCKED();
+
+    // The operator's withdrawal block (migration 091) — the same refusal every rail gives.
+    if (user.withdraw_locked) throw withdrawBlock.errors.BLOCKED({ reason: 'withdraw' });
+    // Admin ka Global Withdrawals switch (Users → Financial) — OFF ho to crypto bhi nahi.
+    if (!(await withdrawBlock.withdrawalsEnabled(this.models.Users.sequelize))) throw withdrawBlock.errors.DISABLED({ reason: 'global' });
+    return user;
+  }
+
+  /** The account may withdraw: it exists, is not locked, and is past any cooldown. */
+  async #assertMayWithdraw(userId) {
+    const user = await this.#assertAccountOpen(userId);
+
+    // The 24-hour freeze after a password change or 2FA removal — migration 040,
+    // the same column the fiat rail refuses on.
+    const lockedUntil = user.withdraw_locked_until ? new Date(user.withdraw_locked_until) : null;
+    if (lockedUntil && lockedUntil.getTime() > Date.now()) {
+      throw errors.WITHDRAW_COOLDOWN({ retryAfter: lockedUntil.toISOString() });
+    }
+  }
+
 
   async #namesFor(ids) {
     if (!ids.length) return new Map();
@@ -303,8 +554,22 @@ class CryptoWithdrawService {
       status: row.status,
       txid: row.txid ?? null,
       date: row.date,
+      /**
+       * `note` IS THE OWNER'S TO READ, and it was staff-only until now.
+       *
+       * It is the reason a payout was refused, and the person it is about had
+       * no route on which it reached them: a player could see `status:
+       * "rejected"` and nothing else, while a rejected fiat DEPOSIT explains
+       * itself through `adminComment` on its own list. The two halves of the
+       * platform handled the same situation opposite ways.
+       *
+       * `decidedBy` and `decidedAt` stay staff-only. WHO decided and WHEN is
+       * internal process; WHY is the answer the player needs to act on, and it
+       * is the only one of the three they can do anything with.
+       */
+      note: row.note ?? null,
       ...(forStaff
-        ? { decidedBy: row.decided_by ?? null, decidedAt: row.decided_at ?? null, note: row.note ?? null }
+        ? { decidedBy: row.decided_by ?? null, decidedAt: row.decided_at ?? null }
         : {}),
     };
   }

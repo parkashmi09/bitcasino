@@ -1,7 +1,7 @@
 'use strict';
 
 const { Router } = require('express');
-const { validate, z, response, asyncHandler } = require('@ibitplay/common');
+const { validate, z, response, asyncHandler, noBody, noQuery } = require('@ibitplay/common');
 
 const { ClubBroadcastsService } = require('../clubBroadcasts.service');
 const { NOTIFICATION_TYPES, MAX_IMAGE_BYTES } = require('../clubBroadcasts.constants');
@@ -76,6 +76,7 @@ module.exports = function userRoutes(deps) {
   /** @legacy GET /clubbanner/clubs/:clubId/banners */
   router.get(
     '/clubs/:clubId/banners',
+    noQuery(),
     validate({ params: z.object({ clubId }) }),
     asyncHandler(async (req, res) =>
       response.ok(res, await service.listBanners({ clubId: req.params.clubId, actorId: req.user.id }))
@@ -99,6 +100,7 @@ module.exports = function userRoutes(deps) {
   /** @legacy DELETE /clubbanner/clubs/:clubId/banners/:bannerId */
   router.delete(
     '/clubs/:clubId/banners/:bannerId',
+    noBody(),
     validate({ params: z.object({ clubId, bannerId }) }),
     asyncHandler(async (req, res) =>
       response.ok(res, await service.removeBanner({ ...req.params, actorId: req.user.id }))
@@ -114,6 +116,7 @@ module.exports = function userRoutes(deps) {
    */
   router.get(
     '/banner-image/*',
+    noQuery(),
     asyncHandler(async (req, res) => {
       const image = await service.readImage({
         storedPath: req.params[0],
@@ -165,6 +168,7 @@ module.exports = function userRoutes(deps) {
   /** @legacy PUT /clubnotification/clubs/notifications/:notificationId/read */
   router.put(
     '/notifications/:notificationId/read',
+    noBody(),
     validate({ params: z.object({ notificationId }) }),
     asyncHandler(async (req, res) =>
       response.ok(
@@ -210,6 +214,7 @@ module.exports = function userRoutes(deps) {
   /** @legacy PUT /clubbanner/clubs/banner-notifications/:notificationId/read */
   router.put(
     '/banner-notifications/:notificationId/read',
+    noBody(),
     validate({ params: z.object({ notificationId }) }),
     asyncHandler(async (req, res) =>
       response.ok(

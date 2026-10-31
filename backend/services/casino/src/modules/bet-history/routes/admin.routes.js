@@ -49,7 +49,7 @@ module.exports = function adminRoutes(deps) {
   router.get(
     '/transactions',
     validate(v.listing),
-    asyncHandler(async (req, res) => paged(req, res, await service.list({ ...req.query, staffId: req.staff.id })))
+    asyncHandler(async (req, res) => paged(req, res, await service.list({ ...req.query, staffId: req.staff.id, casinoOnly: true })))
   );
 
   /** @legacy GET /betHistory/transactions/user/:userId */
@@ -65,7 +65,7 @@ module.exports = function adminRoutes(deps) {
   router.get(
     '/stats',
     validate(v.stats),
-    asyncHandler(async (req, res) => response.ok(res, await service.stats({ ...req.query, staffId: req.staff.id })))
+    asyncHandler(async (req, res) => response.ok(res, await service.stats({ ...req.query, staffId: req.staff.id, casinoOnly: true })))
   );
 
   /** @legacy GET /betHistory/user/:userId/bet-win-count */
@@ -80,7 +80,8 @@ module.exports = function adminRoutes(deps) {
   /** @legacy GET /betHistory/admin/analytics */
   router.get(
     '/analytics',
-    asyncHandler(async (req, res) => response.ok(res, await service.analytics({ staffId: req.staff.id })))
+    validate(v.analytics),
+    asyncHandler(async (req, res) => response.ok(res, await service.analytics({ channel: req.query.channel, staffId: req.staff.id, casinoOnly: true })))
   );
 
   /**

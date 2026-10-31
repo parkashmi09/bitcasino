@@ -4,8 +4,11 @@ const { Router } = require('express');
 const { validate, createRateLimiter } = require('@ibitplay/common');
 
 const v = require('../jsGames.validators');
+const cv = require('../jsCuration.validators');
 const { buildJsGamesService } = require('../jsGames.factory');
+const { JsCurationService } = require('../jsCuration.service');
 const { createControllers } = require('../controllers');
+const { createCurationControllers } = require('../controllers/curation');
 
 /**
  * The two provider callbacks, and the game lists a lobby renders.
@@ -19,6 +22,7 @@ const { createControllers } = require('../controllers');
  */
 module.exports = function publicRoutes(deps) {
   const ctrl = createControllers({ service: buildJsGamesService(deps) });
+  const curation = createCurationControllers({ service: new JsCurationService(deps) });
   const router = Router();
 
   const limiter = createRateLimiter({
@@ -41,6 +45,17 @@ module.exports = function publicRoutes(deps) {
   router.get('/v2/games', validate(v.listGames), ctrl.listGamesV2);
   /** @legacy GET /jsGamesv2/games/search */
   router.get('/v2/games/search', validate(v.searchGames), ctrl.searchGamesV2);
+
+  /**
+   * A curated collection — `trending` is the home page's own row.
+   *
+   * Public for the same reason the rest of this file is: a lobby is what an
+   * anonymous visitor comes to look at. An uncurated collection answers an
+   * EMPTY LIST rather than a 404 — the caller asked a real question and the
+   * honest answer is "an operator has not filled this in", which the site can
+   * render around.
+   */
+  router.get('/v1/collections/:collection', validate(cv.readCollection), curation.collection);
 
   return router;
 };

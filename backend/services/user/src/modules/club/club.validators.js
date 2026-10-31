@@ -11,7 +11,7 @@ const percentage = z.string().trim().regex(/^\d{1,3}(\.\d{1,2})?$/, 'must be a p
 const paging = z.object({
   limit: z.coerce.number().int().min(1).max(200).default(50),
   offset: z.coerce.number().int().min(0).default(0),
-});
+}).strict();
 
 const createClub = {
   body: z

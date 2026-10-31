@@ -3,6 +3,8 @@
 const { Router } = require('express');
 const { validate, z, response, asyncHandler } = require('@ibitplay/common');
 
+const { assertTransactionPassword } = require('../transactionPassword');
+
 /**
  * Confirming that a staff id is still an ACTIVE staff member.
  *
@@ -31,10 +33,19 @@ module.exports = function internalRoutes(deps) {
 
   router.get(
     '/verify',
-    validate({ query: z.object({ staffId: z.coerce.number().int().positive() }).strict() }),
+    validate({
+      query: z
+        .object({
+          staffId: z.coerce.number().int().positive(),
+          tv: z.coerce.number().int().min(0).optional(),
+          executiveId: z.coerce.number().int().positive().optional(),
+          etv: z.coerce.number().int().min(0).optional(),
+        })
+        .strict(),
+    }),
     asyncHandler(async (req, res) => {
       const staff = await models.Staff.findByPk(req.query.staffId, {
-        attributes: ['id', 'name', 'email', 'role_id', 'status'],
+        attributes: ['id', 'name', 'email', 'role_id', 'status', 'token_version'],
         raw: true,
       });
 
@@ -45,12 +56,49 @@ module.exports = function internalRoutes(deps) {
        * staff" — refuse the connection — and a 404 would make a transport
        * failure and a policy decision look the same to the code handling it.
        */
-      const active = Boolean(staff) && staff.status !== 'disabled' && staff.status !== 'inactive';
+      // `tv`: the token's version; logout / password change bump it to end older tokens.
+      let current = req.query.tv === undefined || Number(staff?.token_version ?? 0) === req.query.tv;
+      // An executive's own logout bumps `executives.token_version` (`etv`).
+      if (current && req.query.executiveId) {
+        const executive = await models.Executives.findByPk(req.query.executiveId, { attributes: ['status', 'token_version'], raw: true });
+        current = Boolean(executive) && executive.status === 'active' && Number(executive.token_version ?? 0) === (req.query.etv ?? 0);
+      }
+      const active = Boolean(staff) && staff.status !== 'disabled' && staff.status !== 'inactive' && current;
 
       return response.ok(res, {
         active,
         staff: active ? { id: staff.id, name: staff.name, roleId: staff.role_id } : null,
       });
+    })
+  );
+
+  /**
+   * The transaction-password check for a money move in another service.
+   *
+   * `required: false` enforces it only when the account has one set (house
+   * wallet adjust); `required: true` refuses an account without one. A refusal
+   * is a 403 with a `TXN_PASSWORD_*` code — the caller's `ServiceClient`
+   * throws on a non-2xx and keeps the code, so the admin UI can tell "wrong"
+   * from "not set yet".
+   */
+  router.post(
+    '/transaction-password/check',
+    validate({
+      body: z
+        .object({
+          staffId: z.coerce.number().int().positive(),
+          transactionPassword: z.string().max(200).optional(),
+          required: z.boolean().default(true),
+          executiveId: z.coerce.number().int().positive().nullish(),
+        })
+        .strict(),
+    }),
+    asyncHandler(async (req, res) => {
+      const { staffId, transactionPassword, required, executiveId } = req.body;
+      return response.ok(
+        res,
+        await assertTransactionPassword(models, staffId, transactionPassword, { required, executiveId: executiveId ?? null })
+      );
     })
   );
 

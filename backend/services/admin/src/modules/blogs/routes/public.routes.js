@@ -1,7 +1,7 @@
 'use strict';
 
 const { Router } = require('express');
-const { validate } = require('@ibitplay/common');
+const { validate, entitlements } = require('@ibitplay/common');
 
 const v = require('../blogs.validators');
 const { BlogsService } = require('../blogs.service');
@@ -26,8 +26,15 @@ module.exports = function publicRoutes(deps) {
   const ctrl = createControllers({ service: new BlogsService(deps) });
   const router = Router();
 
+  /**
+   * Out of the owner's plan → every read is `403 NOT_ENTITLED` (docs/OWNER-PANEL.md §4). Per
+   * route, not `router.use`: this router is mounted on the same path as the staff routes, and a
+   * `use` here would also catch staff writes that fall through to them.
+   */
+  const entitled = entitlements.requireFeature('blog');
+
   /** @legacy GET /all */
-  router.get('/', validate(v.list), ctrl.list);
+  router.get('/', entitled, validate(v.list), ctrl.list);
 
   /**
    * Literal segments before the parameter routes.
@@ -37,15 +44,15 @@ module.exports = function publicRoutes(deps) {
    * `banners` hit exactly this collision when its paths were flattened.
    */
   /** @legacy GET /by-category?category=news */
-  router.get('/category/:category', validate(v.byCategory), ctrl.byCategory);
+  router.get('/category/:category', entitled, validate(v.byCategory), ctrl.byCategory);
   /** @legacy GET /by-slug?slug=… */
-  router.get('/slug/:slug', validate(v.bySlug), ctrl.bySlug);
+  router.get('/slug/:slug', entitled, validate(v.bySlug), ctrl.bySlug);
 
   /** The image bytes. Legacy served these from a static mount. */
-  router.get('/:id/image', validate(v.byId), ctrl.image);
+  router.get('/:id/image', entitled, validate(v.byId), ctrl.image);
 
   /** @legacy GET /by-id?id=5 */
-  router.get('/:id', validate(v.byId), ctrl.byId);
+  router.get('/:id', entitled, validate(v.byId), ctrl.byId);
 
   return router;
 };

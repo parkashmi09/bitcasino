@@ -1,7 +1,15 @@
 'use strict';
 
 const { Op } = require('sequelize');
-const { hashPassword, resolvePermissions, hasPermission, ALL_PERMISSIONS } = require('@ibitplay/auth');
+const {
+  hashPassword,
+  resolvePermissions,
+  hasPermission,
+  ALL_PERMISSIONS,
+  STAFF_LEVELS,
+  effectiveStaffLevel,
+  canManagePromotions,
+} = require('@ibitplay/auth');
 
 const errors = require('./access.errors');
 const { EXECUTIVE_KIND, EXECUTIVE_STATUS, PASSWORD_ROUNDS } = require('./access.constants');
@@ -38,31 +46,65 @@ class AccessService {
    */
   async myPermissions({ actor }) {
     const staff = await this.models.Staff.findByPk(actor.id, {
-      attributes: ['id', 'role_id'],
+      attributes: ['id', 'role_id', 'parent_id', 'must_change_password'],
       raw: true,
     });
     if (!staff) throw errors.NOT_FOUND({ staffId: actor.id });
 
     const role = await this.models.Roles.findByPk(staff.role_id, { raw: true });
+    const level = role?.level ?? null;
+
+    // A staff row whose role is EXECUTIVE acts with its parent's level.
+    let parentLevel = null;
+    if (level === STAFF_LEVELS.EXECUTIVE && staff.parent_id) {
+      const parent = await this.models.Staff.findByPk(staff.parent_id, { attributes: ['role_id'], raw: true });
+      const parentRole = parent ? await this.models.Roles.findByPk(parent.role_id, { raw: true }) : null;
+      parentLevel = parentRole?.level ?? null;
+    }
 
     let executivePermissions = null;
     if (actor.executiveId) {
       const exec = await this.models.Executives.findByPk(actor.executiveId, { raw: true });
-      executivePermissions = this.#parsePermissions(exec?.permissions);
+      // Raw: `resolvePermissions` reads every stored shape, and a missing or
+      // unreadable grant is NO grant — not the parent's authority.
+      executivePermissions = exec?.permissions ?? [];
     }
 
     const effective = resolvePermissions({
       level: role?.level,
       rolePermissions: this.#parsePermissions(role?.permissions),
       executivePermissions,
+      isExecutive: Boolean(actor.executiveId),
     });
 
     return {
       staffId: actor.id,
       executiveId: actor.executiveId ?? null,
       roleId: staff.role_id,
-      level: role?.level ?? null,
+      level,
+      // The level this session acts with — the parent's, for an executive row.
+      effectiveLevel: Number.isFinite(effectiveStaffLevel({ level, parentLevel }))
+        ? effectiveStaffLevel({ level, parentLevel })
+        : null,
       permissions: effective,
+      // While true every other admin API answers 403 PASSWORD_CHANGE_REQUIRED;
+      // the panel sends the user to its change-password screen.
+      mustChangePassword: !actor.executiveId && staff.must_change_password === true,
+      /**
+       * What the admin UI may show, beyond individual grants. `promotions` is
+       * false for the agent tree (SUPER_MASTER/MASTER/AGENT and their
+       * executives): every promotion admin API answers them 403
+       * PROMOTIONS_NOT_FOR_AGENTS, so the UI should hide those screens.
+       * `vault` follows the same rule (VAULT_NOT_FOR_AGENTS), and so does
+       * `swap` — swap history admin answers SWAP_NOT_FOR_AGENTS.
+       */
+      capabilities: {
+        promotions: canManagePromotions({ level, parentLevel }),
+        // Same rule, separate key: the vault admin answers 403 VAULT_NOT_FOR_AGENTS.
+        vault: canManagePromotions({ level, parentLevel }),
+        // And again: the swap admin (swap history) answers 403 SWAP_NOT_FOR_AGENTS.
+        swap: canManagePromotions({ level, parentLevel }),
+      },
     };
   }
 
@@ -235,6 +277,7 @@ class AccessService {
    * @legacy PATCH /lords/access/marketing-users/:id/password
    */
   async resetPassword({ actor, executiveId, password }) {
+    if (actor.executiveId) throw errors.NOT_PERMITTED({ reason: 'an executive cannot manage sub-logins' });
     await this.#assertOwned(actor, executiveId);
 
     await this.models.Executives.update(
@@ -254,6 +297,7 @@ class AccessService {
    * auditing — the route does.
    */
   async setStatus({ actor, executiveId, status }) {
+    if (actor.executiveId) throw errors.NOT_PERMITTED({ reason: 'an executive cannot manage sub-logins' });
     await this.#assertOwned(actor, executiveId);
 
     await this.models.Executives.update({ status }, { where: { id: executiveId } });
@@ -278,6 +322,9 @@ class AccessService {
    * typo'd permission that silently means nothing is worse than one that fails.
    */
   async #assertGrantable(actor, permissions) {
+    // A sub-login does not mint or re-grant sub-logins; only its owner does.
+    if (actor.executiveId) throw errors.NOT_PERMITTED({ reason: 'an executive cannot grant access' });
+
     const requested = this.#parsePermissions(permissions) ?? [];
     if (!Array.isArray(requested) || !requested.length) {
       throw errors.NOT_PERMITTED({ reason: 'give at least one permission' });

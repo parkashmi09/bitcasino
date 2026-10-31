@@ -1,5 +1,7 @@
 'use strict';
 
+const nodeCrypto = require('crypto');
+
 const express = require('express');
 const helmet = require('helmet');
 const cors = require('cors');
@@ -7,9 +9,64 @@ const compression = require('compression');
 const pinoHttp = require('pino-http');
 
 const { requestContext, REQUEST_ID_HEADER } = require('./middleware/requestContext');
-const { errorHandler } = require('./middleware/errorHandler');
+const { errorHandler, stackExposure } = require('./middleware/errorHandler');
 const { notFound } = require('./middleware/notFound');
-const { createRateLimiter } = require('./middleware/rateLimit');
+const { createRateLimiter, watchOwnerRateLimit } = require('./middleware/rateLimit');
+const { collectServiceKeys, INTERNAL_KEY_HEADER } = require('./middleware/internalAuth');
+
+/**
+ * A service-to-service call to an `/internal/` route carrying a VALID internal key. The global
+ * bucket is keyed by IP, and every wallet move a game makes reaches user-service from
+ * casino-service's one address — so 300 a minute across ALL players' bets tripped it and every
+ * callback after that answered INTERNAL_ERROR (found on live, 19 Oct 2026). Only the global
+ * throttle is skipped, only for a real key; the routes stay guarded by `internalAuth`.
+ */
+/**
+ * Game-provider wallet callbacks: one provider sends EVERY player's bet / win / rollback from its
+ * own few addresses, so a 300-a-minute per-IP bucket throttled a whole casino at once (found on
+ * live, 19 Oct 2026: `gateway:global` 429s on original-games callbacks). Each is authenticated by
+ * the provider's signature and metered by its own route limiter (6000/min) instead.
+ */
+const PROVIDER_CALLBACK_PREFIXES = Object.freeze([
+  '/api/v1/casino/original-games/wallet/',
+  '/api/v1/casino/gis/callback/',
+  '/api/v1/casino/seamless/',
+  '/api/v1/casino/aggregators/',
+  '/api/v1/casino/js-games/v1/bet-callback',
+  '/api/v1/casino/js-games/v2/bet-callback',
+  '/api/v1/casino/x-casino/',
+]);
+
+/**
+ * A game / payment callback or webhook: a provider's SERVER calling us, authenticated by its own
+ * signature. Never encrypted (gateway/src/encryptionRule.js) and never held to CORS, a browser rule —
+ * F2Pay posts its callback with `Origin: https://example.com` and CORS refused it with a 403.
+ */
+const CALLBACK_PATH = /callback|webhook/i;
+const isProviderCallback = (path) => CALLBACK_PATH.test(path) || PROVIDER_CALLBACK_PREFIXES.some((p) => path.startsWith(p));
+
+function skipGlobal(internal, prefixes) {
+  const list = [...(prefixes ?? [])];
+  if (!internal && !list.length) return null;
+  return (req) => {
+    const path = String(req.originalUrl ?? req.path ?? '').split('?')[0];
+    return (req.method === 'POST' && list.some((p) => path.startsWith(p))) || Boolean(internal?.(req));
+  };
+}
+
+function internalCaller(config) {
+  const keys = [config.INTERNAL_API_KEY, ...collectServiceKeys(config).keys.values()].filter(Boolean);
+  if (!keys.length) return null;
+  const digest = (v) => nodeCrypto.createHash('sha256').update(String(v ?? '')).digest();
+  const wanted = keys.map(digest);
+  return (req) => {
+    if (!String(req.path ?? '').startsWith('/internal/')) return false;
+    const sent = req.headers?.[INTERNAL_KEY_HEADER];
+    if (!sent) return false;
+    const got = digest(sent);
+    return wanted.some((w) => nodeCrypto.timingSafeEqual(w, got));
+  };
+}
 const { ForbiddenError } = require('./errors');
 const { assertProductionPosture } = require('./productionGuards');
 
@@ -37,6 +94,8 @@ function createApp({
   // Skip body parsing for the gateway, which streams raw bodies to upstreams.
   parseBody = true,
   enableRateLimit = true,
+  // Paths the per-IP global bucket never counts (game-provider wallet callbacks — see below).
+  rateLimitSkipPrefixes = [],
 } = {}) {
   // ── 0. Refuse to start on an unsafe production configuration ─────────
   // Before anything is built, so a misconfigured deployment fails at boot
@@ -62,7 +121,9 @@ function createApp({
       // breaks nothing, but CORP would block cross-origin fetches from the SPA.
       contentSecurityPolicy: false,
       crossOriginResourcePolicy: { policy: 'cross-origin' },
-      hsts: config.NODE_ENV === 'production' ? { maxAge: 31_536_000, includeSubDomains: true } : false,
+      // Always on: a browser honours HSTS only over HTTPS, so local http dev is unaffected, and live
+      // gets it whatever NODE_ENV the server runs with (docs/SECURITY-CHECKLIST.md #8).
+      hsts: { maxAge: 31_536_000, includeSubDomains: true },
     })
   );
 
@@ -104,20 +165,22 @@ function createApp({
     );
   }
 
-  app.use(
-    cors({
-      origin(origin, callback) {
-        // No Origin header: server-to-server, curl, mobile app — allow.
-        if (!origin || allowAnyOrigin) return callback(null, true);
-        if (allowedOrigins.includes(origin)) return callback(null, true);
-        return callback(new ForbiddenError(`Origin ${origin} is not allowed by CORS`));
-      },
-      credentials: true,
-      methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-      allowedHeaders: ['Content-Type', 'Authorization', REQUEST_ID_HEADER, 'x-internal-key', 'x-internal-service', 'x-2fa-code'],
-      exposedHeaders: [REQUEST_ID_HEADER, 'RateLimit-Limit', 'RateLimit-Remaining', 'RateLimit-Reset', 'Retry-After'],
-      maxAge: 86_400,
-    })
+  const corsHandler = cors({
+    origin(origin, callback) {
+      // No Origin header: server-to-server, curl, mobile app — allow.
+      if (!origin || allowAnyOrigin) return callback(null, true);
+      if (allowedOrigins.includes(origin)) return callback(null, true);
+      return callback(new ForbiddenError(`Origin ${origin} is not allowed by CORS`));
+    },
+    credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization', REQUEST_ID_HEADER, 'x-internal-key', 'x-internal-service', 'x-2fa-code', 'x-refresh-cookie'],
+    exposedHeaders: [REQUEST_ID_HEADER, 'RateLimit-Limit', 'RateLimit-Remaining', 'RateLimit-Reset', 'Retry-After'],
+    maxAge: 86_400,
+  });
+  // Callbacks skip CORS: no browser reads their answer, and a provider may send any Origin.
+  app.use((req, res, next) =>
+    isProviderCallback(String(req.originalUrl ?? req.path ?? '').split('?')[0]) ? next() : corsHandler(req, res, next)
   );
 
   app.use(compression());
@@ -187,6 +250,8 @@ function createApp({
 
   // ── 6. Rate limiting ─────────────────────────────────────────────────
   if (enableRateLimit) {
+    // The owner's on/off switch for every limiter in this process (not under `node --test`).
+    if (config.RATE_LIMIT_ENABLED !== false && !process.env.NODE_TEST_CONTEXT) watchOwnerRateLimit({ config, logger });
     app.use(
       createRateLimiter({
         name: `${serviceName}:global`,
@@ -194,6 +259,7 @@ function createApp({
         max: config.RATE_LIMIT_MAX,
         enabled: config.RATE_LIMIT_ENABLED !== false,
         logger,
+        skipIf: skipGlobal(internalCaller(config), rateLimitSkipPrefixes),
       })
     );
     if (config.RATE_LIMIT_ENABLED === false) {
@@ -207,9 +273,11 @@ function createApp({
 
   // ── 8. Fall-through ──────────────────────────────────────────────────
   app.use(notFound());
-  app.use(errorHandler({ logger, exposeStack: config.NODE_ENV !== 'production' }));
+  // Stacks reach a client only on an explicit dev-debug opt-in, never by NODE_ENV alone.
+  app.use(errorHandler({ logger, exposeStack: stackExposure(config) }));
 
   return app;
 }
 
-module.exports = { createApp };
+module.exports = {
+  PROVIDER_CALLBACK_PREFIXES, isProviderCallback, createApp };

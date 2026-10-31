@@ -20,11 +20,11 @@
 const ACCRUED_COLUMN = 'rakeamount';
 
 /**
- * Rakeback is denominated in USDT.
+ * Default Instant Rakeback payout currency when siteconfig has no override
+ * (or admin-service is unreachable).
  *
- * Legacy hardcoded the column: `UPDATE credits SET usdt = usdt + $2`. Named
- * here because the wallet takes a currency code, and "which balance does a
- * rakeback claim land in" is a product decision that should be visible.
+ * The live value is `siteconfig.rakeback_currency`, edited from the Site Config
+ * screen. Legacy hardcoded `UPDATE credits SET usdt = usdt + $2`.
  */
 const RAKEBACK_CURRENCY = 'USDT';
 

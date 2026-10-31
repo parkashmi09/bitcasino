@@ -4,6 +4,9 @@ const { z } = require('@ibitplay/common');
 
 const { CURRENCY_COLUMNS, CURRENCY_SYNONYMS, MAX_PAGE_SIZE } = require('./reports.constants');
 
+// shortcut: the merged All-currencies sheet stops paging past this many rows per coin; page per coin server-side if a player outgrows it.
+const BALANCE_SHEET_MAX_ROWS = 10000;
+
 /**
  * A player id.
  *
@@ -43,6 +46,35 @@ const currency = z
   })
   .default('INR');
 
+/**
+ * The IP tracker's filters.
+ *
+ * `ip` is an exact address, or a prefix when it ends in `*` or `.` (`10.0.*`,
+ * `10.0.`). Only address characters are accepted, so the prefix can never
+ * carry a LIKE wildcard of the caller's own. `country` is a two-letter code or
+ * part of a country name.
+ */
+const day = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
+const ipTrackerQuery = () =>
+  z
+    .object({
+      search: z.string().trim().min(1).max(80).optional(),
+      ip: z.string().trim().min(1).max(64).regex(/^[0-9a-fA-F.:]+\*?$/, 'Not an IP address or prefix').optional(),
+      country: z.string().trim().min(2).max(80).optional(),
+      source: z.enum(['login', 'register']).optional(),
+      /** Direct Users | Agent Users tab. Na ho = dono. */
+      channel: z.enum(['direct', 'agent']).optional(),
+      from: day.optional(),
+      to: day.optional(),
+      proxyOnly: z
+        .enum(['true', 'false', '1', '0'])
+        .transform((value) => value === 'true' || value === '1')
+        .optional(),
+      ...pagination,
+    })
+    .strict()
+    .refine((q) => !q.from || !q.to || q.from <= q.to, { message: '`from` must not be after `to`', path: ['to'] });
+
 module.exports = {
   /** @legacy GET /reports/users */
   listPlayers: {
@@ -55,26 +87,38 @@ module.exports = {
       .strict(),
   },
 
-  /** @legacy GET /reports/user/:userId */
-  playerReport: {
-    params: z.object({ userId }).strict(),
-  },
-
-  /**
-   * @legacy GET /api/admin/agent-users
-   *
-   * No `channel` — an agent-system listing is agent-anchored players by
-   * definition. Legacy took no parameters at all and capped the list at a bare
-   * `LIMIT 1000`.
-   */
-  agentUsers: {
+  /** GET /reports/user-list — Users page ki table (players jaisa + withdrawLocked filter). */
+  userList: {
     query: z
       .object({
+        channel,
         search: z.string().trim().min(1).max(80).optional(),
-        limit: z.coerce.number().int().min(1).max(MAX_PAGE_SIZE).default(MAX_PAGE_SIZE),
+        /** Users → Financial ka "Locked" filter. */
+        withdrawLocked: z.enum(['true', 'false']).transform((v) => v === 'true').optional(),
+        ...pagination,
+      })
+      .strict(),
+  },
+
+  /** GET /reports/client-balance-sheet/:userId — client user ki sheet, point ledger se. */
+  clientBalanceSheet: {
+    params: z.object({ userId }).strict(),
+    query: z
+      .object({
+        limit: z.coerce.number().int().min(1).max(MAX_PAGE_SIZE).default(50),
         offset: z.coerce.number().int().min(0).default(0),
       })
       .strict(),
+  },
+
+  /** GET /reports/players/summary — Users page ke cards */
+  playersSummary: {
+    query: z.object({ channel }).strict(),
+  },
+
+  /** @legacy GET /reports/user/:userId */
+  playerReport: {
+    params: z.object({ userId }).strict(),
   },
 
   /**
@@ -96,12 +140,19 @@ module.exports = {
   /** @legacy GET /api/admin/user-risk/:userId */
   userRisk: {
     params: z.object({ userId }).strict(),
+    query: z.preprocess((value) => value ?? {}, z.object({}).strict()),
   },
 
-  /** Never a legacy route — the screen was written against one that did not exist. */
-  staffRisk: {
-    params: z.object({ staffId: z.coerce.number().int().positive() }).strict(),
+  /** Players by registration country / city and by login country — no input. */
+  geoStats: {
+    query: z.preprocess((value) => value ?? {}, z.object({}).strict()),
   },
+
+  /** The staff IP tracker — every login event the caller may see. */
+  ipTracker: { query: ipTrackerQuery() },
+
+  /** The same filters, grouped by address: IPs two or more accounts have used. */
+  sharedIps: { query: ipTrackerQuery() },
 
   /** @legacy GET /api/admin/balance-sheet/:userId */
   balanceSheet: {
@@ -109,7 +160,9 @@ module.exports = {
     query: z
       .object({
         currency,
-        limit: z.coerce.number().int().min(1).max(MAX_PAGE_SIZE).default(50),
+        // The sheet is built whole in memory (the running balance needs every row), so a long page
+        // costs only its JSON. The admin's All-currencies view reads each coin from the top this far.
+        limit: z.coerce.number().int().min(1).max(BALANCE_SHEET_MAX_ROWS).default(50),
         offset: z.coerce.number().int().min(0).default(0),
       })
       .strict(),

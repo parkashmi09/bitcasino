@@ -14,7 +14,7 @@ const { ValidationError } = require('../errors');
  *   router.post('/login', validate({ body: loginSchema }), controller.login)
  */
 function validate(schemas = {}) {
-  return function validateMiddleware(req, _res, next) {
+  function validateMiddleware(req, _res, next) {
     const issues = [];
 
     for (const part of ['params', 'query', 'body', 'headers']) {
@@ -44,8 +44,70 @@ function validate(schemas = {}) {
 
     if (issues.length) return next(new ValidationError('Validation failed', issues));
     return next();
-  };
+  }
+
+  // Read by tools/verify-strict-validators.js: it walks every built router and
+  // checks the query/body schemas reject unknown keys. Non-enumerable so it
+  // never shows up in a log of the middleware.
+  Object.defineProperty(validateMiddleware, VALIDATE_SCHEMAS, { value: schemas });
+  return validateMiddleware;
 }
+
+const VALIDATE_SCHEMAS = Symbol.for('ibitplay.validateSchemas');
+
+/**
+ * Does this schema refuse keys it does not declare?
+ *
+ * Unwraps the wrappers that keep an object's own setting (refine/transform/
+ * preprocess, optional/nullable/default/catch, pipe, lazy, branded, readonly)
+ * and requires every branch of a union/intersection to be strict. Anything that
+ * is not an object at the bottom (z.any(), z.record()) is not strict.
+ */
+function isStrictSchema(schema, seen = new Set()) {
+  if (!schema || typeof schema !== 'object' || !schema._def) return false;
+  if (seen.has(schema)) return true;
+  seen.add(schema);
+  const def = schema._def;
+  switch (def.typeName) {
+    case 'ZodObject':
+      return def.unknownKeys === 'strict';
+    case 'ZodEffects':
+      return isStrictSchema(def.schema, seen);
+    case 'ZodOptional':
+    case 'ZodNullable':
+    case 'ZodDefault':
+    case 'ZodCatch':
+    case 'ZodReadonly':
+      return isStrictSchema(def.innerType, seen);
+    case 'ZodBranded':
+      return isStrictSchema(def.type, seen);
+    case 'ZodPipeline':
+      return isStrictSchema(def.in, seen);
+    case 'ZodLazy':
+      return isStrictSchema(def.getter(), seen);
+    case 'ZodUnion':
+    case 'ZodDiscriminatedUnion': {
+      const options = Array.isArray(def.options) ? def.options : [...def.options.values()];
+      return options.length > 0 && options.every((o) => isStrictSchema(o, seen));
+    }
+    case 'ZodIntersection':
+      return isStrictSchema(def.left, seen) && isStrictSchema(def.right, seen);
+    default:
+      return false;
+  }
+}
+
+/**
+ * A body/query schema that accepts nothing at all — for routes that take no
+ * input. A missing body (no Content-Type, nothing parsed) reads as `{}`.
+ */
+const emptyObject = () => z.preprocess((v) => v ?? {}, z.object({}).strict());
+
+/** `GET /x?anything=1` → 422: the route reads no query string. */
+const noQuery = () => validate({ query: emptyObject() });
+
+/** `POST /claim {"x":1}` → 422: the route reads no body (params/token only). */
+const noBody = () => validate({ body: emptyObject() });
 
 // ── Reusable primitives ────────────────────────────────────────────────
 
@@ -98,6 +160,10 @@ const totpCode = z.string().trim().regex(/^\d{6}$/, 'code must be 6 digits');
 
 module.exports = {
   validate,
-  schemas: { idParam, paginationQuery, amount, currencyCode, email, username, password, totpCode },
+  isStrictSchema,
+  VALIDATE_SCHEMAS,
+  noQuery,
+  noBody,
+  schemas: { idParam, paginationQuery, amount, currencyCode, email, username, password, totpCode, emptyObject },
   z,
 };

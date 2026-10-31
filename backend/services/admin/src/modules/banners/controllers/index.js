@@ -1,6 +1,16 @@
 'use strict';
 
 const { response, asyncHandler } = require('@ibitplay/common');
+const { PERMISSIONS, hasPermission } = require('@ibitplay/auth');
+
+/**
+ * Who sees inactive banners: staff holding the content grant's read variant
+ * (`config:read` — the writes require `config:write`). Any staff token used
+ * to be enough, so an AGENT (level 6) could list content the house had taken
+ * down or not yet published. Every other caller, staff or not, gets the
+ * public view.
+ */
+const canSeeInactive = (req) => Boolean(req.staff) && hasPermission(req.staff.permissions, PERMISSIONS.CONFIG_READ);
 
 const { CACHE_SECONDS } = require('../banners.constants');
 
@@ -26,18 +36,18 @@ function createControllers({ service }) {
 
     /** @legacy GET /api/banners/banner/:type */
     byType: asyncHandler(async (req, res) =>
-      response.ok(res, await service.byType({ ...req.params, includeInactive: Boolean(req.staff) }))
+      response.ok(res, await service.byType({ ...req.params, includeInactive: canSeeInactive(req) }))
     ),
 
     /** @legacy GET /api/banners/getBannerAll */
     list: asyncHandler(async (req, res) => {
-      const result = await service.list({ ...req.query, includeInactive: Boolean(req.staff) && req.query.includeInactive });
+      const result = await service.list({ ...req.query, includeInactive: canSeeInactive(req) && req.query.includeInactive });
       return response.ok(res, result.rows, { total: result.total });
     }),
 
     /** @legacy GET /api/banners/getAllImagesBinary */
     listWithImages: asyncHandler(async (req, res) => {
-      const result = await service.listWithImages({ includeInactive: Boolean(req.staff) && req.query.includeInactive });
+      const result = await service.listWithImages({ includeInactive: canSeeInactive(req) && req.query.includeInactive });
       return response.ok(res, result.rows, { total: result.total });
     }),
 
@@ -48,7 +58,7 @@ function createControllers({ service }) {
      * an `<img src>` target, so it answers with the image.
      */
     image: asyncHandler(async (req, res) => {
-      const image = await service.imageBytes({ key: req.params.filename, includeInactive: Boolean(req.staff) });
+      const image = await service.imageBytes({ key: req.params.filename, includeInactive: canSeeInactive(req) });
 
       res.set({
         'Content-Type': image.contentType,

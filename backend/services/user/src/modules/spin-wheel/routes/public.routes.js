@@ -1,6 +1,7 @@
 'use strict';
 
 const { Router } = require('express');
+const { entitlements } = require('@ibitplay/common');
 
 const { SpinWheelService } = require('../spinWheel.service');
 const { createControllers } = require('../controllers');
@@ -15,6 +16,9 @@ const { createControllers } = require('../controllers');
 module.exports = function publicRoutes(deps) {
   const ctrl = createControllers({ service: new SpinWheelService(deps) });
   const router = Router();
+
+  // Not in the owner's plan: every route here answers 403 NOT_ENTITLED (docs/OWNER-PANEL.md §4).
+  router.use(entitlements.requireFeature('spin_wheel'));
 
   router.get('/slices', ctrl.publicSlices);
 

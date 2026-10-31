@@ -1,6 +1,6 @@
 'use strict';
 
-const { LITERAL_EVENTS, AUDIENCE, encode } = require('@ibitplay/socket');
+const { LITERAL_EVENTS, PLATFORM_EVENTS, AUDIENCE, encode } = require('@ibitplay/socket');
 
 const { PreferencesService } = require('./preferences.service');
 
@@ -87,6 +87,44 @@ function register({ on, deps }) {
       );
 
       return ok({ config });
+    },
+  });
+
+  /**
+   * The site's public config, loaded over the socket.
+   *
+   * ── WHY A CALL TO ADMIN-SERVICE ──────────────────────────────────────
+   *
+   * `siteconfig` and `site_features` are admin-service's tables and this
+   * service does not load the `admin` model domain, so the snapshot comes
+   * from `GET /internal/admin/site-config/public` — the same allow-lists the
+   * two public HTTP routes serve, computed by the owner of the data.
+   *
+   * The ack carries `{ flags, features }`, and the same two halves are
+   * emitted on `siteConfigUpdated` / `featuresUpdated` to this socket only, so
+   * a client that listens for pushes is filled by the first call as well as
+   * every later change. PUBLIC: a signed-out visitor draws the same page.
+   */
+  on(PLATFORM_EVENTS.GET_SITE_CONFIG, {
+    audience: AUDIENCE.PUBLIC,
+    limit: { windowMs: 60_000, max: 30 },
+    handle: async (_payload, context) => {
+      let snapshot;
+      try {
+        const result = await deps.clients.admin.get('/internal/admin/site-config/public');
+        snapshot = result?.flags ? result : result?.data;
+      } catch (error) {
+        logger?.warn({ err: error.message }, 'Could not read the site config for a socket');
+        return { status: false, msg: 'Site config is unavailable', error: { code: 'SITE_CONFIG_UNAVAILABLE' } };
+      }
+
+      const flags = snapshot?.flags ?? {};
+      const features = Array.isArray(snapshot?.features) ? snapshot.features : [];
+
+      context.socket.emit(LITERAL_EVENTS.SITE_CONFIG_UPDATED, encode(flags));
+      context.socket.emit(PLATFORM_EVENTS.FEATURES_UPDATED, encode(features));
+
+      return ok({ flags, features });
     },
   });
 }

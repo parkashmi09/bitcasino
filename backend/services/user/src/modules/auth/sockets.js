@@ -1,6 +1,6 @@
 'use strict';
 
-const { EVENTS, AUDIENCE } = require('@ibitplay/socket');
+const { EVENTS, PLATFORM_EVENTS, AUDIENCE } = require('@ibitplay/socket');
 
 const errors = require('./auth.errors');
 const { AuthService } = require('./auth.service');
@@ -112,8 +112,8 @@ function register({ on, deps }) {
          * never update it — which is why it had a separate `C.ONLINE_LOGGED`
          * round trip just to re-authenticate the socket it was already on.
          */
-        context.userId = session.user.id;
-        context.socket.join(`user:${session.user.id}`);
+        // Through `bind`, so the identity carries the new token's expiry like every other one.
+        await context.bind(session.accessToken);
 
         return ok({
           uid: String(session.user.id),
@@ -134,7 +134,7 @@ function register({ on, deps }) {
            */
           return { status: '2fa' };
         }
-        if (error.code?.startsWith('AUTH_')) return refuse(error);
+        if (error.code?.startsWith('AUTH_') || error.code === 'REGION_RESTRICTED') return refuse(error);
         throw error;
       }
     },
@@ -319,7 +319,7 @@ function register({ on, deps }) {
         // No password in the reply.
         return ok({ uid: String(created.id), name: created.name, error: false });
       } catch (error) {
-        if (error.code?.startsWith('AUTH_')) return { ...refuse(error), error: error.message };
+        if (error.code?.startsWith('AUTH_') || error.code === 'REGION_RESTRICTED') return { ...refuse(error), error: error.message };
         throw error;
       }
     },
@@ -388,7 +388,7 @@ function register({ on, deps }) {
         );
         return ok({ revokedSessions: result.revokedSessions });
       } catch (error) {
-        if (error.code?.startsWith('AUTH_')) return refuse(error);
+        if (error.code?.startsWith('AUTH_') || error.code === 'REGION_RESTRICTED') return refuse(error);
         throw error;
       }
     },
@@ -490,6 +490,15 @@ function register({ on, deps }) {
    *
    * `C.GET_UID`.
    */
+  /**
+   * `getMe` — the player's own record, with their login location. Ours, not
+   * legacy's (see PLATFORM_EVENTS).
+   */
+  on(PLATFORM_EVENTS.GET_ME, {
+    audience: AUDIENCE.USER,
+    handle: async (_payload, context) => ok({ user: await service.me(context.userId) }),
+  });
+
   on(EVENTS.GET_UID, {
     audience: AUDIENCE.USER,
     handle: async (_payload, context) => String(context.userId),

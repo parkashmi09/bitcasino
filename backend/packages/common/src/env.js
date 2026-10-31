@@ -141,6 +141,14 @@ const cacheEnvShape = {
 const httpEnvShape = {
   ...cacheEnvShape,
   LOG_PRETTY: coercers.bool(false),
+  /**
+   * Put the first lines of a 5xx's stack trace in the response body. Debug aid
+   * for one developer's machine ONLY: a stack carries server file paths and
+   * dependency layout, so it is off unless set to true explicitly — NODE_ENV
+   * alone never turns it on (the repository's `.env` ships `development`) —
+   * and it is ignored entirely when NODE_ENV=production.
+   */
+  ERROR_EXPOSE_STACK: coercers.bool(false),
   // Master switch for every rate-limit bucket. Only ever false for test runs.
   RATE_LIMIT_ENABLED: coercers.bool(true),
   CORS_ORIGIN: coercers.list(['*']),
@@ -175,6 +183,17 @@ const httpEnvShape = {
   RATE_LIMIT_WINDOW_MS: coercers.int(60_000),
   RATE_LIMIT_MAX: coercers.int(300),
   INTERNAL_API_KEY: coercers.secret(16),
+
+  /**
+   * A whitelabel copy of this stack (made by the parent site's Whitelabel panel). Its level-1
+   * account is the COMPANY: it cannot fund itself, its money comes from the parent's transfers.
+   * Off on the parent site, so nothing there changes.
+   *
+   *   WHITELABEL_LINK_KEY  the key the parent sends (`x-whitelabel-key`) on admin modules/whitelabel-link.
+   *                        Unset = every keyed link route answers 401.
+   */
+  WHITELABEL_MODE: coercers.bool(false),
+  WHITELABEL_LINK_KEY: coercers.optionalStr(),
 };
 
 /**
@@ -276,6 +295,23 @@ const internalKeysEnvShape = {
   INTERNAL_KEY_SPORTS_SERVICE: coercers.optionalStr(),
 };
 
+/**
+ * IP geolocation for the login history (user-service, modules/auth/geo).
+ *
+ * PRIVACY: with online lookups on, each player's public IP is sent over HTTPS
+ * to the third-party provider (ipinfo.io / ipwho.is). Set
+ * GEO_LOOKUP_ENABLED=false to keep IPs on this server (offline DB-IP file only).
+ *
+ *   GEO_LOOKUP_ENABLED  online lookups on/off (default on)
+ *   GEO_PROVIDERS       comma list, tried in order: ipinfo, ipwhois, local
+ *   IPINFO_TOKEN        optional ipinfo.io token (higher quota); sent as a Bearer header
+ */
+const geoEnvShape = {
+  GEO_LOOKUP_ENABLED: coercers.bool(true),
+  GEO_PROVIDERS: coercers.str('ipinfo,ipwhois,local'),
+  IPINFO_TOKEN: coercers.optionalStr(),
+};
+
 /** Where the other services live, for inter-service calls. */
 const serviceDiscoveryEnvShape = {
   USER_SERVICE_URL: coercers.str('http://127.0.0.1:4001'),
@@ -297,6 +333,7 @@ module.exports = {
   secretEncryptionEnvShape,
   internalKeysEnvShape,
   serviceDiscoveryEnvShape,
+  geoEnvShape,
   z,
   findRepoRoot,
 };

@@ -1,8 +1,8 @@
 'use strict';
 
 const { Router } = require('express');
-const { validate, z, response, asyncHandler } = require('@ibitplay/common');
-const { PERMISSIONS } = require('@ibitplay/auth');
+const { validate, z, response, asyncHandler, noBody } = require('@ibitplay/common');
+const { PERMISSIONS, denyDirectUsers } = require('@ibitplay/auth');
 
 const { DirectoryService } = require('../directory.service');
 
@@ -31,6 +31,7 @@ module.exports = function adminRoutes(deps) {
   const { auth } = deps;
   const service = new DirectoryService(deps);
   const router = Router();
+  router.use(denyDirectUsers());
 
   const canRead = auth.requirePermission(PERMISSIONS.USERS_READ);
 
@@ -95,6 +96,7 @@ module.exports = function adminRoutes(deps) {
    */
   router.delete(
     '/:userId',
+    noBody(),
     auth.requirePermission(PERMISSIONS.USERS_DELETE),
     validate({ params: z.object({ userId: z.coerce.number().int().positive() }) }),
     asyncHandler(async (req, res) => response.ok(res, await service.refuseDelete({ ...req.params, actor: req.staff })))

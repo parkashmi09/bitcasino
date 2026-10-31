@@ -1,0 +1,167 @@
+import { useAuth } from '@/auth/AuthProvider';
+import { Hero } from '@/components/sections/Hero';
+import { HomeBanner } from '@/components/sections/HomeBanner';
+import { CatalogueRail } from '@/components/sections/CatalogueRail';
+import { ThemeRail } from '@/components/sections/ThemeRail';
+import { TrustSection } from '@/components/sections/TrustSection';
+import { ProviderRail } from '@/components/sections/ProviderRail';
+import { useHomeSlides, useLobbyCategories, useSiteConfig } from '@/queries';
+import { HOME_RAILS, THEME_RAIL_INDEX, lobbyRail } from '@/data/homeRails';
+import { OriginalsRail } from '@/components/sections/OriginalsRail';
+
+/**
+ * Section order follows the reference home page.
+ *
+ * Read off the reference's own signed-in column on 2026-09-08, top to bottom:
+ *
+ *     y  104  h 514   the three-card banner row
+ *     y  650  h 240   Originals
+ *          …          six more rails, Themes seventh
+ *     y 2926  h 300   the collapsed editorial panel
+ *     y 3258  h  80   the studio strip  <- LAST
+ *
+ * The two structural details that fall out of it: the banner is followed
+ * **directly** by the first game rail, and the studio strip is the last thing
+ * on the page rather than the first thing under the banner. This file had the
+ * strip second, which put a row of greyscale wordmarks between the promo cards
+ * and Originals that the reference does not have anywhere.
+ *
+ * The strip reads as a credibility footnote under the editorial copy, not as a
+ * band competing with the hero — which is also why it carries no heading.
+ *
+ * Every game rail then runs consecutively, with all editorial content below
+ * them: the rails are never interleaved with marketing.
+ *
+ * Two things move between the session states.
+ *
+ * The above-the-fold band is swapped outright: signed out it runs `Hero`, the
+ * two-column acquisition band with the "Join the world's first licensed
+ * Bitcoin casino" headline and the Join Us button; signed in that band is gone
+ * and `HomeBanner`'s row of three promo cards takes the space.
+ *
+ * The studio strip then follows the band it sits under. Signed out the
+ * reference puts it directly beneath the hero, where it backs the pitch the
+ * hero just made — the wordmarks are the evidence for "huge selection of high
+ * RTP games", so they belong next to the claim. Signed in there is no claim to
+ * back: the player already has an account, the promo cards are an offer rather
+ * than an argument, and the strip drops to the foot of the column as a
+ * credibility footnote under the editorial panel. Both positions are the
+ * reference's own; the order in the measured column above is the signed-in
+ * one.
+ *
+ * The third state is `loading`, which only happens when a refresh token is
+ * being exchanged on a reload — i.e. when a session most likely exists.
+ * Rendering `Hero` through it would flash the acquisition pitch, Join Us
+ * button and all, at a player who is already signed in; rendering `HomeBanner`
+ * would do the mirror of that. So it holds the space instead, sized to the
+ * banner it usually resolves to, and neither pitch is shown until the answer
+ * is known. The strip stays at the foot through `loading` for the same reason:
+ * that is where it lands in the state `loading` usually resolves to, so it
+ * does not jump once the session lands.
+ *
+ * The reference folds the whole editorial tail (trust, game breakdown,
+ * providers, promotions, the crypto explainer and the getting-started guide)
+ * into `TrustSection`'s single collapsed panel rather than a run of separate
+ * bands. `CategoryStrip`, `SeoContent`, `VipBanner`, `CryptoFeatures`,
+ * `AccessAnywhere` and `GettingStarted` still exist as components, but the
+ * home page no longer renders them. (`PromoGrid` was one of them until
+ * `PROMOTIONS` was reshaped into promotion-list rows for `/promotions`; it
+ * rendered the `tone` and `cta` fields that shape no longer has.)
+ */
+export function Home() {
+  const { status } = useAuth();
+  const { config } = useSiteConfig();
+  const lobby = useLobbyCategories();
+  const heroOn = config.flag('home_heroSection');
+  const slides = useHomeSlides({ enabled: heroOn });
+  const hasSlides = heroOn && Boolean(slides.data?.length);
+  // A disabled query stays pending; with the section off the answer is simply "no slides".
+  const slidesKnown = !heroOn || !slides.isPending;
+  const signedOut = status === 'anonymous';
+
+  /**
+   * Operator flags gate three of the seven rails.
+   *
+   * `home_livecasino`, `home_popularslots` and `home_crashgames` are the
+   * platform's own `home_*` section toggles, and they name exactly the three
+   * rails backed by a curated collection — which is the pairing that makes
+   * sense, since both the flag and the row are things an operator edits. The
+   * other four have no flag and always render.
+   *
+   * `config.flag()` answers `true` for anything it has not been told about, so
+   * this shows every rail before the config lands and on a deployment that has
+   * never been configured. See `data/adapters/siteConfig.js`.
+   */
+  const RAIL_FLAGS = {
+    'live-casino': 'home_livecasino',
+    'popular-slots': 'home_popularslots',
+    crash: 'home_crashgames',
+    live: 'home_livecasino',
+    'crash-games': 'home_crashgames',
+  };
+
+  // The site admin's lobby categories drive the rails, in its order and with its names; until they
+  // answer (or if there are none) the built-in rails stand in. Originals have their own rail.
+  const fallback = HOME_RAILS.filter((rail) => rail.source.slug !== 'originals');
+  const source = lobby.data?.length ? lobby.data.map(lobbyRail) : lobby.isPending ? [] : fallback;
+
+  const rails = source.filter((rail) => {
+    const flag = rail.source.kind === 'collection' || rail.source.kind === 'lobby' ? RAIL_FLAGS[rail.source.slug] : null;
+    return flag ? config.flag(flag) : true;
+  });
+
+  // The Themes strip sits after the first four rails, as on the reference.
+  const themeAt = Math.min(THEME_RAIL_INDEX - 1, rails.length);
+
+  return (
+    <>
+      {/* The site admin's banners (Content -> Banners) for everyone; the built-in hero only when there are none. */}
+      {(status === 'authenticated' || (signedOut && hasSlides)) && <HomeBanner />}
+      {signedOut && !hasSlides && slidesKnown && <Hero />}
+      {status === 'loading' && <AboveTheFoldSkeleton />}
+
+      {signedOut && <ProviderRail />}
+
+      {/* Renders nothing until a round settles — see `LatestWins`. It sits
+          above the rails because that is where the reference puts it, and it
+          costs no space while the feed is empty. */}
+      {/* {config.flag('home_latestwins') && <LatestWins />} */}
+
+      {config.flag('originals') && <OriginalsRail />}
+
+      {rails.slice(0, themeAt).map((rail) => (
+        <CatalogueRail key={rail.title} {...rail} />
+      ))}
+
+      <ThemeRail />
+
+      {rails.slice(themeAt).map((rail) => (
+        <CatalogueRail key={rail.title} {...rail} />
+      ))}
+
+      <TrustSection />
+      {!signedOut && <ProviderRail />}
+    </>
+  );
+}
+
+/**
+ * Placeholder for the one slot that depends on the session.
+ *
+ * Heights track `HomeBanner`'s card at every breakpoint so the rails below do
+ * not jump when the session resolves. It is deliberately empty rather than a
+ * shimmering skeleton: this resolves in one round trip, and a card-shaped
+ * pulse that turns into a *different* layout half the time reads worse than
+ * quiet space.
+ *
+ * Below `sm` the banner is a carousel, so the height is the card's 410px plus
+ * the 16px gap and 8px dot row under it.
+ */
+function AboveTheFoldSkeleton() {
+  return (
+    <div
+      aria-hidden="true"
+      className="min-h-[434px] sm:min-h-[300px] lg:min-h-[400px] xl:min-h-[514px]"
+    />
+  );
+}

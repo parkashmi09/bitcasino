@@ -29,7 +29,7 @@ module.exports = (sequelize) => {
       field: "usd_rate",
     },
     last_updated: {
-      type: 'TIMESTAMP',
+      type: DataTypes.DATE, // timestamptz (migration 083)
       allowNull: true,
       defaultValue: DataTypes.NOW,
       field: "last_updated",

@@ -6,9 +6,18 @@ const config = require('./config');
 const { createContainer } = require('./container');
 const { buildApp } = require('./app');
 const { attachSockets } = require('./sockets');
+const { mssports } = require('./lib/mssports');
 
 async function main() {
   const container = await createContainer();
+
+  // The sportsbook core, loaded at boot as TENEXCH's server.js did: models defined, Redis opened,
+  // the bet-limit cleanup cron scheduled.
+  mssports();
+  if (!process.env.AVRKHUB_SPORTS_BASE_URL || !process.env.AVRKHUB_SPORTS_KEY) {
+    container.logger.warn('AVRKHUB_SPORTS_BASE_URL / AVRKHUB_SPORTS_KEY not set — no odds or events, every bet is refused (fail-closed)');
+  }
+
   const app = buildApp(container);
 
   const { server } = startServer({
@@ -16,13 +25,12 @@ async function main() {
     port: config.PORT,
     serviceName: config.SERVICE_NAME,
     logger: container.logger,
-    // Close the database only after in-flight requests finish — a settlement
+    // Close the database only after in-flight requests finish — a bet's
     // transaction must not be aborted by shutdown.
     onShutdown: [() => container.close()],
   });
 
-  // `C.SPORT_GAME` is the one socket event this service owns; see `sockets.js`
-  // for why the feed's cache and credentials keep it here.
+  // The mssports balance room; see `sockets.js`.
   const sockets = attachSockets({ server, container });
   container.onShutdown = () => sockets.close();
 }

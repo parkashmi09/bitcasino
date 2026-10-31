@@ -3,9 +3,10 @@
 const crypto = require('node:crypto');
 
 const { Op } = require('sequelize');
-const { money } = require('@ibitplay/common');
+const { money, withdrawBlock } = require('@ibitplay/common');
 
 const { WalletService } = require('../wallet/wallet.service');
+const { createWithdrawRequirements } = require('../withdraw-requirements/withdrawRequirements');
 
 const errors = require('./p2p.errors');
 const { inspect } = require('./p2p.upload');
@@ -109,6 +110,13 @@ class P2pService {
      * thing legacy did not have when it wrote `SET ${order.coin} = ...`.
      */
     this.wallet = deps.wallet ?? new WalletService(deps);
+    this.deps = deps;
+  }
+
+  /** The owner's withdrawal rules (`../withdraw-requirements`), built on first use. */
+  #requirements() {
+    this.withdrawRequirements ??= this.deps.withdrawRequirements ?? createWithdrawRequirements(this.deps);
+    return this.withdrawRequirements;
   }
 
   // ── Reads ─────────────────────────────────────────────────────────────
@@ -395,6 +403,8 @@ class P2pService {
    */
   async createSellOrder({ userId, offerId, cryptoAmount, paymentTypeId, accountName, accountNumber, ifscCode, upiId, file }) {
     const qr = file ? inspect(file, errors) : null;
+    // A sell order is a payout: the operator's withdrawal block refuses it (migration 091).
+    await withdrawBlock.assertWithdrawAllowed(this.models, { userId });
 
     return this.db.transaction(async (transaction) => {
       const offer = await this.models.P2pOffer.findByPk(offerId, {
@@ -406,6 +416,9 @@ class P2pService {
       if (offer.status !== OFFER_STATUS.ACTIVE) throw errors.OFFER_INACTIVE({ offerId });
 
       this.#checkLimits(offer, cryptoAmount);
+      // A P2P sell is a payout: the owner's daily withdrawal limit for that coin (WITHDRAW_DAILY_LIMIT),
+      // under the same per-player lock the other withdrawal rails take.
+      await this.#requirements().assertDailyInTransaction(userId, { amount: cryptoAmount, currency: offer.coin, transaction });
 
       const paymentType = await this.models.P2pPaymentType.findByPk(paymentTypeId, { transaction, raw: true });
       if (!paymentType) throw errors.PAYMENT_TYPE_NOT_FOUND({ paymentTypeId });

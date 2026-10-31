@@ -49,12 +49,12 @@ module.exports = (sequelize) => {
       field: "rollcompetitionbonus",
     },
     createdat: {
-      type: 'TIMESTAMP',
+      type: DataTypes.DATE, // timestamptz (migration 083)
       allowNull: false,
       field: "createdat",
     },
     updatedat: {
-      type: 'TIMESTAMP',
+      type: DataTypes.DATE, // timestamptz (migration 083)
       allowNull: false,
       field: "updatedat",
     },

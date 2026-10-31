@@ -24,6 +24,7 @@ const SERVICES = [
   // Background jobs: feed polling, result polling and settlement. A separate
   // process from the sports HTTP service on purpose — see services/sports/src/worker.js.
   { name: 'sports-worker', dir: 'services/sports', color: '\x1b[90m', script: 'src/worker.js', delay: 2000 }, // grey
+  { name: 'user-worker', dir: 'services/user', color: '\x1b[90m', script: 'src/worker.js', delay: 2000 }, // grey
   // The gateway starts last: it probes the others on /health, and starting it
   // first just produces a screenful of connection errors.
   { name: 'gateway', dir: 'gateway', color: '\x1b[34m', delay: 1500 }, // blue
@@ -43,6 +44,10 @@ if (!selected.length) {
 
 const children = [];
 let shuttingDown = false;
+
+// A failed write to a redirected log must not stop the platform.
+process.stdout.on('error', () => {});
+process.stderr.on('error', () => {});
 
 function start(service) {
   const label = service.name.padEnd(13);

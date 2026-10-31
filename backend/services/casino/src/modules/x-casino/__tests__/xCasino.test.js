@@ -8,8 +8,36 @@ const db = require('@ibitplay/db');
 const { createLogger, money } = require('@ibitplay/common');
 
 const { XCasinoService } = require('../xCasino.service');
+const { GamesService } = require('../../games/games.service');
 const { verify, legacyHash, payloadHash, isFresh } = require('../signature');
 const v = require('../xCasino.validators');
+
+/** The real `reverseActivity` over a user-service that is down: what it queues for retry. */
+const outboxFeed = () => {
+  const queued = [];
+  const real = new GamesService({
+    models: {},
+    db: {
+      sequelize: {
+        async query(sql, opts) {
+          if (/INSERT INTO wager_reverse_outbox/.test(sql)) queued.push(opts.replacements);
+          return [[], 1];
+        },
+      },
+    },
+    config: {},
+    logger: { warn() {}, info() {}, error() {} },
+    clients: { user: { async post() { throw new Error('user-service down'); } } },
+  });
+  return {
+    queued,
+    games: {
+      async recordPlay() {},
+      async recordActivity() { return { counted: true }; },
+      reverseActivity: (args) => real.reverseActivity(args),
+    },
+  };
+};
 
 /**
  * The XGaming aggregator.
@@ -484,6 +512,79 @@ test('the aggregator against a database', async (t) => {
     // Cancelling again returns the same outcome rather than crediting twice.
     await service.cancel({ transactionId, userId: player });
     assert.equal(await balanceOf(player), afterCancel);
+  });
+
+  /** Swaps a capturing wager feed onto the shared service for one test. */
+  const withFeed = async (fn, { fail = false } = {}) => {
+    const real = service.games;
+    const feed = { recorded: [], reversed: [] };
+    service.games = {
+      async recordActivity(args) { feed.recorded.push(args); if (fail) throw new Error('down'); return { counted: true }; },
+      async reverseActivity(args) { feed.reversed.push(args); if (fail) throw new Error('down'); return { reversed: true }; },
+    };
+    try { await fn(feed); } finally { service.games = real; }
+  };
+
+  await t.test('wager feed: a BET counts once in its wallet coin; a replay and a WIN count nothing', async () => {
+    await withFeed(async (feed) => {
+      const session = await openSession();
+      const transactionId = newTxId();
+      const bet = { session, userId: player, transactionId, transactionType: 'BET', amount: '20', roundFinished: false };
+      await service.changeBalance(bet);
+      await service.changeBalance(bet); // replay
+      await service.changeBalance({ session, userId: player, transactionId: newTxId(), transactionType: 'WIN', amount: '5' });
+
+      assert.equal(feed.recorded.length, 1);
+      assert.deepEqual(feed.recorded[0], {
+        userId: player, gameRef: null, wagered: '20.00000000', currency: 'INR', source: 'xcasino', ref: transactionId,
+      });
+    });
+  });
+
+  await t.test('wager feed: a cancelled bet stops counting, once', async () => {
+    await withFeed(async (feed) => {
+      const session = await openSession();
+      const transactionId = newTxId();
+      await service.changeBalance({ session, userId: player, transactionId, transactionType: 'BET', amount: '10' });
+      await service.cancel({ transactionId, userId: player });
+      await service.cancel({ transactionId, userId: player }); // retry
+
+      assert.deepEqual(feed.reversed, [{ userId: player, source: 'xcasino', ref: transactionId, outbox: true }]);
+    });
+  });
+
+  await t.test('wager feed: a cancel whose reversal fails is queued in the outbox for retry', async () => {
+    const real = service.games;
+    const { games, queued } = outboxFeed();
+    service.games = games;
+    try {
+      const session = await openSession();
+      const transactionId = newTxId();
+      await service.changeBalance({ session, userId: player, transactionId, transactionType: 'BET', amount: '10' });
+      await service.cancel({ transactionId, userId: player });
+      assert.equal(queued.length, 1);
+      assert.equal(queued[0].source, 'xcasino');
+      assert.equal(queued[0].ref, String(transactionId));
+      assert.equal(queued[0].userId, String(player));
+    } finally {
+      service.games = real;
+    }
+  });
+
+  await t.test('wager feed: a failing feed never fails the bet or the cancel', async () => {
+    await withFeed(
+      async () => {
+        const session = await openSession();
+        const transactionId = newTxId();
+        const before = await balanceOf(player);
+        const result = await service.changeBalance({ session, userId: player, transactionId, transactionType: 'BET', amount: '10' });
+        assert.equal(await balanceOf(player), money.toDecimalString(money.toMinor(before) - money.toMinor('10')));
+        assert.ok(result.balance != null);
+        await assert.doesNotReject(() => service.cancel({ transactionId, userId: player }));
+        assert.equal(await balanceOf(player), before);
+      },
+      { fail: true }
+    );
   });
 
   await t.test('a WIN cannot be cancelled', async () => {

@@ -1,7 +1,7 @@
 'use strict';
 
 const { Router } = require('express');
-const { validate } = require('@ibitplay/common');
+const { validate, refuseCustomCurrencies, noQuery } = require('@ibitplay/common');
 
 const v = require('../cryptoWithdraw.validators');
 const { CryptoWithdrawService } = require('../cryptoWithdraw.service');
@@ -17,9 +17,11 @@ const { createControllers } = require('../controllers');
 module.exports = function userRoutes(deps) {
   const ctrl = createControllers({ service: new CryptoWithdrawService(deps) });
   const router = Router();
+  // Custom coins (owner-created, no provider behind them) never reach this module: CURRENCY_NOT_SUPPORTED_FOR_WITHDRAWAL.
+  router.use(refuseCustomCurrencies('WITHDRAWAL'));
 
   router.get('/', validate(v.listMine), ctrl.myWithdrawals);
-  router.get('/summary', ctrl.mySummary);
+  router.get('/summary', noQuery(), ctrl.mySummary);
 
   return router;
 };

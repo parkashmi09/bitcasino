@@ -18,7 +18,7 @@ module.exports = (sequelize) => {
       field: "id",
     },
     multiplier: {
-      type: DataTypes.INTEGER,
+      type: DataTypes.DECIMAL(6, 2), // migration 138
       allowNull: false,
       field: "multiplier",
     },

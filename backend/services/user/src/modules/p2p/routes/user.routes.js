@@ -1,7 +1,8 @@
 'use strict';
 
 const { Router } = require('express');
-const { validate, createRateLimiter } = require('@ibitplay/common');
+const { validate, createRateLimiter, refuseCustomCurrencies, noQuery, entitlements } = require('@ibitplay/common');
+const { denyAgentPlayer } = require('@ibitplay/auth');
 
 const v = require('../p2p.validators');
 const errors = require('../p2p.errors');
@@ -32,6 +33,10 @@ module.exports = function userRoutes(deps) {
     admin: buildP2pAdminService(deps),
   });
   const router = Router();
+  // Not in the owner's plan: every route answers 403 NOT_ENTITLED.
+  router.use(entitlements.requireFeature('p2p'));
+  // Custom coins (owner-created, no provider behind them) never reach this module: CURRENCY_NOT_SUPPORTED_FOR_P2P.
+  router.use(refuseCustomCurrencies('P2P'));
 
   /**
    * Opening an order is bounded per player.
@@ -62,16 +67,16 @@ module.exports = function userRoutes(deps) {
    * shadow it — Express matches in declaration order, and this codebase has
    * already been bitten twice by a parameter route capturing a literal one.
    */
-  router.get('/orders/:orderId/proof', validate(v.orderDetails), ctrl.orderProof);
-  router.get('/sell-orders/:orderId/qr', validate(v.orderDetails), ctrl.sellQr);
-  router.get('/disputes/:disputeId/screenshot', validate(v.disputeParam), ctrl.disputeScreenshot);
+  router.get('/orders/:orderId/proof', noQuery(), validate(v.orderDetails), ctrl.orderProof);
+  router.get('/sell-orders/:orderId/qr', noQuery(), validate(v.orderDetails), ctrl.sellQr);
+  router.get('/disputes/:disputeId/screenshot', noQuery(), validate(v.disputeParam), ctrl.disputeScreenshot);
 
   /** @legacy GET /p2p/order/:orderId — legacy had no ownership check */
-  router.get('/order/:orderId', validate(v.orderDetails), ctrl.orderDetails);
+  router.get('/order/:orderId', noQuery(), validate(v.orderDetails), ctrl.orderDetails);
 
   // ── Writes ──────────────────────────────────────────────────────────
   /** @legacy POST /p2p/create-order */
-  router.post('/orders', writeLimiter, validate(v.createOrder), ctrl.createOrder);
+  router.post('/orders', denyAgentPlayer('deposit'), writeLimiter, validate(v.createOrder), ctrl.createOrder);
 
   /**
    * @legacy POST /p2p/create-sell-order
@@ -81,6 +86,8 @@ module.exports = function userRoutes(deps) {
    */
   router.post(
     '/sell-orders',
+    // A sell order is a payout: agent-tree players have no withdrawal rail.
+    denyAgentPlayer('withdraw'),
     writeLimiter,
     ...single('qr_image', errors),
     validate(v.createSellOrder),
@@ -90,6 +97,7 @@ module.exports = function userRoutes(deps) {
   /** @legacy POST /p2p/mark-paid/:orderId — the proof is required now */
   router.post(
     '/orders/:orderId/paid',
+    denyAgentPlayer('deposit'),
     writeLimiter,
     ...single('file', errors),
     validate(v.markPaid),

@@ -30,7 +30,13 @@ const CACHE_SECONDS = 300;
 /** Placement names are an identifier, not free text. */
 const TYPE_PATTERN = /^[a-z0-9][a-z0-9_-]{0,63}$/;
 
+/** Who sees a placement: `agent-…` placements are agent mode's (/agent), every other one the direct players' site. */
+const AGENT_PREFIX = 'agent-';
+const modeOf = (type) => (String(type).startsWith(AGENT_PREFIX) ? 'agent' : 'direct');
+
 module.exports = {
+  AGENT_PREFIX,
+  modeOf,
   IMAGE_SIGNATURES,
   REJECTED_FORMATS,
   MAX_UPLOAD_BYTES,

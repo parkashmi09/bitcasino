@@ -21,7 +21,9 @@ module.exports = {
   name: 'games',
   service: 'casino',
   basePath: '/games',
-  models: ['casino', 'core'],
+  // `extended` for `user_favourite_games` (migration 038) — the domain that
+  // holds tables this platform added on top of the generated baseline.
+  models: ['casino', 'core', 'extended'],
   routers: {
     public: require('./routes/public.routes'),
     user: require('./routes/user.routes'),

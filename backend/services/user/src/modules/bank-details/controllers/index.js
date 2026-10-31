@@ -6,7 +6,7 @@ function createControllers({ service }) {
   return {
     /** @legacy GET /bankdetails/:coin_type */
     listActive: asyncHandler(async (req, res) =>
-      response.ok(res, await service.listActive(req.params.coin_type))
+      response.ok(res, await service.listActive(req.params.coin_type, req.query.amount))
     ),
 
     listAll: asyncHandler(async (req, res) =>

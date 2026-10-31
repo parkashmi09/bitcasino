@@ -1,11 +1,18 @@
 'use strict';
 
 const { Router } = require('express');
-const { validate, createRateLimiter } = require('@ibitplay/common');
+const {
+  validate,
+  createRateLimiter,
+  entitlements,
+  refuseCustomCurrencies,
+  noQuery,
+} = require('@ibitplay/common');
 
 const v = require('../sportsbook.validators');
 const { buildSportsbookService } = require('../sportsbook.factory');
 const { createControllers } = require('../controllers');
+const { assertSportsSwitchOn } = require('../../games/gameEntitlement');
 
 /**
  * Opening, resuming and ending a real-money sportsbook session.
@@ -21,6 +28,8 @@ const { createControllers } = require('../controllers');
 module.exports = function userRoutes(deps) {
   const ctrl = createControllers({ service: buildSportsbookService(deps) });
   const router = Router();
+  // Custom coins (owner-created, no provider behind them) never reach this module: CURRENCY_NOT_SUPPORTED_FOR_SPORTS.
+  router.use(refuseCustomCurrencies('SPORTS'));
 
   /**
    * Session-opening is bounded per player.
@@ -37,15 +46,29 @@ module.exports = function userRoutes(deps) {
     enabled: deps.config.RATE_LIMIT_ENABLED !== false,
   });
 
+  /**
+   * Sports out of the owner's plan: no new or resumed session (403
+   * NOT_ENTITLED, docs/OWNER-PANEL.md §4). This — not the in-house feed — is
+   * the book the frontend opens, so the feed's guard alone closed nothing.
+   * `logout` and `sessions` stay open so a player can still end one.
+   */
+  // The owner's sports switch AND sportsbook mode (off by default; on, it replaces the exchange).
+  // + the site admin's Sports switch, as the public config reads it.
+  const sports = [
+    entitlements.requireFlag('sports'),
+    entitlements.requireFlag('sportsbook'),
+    (_req, _res, next) => assertSportsSwitchOn(deps).then(() => next(), next),
+  ];
+
   /** @legacy POST /sportsbooks/init */
-  router.post('/init', limiter, validate(v.init), ctrl.init);
+  router.post('/init', sports, limiter, validate(v.init), ctrl.init);
   /** @legacy POST /sportsbooks/refresh-token */
-  router.post('/refresh', limiter, validate(v.refresh), ctrl.refresh);
+  router.post('/refresh', sports, limiter, validate(v.refresh), ctrl.refresh);
   /** @legacy POST /sportsbooks/logout */
   router.post('/logout', validate(v.logout), ctrl.logout);
 
   /** Not a legacy endpoint — see `SportsbookService.sessions`. */
-  router.get('/sessions', ctrl.sessions);
+  router.get('/sessions', noQuery(), ctrl.sessions);
 
   return router;
 };
