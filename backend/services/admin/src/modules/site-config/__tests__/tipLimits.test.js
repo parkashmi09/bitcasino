@@ -129,7 +129,7 @@ test('tip limit settings', async (t) => {
       maxPerTipUsd: '500.00000000',
       maxPerDayUsd: '2000.00000000',
       minWageredUsd: '0.00000000',
-      currency: 'USD',
+      currency: 'USDT', // the test DB's default coin
       configured: true,
     });
     assert.deepEqual(TIP_LIMIT_DEFAULTS, { maxPerTipUsd: '500', maxPerDayUsd: '2000', minWageredUsd: '0' });
@@ -159,7 +159,7 @@ test('tip limit settings', async (t) => {
       maxPerTipUsd: '100.50000000',
       maxPerDayUsd: '0.00000000',
       minWageredUsd: '0.00000000',
-      currency: 'USD',
+      currency: 'USDT', // the test DB's default coin
       configured: true,
     });
     const wager = await call('PUT', '/admin/tips', { minWageredUsd: '250' });

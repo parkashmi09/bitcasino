@@ -297,13 +297,13 @@ export const navItems: NavItem[] = [
     groupIcon: 'LayoutGrid',
     collapsible: true,
     items: [
-      { icon: 'LayoutDashboard', label: 'Dashboard', href: '/dashboard', permission: ['reports:read', ...WALLET_ANY] },
+      { icon: 'LayoutDashboard', label: 'Dashboard', href: '/dashboard', permission: ['reports:read', ...WALLET_ANY], direct: true },
 
       // Either grant opens the list: reports:read reads `admin/reports/players` (balances, deposits,
       // wagers); users:read alone falls back to the player directory `admin/user/directory`.
-      { icon: 'Users', label: 'Users', href: '/users', activePath: '/users', permission: ['reports:read', 'users:read'] } as MenuItem,
+      { icon: 'Users', label: 'Users', href: '/users', activePath: '/users', permission: ['reports:read', 'users:read'], direct: true } as MenuItem,
       { icon: 'Wallet', label: 'Wallets', href: '/wallets', permission: 'wallet:adjust', direct: true },
-      { icon: 'Globe', label: 'Login & IP history', href: '/ip-tracker', permission: 'reports:read' },
+      { icon: 'Globe', label: 'Login & IP history', href: '/ip-tracker', permission: 'reports:read', direct: true },
 
       // Zip ke Main jaisa: Redeem Codes (Promotions se yahan) aur Turnover Report (direct users ka wager vs target).
       { icon: 'Ticket', label: 'Redeem Codes', href: '/redeem-codes', permission: 'reports:read', promotions: true },
@@ -392,10 +392,10 @@ export const navItems: NavItem[] = [
     groupIcon: 'ArrowLeftRight',
     collapsible: true,
 
-    // House only (user, 2026-10-17): an agent's player has no deposit / withdraw / KYC, so agent logins get no Transactions section.
+    // Staff below the Super Admin see Deposit and Withdraw of their own hierarchy (the Agent System tab); the rest is house only.
     items: [
-      { icon: 'ArrowDownToLine', label: 'Deposit', href: '/transactions/deposit', permission: ['deposits:read', 'users:read'], promotions: true, direct: true },
-      { icon: 'ArrowUpFromLine', label: 'Withdraw', href: '/transactions/withdraw', permission: ['withdrawals:read', 'users:read'], promotions: true, direct: true },
+      { icon: 'ArrowDownToLine', label: 'Deposit', href: '/transactions/deposit', permission: ['deposits:read', 'users:read'] },
+      { icon: 'ArrowUpFromLine', label: 'Withdraw', href: '/transactions/withdraw', permission: ['withdrawals:read', 'users:read'] },
 
       // The transfer list is `admin/accounts/statement` (users:read); the drill-down is `admin/statements` (reports:read).
       { icon: 'BookOpen', label: 'Account Statement', href: '/reports/statements', permission: ['users:read', 'reports:read'], promotions: true, direct: true },
@@ -416,8 +416,8 @@ export const navItems: NavItem[] = [
       { icon: 'Bitcoin', label: 'Coins', href: '/coins', permission: 'config:read', promotions: true },
       { icon: 'Vault', label: 'Vault', href: '/vault', permission: 'reports:read', promotions: true, feature: 'vault' },
 
-      // Casino se Finance me (user, 2026-10-20); route wahi. `GET admin/reports/wager-stats` is reports:read and tree-scoped. Not for agent logins (user, 2026-10-17).
-      { icon: 'FileSpreadsheet', label: 'Wager report', href: '/casino/wager-report', permission: 'reports:read', flag: 'casino', promotions: true },
+      // Casino se Finance me (user, 2026-10-20); route wahi. `GET admin/reports/wager-stats` is reports:read and tree-scoped, so staff see their own hierarchy.
+      { icon: 'FileSpreadsheet', label: 'Wager report', href: '/casino/wager-report', permission: 'reports:read', flag: 'casino' },
       {
         icon: 'Repeat',
         label: 'Swap history',
@@ -428,7 +428,7 @@ export const navItems: NavItem[] = [
       },
 
       // Player-to-player tips (read-only). Hidden when the owner left `tips` out of the plan.
-      { icon: 'HandCoins', label: 'Tips', href: '/tips', permission: 'reports:read', feature: 'tips' }
+      { icon: 'HandCoins', label: 'Tips', href: '/tips', permission: 'reports:read', feature: 'tips', direct: true }
 
       // P2P trading is off for now: its backend module is unmounted (modules/_p2p), so no menu entry.
     ]
@@ -588,21 +588,19 @@ export const PROMOTION_ROUTES = [
   '/coins',
   '/payment-methods',
 
-  // Transactions (and the old cashier screens behind it): house only — an agent's player has none.
-  '/transactions',
+  // The old cashier screens and the other Transactions entries: house only.
   '/deposits',
   '/withdrawals',
   '/reports/statements',
   '/kyc',
   '/bank-details',
 
-  // Casino wager report and the Reports section: Super Admin side only, not the agent system.
-  '/casino/wager-report',
+  // The Reports section: Super Admin side only, not the agent system.
   '/reports'
 ]
 
 /** Direct-user screens with no sidebar entry (the old cashier): Super Admin and its executives only, like `direct: true`. */
-export const DIRECT_ROUTES = ['/deposits', '/withdrawals']
+export const DIRECT_ROUTES = ['/deposits', '/withdrawals', '/p2p']
 
 export const isPromotionRoute = (pathname: string) =>
   PROMOTION_ROUTES.some(route => pathname === route || pathname.startsWith(`${route}/`))

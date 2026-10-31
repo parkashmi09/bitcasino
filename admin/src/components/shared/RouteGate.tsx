@@ -86,7 +86,7 @@ const RouteGate = ({ children }: { children: ReactNode }) => {
    * users:read — is sent on to the first page in the sidebar it CAN use, instead of a refusal.
    */
   const landingRefused =
-    pathname === themeConfig.homePageUrl && !!actor && !flagsLoading && !!required && !required.permissions.every(p => can(p))
+    pathname === themeConfig.homePageUrl && !!actor && !flagsLoading && !!required && (!required.permissions.every(p => can(p)) || (required.direct && actor.direct !== true))
 
   // Nothing opens until a password somebody else chose is replaced — the platform refuses it anyway.
   useEffect(() => {

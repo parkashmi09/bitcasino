@@ -2,7 +2,7 @@
 
 const { Router } = require('express');
 const multer = require('multer');
-const { validate, noQuery, entitlements } = require('@ibitplay/common');
+const { validate, noQuery, noBody, entitlements } = require('@ibitplay/common');
 const { denyAgentPlayer } = require('@ibitplay/auth');
 
 const v = require('../kycLevels.validators');
@@ -22,7 +22,7 @@ module.exports = function userRoutes(deps) {
   router.use(entitlements.requireFeature('kyc'));
 
   router.get('/', noQuery(), ctrl.status);
-  router.post('/:level', denyAgentPlayer('kyc'), validate(v.levelParam), upload.single('document'), ctrl.submit);
+  router.post('/:level', denyAgentPlayer('kyc'), upload.single('document'), validate(v.levelParam), noBody(), ctrl.submit);
   router.get('/:level/document', noQuery(), validate(v.levelParam), ctrl.myDocument);
   return router;
 };

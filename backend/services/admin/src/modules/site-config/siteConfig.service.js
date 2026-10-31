@@ -666,8 +666,10 @@ class SiteConfigService {
 
   /**
    * The operator's tip limits, as the Tips screen and user-service read them.
-   * All USD (user-service converts each tip through `exchangerate`); "0" on a
-   * max = no cap, "0" on the wager requirement = off.
+   * In the SITE'S DEFAULT COIN (`currency`, the owner's `default_currency`, e.g.
+   * INR); user-service values each tip in it through `exchangerate`. The `*Usd`
+   * names are migration 081's history. "0" on a max = no cap, "0" on the wager
+   * requirement = off.
    *
    * Raw SQL on the three named columns rather than `Siteconfig` attributes: the
    * columns are added by migration 081 and the shared model file is not
@@ -683,7 +685,7 @@ class SiteConfigService {
     for (const [name, column] of Object.entries(TIP_LIMIT_FIELDS)) {
       out[name] = this.#amount(row?.[column] ?? TIP_LIMIT_DEFAULTS[name]);
     }
-    return { ...out, currency: 'USD', configured: Boolean(row) };
+    return { ...out, currency: await this.defaultCurrency(), configured: Boolean(row) };
   }
 
   /** A patch: any field left out keeps its stored value. */

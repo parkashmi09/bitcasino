@@ -63,7 +63,7 @@ test('b2b: no promotions for anybody', async (t) => {
 
   await t.test('a direct player loses promotions and keeps every money capability', async () => {
     assert.deepStrictEqual(await playerCapabilities(DIRECT), {
-      promotions: false, vault: true, deposit: true, swap: true, withdraw: true, tips: true, kyc: true,
+      promotions: false, vault: true, deposit: true, swap: true, withdraw: true, tips: true, kyc: true, profileEdit: true,
     });
   });
 

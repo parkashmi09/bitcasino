@@ -445,7 +445,8 @@ test('the engine against a database', async (t) => {
   }
 
   const { models } = connection;
-  const engine = new GameEngine({ models, db: connection, logger, config: {} });
+  // user-service's responsible-gambling check, stubbed to allow every stake.
+  const engine = new GameEngine({ models, db: connection, logger, config: {}, clients: { user: { async post() { return {}; } } } });
 
   const player = newId();
 

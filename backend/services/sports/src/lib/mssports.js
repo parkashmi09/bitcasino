@@ -28,7 +28,8 @@ function mssports() {
  */
 function lazy(pick) {
   return function mssportsHandler(req, res, next) {
-    return pick(mssports())(req, res, next);
+    // rainbet: Express 4 drops a rejected promise; one (e.g. a reply after the 504 timeout) crashed the service.
+    return Promise.resolve(pick(mssports())(req, res, next)).catch(next);
   };
 }
 

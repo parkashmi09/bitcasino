@@ -116,10 +116,11 @@ test('site-config', async (t) => {
      * under legacy it was worse: the whole form failed to save with
      * `column "home_livesports" does not exist`.
      */
+    // `admin/src/views/site-config/flagGroups.ts` now. `sports` is not on it (FLAGS_ELSEWHERE): the owner's kill switch.
     const SCREEN_FLAGS = [
-      'casino', 'wheelspin', 'welcomepack', 'provablyfair', 'vipclub',
-      'bonus', 'affiliate', 'giftcards',
-      'sports', 'home_livesports',
+      'casino', 'lotto', 'clubmembership', 'wheelspin', 'welcomepack', 'provablyfair', 'vipclub',
+      'bonus', 'affiliate', 'giftcards', 'kyclevels',
+      'home_livesports',
       'home_heroSection', 'home_welcomebanner', 'home_latestwins', 'home_livecasino',
       'home_gamingcards', 'home_popularslots', 'home_bonus500banner', 'home_crashgames',
       'home_paymentbanner', 'home_leaderboard', 'home_promocards',

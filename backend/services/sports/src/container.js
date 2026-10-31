@@ -67,6 +67,7 @@ async function createContainer({ logger: injectedLogger } = {}) {
   // account loses access here immediately, rather than when its token expires.
   const auth = createAuthMiddleware({
     config,
+    loadSession: (id) => connection.models.AuthSession.findByPk(id, { attributes: ['revoked_at'], raw: true }),
     loadUser: async (userId) => {
       const user = await connection.models.Users.findByPk(userId, {
         attributes: ['id', 'status', 'is_locked', 'system_locked', 'bet_status'],

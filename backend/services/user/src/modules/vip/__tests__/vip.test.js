@@ -134,9 +134,9 @@ test('vip', async (t) => {
     assert.equal(await usdt(uid), '1.00000000');
   });
 
-  await t.test('crossing into a new card also credits a rank-up bonus', async () => {
+  await t.test('crossing into a new card holds the rank-up until it is claimed, and pays it once', async () => {
     const uid = newUid();
-    await seed(uid);
+    await seed(uid, { wager: '30000' });
 
     // Bronze IV → Silver I.
     const result = await vip.onWager({
@@ -147,17 +147,35 @@ test('vip', async (t) => {
 
     const kinds = result.granted.map((g) => g.kind);
     assert.ok(kinds.includes('level_up'));
-    assert.ok(kinds.includes('rank_up'));
-    assert.ok(money.gt(await usdt(uid), '0'));
+    assert.ok(!kinds.includes('rank_up'), 'the rank-up waits for the claim');
+    const afterLevels = await usdt(uid);
+
+    const waiting = await vip.rankUps(uid);
+    assert.deepEqual(waiting.cards, ['silver']);
+    assert.ok(money.gt(waiting.totalUsd, '0'));
+
+    const claimed = await vip.claimRankUps(uid);
+    assert.equal(claimed.granted.length, 1);
+    assert.equal(await usdt(uid), money.toDecimalString(money.add(afterLevels, claimed.granted[0].amount)));
+
+    assert.deepEqual((await vip.rankUps(uid)).cards, [], 'nothing left to claim');
+    assert.equal((await vip.claimRankUps(uid)).granted.length, 0, 'a second claim pays nothing');
     assert.equal(await bjb(uid), '0.00000000');
+  });
+
+  await t.test('entering the ladder leaves no rank-up to claim', async () => {
+    const uid = newUid();
+    await seed(uid, { wager: '1500' });
+    assert.deepEqual((await vip.rankUps(uid)).cards, []);
   });
 
   await t.test('level-up and rank-up awards are paid in USDT on the ledger', async () => {
     const uid = newUid();
-    await seed(uid);
+    await seed(uid, { wager: '30000' });
 
     const result = await vip.onWager({ userId: uid, previousWager: '0', newWager: '30000' });
     assert.ok(result.granted.length >= 2);
+    assert.equal((await vip.claimRankUps(uid)).granted.length, 1);
     assert.equal(REWARD_CURRENCY, 'USDT');
 
     const ledger = await connection.models.CreditsLedger.findAll({ where: { user_id: String(uid) }, raw: true });

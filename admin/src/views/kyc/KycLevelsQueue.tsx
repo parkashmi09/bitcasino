@@ -37,7 +37,9 @@ export type LevelRow = {
 }
 
 /** The Level 3–4 submissions with `status` (all when none). At most 200: the queue is small. */
-export const useLevelRows = (status?: string) => useApi<LevelRow[]>(BASE, { limit: 200, status })
+export const useLevelRows = (status?: string) =>
+  // rainbet: a Level 3-4 submission is never Unverified, and the route refuses that filter.
+  useApi<LevelRow[]>(BASE, { limit: 200, status }, { enabled: status !== 'Unverified' })
 
 const documentUrl = (row: LevelRow) => api.url(`${BASE}/${row.id}/document`)
 

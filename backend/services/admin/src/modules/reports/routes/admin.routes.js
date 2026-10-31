@@ -2,7 +2,7 @@
 
 const { Router } = require('express');
 const { validate, noQuery, createActivityRecorder } = require('@ibitplay/common');
-const { PERMISSIONS, denyAgentTree, VAULT_NOT_FOR_AGENTS } = require('@ibitplay/auth');
+const { PERMISSIONS, denyAgentTree, denyDirectUsers, VAULT_NOT_FOR_AGENTS } = require('@ibitplay/auth');
 
 const v = require('../reports.validators');
 const { ReportsService } = require('../reports.service');
@@ -39,6 +39,7 @@ module.exports = function adminRoutes(deps) {
 
   const router = Router();
   const canRead = auth.requirePermission(PERMISSIONS.REPORTS_READ);
+  const directOnly = denyDirectUsers();
 
   /**
    * Declared before `/players/:userId` so the literal is not captured by the
@@ -46,6 +47,7 @@ module.exports = function adminRoutes(deps) {
    */
   router.get(
     '/players/export',
+    directOnly,
     canRead,
     validate(v.exportPlayers),
     withActivity({
@@ -60,13 +62,13 @@ module.exports = function adminRoutes(deps) {
   );
 
   /** @legacy GET /reports/users */
-  router.get('/players', canRead, validate(v.listPlayers), ctrl.listPlayers);
+  router.get('/players', directOnly, canRead, validate(v.listPlayers), ctrl.listPlayers);
 
   /** Users page ke cards (channel = direct | agent | all). players/:userId se pehle. */
-  router.get('/players/summary', canRead, validate(v.playersSummary), ctrl.playersSummary);
+  router.get('/players/summary', directOnly, canRead, validate(v.playersSummary), ctrl.playersSummary);
 
   /** Users page ki table (players jaisa + email, phone, parent staff, locks). */
-  router.get('/user-list', canRead, validate(v.userList), ctrl.userList);
+  router.get('/user-list', directOnly, canRead, validate(v.userList), ctrl.userList);
 
   /** Client user (parent wala) ki balance sheet — point ledger se. */
   router.get('/client-balance-sheet/:userId', canRead, validate(v.clientBalanceSheet), ctrl.clientBalanceSheet);
@@ -87,18 +89,18 @@ module.exports = function adminRoutes(deps) {
    * two or more of those accounts share (the multi-account check). Literal
    * paths, so no sibling parameter route can capture them.
    */
-  router.get('/ip-tracker', canRead, validate(v.ipTracker), ctrl.ipTracker);
-  router.get('/ip-tracker/shared', canRead, validate(v.sharedIps), ctrl.sharedIps);
+  router.get('/ip-tracker', directOnly, canRead, validate(v.ipTracker), ctrl.ipTracker);
+  router.get('/ip-tracker/shared', directOnly, canRead, validate(v.sharedIps), ctrl.sharedIps);
 
   /**
    * Where the caller's players come from — registration country and city
    * (signup lookup, else the first located login) and login country, each a
    * count of players in the caller's tree. Takes no input.
    */
-  router.get('/geo-stats', canRead, noQuery(), ctrl.geoStats);
+  router.get('/geo-stats', directOnly, canRead, noQuery(), ctrl.geoStats);
 
   /** @legacy GET /reports/user/:userId */
-  router.get('/players/:userId', canRead, validate(v.playerReport), ctrl.playerReport);
+  router.get('/players/:userId', directOnly, canRead, validate(v.playerReport), ctrl.playerReport);
 
   /** @legacy GET /api/admin/balance-sheet/:userId */
   router.get('/balance-sheet/:userId', canRead, validate(v.balanceSheet), ctrl.balanceSheet);
@@ -129,8 +131,8 @@ module.exports = function adminRoutes(deps) {
   const houseOnly = denyAgentTree();
   const vaultHouseOnly = denyAgentTree({ code: VAULT_NOT_FOR_AGENTS, message: 'The vault is not available to agent accounts' });
   const canReadBonusBalances = auth.requireAnyPermission(PERMISSIONS.REPORTS_READ, PERMISSIONS.USERS_READ, PERMISSIONS.WALLET_READ);
-  router.get('/player-stats', canRead, validate(audienceV.playerStats), audienceCtrl.playerStats);
-  router.get('/players/:userId/stats', canRead, validate(audienceV.playerDetailStats), audienceCtrl.playerDetailStats);
+  router.get('/player-stats', directOnly, canRead, validate(audienceV.playerStats), audienceCtrl.playerStats);
+  router.get('/players/:userId/stats', directOnly, canRead, validate(audienceV.playerDetailStats), audienceCtrl.playerDetailStats);
   router.get('/reward-stats/tips', canRead, validate(audienceV.rewardStats), audienceCtrl.rewardStats('tips'));
   router.get('/reward-stats/bonus-balances', canReadBonusBalances, validate(audienceV.rewardStats), audienceCtrl.rewardStats('bonus-balances'));
   router.get('/reward-stats/vault', vaultHouseOnly, canRead, validate(audienceV.rewardStats), audienceCtrl.rewardStats('vault'));
@@ -145,8 +147,8 @@ module.exports = function adminRoutes(deps) {
    * are left out (null) for agent-tree callers, as on the users table.
    */
   const userStatusCtrl = createUserStatusStatsControllers(deps);
-  router.get('/user-status-stats', canRead, validate(userStatusV.userStatusStats), userStatusCtrl.userStatusStats);
-  router.get('/players/:userId/status-stats', canRead, validate(userStatusV.playerStatusStats), userStatusCtrl.playerStatusStats);
+  router.get('/user-status-stats', directOnly, canRead, validate(userStatusV.userStatusStats), userStatusCtrl.userStatusStats);
+  router.get('/players/:userId/status-stats', directOnly, canRead, validate(userStatusV.playerStatusStats), userStatusCtrl.playerStatusStats);
 
   /**
    * Profit & loss — GGR (the dashboard's figures) less player costs, and where
@@ -154,8 +156,8 @@ module.exports = function adminRoutes(deps) {
    * house-only and come back null for agent-tree callers (see pnlStats.service).
    */
   const pnlCtrl = createPnlStatsControllers(deps);
-  router.get('/pnl-stats/summary', canRead, validate(pnlV.pnlSummary), pnlCtrl.pnlSummary);
-  router.get('/pnl-stats/breakdown', canRead, validate(pnlV.pnlBreakdown), pnlCtrl.pnlBreakdown);
+  router.get('/pnl-stats/summary', directOnly, canRead, validate(pnlV.pnlSummary), pnlCtrl.pnlSummary);
+  router.get('/pnl-stats/breakdown', directOnly, canRead, validate(pnlV.pnlBreakdown), pnlCtrl.pnlBreakdown);
 
   return router;
 };

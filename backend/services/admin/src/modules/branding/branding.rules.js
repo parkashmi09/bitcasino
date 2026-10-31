@@ -42,6 +42,23 @@ function cleanAsset(a, slot) {
   return { file: a.file, type, bytes: a.bytes, width: side(a.width), height: side(a.height) };
 }
 
+/** A phone number (+ and 6–15 digits) or an https link on wa.me / whatsapp.com; else ''. Same as the owner panel's. */
+function whatsappLinkValue(value) {
+  const raw = str(value);
+  if (/^\+?[\d\s-]+$/.test(raw)) {
+    const number = raw.replace(/[\s-]/g, '');
+    return /^\+?\d{6,15}$/.test(number) ? number : '';
+  }
+  if (raw.length > 300) return '';
+  try {
+    const url = new URL(raw);
+    const host = url.hostname.toLowerCase();
+    return url.protocol === 'https:' && (host === 'wa.me' || host === 'whatsapp.com' || host.endsWith('.whatsapp.com')) ? url.href : '';
+  } catch {
+    return '';
+  }
+}
+
 /** Every field, well-formed or unset. `null` when the document has no branding (not branded). */
 function cleanBranding(input) {
   if (!input || typeof input !== 'object' || Array.isArray(input)) return null;
@@ -60,6 +77,11 @@ function cleanBranding(input) {
   const color = str(input.themeColor);
   out.themeColor = /^#[0-9a-fA-F]{6}$/.test(color) ? color.toUpperCase() : '';
   for (const slot of SLOTS) out[slot] = cleanAsset(input[slot], slot);
+  // The floating WhatsApp button (owner panel → Branding). A malformed number reads as none.
+  out.whatsappEnabled = input.whatsappEnabled === true;
+  out.whatsappLink = whatsappLinkValue(input.whatsappLink);
+  const message = str(input.whatsappMessage);
+  out.whatsappMessage = message.length <= 300 && !BAD_TEXT.test(message) ? message : '';
   return out;
 }
 

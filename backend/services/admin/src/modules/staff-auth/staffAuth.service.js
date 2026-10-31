@@ -1,5 +1,6 @@
 'use strict';
 
+const { randomInt } = require('node:crypto');
 const { Op, literal } = require('sequelize');
 const {
   hashPassword,
@@ -390,9 +391,14 @@ class StaffAuthService {
 
     await this.#assertUsable(staff, { allowFirstLogin: true });
 
+    // rainbet: this route is the forced change only; it is no way round the creator-only rule.
+    if (!staff.first_login && !staff.must_change_password) throw errors.PASSWORD_CHANGE_NOT_DUE();
+    const transactionPassword = isLoginPasswordMode() ? null : String(randomInt(100000, 1000000));
+
     await this.models.Staff.update(
       {
         password: await hashPassword(newPassword, PASSWORD_ROUNDS),
+        ...(transactionPassword ? { transaction_password: await hashPassword(transactionPassword, PASSWORD_ROUNDS) } : {}),
         first_login: false,
         must_change_password: false,
         // Never `password2`. Legacy wrote the plaintext there on every change.
@@ -405,11 +411,12 @@ class StaffAuthService {
     this.#clearFailures(email, ip);
     this.logger?.warn({ staffId: staff.id }, 'Staff password set on first sign-in');
 
-    return this.#issue({
+    const session = await this.#issue({
       staff: { ...staff, first_login: false, must_change_password: false, token_version: Number(staff.token_version ?? 0) + 1 },
       executive: null,
       ip,
     });
+    return { ...session, ...(transactionPassword ? { transactionPassword } : {}) };
   }
 
   /**

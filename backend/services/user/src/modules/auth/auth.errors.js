@@ -80,6 +80,8 @@ module.exports = defineErrors('AUTH', {
   },
 
   // ── Password ────────────────────────────────────────────────────────
+  OWN_PASSWORD_LOCKED: { status: 403, message: 'Your password can only be changed by your upline' },
+
   CURRENT_PASSWORD_INCORRECT: {
     /**
      * 403, NOT 401, AND THE DIFFERENCE IS NOT COSMETIC.

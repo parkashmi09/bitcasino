@@ -46,11 +46,12 @@ test('in-house engine: a new stake is refused when originals is off, before any 
   t.after(() => entitlements.resetEntitlements());
   let transactions = 0;
   const engine = new GameEngine({
-    models: {},
+    // An unlocked, non-demo player and a responsible-gambling check that allows the stake.
+    models: { Users: { findOne: async () => null } },
     db: { transaction: async () => { transactions += 1; throw new Error('no debit expected'); } },
     logger,
     config: {},
-    clients: {},
+    clients: { user: { post: async () => ({}) } },
   });
 
   plan({ originals: false });

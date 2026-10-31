@@ -35,6 +35,9 @@ function ownerPanel() {
 
 const signed = (data, secret = SECRET) => ({ data, signature: sign(data, secret) });
 
+/** `Siteconfig.sequelize` for the raw-SQL settings (referral unlocks, commission rates): no stored row, the defaults. */
+const noRawRows = { query: async () => [], QueryTypes: { SELECT: 'SELECT' } };
+
 /**
  * The store, with `pollOnce()`: offer the panel's next document as the owner API would,
  * a refusal leaving everything as it was, and answer `current()`.
@@ -60,7 +63,6 @@ const plan = (features = {}, flags = {}) =>
 
 test('entitlements', async (t) => {
   t.after(() => entitlements.resetEntitlements());
-
   // ── The store ────────────────────────────────────────────────────────
 
   await t.test('table → memory → default: a restart loads the newest row', async () => {
@@ -253,13 +255,15 @@ test('entitlements', async (t) => {
 
     const entitled = await service.globalEntitlements();
     assert.equal(entitled.casino, false);
-    assert.equal(entitled.sports, true);
+    assert.equal(entitled.lotto, true);
+    // `sports` is the owner's kill switch now, not a flag the site admin's screen writes.
+    assert.equal('sports' in entitled, false);
   });
 
   await t.test('public endpoints read a non-entitled flag or feature as off, without touching the rows', async () => {
     plan({ gift_cards: false, deposit_mode: false }, { casino: false });
     const models = {
-      Siteconfig: { findOne: async () => ({ id: 1, casino: true, giftcards: true }) },
+      Siteconfig: { findOne: async () => ({ id: 1, casino: true, giftcards: true }), sequelize: noRawRows },
       SiteFeature: {
         findAll: async () => [
           { feature: 'gift_cards', enabled: true, variant: 'claim_cards', config: {} },
@@ -383,7 +387,7 @@ test('entitlements', async (t) => {
         findAll: async () => [...rows.values()].map((r) => ({ ...r })),
         upsert: async (row) => rows.set(row.feature, { ...row }),
       },
-      Siteconfig: { findOne: async () => ({ id: 1 }), update: async () => {} },
+      Siteconfig: { findOne: async () => ({ id: 1 }), update: async () => {}, sequelize: noRawRows },
     };
     const pushes = [];
     const clients = { user: { post: async (_url, body) => pushes.push(body) } };
@@ -445,7 +449,7 @@ test('entitlements', async (t) => {
         findAll: async () => [...rows.values()].map((r) => ({ ...r })),
         upsert: async (row) => rows.set(row.feature, { ...row }),
       },
-      Siteconfig: { findOne: async () => ({ id: 1 }), update: async () => {} },
+      Siteconfig: { findOne: async () => ({ id: 1 }), update: async () => {}, sequelize: noRawRows },
     };
     const container = { models, logger, config: {}, clients: { user: { post: async () => {} } } };
     const panel = ownerPanel();
@@ -490,7 +494,7 @@ test('entitlements', async (t) => {
         findAll: async () => [...rows.values()].map((r) => ({ ...r })),
         upsert: async (row) => { writes.push({ ...row }); rows.set(row.feature, { ...row }); },
       },
-      Siteconfig: { findOne: async () => ({ id: 1 }), update: async () => {} },
+      Siteconfig: { findOne: async () => ({ id: 1 }), update: async () => {}, sequelize: noRawRows },
     };
     const pushes = [];
     const clients = { user: { post: async (_url, body) => pushes.push(body) } };
@@ -657,7 +661,7 @@ test('entitlements', async (t) => {
     assert.equal(site.writes.length, 0);
   });
 
-  await t.test('owner-managed: staff changing a variant or the switch is 403 OWNER_MANAGED; config-only saves pass', async () => {
+  await t.test('owner-managed: staff changing a variant is 403 OWNER_MANAGED; the switch only inside the plan; config-only saves pass', async () => {
     plan({});
     const site = ownerSite([
       { feature: 'push_notifications', variant: 'onesignal', enabled: true, config: { appId: '11111111-2222-3333-4444-555555555555' }, secrets: { apiKey: 'v1.sealed' } },
@@ -667,11 +671,21 @@ test('entitlements', async (t) => {
     const staff = { id: 1 };
     const refused = (error) => error.status === 403 && error.code === 'OWNER_MANAGED' && typeof error.details.feature === 'string';
 
-    await assert.rejects(() => service.update({ feature: 'push_notifications', patch: { enabled: false }, staff }), refused);
     await assert.rejects(() => service.update({ feature: 'push_notifications', patch: { variant: 'none' }, staff }), refused);
-    await assert.rejects(() => service.update({ feature: 'vip', patch: { enabled: true }, staff }), refused);
     await assert.rejects(() => service.update({ feature: 'deposit_mode', patch: { variant: 'manual' }, staff }), refused);
     assert.equal(site.writes.length, 0, 'nothing is written');
+
+    // The on/off switch is the Super Admin's too, but only inside the owner's plan.
+    await service.update({ feature: 'push_notifications', patch: { enabled: false }, staff });
+    assert.equal(site.rows.get('push_notifications').enabled, false);
+    assert.equal(site.rows.get('push_notifications').updated_by, 'staff:1');
+    plan({ push_notifications: false });
+    await assert.rejects(
+      () => service.update({ feature: 'push_notifications', patch: { enabled: true }, staff }),
+      (error) => error.status === 403 && error.code === 'NOT_ENTITLED' && error.details.key === 'push_notifications'
+    );
+    assert.equal(site.rows.get('push_notifications').enabled, false, 'outside the plan it stays off');
+    plan({});
 
     // The same variant and switch with new keys: the site's to save.
     const out = await service.update({

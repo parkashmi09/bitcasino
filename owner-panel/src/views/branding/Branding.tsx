@@ -14,6 +14,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Field, FieldDescription, FieldLabel } from '@/components/ui/field'
 import { Input } from '@/components/ui/input'
 import { Skeleton } from '@/components/ui/skeleton'
+import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
 import { useApi, useApiMutation } from '@/hooks/use-api'
 import { api, ApiError, errorMessage, readEnvelope, send } from '@/lib/api/client'
@@ -33,6 +34,8 @@ import {
   MAX_KEYWORDS,
   TEXT_KEYS,
   TEXT_LIMITS,
+  WHATSAPP_MESSAGE_MAX,
+  whatsappLinkValue,
   type Branding as BrandingDoc,
   type BrandingAsset,
   type BrandingSlot,
@@ -107,6 +110,11 @@ function fieldProblems(b: BrandingDoc): Partial<Record<keyof BrandingDoc, string
   else if (b.keywords.some(w => BAD_TEXT.test(w))) out.keywords = 'No < > or control characters'
 
   if (b.themeColor.trim() && !/^#[0-9a-fA-F]{6}$/.test(b.themeColor.trim())) out.themeColor = 'Must look like #1A2B3C, or be empty'
+
+  if (b.whatsappLink.trim() && !whatsappLinkValue(b.whatsappLink))
+    out.whatsappLink = 'A number with country code (919876543210) or an https wa.me / whatsapp.com link'
+  if (b.whatsappMessage.trim().length > WHATSAPP_MESSAGE_MAX) out.whatsappMessage = `At most ${WHATSAPP_MESSAGE_MAX} characters`
+  else if (BAD_TEXT.test(b.whatsappMessage)) out.whatsappMessage = 'No < > or control characters'
 
   return out
 }
@@ -437,6 +445,63 @@ const Branding = () => {
               <TextField error={fields.ogTitle} name='ogTitle' value={current.ogTitle} onChange={v => set('ogTitle', v)} placeholder={current.title || 'Page title'} />
               <TextField error={fields.ogDescription} name='ogDescription' value={current.ogDescription} onChange={v => set('ogDescription', v)} multiline placeholder={current.description} />
               <ImageSlot slot='ogImage' value={current.ogImage} onChange={a => set('ogImage', a)} error={slotErrors.ogImage} onError={slotError('ogImage')} />
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>WhatsApp widget</CardTitle>
+              <CardDescription>
+                The floating WhatsApp button at the bottom right of the player site. A click opens WhatsApp at this number or
+                link; with neither the button shows but does nothing.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className='flex flex-col gap-4'>
+              <div className='flex items-center gap-3'>
+                <Switch
+                  id='branding-whatsappEnabled'
+                  checked={current.whatsappEnabled}
+                  onCheckedChange={v => set('whatsappEnabled', v)}
+                />
+                <FieldLabel htmlFor='branding-whatsappEnabled'>Show the WhatsApp button</FieldLabel>
+              </div>
+              <Field>
+                <FieldLabel htmlFor='branding-whatsappLink'>{BRANDING_LABELS.whatsappLink}</FieldLabel>
+                <Input
+                  id='branding-whatsappLink'
+                  name='whatsappLink'
+                                    className='max-w-md font-mono'
+                  placeholder='919876543210 or https://wa.me/…'
+                  aria-invalid={!!fields.whatsappLink}
+                  value={current.whatsappLink}
+                  onChange={e => set('whatsappLink', e.target.value)}
+                />
+                {fields.whatsappLink && (
+                  <p className='text-destructive text-xs' role='alert' data-error='branding-whatsappLink'>
+                    {fields.whatsappLink}
+                  </p>
+                )}
+                <FieldDescription>A number with the country code, or a wa.me / WhatsApp channel or group link. Empty: the button does nothing.</FieldDescription>
+              </Field>
+              <Field>
+                <FieldLabel htmlFor='branding-whatsappMessage'>{BRANDING_LABELS.whatsappMessage}</FieldLabel>
+                <Textarea
+                  id='branding-whatsappMessage'
+                  name='whatsappMessage'
+                  rows={2}
+                  maxLength={WHATSAPP_MESSAGE_MAX}
+                  placeholder='Hi, I need help with my account'
+                  aria-invalid={!!fields.whatsappMessage}
+                  value={current.whatsappMessage}
+                  onChange={e => set('whatsappMessage', e.target.value)}
+                />
+                {fields.whatsappMessage && (
+                  <p className='text-destructive text-xs' role='alert' data-error='branding-whatsappMessage'>
+                    {fields.whatsappMessage}
+                  </p>
+                )}
+                <FieldDescription>Optional: already typed in the chat box when WhatsApp opens.</FieldDescription>
+              </Field>
             </CardContent>
           </Card>
 

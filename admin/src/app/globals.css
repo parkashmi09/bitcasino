@@ -1462,3 +1462,23 @@ html.dark[data-palette='ocean_ruby'] {
   --mui-palette-background-default: #10161C;
   --mui-palette-background-paper: #172029;
 }
+
+/* The dashboard's seven cards: one row only where each card has room (a laptop gets four across). */
+.dashboard-kpis {
+  grid-template-columns: minmax(0, 1fr);
+}
+@media (min-width: 640px) {
+  .dashboard-kpis {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+@media (min-width: 1280px) {
+  .dashboard-kpis {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+@media (min-width: 1800px) {
+  .dashboard-kpis {
+    grid-template-columns: repeat(7, minmax(0, 1fr));
+  }
+}

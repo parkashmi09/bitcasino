@@ -45,8 +45,10 @@ const errors = defineErrors('TXN_PASSWORD', {
   INVALID: { status: 403, message: 'The transaction password is not correct' },
   NOT_SET: {
     status: 403,
-    message: 'Set a transaction password under My account before moving money',
+    message: 'No transaction password is set. The Super Admin sets it under My account. Other staff: ask an account above you to reset your password; a new one is issued at the next sign-in',
   },
+  // rainbet: below the Super Admin the code is always issued, never chosen.
+  ISSUED_ONLY: { status: 403, message: 'Your transaction password is issued by the system' },
   LOGIN_PASSWORD_WRONG: { status: 403, message: 'Your current login password is not correct' },
   SAME_AS_LOGIN: { status: 422, message: 'The transaction password must differ from your login password' },
   EXECUTIVE_CANNOT_SET: {
@@ -106,9 +108,10 @@ async function assertTransactionPassword(models, staffId, candidate, { required 
 }
 
 /** Set the caller's own transaction password, once — an account that has one keeps it. */
-async function setTransactionPassword(models, { staffId, executiveId, currentPassword, transactionPassword, logger }) {
+async function setTransactionPassword(models, { staffId, executiveId, level, currentPassword, transactionPassword, logger }) {
   if (isLoginPasswordMode()) throw errors.LOGIN_MODE();
   if (executiveId) throw errors.EXECUTIVE_CANNOT_SET();
+  if (Number(level) > 1) throw errors.ISSUED_ONLY();
 
   const row = await models.Staff.findByPk(staffId, { attributes: ['id', 'password', 'transaction_password'], raw: true });
   if (!row) throw errors.NOT_FOUND();

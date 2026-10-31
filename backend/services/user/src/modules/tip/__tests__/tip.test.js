@@ -73,6 +73,7 @@ test('tips', async (t) => {
     await m.WalletHistory.destroy({ where: { uid: ids } });
     await m.Userconfig.destroy({ where: { uid: ids } });
     await m.Userwager.destroy({ where: { uid: ids } });
+    await m.UserKyc.destroy({ where: { user_id: Array.isArray(ids) ? ids.map(String) : String(ids) } });
     await m.Credits.destroy({ where: { uid: ids } });
     await m.Users.destroy({ where: { id: ids } });
   };
@@ -140,14 +141,19 @@ test('tips', async (t) => {
     clients: { admin: fakeAdmin },
     tipLimits: { limits: async () => currentLimits },
     rewardMoney: fakeRewardMoney,
+    // The withdraw-style rules (KYC, wagering, caps) are covered by tipRequirements.test.js.
+    withdrawRequirements: { assertMet: async () => null, assertCapInTransaction: async () => {} },
   };
   const tips = new TipService(deps);
 
   const run = `${process.pid}${Date.now() % 100000}`;
-  const seed = async ({ inr = null, prefix = 'tipt', status = 'active', parent = null } = {}) => {
+  // A tip is money out and passes the withdraw requirements (KYC among them), so every seeded
+  // player is KYC Verified unless a case asks otherwise (`kyc: null` = never submitted).
+  const seed = async ({ inr = null, prefix = 'tipt', status = 'active', parent = null, kyc = 'Verified' } = {}) => {
     const id = newUid();
     const name = `${prefix}_${run}_${id % 1000}`;
     await m.Users.create({ id, name, password: 'x', status, parent_staff_id: parent });
+    if (kyc) await m.UserKyc.create({ user_id: String(id), status: kyc });
     if (inr !== null) await m.Credits.create({ uid: id, inr });
     return { id, name };
   };
@@ -493,6 +499,27 @@ test('tips', async (t) => {
     });
   });
 
+  await t.test('limits: on an INR site the caps are rupees, and a USDT tip is valued in rupees', async () => {
+    const inrSite = new TipService({ ...deps, models: { ...m, SiteFeature: { findByPk: async () => ({ variant: 'INR' }) } } });
+    const a = await seed({ inr: '5000' });
+    const b = await seed({ inr: '0' });
+    await m.Credits.update({ usdt: '100' }, { where: { uid: a.id } });
+
+    await withLimits({ maxPerTipUsd: '1000', maxPerDayUsd: '0' }, async () => {
+      const details = await rejectsWithDetails(
+        inrSite.send({ userId: a.id, toUsername: b.name, currency: 'INR', amount: '1000.01' }),
+        'TIP_OVER_PER_TIP_LIMIT',
+        400
+      );
+      assert.deepEqual(details, { maxUsd: '1000.00000000', maxInCurrency: '1000.00000000', currency: 'INR' });
+      // 13 USDT is 1,040 INR at 80/$: over. 12 USDT is 960 INR: fine.
+      await rejectsWith(inrSite.send({ userId: a.id, toUsername: b.name, currency: 'USDT', amount: '13' }), 'TIP_OVER_PER_TIP_LIMIT', 400);
+      await inrSite.send({ userId: a.id, toUsername: b.name, currency: 'USDT', amount: '12' });
+      await inrSite.send({ userId: a.id, toUsername: b.name, currency: 'INR', amount: '1000' });
+      assert.equal((await inrSite.getSettings({ userId: a.id })).limits.currency, 'INR');
+    });
+  });
+
   await t.test('limits: the daily cap sums the last 24h across currencies in USD', async () => {
     const a = await seed({ inr: '10000' });
     const b = await seed({ inr: '0' });
@@ -532,6 +559,7 @@ test('tips', async (t) => {
         maxPerTipUsd: '0.00000000',
         maxPerDayUsd: '20.00000000',
         minWageredUsd: '0.00000000',
+        currency: 'USDT',
         usedTodayUsd: '20.00000000',
       });
 
@@ -618,6 +646,7 @@ test('tips', async (t) => {
       maxPerTipUsd: '500.00000000',
       maxPerDayUsd: '2000.00000000',
       minWageredUsd: '0.00000000',
+      currency: 'USDT',
       usedTodayUsd: '2000.00000000',
     });
 
@@ -689,7 +718,7 @@ test('tips', async (t) => {
     assert.deepEqual(hist.data, { rows: [], total: 0 });
     assert.deepEqual((await call('GET', '/settings')).data, {
       enabled: true,
-      limits: { maxPerTipUsd: '500.00000000', maxPerDayUsd: '2000.00000000', minWageredUsd: '0.00000000', usedTodayUsd: '0.00000000' },
+      limits: { maxPerTipUsd: '500.00000000', maxPerDayUsd: '2000.00000000', minWageredUsd: '0.00000000', currency: 'USDT', usedTodayUsd: '0.00000000' },
     });
     assert.deepEqual((await call('PATCH', '/settings', { enabled: false })).data, { enabled: false });
 

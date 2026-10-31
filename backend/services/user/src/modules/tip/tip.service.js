@@ -1,6 +1,6 @@
 'use strict';
 
-const { money, withdrawBlock } = require('@ibitplay/common');
+const { money, withdrawBlock, defaultCurrencyOf } = require('@ibitplay/common');
 const { assertPlayerCapability, isAgentPlayer } = require('@ibitplay/auth');
 const { Op } = require('@ibitplay/db');
 
@@ -10,7 +10,7 @@ const { WalletService } = require('../wallet/wallet.service');
 const { REASON } = require('../wallet/wallet.constants');
 const { visibleUserIds, CHANNEL_SQL } = require('../directory/playerScope');
 const { notifyPlayer } = require('../notifications/notifyPlayer');
-const { createRewardMoney, USD_CODES } = require('../../lib/rewardMoney');
+const { createRewardMoney } = require('../../lib/rewardMoney');
 const { createTipLimitsResolver } = require('./tipLimits');
 const { createWithdrawRequirements } = require('../withdraw-requirements/withdrawRequirements');
 
@@ -126,11 +126,11 @@ class TipService {
       kycError: (status) => errors.KYC_REQUIRED({ kycStatus: status ?? null }),
     });
 
-    // The limits and this tip's USD value are plain reads, taken before any lock is held;
-    // they are CHECKED inside the transaction, after the sender's row is locked.
+    // The limits and this tip's value in the limits' coin are plain reads, taken before any lock
+    // is held; they are CHECKED inside the transaction, after the sender's row is locked.
     const limits = await this.#limits();
     const capped = money.gt(limits.maxPerTipUsd, '0') || money.gt(limits.maxPerDayUsd, '0');
-    const tipUsd = capped ? await this.#toUsdStrict(value, code) : null;
+    const tipUsd = capped ? await this.#toLimitStrict(value, code, limits.currency) : null;
 
     let result;
     try {
@@ -165,7 +165,7 @@ class TipService {
           throw errors.RATE_LIMITED({ limit: RATE_LIMIT.max, windowMinutes: RATE_LIMIT.windowMs / 60_000 });
         }
 
-        // ── 2b. Operator limits (USD), under the same lock ──────────────
+        // ── 2b. Operator limits (site default coin), under the same lock ──────────────
         await this.#enforceLimits({ limits, tipUsd, senderId, code, transaction });
 
         // ── 3. The tip, then the two ledger movements keyed on its id ───
@@ -287,13 +287,10 @@ class TipService {
       .map((r) => ({ id: Number(r.id), name: r.name }));
   }
 
-  /** The receive switch, plus the operator's limits and what this player has sent in the last 24h (USD). */
+  /** The receive switch, plus the operator's limits and what this player has sent in the last 24h (both in `limits.currency`). */
   async getSettings({ userId }) {
-    const [enabled, limits, usedTodayUsd] = await Promise.all([
-      this.#tipsEnabled(userId),
-      this.#limits(),
-      this.#usedTodayUsd(Number(userId), { strict: false }).catch(() => null),
-    ]);
+    const [enabled, limits] = await Promise.all([this.#tipsEnabled(userId), this.#limits()]);
+    const usedTodayUsd = await this.#usedTodayUsd(Number(userId), { strict: false, currency: limits.currency }).catch(() => null);
     return { enabled, limits: { ...limits, usedTodayUsd } };
   }
 
@@ -432,31 +429,49 @@ class TipService {
 
   // ══ Internals ═══════════════════════════════════════════════════════
 
-  /** The operator's limits as exact decimals. The resolver never fails: unreadable = the defaults. */
+  /**
+   * The operator's limits as exact decimals, in the SITE'S DEFAULT COIN (owner panel
+   * `default_currency`, e.g. INR) — user's rule, 2026-10-31. The `*Usd` names are the stored
+   * fields' history (migration 081); `currency` says what the numbers are in.
+   * The resolver never fails: unreadable = the defaults.
+   */
   async #limits() {
     const raw = await this.tipLimits.limits();
-    return { maxPerTipUsd: dec(raw.maxPerTipUsd), maxPerDayUsd: dec(raw.maxPerDayUsd), minWageredUsd: dec(raw.minWageredUsd) };
+    return {
+      maxPerTipUsd: dec(raw.maxPerTipUsd),
+      maxPerDayUsd: dec(raw.maxPerDayUsd),
+      minWageredUsd: dec(raw.minWageredUsd),
+      currency: await this.#limitCurrency(),
+    };
   }
 
-  /** `amount` of `currency` in USD; no rate is a refusal, never a pass. */
-  async #toUsdStrict(amount, currency) {
-    const usd = await this.rewardMoney.toUsd(amount, currency);
-    if (usd == null) throw errors.NO_RATE({ currency });
-    return dec(usd);
+  async #limitCurrency() {
+    try {
+      const row = await this.models.SiteFeature?.findByPk?.('default_currency', { attributes: ['variant'], raw: true });
+      return defaultCurrencyOf(row?.variant);
+    } catch {
+      return defaultCurrencyOf(null);
+    }
   }
 
-  /** A USD figure in `currency`, for the error details; null when it has no rate. */
-  async #fromUsd(usd, currency) {
-    if (USD_CODES.includes(currency)) return dec(usd);
-    const out = await this.rewardMoney.convert(usd, 'USD', currency);
+  /** `amount` of `currency` in the limits' coin `to`; no rate is a refusal, never a pass. */
+  async #toLimitStrict(amount, currency, to) {
+    const out = await this.rewardMoney.convert(amount, currency, to);
+    if (out == null) throw errors.NO_RATE({ currency });
+    return dec(out);
+  }
+
+  /** A figure in the limits' coin `from`, in `currency`, for the error details; null when it has no rate. */
+  async #fromLimit(value, from, currency) {
+    const out = await this.rewardMoney.convert(value, from, currency);
     return out == null ? null : dec(out);
   }
 
   /**
-   * The sender's tips in the last rolling 24 hours, summed in USD. `strict` (the send path)
-   * refuses a coin with no rate; the settings read skips it rather than failing the screen.
+   * The sender's tips in the last rolling 24 hours, summed in the limits' coin. `strict` (the
+   * send path) refuses a coin with no rate; the settings read skips it rather than failing the screen.
    */
-  async #usedTodayUsd(senderId, { strict, transaction } = {}) {
+  async #usedTodayUsd(senderId, { strict, transaction, currency } = {}) {
     const rows = await this.db.sequelize.query(
       `SELECT currency, COALESCE(SUM(amount), 0)::text AS amount
          FROM tips
@@ -471,26 +486,26 @@ class TipService {
     let total = dec('0');
     for (const row of rows) {
       const amount = money.fromStored(String(row.amount));
-      const usd = strict
-        ? await this.#toUsdStrict(amount, row.currency)
-        : await this.rewardMoney.toUsd(amount, row.currency);
-      if (usd != null) total = money.toDecimalString(money.add(total, usd));
+      const value = strict
+        ? await this.#toLimitStrict(amount, row.currency, currency)
+        : await this.rewardMoney.convert(amount, row.currency, currency);
+      if (value != null) total = money.toDecimalString(money.add(total, value));
     }
     return total;
   }
 
-  /** Lifetime wager in USD — `userwager.wager`, the same counter the VIP ladder and profile read. */
-  async #wageredUsd(userId, transaction) {
+  /** Lifetime wager — `userwager.wager` (USD, the VIP ladder's counter) — in the limits' coin. */
+  async #wageredUsd(userId, transaction, currency) {
     const row = await this.models.Userwager.findOne({ where: { uid: userId }, attributes: ['wager'], raw: true, transaction });
-    return parseWager(row?.wager);
+    return this.#toLimitStrict(parseWager(row?.wager), 'USD', currency);
   }
 
   /** Wager requirement, then the per-tip cap, then the rolling daily cap. "0" switches each off. */
   async #enforceLimits({ limits, tipUsd, senderId, code, transaction }) {
-    const { maxPerTipUsd, maxPerDayUsd, minWageredUsd } = limits;
+    const { maxPerTipUsd, maxPerDayUsd, minWageredUsd, currency: limitCode } = limits;
 
     if (money.gt(minWageredUsd, '0')) {
-      const wageredUsd = await this.#wageredUsd(senderId, transaction);
+      const wageredUsd = await this.#wageredUsd(senderId, transaction, limitCode);
       if (money.lt(wageredUsd, minWageredUsd)) {
         throw errors.WAGER_REQUIRED({ requiredUsd: minWageredUsd, wageredUsd });
       }
@@ -499,19 +514,19 @@ class TipService {
     if (money.gt(maxPerTipUsd, '0') && money.gt(tipUsd, maxPerTipUsd)) {
       throw errors.OVER_PER_TIP_LIMIT({
         maxUsd: maxPerTipUsd,
-        maxInCurrency: await this.#fromUsd(maxPerTipUsd, code),
+        maxInCurrency: await this.#fromLimit(maxPerTipUsd, limitCode, code),
         currency: code,
       });
     }
 
     if (money.gt(maxPerDayUsd, '0')) {
-      const usedUsd = await this.#usedTodayUsd(senderId, { strict: true, transaction });
+      const usedUsd = await this.#usedTodayUsd(senderId, { strict: true, transaction, currency: limitCode });
       if (money.gt(money.add(usedUsd, tipUsd), maxPerDayUsd)) {
         const left = money.max(money.subtract(maxPerDayUsd, usedUsd), 0n);
         throw errors.OVER_DAILY_LIMIT({
           maxUsd: maxPerDayUsd,
           usedUsd,
-          remainingInCurrency: await this.#fromUsd(money.toDecimalString(left), code),
+          remainingInCurrency: await this.#fromLimit(money.toDecimalString(left), limitCode, code),
           currency: code,
         });
       }

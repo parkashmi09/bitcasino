@@ -124,22 +124,23 @@ test('admin-service promotion routes refuse the agent tree', async (t) => {
     return { status: res.status, code: body?.error?.code ?? body?.code ?? null, body };
   };
 
-  /** [method, path, the status a house caller gets]. */
+  /** [method, path, the status a house caller gets, the agent tree's code when not PROMOTIONS_NOT_FOR_AGENTS]. */
   const ROUTES = [
     ['GET', '/site-config/affiliate', 200],
     ['GET', '/site-config/rewards', 200],
     // An unknown player: the house caller reaches the handler (404), the agent never does.
-    ['GET', '/dashboard/members/999999999', 404],
+    // rainbet: the whole dashboard is Super Admin only (`denyDirectUsers` on the router), so that refusal answers first.
+    ['GET', '/dashboard/members/999999999', 404, 'DIRECT_USERS_ONLY'],
     // The promotions LIST is the public read on the same path; the admin router is writes.
     ['DELETE', '/promotions/999999999', null],
   ];
 
-  for (const [method, path, houseStatus] of ROUTES) {
+  for (const [method, path, houseStatus, agentCode = PROMOTIONS_NOT_FOR_AGENTS] of ROUTES) {
     await t.test(`${method} ${path}: agent tree 403, house through`, async () => {
       for (const caller of AGENT_TREE) {
         const { status, code } = await call(method, path, caller);
         assert.equal(status, 403, `${caller}`);
-        assert.equal(code, PROMOTIONS_NOT_FOR_AGENTS, `${caller}`);
+        assert.equal(code, agentCode, `${caller}`);
       }
       for (const caller of HOUSE) {
         const { status, code, body } = await call(method, path, caller);

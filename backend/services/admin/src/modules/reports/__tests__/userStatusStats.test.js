@@ -54,8 +54,8 @@ test('user-status validators', async (t) => {
 
 test('the routes carry reports:read like their siblings', () => {
   const source = require('fs').readFileSync(require.resolve('../routes/admin.routes'), 'utf8');
-  assert.match(source, /'\/user-status-stats', canRead, validate\(userStatusV\.userStatusStats\)/);
-  assert.match(source, /'\/players\/:userId\/status-stats', canRead, validate\(userStatusV\.playerStatusStats\)/);
+  assert.match(source, /'\/user-status-stats', directOnly, canRead, validate\(userStatusV\.userStatusStats\)/);
+  assert.match(source, /'\/players\/:userId\/status-stats', directOnly, canRead, validate\(userStatusV\.playerStatusStats\)/);
 });
 
 test('user-status stats against a database', async (t) => {

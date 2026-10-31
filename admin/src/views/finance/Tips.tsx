@@ -38,13 +38,13 @@ const PAGE_SIZE = 50
 const SEARCH_DEBOUNCE_MS = 350
 
 /**
- * `GET / PUT admin/site-config/tips` — the operator's tip limits, all USD decimal strings
- * (`config:read` / `config:write`, house staff only). "0" on a max = no cap; "0" on the
+ * `GET / PUT admin/site-config/tips` — the operator's tip limits, decimal strings in the site's
+ * default coin (`currency`, e.g. INR; the `*Usd` names are history) (`config:read` / `config:write`, house staff only). "0" on a max = no cap; "0" on the
  * wager requirement = off. The PUT is a patch validated as decimals ≥ 0 with ≤ 8 dp.
  */
 const LIMITS = 'admin/site-config/tips'
 
-type TipLimits = { maxPerTipUsd: string; maxPerDayUsd: string; minWageredUsd: string; currency: 'USD'; configured: boolean }
+type TipLimits = { maxPerTipUsd: string; maxPerDayUsd: string; minWageredUsd: string; currency: string; configured: boolean }
 
 /** "500.00000000" → "500" for editing; the backend stores exact decimals either way. */
 const trimDecimal = (v: string) => (v.includes('.') ? v.replace(/\.?0+$/, '') : v)
@@ -59,8 +59,9 @@ const LimitsCard = () => {
       <CardHeader>
         <CardTitle className='text-base'>Limits</CardTitle>
         <CardDescription>
-          Caps on what one player can tip, in USD so one setting covers every currency. A tip is converted with Exchange
-          rates when it is sent; a currency without a rate cannot be tipped while a cap is on.
+          Caps on what one player can tip, in the site&apos;s default currency{q.data ? ` (${q.data.currency})` : ''}. A tip in
+          any other coin is converted with Exchange rates when it is sent; a currency without a rate cannot be tipped while
+          a cap is on.
         </CardDescription>
       </CardHeader>
       <CardContent>
@@ -83,6 +84,7 @@ const LimitsForm = ({ saved }: { saved?: TipLimits }) => {
   const [perDay, setPerDay] = useState(saved ? trimDecimal(saved.maxPerDayUsd) : '')
   const [minWagered, setMinWagered] = useState(saved ? trimDecimal(saved.minWageredUsd) : '')
 
+  const unit = saved?.currency ?? ''
   const values = [perTip, perDay, minWagered].map(v => v.trim())
   const fieldError = (v: string) => (v !== '' && !USD_DECIMAL.test(v) ? 'Use a plain number (≥ 0) with at most 8 decimal places' : undefined)
   const errors = values.map(fieldError)
@@ -119,7 +121,7 @@ const LimitsForm = ({ saved }: { saved?: TipLimits }) => {
       <div className='grid gap-4 sm:grid-cols-3'>
         <TextField
           id='tipMaxPerTip'
-          label='Max per tip (USD)'
+          label={`Max per tip (${unit})`}
           hint='0 = no cap'
           inputMode='decimal'
           value={perTip}
@@ -129,7 +131,7 @@ const LimitsForm = ({ saved }: { saved?: TipLimits }) => {
         />
         <TextField
           id='tipMaxPerDay'
-          label='Max per day (USD)'
+          label={`Max per day (${unit})`}
           hint='A player’s tips in the last 24 hours, all currencies. 0 = no cap'
           inputMode='decimal'
           value={perDay}
@@ -139,7 +141,7 @@ const LimitsForm = ({ saved }: { saved?: TipLimits }) => {
         />
         <TextField
           id='tipMinWagered'
-          label='Wagered before tipping (USD)'
+          label={`Wagered before tipping (${unit})`}
           hint='Lifetime wager a player needs before they can send a tip. 0 = off'
           inputMode='decimal'
           value={minWagered}

@@ -322,12 +322,15 @@ test('staff listings are scoped to the caller’s tree', async (t) => {
       ['redeem codes', (c) => new BonusService(deps).listCodes({ ...opts, channel: c }), 'userId'],
       ['gift cards', (c) => new GiftCardsService(deps).records({ ...opts, channel: c }), 'userId'],
       ['vault users', (c) => new VaultService(deps).listVaultUsers({ ...opts, channel: c }), 'userid'],
-      ['kyc (varchar user_id)', (c) => new KycService(deps).listApplications({ ...opts, channel: c }), 'userId'],
       ['spin claims', (c) => new SpinWheelService(deps).listClaims({ ...opts, channel: c }), 'userId'],
     ];
     for (const [name, list, key] of lists) {
       assert.deepEqual(ours((await list('agent')).rows, key), players.slice().sort(), `${name}: agent`);
       assert.deepEqual(ours((await list('direct')).rows, key), [], `${name}: direct`);
+    }
+    // KYC is for direct users only (docs/KYC.md): the queue is always the direct channel, so an agent player's row is never listed.
+    for (const channel of ['agent', 'direct']) {
+      assert.deepEqual(ours((await new KycService(deps).listApplications({ ...opts, channel })).rows, 'userId'), [], `kyc (varchar user_id): ${channel}`);
     }
   });
 

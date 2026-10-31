@@ -140,6 +140,11 @@ const Curation = () => {
           ))}
         </SelectContent>
       </Select>
+      {scope === 'category' && (
+        <p className='text-muted-foreground mb-4 text-sm'>
+          Home rows: Slots is Recommended Slots, Hot Games is Trending Slots, New is New Releases, Live Casino is Live Table Games, Game Shows is Game Shows. Picked games replace the row and its name becomes the category name. Blackjack, Roulette and Baccarat fill their sidebar pages. Originals are set under Casino, Original Games.
+        </p>
+      )}
       {scope === 'category' ? <CategoriesTab /> : scope === 'collection' ? <CollectionsTab /> : <PriorityTab key={scope} kind={scope} />}
     </div>
   )

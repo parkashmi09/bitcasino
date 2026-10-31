@@ -37,3 +37,14 @@ export const PERMISSION_GROUPS: { label: string; permissions: string[] }[] = [
 ]
 
 export const ALL_PERMISSIONS = PERMISSION_GROUPS.flatMap(g => g.permissions)
+
+/** One-click roles for an executive. The picker keeps only what the creator holds. */
+export const EXECUTIVE_ROLES: { label: string; permissions: string[] }[] = [
+  { label: 'Finance', permissions: ['deposits:read', 'deposits:approve', 'withdrawals:read', 'withdrawals:approve', 'wallet:read', 'wallet:credit', 'wallet:debit', 'wallet:adjust', 'reports:read', 'config:read'] },
+  { label: 'Site content & config', permissions: ['config:read', 'config:write', 'redeem:write', 'reports:read'] },
+  { label: 'Player support', permissions: ['users:read', 'users:lock', 'deposits:read', 'withdrawals:read', 'wallet:read', 'reports:read'] },
+  { label: 'KYC', permissions: ['users:read', 'users:write', 'reports:read'] },
+  { label: 'Sports', permissions: ['sports:read', 'sports:manage', 'sports:settle', 'reports:read'] },
+  { label: 'Casino', permissions: ['casino:read', 'casino:manage', 'casino:settle', 'originals:read', 'reports:read'] },
+  { label: 'Reports only', permissions: ['reports:read', 'audit:read'] }
+]

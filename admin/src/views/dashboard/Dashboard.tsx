@@ -341,7 +341,7 @@ const DirectUserDashboard = () => {
 
         {series.error && <ErrorState error={series.error} />}
 
-        <div className='grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4 2xl:grid-cols-7'>
+        <div className='dashboard-kpis grid gap-4'>
           <KpiCard
             label='Deposits'
             value={money(s?.totals.deposits)}

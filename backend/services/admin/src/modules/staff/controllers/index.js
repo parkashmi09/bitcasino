@@ -17,7 +17,7 @@ function actorFrom(req) {
     // parent's. Every hierarchy rule in the service compares against this.
     level: Number.isFinite(level) ? level : null,
     executiveId: req.staff.executiveId ?? null,
-    canResetOthers: Boolean(req.staff.permissions?.includes('staff:write')),
+    canResetOthers: hasPermission(req.staff.permissions, PERMISSIONS.STAFF_WRITE),
     // The platform owner (Super Admin, level 1) funds the tree and has no
     // balance to draw down. This read `level === 0`, which matched nobody.
     canIssueFunds: canIssueFunds(req.staff),

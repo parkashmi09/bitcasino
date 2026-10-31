@@ -97,10 +97,10 @@ const AccountListBody = ({ channel }: { channel?: Channel }) => {
     cell: r =>
       parentId ? (
 
-        // Drill-down list sirf dekhne ke liye: D/W nahi, More ki jagah "P".
+        // Drill-down list: no D/W; "P" opens the same More window (password, lock).
         <div className='flex gap-1.5'>
           {downline(r)}
-          <MoreDialog row={r} profileOnly trigger={<Button size='sm' variant='secondary'>P</Button>} />
+          <MoreDialog row={r} trigger={<Button size='sm' variant='secondary'>P</Button>} />
         </div>
       ) : (
         <div className='flex gap-1.5'>
@@ -243,7 +243,7 @@ const AccountList = () => {
     <div>
       <PageHeader
         title='Account List'
-        description={parentId ? 'Downline of the selected account (view only).' : 'Your accounts. Deposit / Withdraw moves credit; Settlement settles the Client(P/L).'}
+        description={parentId ? 'Downline of the selected account. P opens its details, password and lock.' : 'Your accounts. Deposit / Withdraw moves credit; Settlement settles the Client(P/L).'}
       />
       <AccountListBody channel='agent' />
     </div>

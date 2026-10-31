@@ -40,9 +40,10 @@ const ChangePassword = () => {
   const [next, setNext] = useState('')
   const [confirm, setConfirm] = useState('')
 
-  // Whitelabel company: chooses its own 6-digit transaction code on this screen (no issued one).
+  // Whitelabel company (Super Admin only): chooses its own 6-digit transaction code on this screen (no issued one).
   const [code, setCode] = useState('')
   const [codeAgain, setCodeAgain] = useState('')
+  const chooseCode = siteConfig.whitelabel && actor?.level === 1
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -53,15 +54,15 @@ const ChangePassword = () => {
     if (next.length < 8) return setError('The new password must be at least 8 characters.')
     if (next !== confirm) return setError('The two new passwords do not match.')
     if (next === current) return setError('Choose a password different from the one you were given.')
-    if (siteConfig.whitelabel && !/^\d{6}$/.test(code)) return setError('The transaction code must be 6 digits.')
-    if (siteConfig.whitelabel && code !== codeAgain) return setError('The two transaction codes do not match.')
+    if (chooseCode && !/^\d{6}$/.test(code)) return setError('The transaction code must be 6 digits.')
+    if (chooseCode && code !== codeAgain) return setError('The two transaction codes do not match.')
 
     setBusy(true)
 
     try {
       const { data } = await request<{ transactionPassword?: string }>('admin/staff/password', {
         method: 'PATCH',
-        body: { oldPassword: current, newPassword: next, ...(siteConfig.whitelabel ? { transactionPassword: code } : {}) }
+        body: { oldPassword: current, newPassword: next, ...(chooseCode ? { transactionPassword: code } : {}) }
       })
 
       // A first sign-in is issued its transaction password; the login screen shows it once.
@@ -88,7 +89,7 @@ const ChangePassword = () => {
           <div>
             <CardTitle className='mb-2 text-2xl font-semibold'>Set your own password</CardTitle>
             <CardDescription className='text-base'>
-              {actor?.name ? `${actor.name}, your` : 'Your'} account was given a temporary password. Choose a new one{siteConfig.whitelabel ? ' and your transaction code' : ''} to continue.
+              {actor?.name ? `${actor.name}, your` : 'Your'} account was given a temporary password. Choose a new one{chooseCode ? ' and your transaction code' : ''} to continue.
             </CardDescription>
           </div>
         </CardHeader>
@@ -108,7 +109,7 @@ const ChangePassword = () => {
                 <FieldLabel htmlFor='confirm'>Repeat new password</FieldLabel>
                 <Input id='confirm' type='password' autoComplete='new-password' required minLength={8} value={confirm} onChange={e => setConfirm(e.target.value)} />
               </Field>
-              {siteConfig.whitelabel && (
+              {chooseCode && (
                 <>
                   <Field className='gap-2'>
                     <FieldLabel htmlFor='code'>Transaction code (6 digits)</FieldLabel>

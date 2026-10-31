@@ -11,6 +11,7 @@ const { RewardStatsService } = require('../rewardStats.service');
 const { ReportsService } = require('../reports.service');
 const { WagerStatsService } = require('../wagerStats.service');
 const v = require('../audienceStats.validators');
+const { loadRates, createValuer, decimal } = require('../audienceStats.helpers');
 
 /**
  * The player and reward stats routes.
@@ -75,8 +76,8 @@ test('the house-only sections are guarded like their sibling routes', () => {
     const line = source.split('\n').find((l) => l.includes(`'/reward-stats/${section}'`));
     assert.doesNotMatch(line, /houseOnly/i, `${section} is tree-scoped, not house-only`);
   }
-  assert.match(source, /'\/players\/:userId\/stats', canRead/);
-  assert.match(source, /'\/player-stats', canRead/);
+  assert.match(source, /'\/players\/:userId\/stats', directOnly, canRead/);
+  assert.match(source, /'\/player-stats', directOnly, canRead/);
 });
 
 test('stats against a database', async (t) => {
@@ -297,7 +298,10 @@ test('stats against a database', async (t) => {
     const wager = new WagerStatsService({ ...deps, config: { ROOT_STAFF_ID: 1 } });
     const q = { staff: asC, from: window.from, to: window.to, granularity: 'day' };
     const [casino, sports] = await Promise.all([wager.stats({ ...q, area: 'casino' }), wager.stats({ ...q, area: 'sports' })]);
-    assert.equal(out.kpis.wagerUsd, '30.00000000', 'the settled stake; the demo_seed feed row is not play');
+    // An agent-tree session reports in INR (reportingCurrency): the settled 30 USD stake, valued in it.
+    assert.equal(out.kpis.wagerCurrency, 'INR');
+    const settled = decimal(createValuer(await loadRates(models), null, 'INR').value('30', 'USD'));
+    assert.equal(out.kpis.wagerUsd, settled, 'the settled stake; the demo_seed feed row is not play');
     assert.equal(Number(out.kpis.wagerUsd), Number(casino.totals.wagered) + Number(sports.totals.wagered));
     assert.equal(out.kpis.activePlayers, 1, 'only the player with a game row is active');
   });

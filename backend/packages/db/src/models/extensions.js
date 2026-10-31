@@ -56,6 +56,8 @@ const EXTENSIONS = {
   // Legacy created these with an ALTER TABLE run on every request that touched
   // the targetX endpoints, so they never reached the baseline schema.
   Users: {
+    // ── migration 178-player-must-change-password: a password an upline chose.
+    must_change_password: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: false, field: 'must_change_password' },
     // ── migration 119-google-login: the Google account (`sub`) this player signs in with.
     google_sub: { type: DataTypes.STRING(64), allowNull: true, field: 'google_sub' },
     wager_multiplier: { type: DataTypes.DECIMAL(10, 4), allowNull: true, defaultValue: 3, field: 'wager_multiplier' },
@@ -540,6 +542,11 @@ const EXTENSIONS = {
  * disagree, and the durable fix is to refresh the baseline.
  */
 const OVERRIDES = {
+  // ── migration 177-redeem-amount-decimal
+  Redeembonus: {
+    amount: { type: DataTypes.DECIMAL(20, 8), allowNull: false, field: 'amount' },
+  },
+
   // ── migration 016-casino-provider-schema ─────────────────────────────
   JsGameTransactions: {
     /**

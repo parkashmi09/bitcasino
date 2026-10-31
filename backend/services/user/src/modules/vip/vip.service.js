@@ -191,7 +191,8 @@ class VipService {
    *
    *   1. the player's rakeback RATE is synced to their current card;
    *   2. one `levelUp` credit per level gained;
-   *   3. one `rankUp` credit per card climbed into.
+   *   3. one `rankUp` reward per card climbed into: not credited here, the
+   *      player claims it (`claimRankUps`).
    *
    * ── THE WAGERS ARE ARGUMENTS, NOT A READ ────────────────────────────────
    *
@@ -348,7 +349,7 @@ class VipService {
 
     const granted = await this.db.transaction(async (transaction) => {
       const paid = [];
-      for (const award of due) {
+      for (const award of due.filter((d) => d.kind === 'level_up')) {
         const movement = await this.wallet.credit(
           {
             userId,
@@ -390,16 +391,110 @@ class VipService {
       { userId: String(userId), from: before.level, to: after.level, granted: granted.length },
       'VIP progression credited'
     );
-    void notifyPlayer(userId, granted.filter((g) => !g.replayed).map((g) => ({
-      kind: g.kind === 'level_up' ? 'vip_level_up' : 'vip_rank_up',
-      key: `vip:${g.kind}:${g.kind === 'level_up' ? g.level : g.card}`,
-      title: g.kind === 'level_up' ? `VIP level ${g.level} reached` : `New VIP rank: ${g.card}`,
-      body: '{amount} VIP reward has been added to your wallet.',
-      link: '/vip',
-      meta: { amount: g.amount, currency: g.currency, level: g.level, card: g.card },
-    })));
+    void notifyPlayer(userId, [
+      ...granted.filter((g) => !g.replayed).map((g) => ({
+        kind: 'vip_level_up',
+        key: `vip:${g.kind}:${g.level}`,
+        title: `VIP level ${g.level} reached`,
+        body: '{amount} VIP reward has been added to your wallet.',
+        link: '/vip',
+        meta: { amount: g.amount, currency: g.currency, level: g.level, card: g.card },
+      })),
+      ...due.filter((d) => d.kind === 'rank_up').map((d) => ({
+        kind: 'vip_rank_up',
+        key: `vip:rank_up:${d.card}`,
+        title: `New VIP rank: ${d.card}`,
+        body: '{amount} rank-up reward is ready to claim.',
+        link: '/rewards',
+        meta: { amount: d.amount, currency: d.currency, level: d.level, card: d.card },
+      })),
+    ]);
 
     return { vip: after, rate, granted };
+  }
+
+  /**
+   * Rank-up rewards the player has earned and not been paid: every card reached
+   * after the first ranked one (entering the ladder is not a rank-up), less the
+   * ones the ledger already holds under their key. Follows the current wager,
+   * so a reversal that drops the player a card also takes that card's reward away.
+   */
+  async #unclaimedRankUps(userId) {
+    const [ladder, row] = await Promise.all([
+      this.#ladder(),
+      this.models.Userwager.findOne({ where: { uid: userId }, attributes: ['wager'], raw: true }),
+    ]);
+    const reached = ladder.levelFor(this.#wager(row?.wager ?? '0')).level;
+
+    const cards = [];
+    for (const band of ladder.levels) {
+      if (band.level > 0 && band.level <= reached && !cards.includes(band.card)) cards.push(band.card);
+    }
+    const earned = cards.slice(1)
+      .map((card) => ({
+        card,
+        usd: money.toDecimalString(money.toMinor(rankUpAmount(card))),
+        idempotencyKey: `vip:rank_up:${userId}:${card}`,
+      }))
+      .filter((award) => money.gt(award.usd, '0'));
+    if (earned.length === 0) return [];
+
+    const paid = await this.models.CreditsLedger.findAll({
+      where: { idempotency_key: { [Op.in]: earned.map((award) => award.idempotencyKey) } },
+      attributes: ['idempotency_key'],
+      raw: true,
+    });
+    const paidKeys = new Set(paid.map((entry) => entry.idempotency_key));
+    return earned.filter((award) => !paidKeys.has(award.idempotencyKey));
+  }
+
+  /** What the Claim Rank Up Rewards button offers. */
+  async rankUps(userId) {
+    const awards = await this.#unclaimedRankUps(userId);
+    let totalUsd = 0n;
+    for (const award of awards) totalUsd += money.toMinor(award.usd);
+    return { cards: awards.map((award) => award.card), totalUsd: money.toDecimalString(totalUsd) };
+  }
+
+  /**
+   * Pays every unclaimed rank-up. The wallet key is the same one a rank-up has
+   * always carried, so a double click or a rank paid before this was claimable
+   * cannot pay again.
+   */
+  async claimRankUps(userId) {
+    const awards = await this.#unclaimedRankUps(userId);
+    if (awards.length === 0) return { granted: [] };
+
+    for (const award of awards) {
+      const quote = await this.rewardMoney.fromUsd(award.usd);
+      award.amount = quote.amount;
+      award.currency = quote.currency;
+    }
+
+    const granted = await this.db.transaction(async (transaction) => {
+      const paid = [];
+      for (const award of awards) {
+        const movement = await this.wallet.credit(
+          {
+            userId,
+            currency: award.currency,
+            amount: award.amount,
+            reason: REASON.BONUS,
+            idempotencyKey: award.idempotencyKey,
+            refType: 'VIP_RANK_UP',
+            refId: award.card,
+            description: `VIP ${award.card} rank-up`,
+          },
+          { sourceService: 'user-service', transaction }
+        );
+        if (movement?.replayed) continue;
+        await addToUserbonus(this, userId, { vipbonus: award.amount, totalbonus: award.amount }, { transaction });
+        paid.push({ kind: 'rank_up', card: award.card, amount: award.amount, amountUsd: award.usd, currency: award.currency });
+      }
+      return paid;
+    });
+
+    return { granted };
   }
 
   /**

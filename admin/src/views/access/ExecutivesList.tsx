@@ -22,21 +22,33 @@ import { useSession } from '@/contexts/SessionContext'
 import { useApiMutation, useListState, usePagedApi } from '@/hooks/use-api'
 import { api } from '@/lib/api/client'
 import { check } from '@/lib/validate'
-import { EXECUTIVE_STATUSES, PERMISSION_GROUPS, type ExecutiveActivity, type ExecutiveRow } from './types'
+import { EXECUTIVE_ROLES, EXECUTIVE_STATUSES, PERMISSION_GROUPS, type ExecutiveActivity, type ExecutiveRow } from './types'
 
 type Kind = 'executive' | 'marketing'
 
 const BASE: Record<Kind, string> = { executive: 'admin/access/executives', marketing: 'admin/access/marketing-users' }
 
 /** Multi-select over the platform vocabulary; never offers more than the operator holds (the server intersects anyway). */
-const PermissionPicker = ({ value, onChange }: { value: string[]; onChange: (next: string[]) => void }) => {
+const PermissionPicker = ({ value, onChange, instantRoles = false }: { value: string[]; onChange: (next: string[]) => void; instantRoles?: boolean }) => {
   const { can } = useSession()
   const offered = PERMISSION_GROUPS.map(g => ({ ...g, permissions: g.permissions.filter(p => can(p)) })).filter(g => g.permissions.length)
   const all = offered.flatMap(g => g.permissions)
   const toggle = (p: string, on: boolean) => onChange(on ? [...new Set([...value, p])] : value.filter(x => x !== p))
+  const roles = EXECUTIVE_ROLES.map(r => ({ ...r, permissions: r.permissions.filter(p => can(p)) })).filter(r => r.permissions.length)
+  const isRole = (p: string[]) => p.length === value.length && p.every(x => value.includes(x))
 
   return (
     <div className='grid gap-3'>
+      {instantRoles && <div className='grid gap-2'>
+        <span className='text-sm font-medium'>Instant role</span>
+        <div className='flex flex-wrap gap-2'>
+          {roles.map(r => (
+            <Button key={r.label} type='button' variant={isRole(r.permissions) ? 'default' : 'outline'} size='sm' onClick={() => onChange(r.permissions)}>
+              {r.label}
+            </Button>
+          ))}
+        </div>
+      </div>}
       <div className='flex items-center justify-between'>
         <span className='text-sm font-medium'>Permissions</span>
         <span className='flex gap-2'>
@@ -107,7 +119,7 @@ export const CreateSubLogin = ({ kind }: { kind: Kind }) => {
         <TextField id='x-pw' name='password' label='Password' type='password' required minLength={8} value={form.password} onChange={e => setForm({ ...form, password: e.target.value })} />
         <TextField id='x-pw2' name='confirm' label='Confirm password' type='password' required minLength={8} value={form.confirm} onChange={e => setForm({ ...form, confirm: e.target.value })} />
       </div>
-      <PermissionPicker value={permissions} onChange={setPermissions} />
+      <PermissionPicker value={permissions} onChange={setPermissions} instantRoles={kind === 'executive'} />
     </FormDialog>
   )
 }
@@ -155,7 +167,7 @@ const RowActions = ({ row, kind }: { row: ExecutiveRow; kind: Kind }) => {
             validate={() => (permissions.length === 0 ? 'Give at least one permission' : null)}
             onSubmit={() => editAccess.mutateAsync()}
           >
-            <PermissionPicker value={permissions} onChange={setPermissions} />
+            <PermissionPicker value={permissions} onChange={setPermissions} instantRoles={kind === 'executive'} />
           </FormDialog>
         )}
         <FormDialog

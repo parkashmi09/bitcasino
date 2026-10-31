@@ -89,7 +89,8 @@ test('withdrawal cap on the rails', async (t) => {
       await m.CreditsLedger.destroy({ where: { user_id: String(uid) } });
       await m.Credits.destroy({ where: { uid } });
       await sql('DELETE FROM bets WHERE uid = :uid', { uid });
-      await sql('DELETE FROM "SportsBet" WHERE user_id = :uid', { uid });
+      await sql('DELETE FROM mssports."SportsBet" WHERE user_id = :uid', { uid });
+      await sql('DELETE FROM mssports.users WHERE user_id = :uid', { uid });
       await sql("DELETE FROM staff_transfers WHERE (to_type = 'user' AND to_id = :uid) OR (from_type = 'user' AND from_id = :uid)", { uid });
       await sql('DELETE FROM apaywithdrawals WHERE user_id = :uid', { uid: String(uid) });
       await sql('DELETE FROM pay_out_transactions WHERE user_id = :uid', { uid });
@@ -251,7 +252,9 @@ test('withdrawal cap on the rails', async (t) => {
     await bet(uid, '100', 'usdt');
     await bet(uid, '50000', 'inr');
     // A settled lay bet counts at its liability (the money at risk), a void bet not at all.
-    await sql(`INSERT INTO "SportsBet" (user_id, stake_amount, liability, bet_type, status, result_status) VALUES (:u, 5000, 300, 'lay', 'closed', 'loss'), (:u, 2000, 2000, 'back', 'closed', 'refund'), (:u, 1000, 1000, 'back', 'open', NULL)`, { u: uid });
+    // The exchange's own schema (mssports), which the cap reads; its bets need the sports-side mirror user.
+    await sql(`INSERT INTO mssports.users (user_id, username, password, role_id, "createdAt", "updatedAt") VALUES (:u, :n, 'x', 4, now(), now()) ON CONFLICT (user_id) DO NOTHING`, { u: uid, n: `wc-${uid}` });
+    await sql(`INSERT INTO mssports."SportsBet" (user_id, game_type, odds, sport_id, original_currency, stake_amount, liability, bet_type, status, result_status, created_at, updated_at) VALUES (:u, 'MO', 2, '4', 'INR', 5000, 300, 'lay', 'closed', 'loss', now(), now()), (:u, 'MO', 2, '4', 'INR', 2000, 2000, 'back', 'closed', 'refund', now(), now()), (:u, 'MO', 2, '4', 'INR', 1000, 1000, 'back', 'open', NULL, now(), now())`, { u: uid });
     await sql(`INSERT INTO staff_transfers (from_type, from_id, to_type, to_id, amount, direction, transfer_type) VALUES ('staff', 1, 'user', :u, 2000, 'deposit', 'transfer')`, { u: uid });
 
     const usdt = (await requirements.evaluate(uid, { currency: 'USDT' })).cap;

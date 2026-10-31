@@ -81,7 +81,8 @@ class WagerService {
     const multiplier = user.wager_multiplier != null ? String(user.wager_multiplier) : await this.getCommonMultiplier();
     const deposited = await this.#totalApprovedDeposits(userId);
     const target = money.toDecimalString(money.multiply(deposited, multiplier));
-    const achieved = money.toDecimalString(money.toMinor(wagered?.wager ?? '0'));
+    // `userwager.wager` is TEXT and legacy rows hold thousands separators ("1,00.00").
+    const achieved = money.toDecimalString(money.toMinor(String(wagered?.wager ?? '0').replace(/,/g, '').trim() || '0'));
 
     const remaining = money.gte(achieved, target)
       ? '0.00000000'

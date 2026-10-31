@@ -35,4 +35,7 @@ module.exports = defineErrors('STAFF', {
   },
 
   OLD_PASSWORD_WRONG: { status: 400, message: 'The current password is not correct' },
+
+  // rainbet: below the Super Admin a password changes only at the forced change, or by an upline.
+  OWN_PASSWORD_LOCKED: { status: 403, message: 'Your password can only be changed by an account above you' },
 });

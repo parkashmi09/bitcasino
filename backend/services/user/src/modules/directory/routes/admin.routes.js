@@ -2,7 +2,7 @@
 
 const { Router } = require('express');
 const { validate, z, response, asyncHandler, noBody } = require('@ibitplay/common');
-const { PERMISSIONS } = require('@ibitplay/auth');
+const { PERMISSIONS, denyDirectUsers } = require('@ibitplay/auth');
 
 const { DirectoryService } = require('../directory.service');
 
@@ -31,6 +31,7 @@ module.exports = function adminRoutes(deps) {
   const { auth } = deps;
   const service = new DirectoryService(deps);
   const router = Router();
+  router.use(denyDirectUsers());
 
   const canRead = auth.requirePermission(PERMISSIONS.USERS_READ);
 

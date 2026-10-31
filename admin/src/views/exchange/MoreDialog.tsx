@@ -184,20 +184,18 @@ const TABS = [
 
 /**
  * More — zip ka `components/MoreModal.jsx`: account ki poori jaankari, password, lock, credit history.
- * Drill-down list me sirf Profile ("P" button).
+ * Drill-down list me bhi yahi window ("P" button).
  */
 type MoreDialogProps = {
   row: AccountRow
-  profileOnly?: boolean
 
   /** Button jo popup kholta hai (drill-down ka "P", list ka More icon). */
   trigger: ReactNode
 }
 
-const MoreDialog = ({ row, trigger, profileOnly = false }: MoreDialogProps) => {
+const MoreDialog = ({ row, trigger }: MoreDialogProps) => {
   const [open, setOpen] = useState(false)
   const [tab, setTab] = useState<(typeof TABS)[number]['key']>('profile')
-  const tabs = profileOnly ? TABS.slice(0, 1) : TABS
   const close = () => setOpen(false)
 
   return (
@@ -218,7 +216,7 @@ const MoreDialog = ({ row, trigger, profileOnly = false }: MoreDialogProps) => {
             <DialogTitle className='uppercase'>{row.username}</DialogTitle>
           </DialogHeader>
           <div className='flex flex-wrap gap-1 border-b'>
-            {tabs.map(t => (
+            {TABS.map(t => (
               <button
                 key={t.key}
                 type='button'

@@ -109,7 +109,10 @@ test('player guards', async (t) => {
     // Casino off: every game, known or not — but the books still open.
     plan({}, { casino: false, sportsbook: true });
     refused(await launch('slot-uid'), 'flag', 'casino');
-    refused(await launch('unknown-uid'), 'flag', 'casino');
+    // An unknown uid is refused before the plan is asked: the launch needs a live catalogue row.
+    const unknown = await launch('unknown-uid');
+    assert.equal(unknown.status, 404);
+    assert.equal(unknown.code, 'GAMES_NOT_FOUND');
     assert.notEqual((await launch('4ee8e0051a035b463b47c3c473ce317d')).code, 'NOT_ENTITLED');
 
     // A provider or a category outside the plan.

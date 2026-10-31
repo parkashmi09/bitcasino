@@ -1,7 +1,7 @@
 'use strict';
 
 const { Router } = require('express');
-const { validate, response, asyncHandler, createActivityRecorder, imageUpload } = require('@ibitplay/common');
+const { validate, noBody, response, asyncHandler, createActivityRecorder, imageUpload } = require('@ibitplay/common');
 const { PERMISSIONS, denyAgentTree } = require('@ibitplay/auth');
 
 const v = require('../vipBranding.validators');
@@ -55,6 +55,7 @@ module.exports = function adminRoutes(deps) {
     houseOnly,
     canWrite,
     validate(v.removePerk),
+    noBody(),
     withActivity({ action: 'vip.perk.delete', describe: (req) => ({ targetType: 'VIP_PERK', targetId: String(req.params.id) }) }),
     asyncHandler(async (req, res) => response.ok(res, await service.removePerk({ id: req.params.id })))
   );
@@ -82,6 +83,7 @@ module.exports = function adminRoutes(deps) {
     houseOnly,
     canWrite,
     validate(v.removeLevel),
+    noBody(),
     withActivity({ action: 'vip.level.delete', describe: (req) => ({ targetType: 'VIP_LEVEL', targetId: String(req.params.level) }) }),
     asyncHandler(async (req, res) => response.ok(res, await service.removeLevel({ level: req.params.level })))
   );
@@ -101,6 +103,7 @@ module.exports = function adminRoutes(deps) {
     houseOnly,
     canWrite,
     validate(v.byCard),
+    noBody(),
     withActivity({ action: 'vip.badge.delete', describe: (req) => ({ targetType: 'VIP_CARD', targetId: req.params.card }) }),
     asyncHandler(async (req, res) => response.ok(res, await service.removeBadge({ card: req.params.card })))
   );

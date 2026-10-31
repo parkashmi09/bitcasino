@@ -2,7 +2,7 @@
 
 const { Router } = require('express');
 const { validate } = require('@ibitplay/common');
-const { PERMISSIONS } = require('@ibitplay/auth');
+const { PERMISSIONS, denyDirectUsers } = require('@ibitplay/auth');
 
 const v = require('../tip.validators');
 const { TipService } = require('../tip.service');
@@ -17,7 +17,7 @@ module.exports = function adminRoutes(deps) {
   const ctrl = createControllers({ service: new TipService(deps) });
   const router = Router();
 
-  router.get('/list', deps.auth.requirePermission(PERMISSIONS.REPORTS_READ), validate(v.adminList), ctrl.adminList);
+  router.get('/list', denyDirectUsers(), deps.auth.requirePermission(PERMISSIONS.REPORTS_READ), validate(v.adminList), ctrl.adminList);
 
   return router;
 };

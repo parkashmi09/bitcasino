@@ -297,7 +297,8 @@ test('payment orders', async (t) => {
 
     const { service, calls } = build(ok);
     // What `operatorSettings` answers once the site admin has saved a value.
-    service.settings = { value: (key, fallback) => (key === 'withdraw_maximum' ? '100' : fallback) };
+    const stored = (key, fallback) => (key === 'withdraw_maximum' ? '100' : fallback);
+    service.settings = { value: stored, read: async (key, fallback) => stored(key, fallback) };
     await assert.rejects(
       () => service.createWithdrawal({
         userId: uid, provider: 'apay', currency: 'INR', amount: '500', details: BANK,

@@ -150,8 +150,17 @@ test('finance and wager stats against a database', async (t) => {
     await models.Staff.destroy({ where: { id: [agentA, agentB] } });
   };
 
+  // The crypto test values BTC and USDT at the stored rates: add any the test database lacks (and only those are removed after).
+  const addedRates = [];
+
   t.before(async () => {
     await cleanup();
+    for (const [currency, usd] of [['BTC', '60000'], ['USDT', '1']]) {
+      if (!(await models.Exchangerate.findOne({ where: { currency }, raw: true }))) {
+        await models.Exchangerate.create({ currency, usd_rate: usd });
+        addedRates.push(currency);
+      }
+    }
     await models.Staff.bulkCreate([
       { id: agentA, name: `agent-a-${agentA}`, email: `sa${agentA}@t.test`, password: 'x', role_id: roleId, parent_id: null },
       { id: agentB, name: `agent-b-${agentB}`, email: `sb${agentB}@t.test`, password: 'x', role_id: roleId, parent_id: null },
@@ -257,6 +266,7 @@ test('finance and wager stats against a database', async (t) => {
 
   t.after(async () => {
     await cleanup();
+    if (addedRates.length) await models.Exchangerate.destroy({ where: { currency: addedRates } });
     await connection.close();
   });
 

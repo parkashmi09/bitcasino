@@ -61,7 +61,7 @@ export function decodePlatformToken(token) {
   let accessError;
   try {
     const p = tokenService().verify(token, TOKEN_TYPES.ACCESS);
-    return { user_id: Number(p.sub), role: 'USER' };
+    return { user_id: Number(p.sub), role: 'USER', session_id: p.sid ?? null, password_change_due: p.pcr === true };
   } catch (error) {
     accessError = error;
   }
@@ -97,6 +97,12 @@ export async function verifyPlatformToken(token, { refresh = false } = {}) {
   const decoded = decodePlatformToken(token);
   if (decoded.user_id && refresh) fresh.delete(`user:${decoded.user_id}`);
   if (decoded.user_id) {
+    if (decoded.password_change_due) throw new Error('Set a new password before doing anything else');
+    // rainbet: never from the mirror cache either, so logout ends a player's token here too.
+    if (decoded.session_id) {
+      const session = await one('SELECT revoked_at FROM public.auth_sessions WHERE id = :id', { id: decoded.session_id });
+      if (session?.revoked_at) throw new Error('Session ended — sign in again');
+    }
     await ensureUser(decoded.user_id);
     return decoded;
   }

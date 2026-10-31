@@ -24,6 +24,9 @@ export type ChartSeries = {
   kind?: 'line' | 'area' | 'bar'
 }
 
+/** Redraw on a theme or palette change: Apex's in-place options update wipes a sparkline's paths. */
+const themeKey = (theme: ChartTheme) => `${theme.mode}:${theme.color.primary}`
+
 /** About how many px one x-axis label ("w/c 05 Oct") needs, gap included. */
 const X_LABEL_PX = 64
 
@@ -156,7 +159,7 @@ export const TimeSeriesChart = ({
   return (
     <ChartFrame {...frame} height={height} empty={buckets.length === 0 || isEmptySeries(series)}>
       <div ref={boxRef} className='size-full'>
-        <Apex type={options.chart?.type} options={options} series={apexSeries} height='100%' width='100%' />
+        <Apex key={themeKey(theme)} type={options.chart?.type} options={options} series={apexSeries} height='100%' width='100%' />
       </div>
     </ChartFrame>
   )
@@ -201,7 +204,7 @@ export const BarChart = ({ categories, series, horizontal, stacked, height = 280
 
   return (
     <ChartFrame {...frame} height={height} empty={categories.length === 0 || isEmptySeries(series)}>
-      <Apex type='bar' options={options} series={apexSeries} height='100%' width='100%' />
+      <Apex key={themeKey(theme)} type='bar' options={options} series={apexSeries} height='100%' width='100%' />
     </ChartFrame>
   )
 }
@@ -253,7 +256,7 @@ export const DonutChart = ({ labels, values, colors, totalLabel = 'Total', heigh
 
   return (
     <ChartFrame {...frame} height={height} empty={labels.length === 0 || values.every(v => !v)}>
-      <Apex type='donut' options={options} series={data} height='100%' width='100%' />
+      <Apex key={themeKey(theme)} type='donut' options={options} series={data} height='100%' width='100%' />
     </ChartFrame>
   )
 }
@@ -319,7 +322,7 @@ export const Sparkline = ({ data: raw, ariaLabel, color = 'chart-1', kind = 'are
 
   return (
     <ChartFrame ariaLabel={ariaLabel} height={height} className={className}>
-      <Apex type={kind} options={options} series={series} height='100%' width='100%' />
+      <Apex key={themeKey(theme)} type={kind} options={options} series={series} height='100%' width='100%' />
     </ChartFrame>
   )
 }

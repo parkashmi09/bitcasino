@@ -55,7 +55,8 @@ class AuditService {
       },
       ip: entry.ip ?? null,
       user_agent: entry.userAgent ?? null,
-      status: entry.outcome,
+      // rainbet: the column allows only success | failed; a refused action is stored as failed.
+      status: entry.outcome === 'rejected' ? 'failed' : entry.outcome,
       error_message: entry.errorMessage ?? null,
     });
 

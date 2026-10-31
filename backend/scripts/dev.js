@@ -45,6 +45,10 @@ if (!selected.length) {
 const children = [];
 let shuttingDown = false;
 
+// A failed write to a redirected log must not stop the platform.
+process.stdout.on('error', () => {});
+process.stderr.on('error', () => {});
+
 function start(service) {
   const label = service.name.padEnd(13);
 

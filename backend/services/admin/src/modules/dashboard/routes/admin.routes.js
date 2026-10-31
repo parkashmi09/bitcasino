@@ -2,7 +2,7 @@
 
 const { Router } = require('express');
 const { validate } = require('@ibitplay/common');
-const { PERMISSIONS, denyAgentTree } = require('@ibitplay/auth');
+const { PERMISSIONS, denyAgentTree, denyDirectUsers } = require('@ibitplay/auth');
 
 const v = require('../dashboard.validators');
 const statsV = require('../dashboardStats.validators');
@@ -26,6 +26,8 @@ module.exports = function adminRoutes(deps) {
 
   const router = Router();
   const canRead = deps.auth.requirePermission(PERMISSIONS.REPORTS_READ);
+
+  router.use(denyDirectUsers());
 
   /** @legacy GET /api/admin/dashboard */
   router.get('/', canRead, validate(v.overview), ctrl.overview);

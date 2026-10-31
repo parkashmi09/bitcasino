@@ -174,6 +174,7 @@ async function main() {
 
   const auth = createAuthMiddleware({
     config,
+    loadSession: (id) => connection.models.AuthSession.findByPk(id, { attributes: ['revoked_at'], raw: true }),
     loadUser: async (userId) =>
       connection.models.Users.findByPk(userId, {
         attributes: ['id', 'status', 'is_locked', 'system_locked', 'bet_status'],

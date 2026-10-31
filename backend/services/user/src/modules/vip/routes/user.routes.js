@@ -1,7 +1,7 @@
 'use strict';
 
 const { Router } = require('express');
-const { entitlements, noQuery } = require('@ibitplay/common');
+const { entitlements, noQuery, noBody } = require('@ibitplay/common');
 const { denyAgentPlayer } = require('@ibitplay/auth');
 
 const { VipService } = require('../vip.service');
@@ -25,5 +25,7 @@ module.exports = function userRoutes(deps) {
   // After the plan check: agent-tree players (owner at staff level 4–6) have no promotions.
   router.use(denyAgentPlayer('promotions'));
   router.get('/', noQuery(), ctrl.standing);
+  router.get('/rank-ups', noQuery(), ctrl.rankUps);
+  router.post('/rank-ups/claim', noBody(), ctrl.claimRankUps);
   return router;
 };

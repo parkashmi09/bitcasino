@@ -129,6 +129,10 @@ test('tipping and rain', async (t) => {
 
     await models.Users.bulkCreate(everyone.map((id) => ({ id, name: `w${id}`, password: 'x', status: 'active' })));
     await models.Credits.bulkCreate(everyone.map((id) => ({ uid: id, inr: '0' })));
+    // Chat tips and rain go through the tip module, which applies the withdraw requirements
+    // (a tip is money out): the sender must be KYC Verified.
+    await models.UserKyc.destroy({ where: { user_id: everyone.map(String) } });
+    await models.UserKyc.create({ user_id: String(sender), status: 'Verified' });
 
     /**
      * `chat_global` has no `id` column — `sorter` is the NOT NULL numeric it
@@ -157,6 +161,7 @@ test('tipping and rain', async (t) => {
     await new Promise((resolve) => httpServer.close(resolve));
 
     await models.ChatGlobal.destroy({ where: { uid: everyone } });
+    await models.UserKyc.destroy({ where: { user_id: everyone.map(String) } });
     for (const id of everyone) {
       await models.CreditsLedger.destroy({ where: { user_id: String(id) } });
       await models.Credits.destroy({ where: { uid: id } });

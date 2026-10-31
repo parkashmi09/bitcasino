@@ -312,11 +312,26 @@ class AuthService {
       return { revokedSessions: count };
     }
 
-    if (!refreshToken) return { revokedSessions: 0 };
+    const session = refreshToken
+      ? await this.models.AuthSession.findOne({ where: { token_hash: hashToken(refreshToken) } })
+      : user.sessionId && (await this.models.AuthSession.findOne({ where: { id: user.sessionId, user_id: user.id } }));
+    if (!session) return { revokedSessions: 0 };
+
+    // rainbet: an access token issued before a refresh names an older row of the chain, so all of it ends.
+    const ids = new Set([session.id]);
+    for (let row = session; row?.replaced_by && !ids.has(row.replaced_by); ) {
+      ids.add(row.replaced_by);
+      row = await this.models.AuthSession.findByPk(row.replaced_by);
+    }
+    for (let row = session; row; ) {
+      row = await this.models.AuthSession.findOne({ where: { replaced_by: row.id } });
+      if (!row || ids.has(row.id)) break;
+      ids.add(row.id);
+    }
 
     const [count] = await this.models.AuthSession.update(
       { revoked_at: new Date(), revoked_reason: 'user_logout' },
-      { where: { token_hash: hashToken(refreshToken), revoked_at: null } }
+      { where: { id: [...ids], revoked_at: null } }
     );
     return { revokedSessions: count };
   }
@@ -337,11 +352,14 @@ class AuthService {
         'system_locked',
         // migration 161-demo-users: sent as `demo` / `demoExpiresAt`
         'is_demo', 'demo_expires_at',
+        'must_change_password',
       ],
       raw: true,
     });
 
     if (!user) throw errors.SESSION_NOT_FOUND();
+    user.mustChangePassword = Boolean(user.must_change_password);
+    delete user.must_change_password;
     user.withdraw_locked = Boolean(user.withdraw_locked);
     const systemLocked = Boolean(user.system_locked);
     delete user.system_locked;
@@ -430,6 +448,9 @@ class AuthService {
   async changePassword({ currentPassword, newPassword }, user) {
     const record = await this.models.Users.findByPk(user.id);
     if (!record) throw errors.SESSION_NOT_FOUND();
+    // rainbet: a player with an upline changes it only at the forced change; afterwards the upline does.
+    const forced = record.must_change_password === true;
+    if (record.parent_staff_id != null && !forced) throw errors.OWN_PASSWORD_LOCKED();
 
     const ok = record.password ? await verifyPassword(currentPassword, record.password) : false;
     if (!ok) throw errors.CURRENT_PASSWORD_INCORRECT();
@@ -449,13 +470,14 @@ class AuthService {
      * genuine owner a day's delay on a withdrawal they were probably not
      * making at that exact moment.
      */
-    const lockedUntil = new Date(Date.now() + WITHDRAW_COOLDOWN_MS);
+    // Not on the forced change: that is the owner replacing a temporary password, not a takeover risk.
+    const lockedUntil = forced ? record.withdraw_locked_until : new Date(Date.now() + WITHDRAW_COOLDOWN_MS);
 
     return this.db.transaction(async (transaction) => {
       /* One update, so a password that changed always carries its freeze — two
          writes could leave the password changed and the window unset. */
       await record.update(
-        { password: await hashPassword(newPassword), withdraw_locked_until: lockedUntil },
+        { password: await hashPassword(newPassword), withdraw_locked_until: lockedUntil, must_change_password: false },
         { transaction }
       );
 
@@ -466,7 +488,7 @@ class AuthService {
 
       /* Returned so the client can say WHEN rather than only THAT — the same
          reason the column is a timestamp and not a flag. */
-      return { revokedSessions: revoked, withdrawLockedUntil: lockedUntil.toISOString() };
+      return { revokedSessions: revoked, withdrawLockedUntil: lockedUntil ? new Date(lockedUntil).toISOString() : null };
     });
   }
 
@@ -845,6 +867,9 @@ class AuthService {
      */
     const answer = { requested: true };
 
+    // rainbet: an upline changes this player's password. Same answer, so nothing is learned.
+    if (user && user.parent_staff_id != null) return answer;
+
     if (!user) {
       this.logger?.info({ email: redactEmail(address) }, 'Password reset requested for an unknown address');
       return answer;
@@ -1206,6 +1231,8 @@ class AuthService {
       sessionId: session.id,
       role: 'player',
       status: user.status || 'active',
+      // rainbet: every service reads this and allows only the password change until it is done.
+      extra: user.must_change_password ? { pcr: true } : {},
       notAfter: user.is_demo ? expiresAt : null,
     });
 
@@ -1222,6 +1249,7 @@ class AuthService {
           email: user.email,
           status: user.status,
           twoFactorEnabled: Boolean(user.two_fa_status),
+          mustChangePassword: Boolean(user.must_change_password),
         },
       },
     };

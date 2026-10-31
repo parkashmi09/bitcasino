@@ -114,10 +114,8 @@ test('wager pipeline end to end', async (t) => {
     for (let level = before.level + 1; level <= after.level; level += 1) {
       const band = ladder.levels.find((b) => b.level === level);
       awards.push(dec(vipRewards.levelUpAmount(level)));
-      if (band.card !== card) {
-        if (fromLevel > 0) awards.push(dec(vipRewards.rankUpAmount(band.card)));
-        card = band.card;
-      }
+      // Rank-ups are not in here: they wait for the player's claim (vip.service.js claimRankUps).
+      if (band.card !== card) card = band.card;
       fromLevel = level;
     }
     return awards.filter((a) => money.gt(a, '0'));
@@ -187,14 +185,14 @@ test('wager pipeline end to end', async (t) => {
       assert.equal(totalUsd, '30100.00000000');
       assert.equal(await wagerOf(player.uid), totalUsd);
       assert.equal(ladder.levelFor(totalUsd).level, 5, 'Silver I');
-      assert.equal(expectedVipUsd, '31.00000000', 'level-ups 1..4 (4 × 1) + Silver I (2) + the Silver rank-up (25)');
+      assert.equal(expectedVipUsd, '6.00000000', 'level-ups 1..4 (4 × 1) + Silver I (2); the Silver rank-up waits for the claim');
       assert.equal(await balance(player.uid, code), sumIn(awards, code), `VIP paid in ${code}`);
       const other = code === 'USDT' ? 'INR' : 'USDT';
       assert.equal(await balance(player.uid, other), '0.00000000', `nothing paid in ${other}`);
       assert.equal(
         await models.CreditsLedger.count({ where: { user_id: String(player.uid), reason: 'BONUS' } }),
-        6,
-        '5 level-ups + 1 rank-up, one ledger row each'
+        5,
+        '5 level-ups, one ledger row each'
       );
 
       assert.equal(await rakeOf(player.uid), expectedRake, 'rakeback accrued on the USD stake at the card rate');
@@ -230,7 +228,7 @@ test('wager pipeline end to end', async (t) => {
       await service.record({ userId: player.uid, amount: '26000', currency: 'USDT', source: 'qa-pipe', ref: ref() });
       assert.equal(await wagerOf(player.uid), '30100.00000000');
       assert.equal(await balance(player.uid, code), balanceBefore, 'level-ups paid once ever');
-      assert.equal(await models.CreditsLedger.count({ where: { user_id: String(player.uid), reason: 'BONUS' } }), 6);
+      assert.equal(await models.CreditsLedger.count({ where: { user_id: String(player.uid), reason: 'BONUS' } }), 5);
     });
   }
 

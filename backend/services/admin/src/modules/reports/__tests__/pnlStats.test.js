@@ -9,6 +9,8 @@ const { createLogger, money } = require('@ibitplay/common');
 const v = require('../pnlStats.validators');
 const { PnlStatsService, costLineOf } = require('../pnlStats.service');
 const { DashboardStatsService } = require('../../dashboard/dashboardStats.service');
+const { reportingCurrency } = require('../reportingCurrency');
+const { loadRates, createValuer, decimal } = require('../audienceStats.helpers');
 
 /**
  * The profit & loss routes.
@@ -109,8 +111,8 @@ test('P&L against a database', async (t) => {
   const playerB = newId(); // under the owner
   const COIN = `P${String(process.pid % 100_000).padStart(5, '0')}`.slice(0, 8);
 
-  // House staff (level 2) and an agent (level 6). The level decides the costs; the tree decides the rows.
-  const house = { id: ownerId, level: 2 };
+  // House staff (level 1: only the Super Admin is house since 2026-10-29) and an agent (level 6). The level decides the costs; the tree decides the rows.
+  const house = { id: ownerId, level: 1 };
   const agent = { id: agentId, level: 6 };
 
   const window = { from: '2002-05-01T00:00:00.000Z', to: '2002-06-01T00:00:00.000Z' };
@@ -267,11 +269,15 @@ test('P&L against a database', async (t) => {
       assert.equal(b.sports.bySport.reduce((acc, r) => acc + m(r.ggr), 0n), m(d.totals.sportsGgr));
     }
 
-    // Converted at rate 2 when no currency is asked for.
+    // Converted at rate 2 when no currency is asked for (GGR 60 → 120 USD, net 49 → 98 USD), and carried
+    // into the house's reporting coin (the site's default coin, USDT when unset).
     const usd = await pnl.summary({ staff: house, ...window, granularity: 'week' });
-    assert.equal(m(usd.kpis.ggr), m('110'));
-    assert.equal(m(usd.kpis.netProfit), m('88'));
-    assert.equal(usd.range.currency, 'USD');
+    const target = await reportingCurrency(models, house);
+    const valuer = createValuer(await loadRates(models), null, target);
+    const inTarget = (usdAmount) => m(decimal(valuer.value(usdAmount, 'USD')));
+    assert.equal(usd.range.currency, valuer.currency);
+    assert.equal(m(usd.kpis.ggr), inTarget('120'));
+    assert.equal(m(usd.kpis.netProfit), inTarget('98'));
   });
 
   await t.test('the breakdown names the games, sports and players', async () => {

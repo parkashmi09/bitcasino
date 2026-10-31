@@ -3,7 +3,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 
-const { windowFor } = require('../reload.service');
+const { windowFor, rewardBucket } = require('../reload.service');
 
 test('the daily reload measures yesterday (UTC) and is keyed by today', () => {
   const w = windowFor('DAILY_RELOAD', new Date('2026-10-29T13:00:00Z'));
@@ -85,4 +85,14 @@ test('a failed credit frees the period so the player can claim again', async () 
   const { svc, claims } = service({ failCredit: true });
   await assert.rejects(svc.claim(1, 'DAILY_RELOAD'), /wallet down/);
   assert.equal(claims.length, 0);
+});
+
+test('each reward credit lands in its Total Rewards column', () => {
+  assert.equal(rewardBucket({ reason: 'rakeback_claim' }), 'rakeback');
+  assert.equal(rewardBucket({ reason: 'reload_bonus', description: 'Daily Reload 2026-10-31' }), 'daily');
+  assert.equal(rewardBucket({ reason: 'reload_bonus', description: 'Pre-Monthly Bonus 2026-10' }), 'preMonthly');
+  assert.equal(rewardBucket({ reason: 'BONUS', refType: 'BONUS_AWARD', description: 'weekly bonus' }), 'weekly');
+  assert.equal(rewardBucket({ reason: 'BONUS', refType: 'VIP_RANK_UP' }), 'ranks');
+  assert.equal(rewardBucket({ reason: 'BONUS', refType: 'REDEEM_CODE' }), 'other');
+  assert.equal(rewardBucket({ reason: 'BONUS', refType: 'AFFILIATE_REWARD' }), null);
 });

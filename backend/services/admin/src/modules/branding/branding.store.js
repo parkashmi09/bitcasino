@@ -166,6 +166,7 @@ function createBrandingStore({ logger, models }) {
         logoUrl: null,
         markUrl: null,
         ogImageUrl: null,
+        whatsapp: { enabled: false, link: null, message: null },
       };
     }
     if (SLOTS.some((s) => branding[s] && !has(branding[s].file))) kick(ownerBranding);
@@ -184,6 +185,11 @@ function createBrandingStore({ logger, models }) {
       logoUrl: url(branding.logo),
       markUrl: url(branding.mark),
       ogImageUrl: url(branding.ogImage),
+      whatsapp: {
+        enabled: Boolean(branding.whatsappEnabled),
+        link: orNull(branding.whatsappLink),
+        message: orNull(branding.whatsappMessage),
+      },
     };
   }
 

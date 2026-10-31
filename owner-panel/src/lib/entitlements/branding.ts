@@ -30,6 +30,13 @@ export type Branding = {
   logo: BrandingAsset | null
   mark: BrandingAsset | null
   ogImage: BrandingAsset | null
+
+  /** The floating WhatsApp button: shown when on; it opens wa.me/<number> (country code, digits only). */
+  whatsappEnabled: boolean
+  whatsappLink: string
+
+  /** Pre-filled in the chat box; empty = none. */
+  whatsappMessage: string
 }
 
 export type BrandingSlot = 'logo' | 'mark' | 'ogImage'
@@ -46,6 +53,35 @@ export const TEXT_LIMITS = {
 
 export type BrandingTextKey = keyof typeof TEXT_LIMITS
 export const TEXT_KEYS = Object.keys(TEXT_LIMITS) as BrandingTextKey[]
+
+/**
+ * The WhatsApp target as the site stores it, or '' when it is neither: a phone number in
+ * international form (spaces and dashes dropped, then an optional + and 6–15 digits), or an
+ * https link on WhatsApp's own hosts (wa.me, whatsapp.com and its subdomains: a chat, channel
+ * or group link). Mirrored by the backend's branding.rules.js.
+ */
+export function whatsappLinkValue(value: unknown): string {
+  const raw = typeof value === 'string' ? value.trim() : ''
+
+  if (/^\+?[\d\s-]+$/.test(raw)) {
+    const number = raw.replace(/[\s-]/g, '')
+
+    return /^\+?\d{6,15}$/.test(number) ? number : ''
+  }
+
+  if (raw.length > 300) return ''
+
+  try {
+    const url = new URL(raw)
+    const host = url.hostname.toLowerCase()
+
+    return url.protocol === 'https:' && (host === 'wa.me' || host === 'whatsapp.com' || host.endsWith('.whatsapp.com')) ? url.href : ''
+  } catch {
+    return ''
+  }
+}
+
+export const WHATSAPP_MESSAGE_MAX = 300
 
 export const MAX_KEYWORDS = 20
 export const MAX_KEYWORD_LENGTH = 40
@@ -66,7 +102,10 @@ export const BRANDING_LABELS: Record<keyof Branding, string> = {
   themeColor: 'Theme colour',
   logo: 'Logo',
   mark: 'Square mark / favicon',
-  ogImage: 'Open Graph image'
+  ogImage: 'Open Graph image',
+  whatsappEnabled: 'WhatsApp widget',
+  whatsappLink: 'WhatsApp number or link',
+  whatsappMessage: 'WhatsApp opening message'
 }
 
 export const EMPTY_BRANDING: Branding = {
@@ -80,7 +119,10 @@ export const EMPTY_BRANDING: Branding = {
   themeColor: '',
   logo: null,
   mark: null,
-  ogImage: null
+  ogImage: null,
+  whatsappEnabled: false,
+  whatsappLink: '',
+  whatsappMessage: ''
 }
 
 export const ASSET_FILE_RE = /^[0-9a-f]{64}\.(png|webp|svg)$/
@@ -172,6 +214,19 @@ export function brandingProblem(input: unknown): string | null {
     if (problem) return problem
   }
 
+  if (b.whatsappEnabled !== undefined && typeof b.whatsappEnabled !== 'boolean') return 'WhatsApp widget must be on or off'
+
+  if (b.whatsappLink !== undefined) {
+    if (typeof b.whatsappLink !== 'string') return 'WhatsApp number must be text'
+    if (b.whatsappLink.trim() && !whatsappLinkValue(b.whatsappLink)) return 'WhatsApp: a number with country code (919876543210) or an https wa.me / whatsapp.com link'
+  }
+
+  if (b.whatsappMessage !== undefined) {
+    if (typeof b.whatsappMessage !== 'string') return 'WhatsApp opening message must be text'
+    if (b.whatsappMessage.trim().length > WHATSAPP_MESSAGE_MAX) return `WhatsApp opening message is at most ${WHATSAPP_MESSAGE_MAX} characters`
+    if (BAD_TEXT.test(b.whatsappMessage)) return 'WhatsApp opening message may not contain < > or control characters'
+  }
+
   return null
 }
 
@@ -199,6 +254,11 @@ export function cleanBranding(input: unknown): Branding {
 
   out.themeColor = /^#[0-9a-fA-F]{6}$/.test(color) ? color.toUpperCase() : ''
   for (const slot of BRANDING_SLOTS) out[slot] = cleanAsset(b[slot], slot)
+  out.whatsappEnabled = b.whatsappEnabled === true
+  out.whatsappLink = whatsappLinkValue(b.whatsappLink)
+  const message = str(b.whatsappMessage)
+
+  out.whatsappMessage = message.length <= WHATSAPP_MESSAGE_MAX && !BAD_TEXT.test(message) ? message : ''
 
   return out
 }
@@ -209,6 +269,7 @@ const shown = (b: Branding, key: keyof Branding): string | null => {
   const v = b[key]
 
   if (v === null) return null
+  if (typeof v === 'boolean') return v ? 'On' : 'Off'
   if (Array.isArray(v)) return v.length ? v.join(', ') : null
   if (typeof v === 'object') return v.file
 

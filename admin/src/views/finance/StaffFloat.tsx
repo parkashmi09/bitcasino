@@ -39,6 +39,7 @@ export const TxnPasswordLabel = () => {
  * 5,000" is never a surprise refusal (422 INSUFFICIENT_FUNDS, details.party = staff).
  */
 export const StaffFloatNote = () => {
+  const { actor } = useSession()
   const float = useApi<StaffFloat>('admin/accounts/float')
   const txn = useTransactionPasswordSet()
   const f = float.data
@@ -65,7 +66,7 @@ export const StaffFloatNote = () => {
       </p>
       {txn.data && !txn.data.set && (
         <p className='text-danger text-xs'>
-          You have no transaction password yet. Set one under <Link href='/account' className='underline'>My account</Link> first.
+          You have no transaction password yet. {actor?.level === 1 && !actor?.executiveId ? <>Set one under <Link href='/account' className='underline'>My account</Link> first.</> : 'Ask an account above you to reset your password; a new one is issued at your next sign-in.'}
         </p>
       )}
     </div>

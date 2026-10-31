@@ -1,7 +1,7 @@
 'use strict';
 
 const { Router } = require('express');
-const { validate, z, response, asyncHandler } = require('@ibitplay/common');
+const { validate, noBody, z, response, asyncHandler } = require('@ibitplay/common');
 const { PERMISSIONS, denyAgentTree } = require('@ibitplay/auth');
 
 const { buildOriginalGamesService } = require('../originalGames.factory');
@@ -18,7 +18,7 @@ module.exports = function adminRoutes(deps) {
   const houseOnly = denyAgentTree();
 
   // rainbet: fill the catalogue from the aggregator (was a server script only), and the lobby order.
-  router.post('/games/sync', houseOnly, deps.auth.requirePermission(PERMISSIONS.CONFIG_WRITE), asyncHandler(async (_req, res) => response.ok(res, await service.syncGames())));
+  router.post('/games/sync', houseOnly, deps.auth.requirePermission(PERMISSIONS.CONFIG_WRITE), noBody(), asyncHandler(async (_req, res) => response.ok(res, await service.syncGames())));
   router.put(
     '/games/order',
     houseOnly,

@@ -92,14 +92,16 @@ const Login = () => {
 
     try {
       if (mustChange) {
-        await request('admin/auth/first-login-password', {
+        const { data: changed } = await request<{ transactionPassword?: string }>('admin/auth/first-login-password', {
           method: 'POST',
           body: { email: identifier, currentPassword: password, newPassword }
         })
+
         toast.success('Password changed. Sign in with the new one.')
         setPassword('')
         setNewPassword('')
         setMustChange(false)
+        if (changed?.transactionPassword) setIssuedTxn(changed.transactionPassword)
 
         return
       }

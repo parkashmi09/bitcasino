@@ -85,7 +85,8 @@ test('dashboard against a database', async (t) => {
     await models.Staff.create({
       id: ownerId, name: `d-owner-${ownerId}`, email: `o${ownerId}@t.test`, password: 'x', role_id: agentRoleId, parent_id: null,
     });
-    await models.FiatDeposits.destroy({ where: { user_id: String(player) } });
+    // A run cut off before its cleanup leaves these behind, and the totals would count them twice.
+    await models.FiatDeposits.destroy({ where: { currency: ['TESTCOIN', ORPHAN_CURRENCY] } });
     await models.Users.destroy({ where: { id: player } });
 
     await models.Users.create({ id: player, name: `d-${player}`, password: 'x', status: 'active' });

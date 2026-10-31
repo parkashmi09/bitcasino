@@ -100,11 +100,19 @@ class LordsService {
         password: await hashPassword(newPassword, PASSWORD_ROUNDS),
         // A reset ends the staff account's open sessions, like the other password paths, and the
         // next sign-in must replace the password (that change issues a new transaction password).
-        ...(accountType === ACCOUNT_TYPE.STAFF ? { token_version: literal('token_version + 1'), must_change_password: true } : {}),
+        ...(accountType === ACCOUNT_TYPE.STAFF ? { token_version: literal('token_version + 1') } : {}),
+        must_change_password: true,
       },
       { where: { id: accountId } }
     );
     if (!affected) throw errors.NOT_FOUND({ accountId });
+    // rainbet: a player's open sessions end too; the next sign-in carries the forced change.
+    if (accountType !== ACCOUNT_TYPE.STAFF) {
+      await this.models.AuthSession.update(
+        { revoked_at: new Date(), revoked_reason: 'password_reset_by_staff' },
+        { where: { user_id: accountId, revoked_at: null } }
+      );
+    }
 
     this.logger?.warn(
       { actorStaffId: actor.id, accountType, accountId },

@@ -63,6 +63,8 @@ test('registration and password reset', async (t) => {
       JWT_ACCESS_SECRET: 'test-access-secret-that-is-long-enough-000000',
       JWT_REFRESH_SECRET: 'test-refresh-secret-that-is-long-enough-00000',
       JWT_ADMIN_SECRET: 'test-admin-secret-that-is-long-enough-000000',
+      // The reset link is absolute; the mail template drops a relative one.
+      PUBLIC_SITE_URL: 'http://localhost:3000',
     },
   });
 

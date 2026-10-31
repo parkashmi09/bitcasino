@@ -2,6 +2,7 @@
 
 const { literal, QueryTypes } = require('sequelize');
 const { money, wagerCategory } = require('@ibitplay/common');
+const { PLATFORM_EVENTS, encode, roomForUser } = require('@ibitplay/socket');
 
 const { ExchangeRateService } = require('../exchange-rate/exchangeRate.service');
 const { VipService } = require('../vip/vip.service');
@@ -174,6 +175,7 @@ class WagerActivityService {
       throw error;
     }
 
+    this.#pushWager(userId);
     await this.#sideEffects({ userId, previous, next, usd, source, ref, rakeback, stake, code, kind });
 
     return { counted: true, duplicate: false, usdAmount: usd, previousWager: previous, newWager: next };
@@ -231,7 +233,17 @@ class WagerActivityService {
       }
     }
     delete result.figures;
+    if (result.reversed) this.#pushWager(userId);
     return result;
+  }
+
+  /** Tells the player's pages the wager moved. Best effort: the next read has it anyway. */
+  #pushWager(userId) {
+    try {
+      this.deps?.io?.to(roomForUser(String(userId))).emit(PLATFORM_EVENTS.WAGER_UPDATED, encode({}));
+    } catch (error) {
+      this.logger?.warn({ err: error.message, userId: String(userId) }, 'Could not push the wager change');
+    }
   }
 
   async #reverseCount({ userId, source, ref, amount, refundRef }) {

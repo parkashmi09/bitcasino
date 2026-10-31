@@ -598,13 +598,15 @@ test('admin staff', async (t) => {
     assert.equal(await verifyPassword(first.transactionPassword, stored.transaction_password), true);
     assert.equal(stored.first_login, false);
 
-    // Issued once: a later own change leaves it alone.
-    const again = await service.changePassword({
-      actor: { id: created.id, level: 4 }, oldPassword: 'another long password', newPassword: 'a third long password',
-    });
-    assert.equal(again.transactionPassword, undefined);
+    // Below the Super Admin there is no later own change, only the creator's reset.
+    await assert.rejects(
+      () => service.changePassword({
+        actor: { id: created.id, level: 4 }, oldPassword: 'another long password', newPassword: 'a third long password',
+      }),
+      (e) => e.code === 'STAFF_OWN_PASSWORD_LOCKED'
+    );
 
-    // A superior's reset sets it again — they know the password now.
+    // An upline's reset sets it again — they know the password now.
     await service.changePassword({
       actor: actorFor(boss, { canResetOthers: true }), targetId: created.id, newPassword: 'reset by the boss!!',
     });
@@ -613,7 +615,9 @@ test('admin staff', async (t) => {
     // …and the forced change after it issues a NEW transaction password; the old one stops working.
     const rotated = await service.changePassword({
       actor: { id: created.id, level: 4 }, oldPassword: 'reset by the boss!!', newPassword: 'a fourth long password',
+      transactionPassword: '123456', // ignored: only a Super Admin may choose its own
     });
+    assert.notEqual(rotated.transactionPassword, undefined);
     assert.match(rotated.transactionPassword, /^\d{6}$/);
     const after = await connection.models.Staff.findByPk(created.id, { attributes: ['transaction_password'], raw: true });
     assert.equal(await verifyPassword(rotated.transactionPassword, after.transaction_password), true);

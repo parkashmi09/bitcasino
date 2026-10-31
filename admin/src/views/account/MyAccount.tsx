@@ -23,6 +23,8 @@ type Begin = { secret?: string; otpauthUrl?: string; otpauth?: string; qr?: stri
 const MyAccount = () => {
   // Password and 2FA changes end every session of this account (staff.token_version), this one too.
   const { actor, signOut } = useSession()
+  // Below the Super Admin an upline changes the password and the system issues the transaction code.
+  const ownsSecrets = actor?.level === 1 && !actor?.executiveId
   const status = useApi<TwoFactor>('admin/auth/2fa')
   const [setup, setSetup] = useState<Begin | null>(null)
   const [code, setCode] = useState('')
@@ -87,7 +89,7 @@ const MyAccount = () => {
 
   return (
     <div>
-      <PageHeader title='My account' description='Your staff identity on this site, your second factor, your password and your transaction password.' />
+      <PageHeader title='My account' description={ownsSecrets ? 'Your staff identity on this site, your second factor, your password and your transaction password.' : 'Your staff identity on this site and your second factor. An account above you changes your password.'} />
       <div className='grid gap-6 lg:grid-cols-2'>
         <Card className='shadow-none'>
           <CardHeader>
@@ -165,6 +167,7 @@ const MyAccount = () => {
           </CardContent>
         </Card>
 
+        {ownsSecrets && (
         <Card className='shadow-none'>
           <CardHeader>
             <CardTitle className='flex items-center gap-2 text-base'>
@@ -200,10 +203,11 @@ const MyAccount = () => {
             </form>
           </CardContent>
         </Card>
+        )}
 
         {/* TXN_PASSWORD_MODE=login (the backend default): money moves take the login password, so there is nothing to set.
             A set transaction password is never changed, so the card is only for an account that has none yet. */}
-        {txnStatus.data && txnStatus.data.mode === 'separate' && !txnStatus.data.set && (
+        {ownsSecrets && txnStatus.data && txnStatus.data.mode === 'separate' && !txnStatus.data.set && (
         <Card className='shadow-none'>
           <CardHeader>
             <CardTitle className='flex items-center gap-2 text-base'>

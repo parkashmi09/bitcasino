@@ -347,6 +347,8 @@ const PLATFORM_EVENTS = Object.freeze({
    * the change.
    */
   ACCOUNT_UPDATED: 'accountUpdated',
+  /** rainbet: a stake was counted or reversed, so rank progress and rewards re-read. */
+  WAGER_UPDATED: 'wagerUpdated',
   /**
    * The whole client state in one read — the player's record and capabilities, balances and
    * preferences (signed in), plus the site's flags, features and coin list. The Parker567 client

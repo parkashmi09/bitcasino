@@ -31,6 +31,26 @@ function windowFor(program, now = new Date()) {
   return { since: first, until: opens, open: now >= opens, periodKey: first.toISOString().slice(0, 7), opensAt: opens };
 }
 
+/** How many days the calendar answers: yesterday, today and the next twelve. */
+const CALENDAR_DAYS = 14;
+
+/**
+ * Which Total Rewards column a ledger credit belongs to, or null for one that is not a reward.
+ * Daily holds the daily bonus and the Daily Reload; Other holds what the page's tooltip names.
+ */
+function rewardBucket({ reason, refType, description }) {
+  const text = String(description ?? '');
+  if (reason === 'rakeback_claim') return 'rakeback';
+  if (reason === REASON.RELOAD) return text.startsWith('Pre-Monthly') ? 'preMonthly' : 'daily';
+  if (refType === 'BONUS_AWARD') {
+    const type = text.split(' ')[0];
+    return ['daily', 'weekly', 'monthly'].includes(type) ? type : null;
+  }
+  if (refType === 'VIP_LEVEL_UP' || refType === 'VIP_RANK_UP') return 'ranks';
+  if (['REDEEM_CODE', 'RACE_REWARD', 'RAFFLE_WIN'].includes(refType) || /^CHALLENGE/.test(String(refType))) return 'other';
+  return null;
+}
+
 /**
  * The Rewards popup's Daily Reload and Pre-Monthly Bonus (rainbet) — a share of what the player
  * wagered, at the site admin's rate, paid in the reward coin. See migration 165.
@@ -54,6 +74,69 @@ class ReloadService {
     const out = {};
     for (const key of Object.values(PROGRAM)) out[key] = await this.#state(programs.get(key), userId, level, now);
     return { vipLevel: level, ...out };
+  }
+
+  /**
+   * The Daily Reload day by day. A day's reward is the share of what was wagered the day before,
+   * so tomorrow's is still growing with today's bets and later days have nothing yet.
+   * `state`: claimed, claimable, missed, none (nothing earned), building, upcoming.
+   */
+  async calendar(userId, now = new Date()) {
+    const key = PROGRAM.DAILY_RELOAD;
+    const [programs, standing] = await Promise.all([this.#programs(), this.vip.standing(userId)]);
+    const program = programs.get(key);
+    const today = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
+    const dates = Array.from({ length: CALENDAR_DAYS }, (_, i) => new Date(today.getTime() + (i - 1) * DAY_MS));
+    const claims = await this.models.ReloadClaim.findAll({
+      where: { program: key, user_id: userId, period_key: dates.map(dayKey) },
+      raw: true,
+    });
+    const claimOf = new Map(claims.map((c) => [c.period_key, c]));
+    const enabled = Boolean(program?.enabled);
+    const eligible = Number(standing?.level ?? 0) >= Number(program?.min_vip_level ?? 0);
+    const share = async (date) => {
+      const until = date.getTime() > now.getTime() ? now : date;
+      const { wagered } = await betUsage({ db: this.db, toUsd: this.rewardMoney.toUsd }, { userId, since: new Date(date.getTime() - DAY_MS), until });
+      return dec(money.divide(dec(money.multiply(wagered, String(program?.percent ?? '0'))), 100));
+    };
+    const days = await Promise.all(
+      dates.map(async (date, i) => {
+        const claim = claimOf.get(dayKey(date));
+        // Only yesterday, today and tomorrow can have an amount: later days' wager has not happened.
+        const earnedUsd = claim ? String(claim.amount_usd) : i <= 2 ? await share(date) : '0.00000000';
+        const has = money.gt(earnedUsd, '0');
+        let state = 'upcoming';
+        if (claim) state = 'claimed';
+        else if (i === 0) state = has ? 'missed' : 'none';
+        else if (i === 1) state = has && enabled && eligible ? 'claimable' : 'none';
+        else if (i === 2) state = 'building';
+        return { date: dayKey(date), earnedUsd, claimedUsd: claim ? String(claim.amount_usd) : '0.00000000', state };
+      })
+    );
+    return { enabled, eligible, today: dayKey(today), percent: String(program?.percent ?? '0'), days };
+  }
+
+  /** What the player has received, per Total Rewards column, in USD. */
+  async summary(userId) {
+    const [rows] = await this.db.sequelize.query(
+      `SELECT currency, reason, description, meta->>'refType' AS "refType", SUM(amount) AS amount
+         FROM credits_ledger
+        WHERE user_id = :userId AND amount > 0
+          AND (reason IN ('rakeback_claim', :reload) OR meta->>'refType' IN ('BONUS_AWARD', 'VIP_LEVEL_UP', 'VIP_RANK_UP', 'REDEEM_CODE', 'RACE_REWARD', 'RAFFLE_WIN') OR meta->>'refType' LIKE 'CHALLENGE%')
+        GROUP BY 1, 2, 3, 4`,
+      // `credits_ledger.user_id` is text.
+      { replacements: { userId: String(userId), reload: REASON.RELOAD } }
+    );
+    const out = { daily: '0', weekly: '0', preMonthly: '0', monthly: '0', rakeback: '0', ranks: '0', other: '0' };
+    let total = '0';
+    for (const row of rows) {
+      const bucket = rewardBucket(row);
+      if (!bucket) continue;
+      const usd = await this.rewardMoney.toUsd(String(row.amount), row.currency);
+      out[bucket] = dec(money.add(out[bucket], usd));
+      total = dec(money.add(total, usd));
+    }
+    return { ...out, total };
   }
 
   async claim(userId, program) {
@@ -199,4 +282,4 @@ class ReloadService {
   }
 }
 
-module.exports = { ReloadService, windowFor };
+module.exports = { ReloadService, windowFor, rewardBucket };

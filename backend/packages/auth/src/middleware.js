@@ -79,6 +79,19 @@ const PASSWORD_CHANGE_ALLOWED = Object.freeze([
   { method: 'POST', path: /\/admin\/auth\/logout\/?$/ },
 ]);
 
+/** rainbet: all a player's session may do until an upline-chosen password is replaced. */
+const PLAYER_PASSWORD_CHANGE_ALLOWED = Object.freeze([
+  { method: 'GET', path: /\/user\/auth\/me\/?$/ },
+  { method: 'POST', path: /\/user\/auth\/change-password\/?$/ },
+  { method: 'POST', path: /\/user\/auth\/logout\/?$/ },
+]);
+
+function playerPasswordChangeAllows(req) {
+  const path = String(req.originalUrl || req.url || '').split('?')[0];
+  const method = String(req.method || 'GET').toUpperCase();
+  return PLAYER_PASSWORD_CHANGE_ALLOWED.some((r) => r.method === method && r.path.test(path));
+}
+
 /** The code every write answers on a read-only (whitelabel preview) session. */
 const READ_ONLY_PREVIEW = 'READ_ONLY_PREVIEW';
 const READ_METHODS = new Set(['GET', 'HEAD', 'OPTIONS']);
@@ -128,6 +141,10 @@ function denyAgentTree({
   };
 }
 
+/** rainbet: a direct-user screen's API. Staff below the Super Admin work in the agent system only. */
+const denyDirectUsers = () =>
+  denyAgentTree({ code: 'DIRECT_USERS_ONLY', message: 'Direct users are managed by the Super Admin' });
+
 /**
  * Route protection.
  *
@@ -144,7 +161,7 @@ function denyAgentTree({
  * token expires.
  */
 
-function createAuthMiddleware({ config, loadUser, loadStaff, cache = null }) {
+function createAuthMiddleware({ config, loadUser, loadStaff, loadSession, cache = null }) {
   const tokens = new TokenService(config);
 
   /**
@@ -163,6 +180,23 @@ function createAuthMiddleware({ config, loadUser, loadStaff, cache = null }) {
         }
 
         const payload = tokens.verify(token, TOKEN_TYPES.ACCESS);
+
+        // rainbet: logout and revokes end the access token too, not only the refresh token. A rotated
+        // session has no `revoked_at`, so a refresh leaves requests in flight alone.
+        if (payload.sid && typeof loadSession === 'function') {
+          const session = await loadSession(payload.sid);
+          if (session?.revoked_at) {
+            throw new UnauthorizedError('Session has ended; sign in again', { code: 'SESSION_REVOKED' });
+          }
+        }
+
+        if (payload.pcr === true && !playerPasswordChangeAllows(req)) {
+          // A public page still answers, as for a visitor.
+          if (optional) return next();
+          const error = new ForbiddenError('Set a new password before doing anything else');
+          error.code = PASSWORD_CHANGE_REQUIRED;
+          throw error;
+        }
 
         req.user = {
           id: Number(payload.sub),
@@ -448,6 +482,7 @@ module.exports = {
   PASSWORD_CHANGE_ALLOWED,
   passwordChangeAllows,
   denyAgentTree,
+  denyDirectUsers,
   PROMOTIONS_NOT_FOR_AGENTS,
   VAULT_NOT_FOR_AGENTS,
   SWAP_NOT_FOR_AGENTS,

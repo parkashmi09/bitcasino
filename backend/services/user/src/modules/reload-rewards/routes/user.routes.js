@@ -17,6 +17,8 @@ module.exports = function userRoutes(deps) {
   router.use(denyAgentPlayer('promotions'));
 
   router.get('/', noQuery(), ctrl.overview);
+  router.get('/calendar', noQuery(), ctrl.calendar);
+  router.get('/summary', noQuery(), ctrl.summary);
   router.post('/:program/claim', noBody(), validate(v.claim), ctrl.claim);
   return router;
 };

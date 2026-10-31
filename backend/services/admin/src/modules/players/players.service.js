@@ -119,6 +119,8 @@ class PlayersService {
           phone: phone ?? null,
           country: country ?? null,
           parent_staff_id: anchor,
+          // rainbet: an agent user's upline chose this password; the first sign-in must replace it.
+          must_change_password: anchor != null,
           role_id: PLAYER_ROLE_ID,
           friends: 'Support,',
           wallet: WALLET_SEED,
@@ -176,12 +178,19 @@ class PlayersService {
        * means a player who changes their password stops having one stored.
        */
       changes.password2 = null;
+      if (player.parent_staff_id != null) changes.must_change_password = true;
     }
 
     if (!Object.keys(changes).length) throw errors.NOTHING_TO_UPDATE();
 
     const [affected] = await this.models.Users.update(changes, { where: { id: player.id } });
     if (!affected) throw errors.NOT_FOUND({ playerId });
+    if (password !== undefined && player.parent_staff_id != null) {
+      await this.models.AuthSession.update(
+        { revoked_at: new Date(), revoked_reason: 'password_reset_by_staff' },
+        { where: { user_id: player.id, revoked_at: null } }
+      );
+    }
 
     this.logger?.info(
       {

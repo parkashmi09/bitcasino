@@ -90,7 +90,15 @@ const TENEXCH_ROUTES = [
   'DELETE /api/admin/commission-config/sports',
 ];
 
-const MSSPORTS_MODULES = ['odds-events', 'bets', 'statement', 'settlement', 'sports-config'];
+/**
+ * Routes these modules mount on top of the TENEXCH contract, as mounted paths. Each is deliberate:
+ * - account-statement-direct: the statement of a player with no parent (point_ledger_direct).
+ */
+const LOCAL_EXTRA_ROUTES = [
+  'POST /api/v1/sports/user/account-statement-direct',
+];
+
+const MSSPORTS_MODULES =['odds-events', 'bets', 'statement', 'settlement', 'sports-config'];
 
 /** Every route the mssports modules mount, as { method, path, regex }. */
 function mountedRoutes() {
@@ -130,7 +138,9 @@ function mountPathOf(layer) {
 
 test('mssports API — every TENEXCH route is mounted', () => {
   const routes = mountedRoutes();
-  assert.strictEqual(routes.length, TENEXCH_ROUTES.length, 'mounted route count');
+  assert.strictEqual(routes.length, TENEXCH_ROUTES.length + LOCAL_EXTRA_ROUTES.length, 'mounted route count');
+  const mounted = new Set(routes.map((r) => `${r.method} ${r.path}`));
+  assert.deepStrictEqual(LOCAL_EXTRA_ROUTES.filter((r) => !mounted.has(r)), [], 'every listed extra route is mounted');
   assert.strictEqual(new Set(TENEXCH_ROUTES).size, TENEXCH_ROUTES.length, 'the contract has no duplicates');
 });
 

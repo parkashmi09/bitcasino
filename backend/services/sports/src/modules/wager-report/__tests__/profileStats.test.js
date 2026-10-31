@@ -38,11 +38,20 @@ test('sports profile stats', async (t) => {
   }
 
   const { SportsBet } = connection.models;
-  const cleanup = () => SportsBet.destroy({ where: { user_id: String(UID) } });
+  const cleanup = async () => {
+    await SportsBet.destroy({ where: { user_id: String(UID) } });
+    await connection.sequelize.query('DELETE FROM mssports.users WHERE user_id = :uid', { replacements: { uid: UID } });
+  };
 
   try {
     await cleanup();
-    const bet = (o) => SportsBet.create({ user_id: String(UID), status: 'settled', ...o });
+    // mssports."SportsBet".user_id references mssports.users (the sports service's mirror row).
+    await connection.sequelize.query(
+      `INSERT INTO mssports.users (user_id, username, password, role_id, "createdAt", "updatedAt") VALUES (:uid, :n, 'x', 4, now(), now())`,
+      { replacements: { uid: UID, n: `profile-stats-${UID}` } }
+    );
+    // game_type / bet_type / odds / stake_amount are NOT NULL in the mssports SportsBet table.
+    const bet = (o) => SportsBet.create({ user_id: String(UID), status: 'settled', game_type: 'cricket', bet_type: 'back', odds: '2', stake_amount: o.original_amount, ...o });
     await bet({ original_currency: 'INR', original_amount: '1000', usd_amount: '12', result_status: 'won', created_at: new Date('2026-01-01T00:00:00Z') });
     await bet({ original_currency: 'INR', original_amount: '500', usd_amount: '6', result_status: 'loss', created_at: new Date('2026-02-01T00:00:00Z') });
     await bet({ original_currency: 'USDT', original_amount: '20', usd_amount: '20', result_status: 'loss', created_at: new Date('2026-03-01T00:00:00Z') });
