@@ -1,0 +1,33 @@
+/* Bottom-left card; above the mobile bottom nav on phones. */
+.cookie-consent {
+  position: fixed;
+  left: 16px;
+  bottom: 16px;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  max-width: min(420px, calc(100vw - 32px));
+  padding: 12px 14px;
+  border-radius: 10px;
+  background: #1a2c38;
+  color: #d5dceb;
+  font-size: 13px;
+  line-height: 1.4;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+}
+.cookie-consent a { color: inherit; text-decoration: underline; }
+.cookie-consent button {
+  flex-shrink: 0;
+  padding: 8px 16px;
+  border: 0;
+  border-radius: 6px;
+  background: #2f4553;
+  color: #fff;
+  font-weight: 600;
+  cursor: pointer;
+}
+.cookie-consent button:hover { background: #3d5868; }
+@media (max-width: 768px) {
+  .cookie-consent { bottom: calc(76px + env(safe-area-inset-bottom)); }
+}

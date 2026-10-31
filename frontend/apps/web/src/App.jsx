@@ -55,6 +55,7 @@ import { AuthProvider } from '@/auth/AuthProvider';
 import { RedirectIfAuthenticated, RequireAuth } from '@/auth/guards';
 import { GatesProvider } from '@/hooks/useGates';
 import { Toaster } from '@/components/ui/Toaster';
+import CookieConsent from '@/components/cookieConsent/CookieConsent';
 
 /**
  * `AuthProvider` sits inside the router rather than around it, for one reason:
@@ -334,6 +335,7 @@ export default function App() {
       <AuthProvider>
         <ScrollToTop />
         <Toaster />
+        <CookieConsent />
         <GatesProvider>
           <AppRoutes />
         </GatesProvider>
