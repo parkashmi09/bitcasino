@@ -1193,6 +1193,52 @@ const TEMPLATES = Object.freeze({
       "label": "Ocean Ruby",
       "description": "Ocean Ruby: colour theme only. Ocean-blue actions, emerald sidebar, ruby accents.",
       "variants": HASH_GAME_VARIANTS
+    },
+    // stake: its own colour-only templates (stake/frontend/src/theme/palettes.js); other sites' UIs ignore them.
+    "midnight_indigo": {
+      "label": "Midnight Indigo",
+      "description": "Midnight Indigo: colour theme only. Ink-indigo surfaces, periwinkle actions, mint wins.",
+      "variants": HASH_GAME_VARIANTS
+    },
+    "graphite": {
+      "label": "Graphite",
+      "description": "Graphite: colour theme only. Neutral charcoal, white actions, green wins.",
+      "variants": HASH_GAME_VARIANTS
+    },
+    "emerald_vault": {
+      "label": "Emerald Vault",
+      "description": "Emerald Vault: colour theme only. Deep forest surfaces, emerald actions, gold highlights.",
+      "variants": HASH_GAME_VARIANTS
+    },
+    "crimson_rush": {
+      "label": "Crimson Rush",
+      "description": "Crimson Rush: colour theme only. Dark wine surfaces, crimson actions, amber wins.",
+      "variants": HASH_GAME_VARIANTS
+    },
+    "high_roller_gold": {
+      "label": "High Roller Gold",
+      "description": "High Roller Gold: colour theme only. VIP black-bronze surfaces with gold actions.",
+      "variants": HASH_GAME_VARIANTS
+    },
+    "lagoon_teal": {
+      "label": "Lagoon Teal",
+      "description": "Lagoon Teal: colour theme only. Deep sea-teal surfaces, aqua actions, lime wins.",
+      "variants": HASH_GAME_VARIANTS
+    },
+    "ultraviolet": {
+      "label": "Ultraviolet",
+      "description": "Ultraviolet: colour theme only. Night-purple surfaces, violet actions, mint wins.",
+      "variants": HASH_GAME_VARIANTS
+    },
+    "ember_night": {
+      "label": "Ember Night",
+      "description": "Ember Night: colour theme only. Smoky dark-brown surfaces, ember-orange actions, green wins.",
+      "variants": HASH_GAME_VARIANTS
+    },
+    "rose_noir": {
+      "label": "Rose Noir",
+      "description": "Rose Noir: colour theme only. Black-plum surfaces, hot-rose actions, sky-blue wins.",
+      "variants": HASH_GAME_VARIANTS
     }
   });
 
