@@ -10,6 +10,7 @@ import { Provider } from '@/pages/Provider';
 import { Play } from '@/pages/Play';
 import { Sports } from '@/pages/Sports';
 import { Login } from '@/pages/Login';
+import { GoogleLogin } from '@/pages/GoogleLogin';
 import { SignUp } from '@/pages/SignUp';
 import { ForgotPassword } from '@/pages/ForgotPassword';
 import { NotFound } from '@/pages/NotFound';
@@ -111,6 +112,8 @@ function AppRoutes() {
               </RedirectIfAuthenticated>
             }
           />
+          {/* Google's return trip (`lib/googleAuth.js`). Not guarded: it signs the visitor in itself. */}
+          <Route path="login/google" element={<GoogleLogin />} />
           <Route
             path="register"
             element={

@@ -200,8 +200,9 @@ export function AuthProvider({ children }) {
   }, []);
 
   const value = useMemo(
-    () => ({ user, status, login, register, logout }),
-    [user, status, login, register, logout],
+    // `acceptSession`: a session obtained elsewhere (Google's `/login/google` exchange).
+    () => ({ user, status, login, register, logout, acceptSession: adopt }),
+    [user, status, login, register, logout, adopt],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

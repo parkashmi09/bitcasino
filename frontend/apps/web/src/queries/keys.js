@@ -135,6 +135,7 @@ export const queryKeys = {
     config: () => ['site', 'config'],
     features: () => ['site', 'features'],
     branding: () => ['site', 'branding'],
+    googleLogin: () => ['site', 'google-login'],
   },
 
   /** Rewards, rakeback and VIP. `vipLevels` is public; `firstDeposit` differs signed in and out. */

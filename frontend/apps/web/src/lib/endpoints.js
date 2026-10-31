@@ -29,6 +29,11 @@ export const ENDPOINTS = {
   me: `${USER}/auth/me`,
   sessions: `${USER}/auth/sessions`,
   changePassword: `${USER}/auth/change-password`,
+  // Sign in with Google (`lib/googleAuth.js`). `googleStatus` is `{ enabled }` — the owner's
+  // `google_login` switch; `googleStart` is a browser navigation, not a fetch.
+  googleStatus: `${USER}/auth/google/status`,
+  googleStart: `${USER}/auth/google/start`,
+  googleExchange: `${USER}/auth/google/exchange`,
 
   // Public: resolves somebody else's referral code before signup submits it.
   verifyReferral: `${USER}/profile/verify-referral/:referralCode`,

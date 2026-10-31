@@ -1,10 +1,10 @@
-import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Button } from '@/components/ui/Button';
 import { Icon } from '@/components/ui/Icon';
 import { Logo } from './Logo';
 import { useGates } from '@/hooks/useGates';
 import { cn } from '@/lib/cn';
+import { startGoogleSignIn, useGoogleLoginEnabled } from '@/lib/googleAuth';
 
 /**
  * The shell both auth screens share — `/login` and `/register`.
@@ -30,14 +30,6 @@ import { cn } from '@/lib/cn';
  *
  * Assets and copy are the reference's own, served from `/images/auth/`.
  */
-
-/** The two providers that get their own button; the rest live behind the `+`. */
-const PROVIDERS = [
-  { label: 'Metamask', icon: '/images/auth/metamask.svg' },
-  { label: 'Google', icon: '/images/auth/google.svg' },
-];
-
-const MORE_PROVIDERS = ['Twitter', 'Line', 'Telegram', 'Apple'];
 
 /**
  * The reference fills these with `beerus` rather than the lighter `gohan` our
@@ -239,63 +231,6 @@ export function RecaptchaNotice() {
   );
 }
 
-/** The `+` at the end of the provider row, and the menu it opens. */
-function MoreProviders() {
-  const [open, setOpen] = useState(false);
-  const ref = useRef(null);
-
-  useEffect(() => {
-    if (!open) return undefined;
-
-    const onPointerDown = (event) => {
-      if (!ref.current?.contains(event.target)) setOpen(false);
-    };
-    const onKey = (event) => event.key === 'Escape' && setOpen(false);
-
-    document.addEventListener('pointerdown', onPointerDown);
-    document.addEventListener('keydown', onKey);
-    return () => {
-      document.removeEventListener('pointerdown', onPointerDown);
-      document.removeEventListener('keydown', onKey);
-    };
-  }, [open]);
-
-  return (
-    <div ref={ref} className="relative">
-      <Button
-        variant="secondary"
-        onClick={() => setOpen((value) => !value)}
-        aria-label="More ways to sign in"
-        aria-expanded={open}
-        className={cn(PROVIDER_BUTTON, 'w-10 border-beerus bg-gohan px-0 hover:bg-beerus')}
-      >
-        <Icon name="plus" size={20} />
-      </Button>
-
-      {open && (
-        <ul
-          className={cn(
-            'animate-menu-in origin-top-right',
-            'absolute end-0 top-[calc(100%+8px)] z-10 w-72 overflow-hidden',
-            'rounded-i-sm border-[0.8px] border-beerus bg-goku py-2 shadow-lg',
-          )}
-        >
-          {MORE_PROVIDERS.map((label) => (
-            <li key={label}>
-              <button
-                type="button"
-                className="flex h-10 w-full items-center px-4 text-start text-base text-bulma transition-colors hover:bg-heles"
-              >
-                {label}
-              </button>
-            </li>
-          ))}
-        </ul>
-      )}
-    </div>
-  );
-}
-
 /**
  * The right half: a near-black ground with two enormous blurred circles
  * bleeding in from opposite corners, a gold line pattern over the top, then
@@ -386,7 +321,8 @@ export function AuthShell({
 }) {
   // Social sign-in opens new accounts, which a B2B (sign-in only) site has none of.
   const gates = useGates();
-  const showProviders = providers && gates.canSignUp();
+  const google = useGoogleLoginEnabled();
+  const showProviders = providers && google && gates.canSignUp();
 
   return (
     <div className="flex h-dvh overflow-hidden bg-goku">
@@ -406,16 +342,11 @@ export function AuthShell({
 
             {showProviders && (
               <>
-                {/* 1fr 1fr auto: two named providers, then the overflow button. */}
-                <div className="grid w-full grid-flow-col grid-cols-2 gap-1">
-                  {PROVIDERS.map((provider) => (
-                    <Button key={provider.label} variant="secondary" className={PROVIDER_BUTTON}>
-                      <img src={provider.icon} alt="" width={20} height={20} className="size-5 shrink-0" />
-                      {provider.label}
-                    </Button>
-                  ))}
-                  <MoreProviders />
-                </div>
+                {/* Only providers the backend can complete: Google, while the owner's switch is on. */}
+                <Button variant="secondary" className={cn(PROVIDER_BUTTON, 'w-full')} onClick={startGoogleSignIn}>
+                  <img src="/images/auth/google.svg" alt="" width={20} height={20} className="size-5 shrink-0" />
+                  Continue with Google
+                </Button>
 
                 <div className="grid grid-flow-col grid-cols-[1fr_auto_1fr] items-center gap-2">
                   <hr className="h-px border-0 bg-beerus" />
