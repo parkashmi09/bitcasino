@@ -319,6 +319,20 @@ const CATALOGUE: FeatureEntry[] = [
     ]
   },
   {
+    // Deposit email verification: a policy (always on, owner-only). Mirrors backend featureCatalogue.js.
+    key: 'deposit_email_verification',
+    label: 'Deposit: email must be verified first',
+    category: 'business',
+    flag: null,
+    policy: true,
+    defaultVariant: 'none',
+    note: 'Required: before any deposit (fiat, gateway, crypto address, P2P) the player confirms a code sent to the email on their account; until then deposits answer 403 EMAIL_NOT_VERIFIED and the deposit panel shows a "Verify your email" step. Google sign-ups count as verified. Off: deposits open as before.',
+    variants: [
+      { key: 'none', label: 'Off', description: 'Players deposit without verifying their email. The default.' },
+      { key: 'required', label: 'Required', description: "A player must verify their email (a code sent to the account's address) before any deposit is accepted." }
+    ]
+  },
+  {
     key: 'vip',
     label: 'VIP club',
     category: 'engagement',

@@ -60,7 +60,7 @@ const GROUPS: { title: string; hint: string; keys: string[] }[] = [
   {
     title: 'User accounts',
     hint: 'How a sign-in locks, how many sessions a user keeps, whether a player with no bet is signed out 5 minutes after sign-in, and whether an email must be verified before money moves.',
-    keys: ['login_max_attempts', 'login_lock_minutes', 'max_active_sessions', 'idle_logout', 'require_email_verification']
+    keys: ['login_max_attempts', 'login_lock_minutes', 'max_active_sessions', 'idle_logout']
   },
   {
     title: 'Bonus',
