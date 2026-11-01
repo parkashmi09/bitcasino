@@ -33,9 +33,10 @@ const browse = {
       provider: z.string().trim().max(600).optional(),
       /**
        * Omitted: the curated order, then name. `popular`: the curated order, then the games
-       * most players launched lately, then name. `az`, `za`: name only.
+       * most players launched lately, then name. `az`, `za`: name only. `newest`: the games
+       * added to the catalogue most recently (artwork first), then name.
        */
-      sort: z.enum(['popular', 'az', 'za']).optional(),
+      sort: z.enum(['popular', 'az', 'za', 'newest']).optional(),
       type: z.string().trim().max(120).optional(),
       /** The normalised type the import writes into `tags` — see `#filterClause`. */
       category: z.string().trim().max(40).optional(),
