@@ -2,7 +2,7 @@
 
 const crypto = require('crypto');
 const { Router } = require('express');
-const { z, validate, noBody, response, asyncHandler, createRateLimiter, UnauthorizedError } = require('@ibitplay/common');
+const { z, validate, noBody, response, asyncHandler, createRateLimiter, UnauthorizedError, whitelabelPlan } = require('@ibitplay/common');
 
 const { WhitelabelLinkService, PALETTE_KEYS } = require('../whitelabelLink.service');
 const { brandingStore } = require('../../branding/branding.store');
@@ -21,6 +21,15 @@ const amount = z
   .trim()
   .regex(/^\d+(\.\d{1,2})?$/, 'must be a positive amount with at most 2 decimal places')
   .refine((v) => Number.parseFloat(v) > 0, 'amount must be greater than zero');
+
+/** Every plan key a boolean; at least one product on. Shared with the parent's validators. */
+function planSchema() {
+  const bools = (keys) => z.object(Object.fromEntries(keys.map((k) => [k, z.boolean()]))).strict();
+  return z
+    .object({ products: bools(whitelabelPlan.PRODUCTS), features: bools(whitelabelPlan.FEATURES) })
+    .strict()
+    .refine((p) => Object.values(p.products).some(Boolean), 'choose at least one product: casino, sports or original games');
+}
 
 const schemas = {
   redeem: { body: z.object({ code: z.string().min(16).max(64) }).strict() },
@@ -47,6 +56,8 @@ const schemas = {
       .object({ slot: z.enum(['logo', 'mark']), type: z.enum(['image/png', 'image/webp', 'image/svg+xml']), data: z.string().min(1).max(360_000) })
       .strict(),
   },
+  // Products and features the parent sold this copy; at least one product.
+  plan: { body: z.object({ plan: planSchema() }).strict() },
   // Every token, as #RRGGBB; null clears it.
   palette: {
     body: z
@@ -63,6 +74,7 @@ const schemas = {
 module.exports = publicRoutes;
 // The parent's tests send every link body through these, so the two sides cannot drift apart.
 module.exports.schemas = schemas;
+module.exports.planSchema = planSchema;
 
 function publicRoutes(deps) {
   const router = Router();
@@ -122,6 +134,17 @@ function publicRoutes(deps) {
       const banners = new BannersService(deps);
       const file = { buffer: Buffer.from(req.body.data, 'base64'), originalname: `${req.body.placement}.img`, mimetype: req.body.type };
       return response.ok(res, await banners.putBanner({ staff: null, type: req.body.placement, file }));
+    })
+  );
+  router.get('/plan', asyncHandler(async (_req, res) => response.ok(res, await service.plan())));
+  router.put(
+    '/plan',
+    validate(schemas.plan),
+    asyncHandler(async (req, res) => {
+      const out = await service.setPlan(req.body.plan);
+      // Apply it now rather than at the next poll: entitlements, site_features and the player sockets.
+      await deps.entitlementsStore?.load();
+      return response.ok(res, out);
     })
   );
   router.put('/palette', validate(schemas.palette), asyncHandler(async (req, res) => response.ok(res, await service.setPalette(req.body.palette))));

@@ -31,7 +31,7 @@ module.exports = function publicRoutes(deps) {
     asyncHandler(async (_req, res) => {
       const current = deps.entitlementsStore?.current() ?? {};
       res.set('Cache-Control', 'public, max-age=15');
-      return response.ok(res, store.view(current.branding ?? null, current.version ?? 0));
+      return response.ok(res, store.view(current.branding ?? null, current.version ?? 0, await store.chatSettings()));
     })
   );
 

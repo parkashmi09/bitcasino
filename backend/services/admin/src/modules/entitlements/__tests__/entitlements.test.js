@@ -65,6 +65,19 @@ test('entitlements', async (t) => {
   t.after(() => entitlements.resetEntitlements());
   // ── The store ────────────────────────────────────────────────────────
 
+  await t.test("google_login off (rainbet's flag) reads as the google_signin policy off until the owner sets it", async () => {
+    const panel = ownerPanel();
+    const p = poller(panel, memoryDb(), () => {});
+    await p.start();
+    p.stop();
+    panel.next = signed(doc(1, { flags: { google_login: false }, variants: {} }));
+    assert.equal((await p.pollOnce()).variants.google_signin, 'off');
+    panel.next = signed(doc(2, { flags: { google_login: false }, variants: { google_signin: 'on' } }));
+    assert.equal((await p.pollOnce()).variants.google_signin, 'on', "the owner's policy wins");
+    panel.next = signed(doc(3, { flags: { google_login: true }, variants: {} }));
+    assert.equal((await p.pollOnce()).variants.google_signin, undefined, 'flag on: the policy default stands');
+  });
+
   await t.test('table → memory → default: a restart loads the newest row', async () => {
     const panel = ownerPanel();
     const db = memoryDb();

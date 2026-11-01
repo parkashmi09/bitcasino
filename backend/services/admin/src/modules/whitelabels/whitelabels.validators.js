@@ -2,6 +2,8 @@
 
 const { z, featureCatalogue } = require('@ibitplay/common');
 const { PALETTE_KEYS } = require('../whitelabel-link/whitelabelLink.service');
+// The copy validates the same shape (its link PUT /plan), so the two sides cannot drift.
+const { planSchema } = require('../whitelabel-link/routes/public.routes');
 
 const id = z.coerce.number().int().positive();
 const params = { params: z.object({ id }).strict() };
@@ -54,6 +56,8 @@ const create = {
       adminDomain: domain,
       apiDomain: domain,
       template: z.enum(featureCatalogue.TEMPLATE_KEYS),
+      // Required: the Super Admin chooses the products (at least one) and features.
+      plan: planSchema(),
       palette: palette.nullable().optional(),
       // base64 of the file; checked byte by byte in the service (branding.rules imageProblem).
       logo: image.optional(),
@@ -90,6 +94,7 @@ module.exports = {
   password: { ...params, body: z.object({ password }).strict() },
   maintenance: { ...params, body: z.object({ on: z.boolean() }).strict() },
   palette: { ...params, body: z.object({ palette: palette.nullable() }).strict() },
+  plan: { ...params, body: z.object({ plan: planSchema() }).strict() },
   poster: {
     ...params,
     body: z

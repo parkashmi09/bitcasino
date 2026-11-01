@@ -3,7 +3,7 @@
 const crypto = require('crypto');
 const { Op } = require('sequelize');
 
-const { AppError, featureCatalogue, featureOptions, regionPolicy, withdrawalCap, withdrawalDailyLimit, paymentMethods } = require('@ibitplay/common');
+const { AppError, featureCatalogue, featureOptions, regionPolicy, withdrawalCap, withdrawalDailyLimit, paymentMethods, whitelabelPlan } = require('@ibitplay/common');
 const { cleanBranding } = require('../branding/branding.rules');
 
 /**
@@ -153,19 +153,29 @@ function coinsOf(list) {
     .map((c) => ({ ...c }));
 }
 
+/**
+ * One Google switch: the `google_signin` policy. A document from before it that turned the older
+ * `google_login` flag off (rainbet's owner panel) reads as the policy `off`, until the owner sets it.
+ */
+function googleAlias(variants, flags) {
+  if (!variants || variants.google_signin || flags.google_login !== false) return variants;
+  return { ...variants, google_signin: 'off' };
+}
+
 function normalise(data) {
   if (!data || typeof data !== 'object' || !Number.isFinite(Number(data.version))) return null;
   const palettes = palettesOf(data.palettes);
+  const flags = booleans(data.flags);
   return {
     site: data.site ?? null,
     version: Number(data.version),
     updatedAt: data.updatedAt ?? null,
     features: booleans(data.features),
-    flags: booleans(data.flags),
+    flags,
     template: templateOf(data.template, palettes),
     // The owner's own colour themes (rainbet); the template may name one of them.
     palettes,
-    variants: variantsOf(data.variants),
+    variants: googleAlias(variantsOf(data.variants), flags),
     coins: coinsOf(data.coins),
     // Owner-only feature options (featureOptions.js); unknown keys dropped, defaults applied by readers.
     options: featureOptions.cleanOptions(data.options),
@@ -205,6 +215,8 @@ function createEntitlementsStore({ config, logger, db, onChange: initialOnChange
   let doc = null;
   let savedAt = null;
   let timer = null;
+  // A whitelabel copy's plan (whitelabel_settings.plan): a ceiling over the owner's document.
+  let plan = null;
   let onChange = initialOnChange;
 
   // Loads and saves run one at a time, so a version check never races a write.
@@ -224,7 +236,26 @@ function createEntitlementsStore({ config, logger, db, onChange: initialOnChange
     return db.models.OwnerEntitlement.findOne({ order: [['version', 'DESC']], raw: true });
   }
 
+  /** The copy's plan, or null (not a copy, none stored, or unreadable: the last one stands). */
+  async function readPlan() {
+    if (!config.WHITELABEL_MODE) return null;
+    try {
+      const [row] = await db.sequelize.query('SELECT plan FROM whitelabel_settings WHERE id = 1', { type: db.sequelize.QueryTypes.SELECT });
+      return whitelabelPlan.cleanPlan(row?.plan);
+    } catch (error) {
+      logger?.warn({ err: error.message }, 'Could not read whitelabel_settings.plan — keeping the last one');
+      return plan;
+    }
+  }
+
   async function loadNow({ notify = true } = {}) {
+    let dirty = false;
+    const nextPlan = await readPlan();
+    if (JSON.stringify(nextPlan) !== JSON.stringify(plan)) {
+      plan = nextPlan;
+      dirty = true;
+      logger?.info({ plan }, 'Whitelabel plan loaded');
+    }
     try {
       const row = await latestRow();
       const data = row ? normalise(row.doc) : null;
@@ -232,8 +263,9 @@ function createEntitlementsStore({ config, logger, db, onChange: initialOnChange
         doc = data;
         savedAt = new Date(row.created_at ?? Date.now()).toISOString();
         logger?.info({ version: data.version }, 'Owner entitlements loaded from the database');
-        if (notify) await changed();
+        dirty = true;
       }
+      if (dirty && notify) await changed();
     } catch (error) {
       logger?.warn({ err: error.message, version: doc?.version ?? null }, doc ? 'Could not read owner_entitlements — keeping the last good copy' : 'Could not read owner_entitlements — everything is entitled');
     }
@@ -314,6 +346,10 @@ function createEntitlementsStore({ config, logger, db, onChange: initialOnChange
 
   /** `{ features, flags, template, variants, version, fetchedAt, source }` — never a secret. */
   function current() {
+    return plan ? whitelabelPlan.applyPlan(ownerView(), plan) : ownerView();
+  }
+
+  function ownerView() {
     if (!doc) return { features: {}, flags: {}, template: null, palettes: [], variants: null, coins: [], options: {}, region: regionPolicy.cleanRegion(null), withdrawalCap: withdrawalCap.cleanWithdrawalCap(null), withdrawalDailyLimit: withdrawalDailyLimit.cleanWithdrawalDailyLimit(null), paymentMethods: {}, withdrawalsEnabled: true, branding: null, version: 0, fetchedAt: null, source: 'default' };
     return {
       features: { ...doc.features },

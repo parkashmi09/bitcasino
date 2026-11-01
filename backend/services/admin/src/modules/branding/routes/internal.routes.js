@@ -16,7 +16,7 @@ module.exports = function internalRoutes(deps) {
     '/public',
     asyncHandler(async (_req, res) => {
       const current = deps.entitlementsStore?.current() ?? {};
-      return response.ok(res, store.view(current.branding ?? null, current.version ?? 0));
+      return response.ok(res, store.view(current.branding ?? null, current.version ?? 0, await store.chatSettings()));
     })
   );
   return router;

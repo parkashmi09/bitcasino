@@ -2,7 +2,7 @@
 
 const crypto = require('crypto');
 const { QueryTypes, literal } = require('sequelize');
-const { money, AppError } = require('@ibitplay/common');
+const { money, AppError, whitelabelPlan } = require('@ibitplay/common');
 const { hashPassword } = require('@ibitplay/auth');
 
 const { addWhitelabelTopup, readOwnerDirectBalance } = require('../lords/ownerWallet');
@@ -82,6 +82,40 @@ class WhitelabelLinkService {
       { palette: palette ? JSON.stringify(palette) : null }
     );
     return this.theme();
+  }
+
+  /** The products and features the parent sold this copy; null = none stored (not limited). */
+  async plan() {
+    const [row] = await this.#query('SELECT plan FROM whitelabel_settings WHERE id = 1');
+    return { plan: whitelabelPlan.cleanPlan(row?.plan) };
+  }
+
+  /**
+   * Store the plan (the entitlements store reads it as a ceiling) and write the policies it
+   * decides — branch management, and whitelabel always off — as the owner would.
+   */
+  async setPlan(plan) {
+    const clean = whitelabelPlan.cleanPlan(plan);
+    await this.db.transaction(async (transaction) => {
+      await this.#query(
+        `INSERT INTO whitelabel_settings (id, plan, updated_at) VALUES (1, CAST(:plan AS JSONB), NOW())
+         ON CONFLICT (id) DO UPDATE SET plan = EXCLUDED.plan, updated_at = NOW()
+         RETURNING id`,
+        { plan: JSON.stringify(clean) },
+        transaction
+      );
+      for (const [feature, variant] of Object.entries(whitelabelPlan.policiesOf(clean))) {
+        await this.#query(
+          `INSERT INTO site_features (feature, variant, enabled, owner_enabled, config, secrets, updated_by)
+           VALUES (:feature, :variant, true, true, '{}'::jsonb, '{}'::jsonb, 'owner')
+           ON CONFLICT (feature) DO UPDATE SET variant = EXCLUDED.variant, enabled = true, owner_enabled = true, updated_by = 'owner', updated_at = NOW()
+           RETURNING feature`,
+          { feature, variant },
+          transaction
+        );
+      }
+    });
+    return this.plan();
   }
 
   async setMaintenance(on) {

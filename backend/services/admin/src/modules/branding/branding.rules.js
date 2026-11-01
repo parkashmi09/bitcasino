@@ -42,18 +42,26 @@ function cleanAsset(a, slot) {
   return { file: a.file, type, bytes: a.bytes, width: side(a.width), height: side(a.height) };
 }
 
-/** A phone number (+ and 6–15 digits) or an https link on wa.me / whatsapp.com; else ''. Same as the owner panel's. */
-function whatsappLinkValue(value) {
+/**
+ * The href a floating chat button opens, or '' when the value is neither (site admin →
+ * Site config → Branding). A number: + and 6–15 digits, spaces and dashes dropped. A link: https
+ * on the app's own hosts. Telegram also takes @username.
+ */
+function chatLink(kind, value) {
   const raw = str(value);
   if (/^\+?[\d\s-]+$/.test(raw)) {
-    const number = raw.replace(/[\s-]/g, '');
-    return /^\+?\d{6,15}$/.test(number) ? number : '';
+    const digits = raw.replace(/\D/g, '');
+    if (digits.length < 6 || digits.length > 15) return '';
+    return kind === 'telegram' ? `https://t.me/+${digits}` : `https://wa.me/${digits}`;
   }
+  if (kind === 'telegram' && /^@?[A-Za-z][A-Za-z0-9_]{4,31}$/.test(raw)) return `https://t.me/${raw.replace(/^@/, '')}`;
   if (raw.length > 300) return '';
   try {
     const url = new URL(raw);
     const host = url.hostname.toLowerCase();
-    return url.protocol === 'https:' && (host === 'wa.me' || host === 'whatsapp.com' || host.endsWith('.whatsapp.com')) ? url.href : '';
+    const hosts = kind === 'telegram' ? ['t.me', 'telegram.me'] : ['wa.me', 'whatsapp.com'];
+    const ours = hosts.includes(host) || (kind === 'whatsapp' && host.endsWith('.whatsapp.com'));
+    return url.protocol === 'https:' && ours ? url.href : '';
   } catch {
     return '';
   }
@@ -77,11 +85,9 @@ function cleanBranding(input) {
   const color = str(input.themeColor);
   out.themeColor = /^#[0-9a-fA-F]{6}$/.test(color) ? color.toUpperCase() : '';
   for (const slot of SLOTS) out[slot] = cleanAsset(input[slot], slot);
-  // The floating WhatsApp button (owner panel → Branding). A malformed number reads as none.
+  // Which floating chat buttons the site admin may show (owner panel → Branding).
   out.whatsappEnabled = input.whatsappEnabled === true;
-  out.whatsappLink = whatsappLinkValue(input.whatsappLink);
-  const message = str(input.whatsappMessage);
-  out.whatsappMessage = message.length <= 300 && !BAD_TEXT.test(message) ? message : '';
+  out.telegramEnabled = input.telegramEnabled === true;
   return out;
 }
 
@@ -103,4 +109,4 @@ function imageProblem(buffer, file, slot) {
   return verdict.ok ? null : `unsafe SVG (${verdict.reason})`;
 }
 
-module.exports = { TEXT_LIMITS, SLOTS, MAX_IMAGE_BYTES, MAX_KEYWORDS, MAX_KEYWORD_LENGTH, ASSET_FILE_RE, CONTENT_TYPES, BAD_TEXT, cleanBranding, imageProblem };
+module.exports = { TEXT_LIMITS, SLOTS, MAX_IMAGE_BYTES, MAX_KEYWORDS, MAX_KEYWORD_LENGTH, ASSET_FILE_RE, CONTENT_TYPES, BAD_TEXT, cleanBranding, imageProblem, chatLink };

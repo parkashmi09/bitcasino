@@ -23,6 +23,7 @@ const { WhitelabelsService } = require('../whitelabels.service');
  *   PUT    /admin/whitelabels/:id/company-password   { password } (company signed out)
  *   PUT    /admin/whitelabels/:id/maintenance        { on }  off = maintenance on the copy
  *   PUT    /admin/whitelabels/:id/palette            { palette | null }
+ *   PUT    /admin/whitelabels/:id/plan               { plan } products (at least one) + features
  *   POST   /admin/whitelabels/:id/preview            → { url } one-time, read-only
  *   POST   /admin/whitelabels/:id/retry-setup        a failed setup, queued again
  *   DELETE /admin/whitelabels/:id                    { confirmName, acknowledgeBalances? }
@@ -111,6 +112,7 @@ module.exports = function adminRoutes(deps) {
   );
   router.put('/:id/maintenance', canWrite, validate(v.maintenance), audited('whitelabel.maintenance'), asyncHandler(async (req, res) => response.ok(res, await service.setMaintenance(id(req), req.body.on))));
   router.put('/:id/palette', canWrite, validate(v.palette), audited('whitelabel.palette'), asyncHandler(async (req, res) => response.ok(res, await service.setPalette(id(req), req.body.palette))));
+  router.put('/:id/plan', canWrite, validate(v.plan), audited('whitelabel.plan'), asyncHandler(async (req, res) => response.ok(res, await service.setPlan(id(req), req.body.plan))));
   router.post('/:id/preview', canRead, validate(v.byId), noBody(), asyncHandler(async (req, res) => response.ok(res, await service.preview(id(req)))));
   router.post('/:id/retry-setup', canWrite, validate(v.byId), noBody(), audited('whitelabel.retry-setup'), asyncHandler(async (req, res) => response.ok(res, await service.retrySetup(id(req), req.staff))));
   router.delete(

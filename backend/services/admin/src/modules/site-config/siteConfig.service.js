@@ -14,6 +14,7 @@ const REWARD_CURRENCY_FEATURE = 'reward_currency';
 const DEFAULT_CURRENCY_FEATURE = 'default_currency';
 const { visibleStaffIds } = require('../staff-directory/staffDirectory.service');
 const { assertTransactionPassword } = require('../staff-auth/transactionPassword');
+const { chatLink } = require('../branding/branding.rules');
 
 /**
  * user-service's payment gateways, as the owner panel names them (its flag is `gateway_<name>`).
@@ -182,6 +183,13 @@ const OPERATOR_SETTINGS = Object.freeze({
   loss_bonus_max_bet: { env: 'LOSS_BONUS_MAX_BET', kind: 'decimal', min: 0, default: '0', label: 'Max bet per bet (a bigger bet\'s loss does not count; 0 = no limit)' },
   loss_bonus_claim_hours: { env: 'LOSS_BONUS_CLAIM_HOURS', kind: 'number', min: 0, max: 720, default: 48, label: 'Hours to claim after settlement (0 = no expiry)' },
   loss_bonus_wager_multiplier: { env: 'LOSS_BONUS_WAGER_MULTIPLIER', kind: 'decimal', min: 0, max: 100, default: '0', label: 'Wager before the bonus becomes cash (× bonus; 0 = cash at once)' },
+
+  // The floating chat buttons (Site config → Branding), shown only where the owner allows them
+  // (owner panel → Branding). A link is a number with country code or the app's own https link.
+  whatsapp_enabled: { env: 'CHAT_WHATSAPP_ENABLED', kind: 'boolean', default: false, label: 'WhatsApp button' },
+  whatsapp_link: { env: 'CHAT_WHATSAPP_LINK', kind: 'text', maxLength: 300, chat: 'whatsapp', label: 'WhatsApp number or link' },
+  telegram_enabled: { env: 'CHAT_TELEGRAM_ENABLED', kind: 'boolean', default: false, label: 'Telegram button' },
+  telegram_link: { env: 'CHAT_TELEGRAM_LINK', kind: 'text', maxLength: 300, chat: 'telegram', label: 'Telegram number, @username or link' },
 });
 
 /** A pair whose maximum may not sit under its minimum. */
@@ -1615,6 +1623,7 @@ function coerceSetting(key, spec, raw) {
     if (text.length > spec.maxLength) throw errors.INVALID_SETTING({ setting: key, reason: `longer than ${spec.maxLength} characters` });
     // eslint-disable-next-line no-control-regex
     if (/[<>\u0000-\u0008\u000b-\u001f]/.test(text)) throw errors.INVALID_SETTING({ setting: key, reason: 'no angle brackets or control characters' });
+    if (spec.chat && !chatLink(spec.chat, text)) throw errors.INVALID_SETTING({ setting: key, reason: spec.chat === 'telegram' ? 'a number with country code, @username or a t.me link' : 'a number with country code or a wa.me / whatsapp.com link' });
     return text;
   }
 

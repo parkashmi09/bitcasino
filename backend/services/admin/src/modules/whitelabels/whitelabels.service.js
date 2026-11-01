@@ -2,7 +2,7 @@
 
 const crypto = require('crypto');
 const { QueryTypes } = require('sequelize');
-const { money, imageUpload } = require('@ibitplay/common');
+const { money, imageUpload, whitelabelPlan } = require('@ibitplay/common');
 const { hashPassword, createSecretBox } = require('@ibitplay/auth');
 
 const errors = require('./whitelabels.errors');
@@ -64,6 +64,8 @@ function view(r) {
     apiDomain: r.api_domain,
     template: r.template,
     palette: r.palette ?? null,
+    // null = made before plans (not limited).
+    plan: whitelabelPlan.cleanPlan(r.plan),
     hasLogo: Boolean(r.logo_type),
     hasIcon: Boolean(r.icon_type),
     companyRoleName: r.company_role_name,
@@ -158,15 +160,17 @@ class WhitelabelsService {
         [created] = await this.#q(
           `INSERT INTO whitelabels
              (slug, name, title, description, site_domain, admin_domain, api_domain, template, palette, logo, logo_type,
-              icon, icon_type, company_role_name, company_name, company_email, company_password_hash, link_key, created_by)
+              icon, icon_type, company_role_name, company_name, company_email, company_password_hash, link_key, plan, created_by)
            VALUES (:slug, :name, :title, :description, :siteDomain, :adminDomain, :apiDomain, :template, CAST(:palette AS JSONB),
-              :logo, :logoType, :icon, :iconType, :companyRoleName, :companyName, :companyEmail, :passwordHash, :linkKey, :actorId)
+              :logo, :logoType, :icon, :iconType, :companyRoleName, :companyName, :companyEmail, :passwordHash, :linkKey,
+              CAST(:plan AS JSONB), :actorId)
            RETURNING *`,
           {
             ...input,
             title: input.title || null,
             description: input.description || null,
             palette: input.palette ? JSON.stringify(input.palette) : null,
+            plan: JSON.stringify(whitelabelPlan.cleanPlan(input.plan)),
             logo,
             logoType: input.logo?.type ?? null,
             icon,
@@ -466,6 +470,18 @@ class WhitelabelsService {
       palette: palette ? JSON.stringify(palette) : null,
     });
     return { palette };
+  }
+
+  /** The products and features the copy runs; a live copy gets it at once, else the setup writes it. */
+  async setPlan(id, plan) {
+    const clean = whitelabelPlan.cleanPlan(plan);
+    const row = await this.#row(id);
+    if (row.status === 'live') await this.link(row, 'PUT', '/plan', { plan: clean });
+    await this.#q('UPDATE whitelabels SET plan = CAST(:plan AS JSONB), updated_at = NOW() WHERE id = :id RETURNING id', {
+      id,
+      plan: JSON.stringify(clean),
+    });
+    return { plan: clean };
   }
 
   /** A one-time link (about a minute) to the copy's admin, read-only, as its company. */

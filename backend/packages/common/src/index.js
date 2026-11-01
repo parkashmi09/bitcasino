@@ -57,6 +57,7 @@ const currencies = require('./currencies');
 const featureCatalogue = require('./featureCatalogue');
 /** Business settings a site's owner chooses, enforced where money and accounts are created. */
 const sitePolicy = require('./sitePolicy');
+const whitelabelPlan = require('./whitelabelPlan');
 /** The operator's withdrawal block (migration 091) — every payout path asks it first. */
 const withdrawBlock = require('./withdrawBlock');
 const manualPayments = require('./manualPayments');
@@ -130,6 +131,7 @@ module.exports = {
   ...currencies,
   featureCatalogue,
   sitePolicy,
+  whitelabelPlan,
   withdrawBlock,
   manualPayments,
   entitlements,

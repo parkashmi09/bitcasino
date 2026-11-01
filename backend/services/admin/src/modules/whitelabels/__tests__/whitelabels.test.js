@@ -52,6 +52,10 @@ const input = (n) => ({
   companyName: 'Lucky Ltd',
   companyEmail: `owner@${tag}${n}.example.com`,
   companyPassword: 'Company-Pass-1',
+  plan: {
+    products: { casino: true, sports: true, originals: false },
+    features: { branch_management: false, bonus: true, affiliate: false, vip: true, promotions: true },
+  },
 });
 
 test('create validators', () => {
@@ -60,6 +64,31 @@ test('create validators', () => {
   assert.equal(v.create.body.safeParse({ ...input(1), siteDomain: 'not a domain' }).success, false);
   assert.equal(v.create.body.safeParse({ ...input(1), name: '<script>' }).success, false);
   assert.equal(v.create.body.safeParse({ ...input(1), template: 'nope' }).success, false);
+  // The plan is required, names every key, and has at least one product.
+  const { plan, ...noPlan } = input(1);
+  assert.equal(v.create.body.safeParse(noPlan).success, false);
+  assert.equal(v.create.body.safeParse({ ...input(1), plan: { ...plan, products: { casino: false, sports: false, originals: false } } }).success, false);
+  assert.equal(v.create.body.safeParse({ ...input(1), plan: { ...plan, features: { bonus: true } } }).success, false);
+  // The parent's plan body is what the copy's link accepts.
+  assert.equal(linkSchemas.plan.body.safeParse({ plan }).success, true);
+});
+
+test('a plan is a ceiling on the copy: what it leaves out is not entitled', () => {
+  const { whitelabelPlan } = require('@ibitplay/common');
+  const owner = { flags: { casino: true, sports: true }, features: { bonus: true }, variants: { branch_management: 'on', whitelabel: 'on' } };
+  const out = whitelabelPlan.applyPlan(owner, input(1).plan);
+  assert.equal(out.flags.casino, true);
+  assert.equal(out.flags.sports, true);
+  assert.equal(out.flags.originals, false);
+  assert.equal(out.features.bonus, true);
+  assert.equal(out.features.affiliate, false);
+  assert.equal(out.flags.affiliate, false);
+  assert.equal(out.variants.branch_management, 'off');
+  assert.equal(out.variants.whitelabel, 'off');
+  // No plan stored (a copy made before plans): unchanged.
+  assert.equal(whitelabelPlan.applyPlan(owner, null), owner);
+  // No owner variants: none invented (site_features keeps its own).
+  assert.equal(whitelabelPlan.applyPlan({ flags: {}, features: {}, variants: null }, input(1).plan).variants, null);
 });
 
 test('the panel is the Super Admin’s, and never on a copy', async (t) => {

@@ -3,7 +3,7 @@
 const crypto = require('crypto');
 const { ValidationError, imageUpload } = require('@ibitplay/common');
 
-const { SLOTS, ASSET_FILE_RE, CONTENT_TYPES, imageProblem, cleanBranding } = require('./branding.rules');
+const { SLOTS, ASSET_FILE_RE, CONTENT_TYPES, imageProblem, cleanBranding, chatLink } = require('./branding.rules');
 
 /** The slots the Super Admin may set (site admin → Branding). */
 const SITE_SLOTS = Object.freeze(['logo', 'mark']);
@@ -148,8 +148,25 @@ function createBrandingStore({ logger, models }) {
    * What players read. Every string already passed the rules; an image is listed only once it
    * is here (so a URL never 404s), else null and the UI keeps its own picture.
    */
-  function view(ownerBranding, version) {
+  /** The site admin's chat-button settings (`siteconfig.settings`, Site config → Branding); {} when unreadable. */
+  async function chatSettings() {
+    try {
+      const row = await models.Siteconfig?.findOne({ attributes: ['settings'], raw: true });
+      return row?.settings ?? {};
+    } catch (error) {
+      logger?.warn({ err: error.message }, 'siteconfig not readable — no chat buttons');
+      return {};
+    }
+  }
+
+  function view(ownerBranding, version, settings = {}) {
     const branding = effective(ownerBranding);
+    // A chat button: the owner allows it, the site admin switches it on; no valid link = shown, does nothing.
+    const chat = (kind) => {
+      const allowed = Boolean(branding?.[`${kind}Enabled`]);
+      const enabled = allowed && settings[`${kind}_enabled`] === true;
+      return { allowed, enabled, link: (enabled && chatLink(kind, settings[`${kind}_link`])) || null };
+    };
     const url = (asset) => (asset && has(asset.file) ? `${PUBLIC_PREFIX}${asset.file}` : null);
     if (!branding) {
       return {
@@ -166,7 +183,8 @@ function createBrandingStore({ logger, models }) {
         logoUrl: null,
         markUrl: null,
         ogImageUrl: null,
-        whatsapp: { enabled: false, link: null, message: null },
+        whatsapp: chat('whatsapp'),
+        telegram: chat('telegram'),
       };
     }
     if (SLOTS.some((s) => branding[s] && !has(branding[s].file))) kick(ownerBranding);
@@ -185,11 +203,8 @@ function createBrandingStore({ logger, models }) {
       logoUrl: url(branding.logo),
       markUrl: url(branding.mark),
       ogImageUrl: url(branding.ogImage),
-      whatsapp: {
-        enabled: Boolean(branding.whatsappEnabled),
-        link: orNull(branding.whatsappLink),
-        message: orNull(branding.whatsappMessage),
-      },
+      whatsapp: chat('whatsapp'),
+      telegram: chat('telegram'),
     };
   }
 
@@ -242,7 +257,7 @@ function createBrandingStore({ logger, models }) {
     metaOverride = null;
   }
 
-  return { sync, read, view, put, stored, setSite, clearSite, setMeta, clearMeta, metaBySite };
+  return { sync, read, view, chatSettings, put, stored, setSite, clearSite, setMeta, clearMeta, metaBySite };
 }
 
 let shared = null;

@@ -695,19 +695,29 @@ class AuthService {
 
   // ══ Google sign-in (./google.js) ═══════════════════════════════════════
 
-  googleEnabled() {
+  /** The server has the Google keys. */
+  googleConfigured() {
     return google.configured(this.config);
   }
 
-  /** rainbet: the owner's `google_login` switch — the player site draws the button on it, keys or not. */
-  googleAllowed() {
-    return this.entitlements.isFlagEntitled('google_login');
+  /**
+   * The owner's one Google switch: the `google_signin` policy (owner panel → Features & plan).
+   * The player site draws the button on it, keys or not. A site whose owner had turned the older
+   * `google_login` flag off reads `off` here too (entitlements.store aliases it into the policy).
+   */
+  async googleAllowed() {
+    return (await sitePolicy.readPolicy(this.models, 'google_signin')) === 'on';
+  }
+
+  /** Keys present and the owner's switch on — off hides the button, sign-in and sign-up alike. */
+  async googleEnabled() {
+    return this.googleConfigured() && (await this.googleAllowed());
   }
 
   /** Why a Google start cannot go ahead (an error code for `/login/google?error=`), or null. */
   async googleUnavailable() {
     if (!(await this.googleAllowed())) return 'AUTH_GOOGLE_DISABLED';
-    return this.googleEnabled() ? null : 'AUTH_GOOGLE_NOT_CONFIGURED';
+    return this.googleConfigured() ? null : 'AUTH_GOOGLE_NOT_CONFIGURED';
   }
 
   /** The player site's `/login/google` with these query params. */
@@ -716,8 +726,8 @@ class AuthService {
   }
 
   /** `{ url, cookie }`: where to send the browser, and the signed state cookie to set first. */
-  googleStart({ nonce } = {}) {
-    if (!this.googleEnabled()) throw errors.GOOGLE_NOT_CONFIGURED();
+  async googleStart({ nonce } = {}) {
+    if (!(await this.googleEnabled())) throw errors.GOOGLE_NOT_CONFIGURED();
     // No tab nonce, nothing to bind the code to: refuse up front rather than mint a dead code.
     if (!google.NONCE.test(String(nonce ?? ''))) throw errors.GOOGLE_SIGNIN_FAILED();
     return google.startRequest(this.config, nonce);

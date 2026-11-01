@@ -276,3 +276,21 @@ test('the Super Admin metadata body: limits, no markup, a template with %s once'
   assert.equal(siteMeta.safeParse({ keywords: Array(21).fill('k') }).success, false);
   assert.equal(siteMeta.safeParse({ extra: 1 }).success, false);
 });
+
+test('chat buttons: the owner allows, the site admin switches on and sets the link', () => {
+  const { chatLink } = require('../branding.rules');
+  assert.equal(chatLink('whatsapp', '+91 98765-43210'), 'https://wa.me/919876543210');
+  assert.equal(chatLink('telegram', '919876543210'), 'https://t.me/+919876543210');
+  assert.equal(chatLink('telegram', '@parker_help'), 'https://t.me/parker_help');
+  assert.equal(chatLink('whatsapp', 'https://evil.example/wa.me'), '');
+  assert.equal(chatLink('telegram', 'https://wa.me/91'), '', "a WhatsApp link is not Telegram's");
+
+  const store = createBrandingStore({ logger, models: {} });
+  const on = { whatsapp_enabled: true, whatsapp_link: '919876543210', telegram_enabled: true };
+  const allowed = cleanBranding(branding({ whatsappEnabled: true, telegramEnabled: false }));
+  const v = store.view(allowed, 1, on);
+  assert.deepEqual(v.whatsapp, { allowed: true, enabled: true, link: 'https://wa.me/919876543210' });
+  assert.deepEqual(v.telegram, { allowed: false, enabled: false, link: null }, 'the owner did not allow it');
+  assert.deepEqual(store.view(allowed, 1, { whatsapp_enabled: true }).whatsapp, { allowed: true, enabled: true, link: null }, 'on, no link: shown, does nothing');
+  assert.equal(store.view(allowed, 1).whatsapp.enabled, false, 'the admin has not switched it on');
+});
