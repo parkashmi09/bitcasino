@@ -997,7 +997,7 @@ const Entitlements = () => {
                           <p className='text-muted-foreground mt-0.5 text-xs'>
                             {r.kind === 'flag' || status === 'absent'
                               ? r.description
-                              : status
+                              : status && uiSupport(r.key)
                                 ? `${UI_LABEL}: ${(uiSupport(r.key) as { surfaces: string }).surfaces}.`
                                 : (r.note ?? variantInfo?.description ?? r.description)}
                           </p>

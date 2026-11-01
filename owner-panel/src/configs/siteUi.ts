@@ -45,7 +45,8 @@ export const SITE_UI: Record<string, UiSupport> = {
   chat: { status: 'absent', why: 'No chat screen in this UI.' },
   club_membership: { status: 'absent', why: 'No club screens in this UI.' },
   push_notifications: { status: 'absent', why: 'This UI does not load a push SDK.' },
-  analytics: { status: 'absent', why: 'This UI does not load a Google tag.' }
+  analytics: { status: 'absent', why: 'This UI does not load a Google tag.' },
+  live_tv: { status: 'absent', why: 'This UI has no TV button on a sports match yet (the backend gate is ported).' }
 }
 
 /** Owner options that do nothing in this UI (their page does not exist here). Hidden, value kept. */
