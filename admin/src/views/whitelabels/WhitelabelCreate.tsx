@@ -15,7 +15,8 @@ import { api } from '@/lib/api/client'
 
 import ImageField, { POSTER, type PickedImage } from './ImageField'
 import PaletteEditor, { paletteError, type ThemeValue } from './PaletteEditor'
-import type { Whitelabel } from './types'
+import PlanPicker, { EMPTY_PLAN, planError } from './PlanPicker'
+import type { Plan, Whitelabel } from './types'
 
 const DOMAIN = /^(?=.{4,253}$)([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$/
 const SLUG = /^[a-z][a-z0-9-]{2,28}[a-z0-9]$/
@@ -40,7 +41,7 @@ const Section = ({ title, description, children }: { title: string; description?
 )
 
 /**
- * New whitelabel: brand, domains, colours and the company's login. Saving queues it for the setup
+ * New whitelabel: brand, domains, plan (products and features), colours and the company's login. Saving queues it for the setup
  * script, which builds the copy on this server (its own folder, database and processes); the
  * detail page shows the setup's progress.
  */
@@ -68,6 +69,7 @@ const WhitelabelCreate = () => {
   const [icon, setIcon] = useState<PickedImage | null>(null)
   const [poster, setPoster] = useState<PickedImage | null>(null)
   const [posterMobile, setPosterMobile] = useState<PickedImage | null>(null)
+  const [plan, setPlan] = useState<Plan>(EMPTY_PLAN)
   const [errors, setErrors] = useState<Record<string, string>>({})
 
   const set = (patch: Partial<typeof form>) => {
@@ -98,6 +100,9 @@ const WhitelabelCreate = () => {
     const colours = paletteError(theme.palette)
 
     if (colours) e.palette = colours
+    const products = planError(plan)
+
+    if (products) e.plan = products
     setErrors(e)
 
     return Object.keys(e).length === 0
@@ -115,6 +120,7 @@ const WhitelabelCreate = () => {
         apiDomain: form.apiDomain.trim().toLowerCase(),
         template: theme.template,
         palette: theme.palette,
+        plan,
         ...(logo ? { logo: { type: logo.type, data: logo.data } } : {}),
         ...(icon ? { icon: { type: icon.type, data: icon.data } } : {}),
         ...(poster ? { poster: { type: poster.type, data: poster.data } } : {}),
@@ -229,6 +235,17 @@ const WhitelabelCreate = () => {
           {field('adminDomain', 'Admin panel', { required: true, placeholder: 'admin.example.com' })}
           {field('apiDomain', 'API', { required: true, placeholder: 'api.example.com' })}
         </div>
+      </Section>
+
+      <Section title='Products & features' description='What the whitelabel runs. Choose at least one product; anything left out stays off and hidden on its site. You can change it later.'>
+        <PlanPicker
+          value={plan}
+          onChange={next => {
+            setPlan(next)
+            setErrors(e => ({ ...e, plan: '' }))
+          }}
+        />
+        {errors.plan && <span className='text-destructive text-sm'>{errors.plan}</span>}
       </Section>
 
       <Section title='Colours'>

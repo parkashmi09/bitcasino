@@ -5,6 +5,12 @@ export const PALETTE_KEYS = ['bg', 's1', 's2', 's3', 'border', 'text', 'muted', 
 export type PaletteKey = (typeof PALETTE_KEYS)[number]
 export type Palette = Record<PaletteKey, string>
 
+/** The products and features a whitelabel runs (backend common/whitelabelPlan). */
+export type Plan = {
+  products: { casino: boolean; sports: boolean; originals: boolean }
+  features: { branch_management: boolean; bonus: boolean; affiliate: boolean; vip: boolean; promotions: boolean }
+}
+
 export type WhitelabelStatus = 'queued' | 'creating' | 'live' | 'failed' | 'deleting' | 'deleted'
 
 export type Whitelabel = {
@@ -18,6 +24,9 @@ export type Whitelabel = {
   apiDomain: string
   template: string
   palette: Palette | null
+
+  /** null = made before plans: not limited. */
+  plan: Plan | null
   hasLogo: boolean
   hasIcon: boolean
   companyRoleName: string

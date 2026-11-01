@@ -25,8 +25,9 @@ import { TxnPasswordLabel } from '@/views/finance/StaffFloat'
 
 import ImageField, { POSTER, type PickedImage } from './ImageField'
 import PaletteEditor, { paletteError, type ThemeValue } from './PaletteEditor'
+import PlanPicker, { EMPTY_PLAN, planError } from './PlanPicker'
 import { TEMPLATE_PALETTES } from './palettes'
-import { PALETTE_KEYS, type Palette, type WhitelabelDetail as Detail, type WhitelabelTransfer } from './types'
+import { PALETTE_KEYS, type Palette, type Plan, type WhitelabelDetail as Detail, type WhitelabelTransfer } from './types'
 
 const BUSY = ['queued', 'creating', 'deleting']
 
@@ -269,6 +270,39 @@ const Poster = ({ wl, invalidate }: { wl: Detail; invalidate: string[][] }) => {
   )
 }
 
+const PlanCard = ({ wl, invalidate }: { wl: Detail; invalidate: string[][] }) => {
+  const [plan, setPlan] = useState<Plan>(() => wl.plan ?? EMPTY_PLAN)
+  const error = planError(plan)
+
+  const save = useApiMutation({
+    fn: () => api.put(`admin/whitelabels/${wl.id}/plan`, { plan }),
+    invalidate,
+    success: wl.status === 'live' ? 'Plan saved — the whitelabel follows it now' : 'Plan saved for the setup'
+  })
+
+  return (
+    <Card>
+      <CardHeader className='flex flex-row items-start justify-between gap-4'>
+        <div>
+          <CardTitle>Products & features</CardTitle>
+          <CardDescription>
+            {wl.plan
+              ? 'What this whitelabel runs. Anything left out is off and hidden on its site; open casino rounds still settle.'
+              : 'Made before plans: it currently runs everything. Saving a plan limits it to what you choose.'}
+          </CardDescription>
+        </div>
+        <Button size='sm' disabled={save.isPending || Boolean(error)} onClick={() => save.mutate()}>
+          {save.isPending && <Loader2Icon className='animate-spin' />} Save plan
+        </Button>
+      </CardHeader>
+      <CardContent className='grid gap-2'>
+        <PlanPicker value={plan} onChange={setPlan} />
+        {error && <span className='text-destructive text-sm'>{error}</span>}
+      </CardContent>
+    </Card>
+  )
+}
+
 const Colours = ({ wl, invalidate }: { wl: Detail; invalidate: string[][] }) => {
   const [theme, setTheme] = useState<ThemeValue>(() => shownTheme(wl))
   const error = paletteError(theme.palette)
@@ -475,6 +509,7 @@ const WhitelabelDetail = ({ id }: { id: string }) => {
       )}
 
       {!['creating', 'deleting'].includes(wl.status) && <BrandImages wl={wl} invalidate={invalidate} />}
+      {!['creating', 'deleting'].includes(wl.status) && <PlanCard key={`plan-${wl.updatedAt}`} wl={wl} invalidate={invalidate} />}
       {!['creating', 'deleting'].includes(wl.status) && <Poster wl={wl} invalidate={invalidate} />}
       {wl.status !== 'deleting' && <Colours key={wl.updatedAt} wl={wl} invalidate={invalidate} />}
     </div>

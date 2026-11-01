@@ -319,6 +319,21 @@ const CATALOGUE: FeatureEntry[] = [
     ]
   },
   {
+    // Google sign-in: a policy (always on, owner-only). Mirrors backend featureCatalogue.js.
+    // The one Google switch: it replaced rainbet's `google_login` flag (a saved flag off reads as this off).
+    key: 'google_signin',
+    label: 'Google sign-in',
+    category: 'business',
+    flag: null,
+    policy: true,
+    defaultVariant: 'on',
+    note: 'On: the "Sign in with Google" button shows on the login and sign-up screens (until the Google keys are set, a click says it is not available yet). Off: the button hides and Google sign-in / sign-up is refused.',
+    variants: [
+      { key: 'on', label: 'On', description: 'Players can sign in and sign up with Google (when the server has the Google keys). The default.' },
+      { key: 'off', label: 'Off', description: 'The Google button hides on login and sign-up, and Google sign-in is refused.' }
+    ]
+  },
+  {
     // Deposit email verification: a policy (always on, owner-only). Mirrors backend featureCatalogue.js.
     key: 'deposit_email_verification',
     label: 'Deposit: email must be verified first',
@@ -648,12 +663,6 @@ export const FLAG_GROUPS: FlagGroup[] = [
     keys: ['demo_login']
   },
   {
-    // rainbet: Google sign-in (user-service auth/google).
-    title: 'Sign-in',
-    description: 'ON: the player site shows "Sign in with Google" (until the Google keys are set, a click says it is not available yet). OFF: no button, and Google sign-in is refused.',
-    keys: ['google_login']
-  },
-  {
     // rainbet: the player site's language picker (frontend/src/lib/i18n.js).
     title: 'Languages',
     description: 'Languages players can pick on the site. OFF: the language leaves the picker, and a player using it moves to another allowed one. With all off the site stays in English with no picker.',
@@ -729,7 +738,6 @@ export const FLAG_LABELS: Record<string, string> = {
   f2pay_usdt: 'Crypto (USDT, TRC20)',
   idle_logout: 'Idle logout (signed out after N minutes with no activity)',
   demo_login: 'Demo login (agent Sign In: ₹1500, sports only, 30 minutes)',
-  google_login: 'Sign in with Google',
   lang_en: 'English',
   lang_ar: 'Arabic (العربية)',
   lang_es: 'Spanish (Español)',

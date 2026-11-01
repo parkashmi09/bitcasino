@@ -12,6 +12,7 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
+import { Switch } from '@/components/ui/switch'
 import { useLivePoll } from '@/lib/realtime-status'
 import { useSession } from '@/contexts/SessionContext'
 import { useApi, useApiMutation } from '@/hooks/use-api'
@@ -36,6 +37,90 @@ type SiteBranding = {
 
   /** Whose name and metadata players get: the Super Admin's (set here, after the owner's) or the platform's. */
   metaBy?: 'site' | 'platform'
+
+  /** The floating chat buttons: `allowed` by the owner panel, `enabled` and `link` from the settings below. */
+  whatsapp?: ChatButton
+  telegram?: ChatButton
+}
+
+type ChatButton = { allowed: boolean; enabled: boolean; link: string | null }
+type ChatKind = 'whatsapp' | 'telegram'
+
+const CHAT: Record<ChatKind, { name: string; placeholder: string; hint: string }> = {
+  whatsapp: { name: 'WhatsApp', placeholder: '919876543210 or https://wa.me/…', hint: 'A number with the country code, or a wa.me / WhatsApp channel or group link.' },
+  telegram: { name: 'Telegram', placeholder: '919876543210, @username or https://t.me/…', hint: 'A number with the country code, a @username, or a t.me link.' }
+}
+
+/** WhatsApp / Telegram buttons: on/off and the number or link, saved as operator settings (`<kind>_enabled`, `<kind>_link`). */
+const ChatButtons = ({ b, canEdit }: { b: SiteBranding; canEdit: boolean }) => {
+  const kinds = (['whatsapp', 'telegram'] as const).filter(k => b[k]?.allowed)
+  const q = useApi<{ key: string; stored: string | boolean | null }[]>('admin/site-config/settings')
+  const stored = (key: string) => q.data?.find(s => s.key === key)?.stored ?? null
+  const [draft, setDraft] = useState<Record<string, string | boolean>>({})
+  const value = (key: string, fallback: string | boolean) => draft[key] ?? stored(key) ?? fallback
+  const f = useFormErrors()
+
+  const save = useApiMutation({
+    // An emptied link goes back as null (the settings refuse an empty text).
+    fn: () => api.put('admin/site-config/settings', Object.fromEntries(Object.entries(draft).map(([k, v]) => [k, typeof v === 'string' && !v.trim() ? null : v]))),
+    invalidate: [['api', 'admin/site-config/settings'], ['api', 'admin/branding']],
+    success: 'Chat buttons saved — the site shows them within a minute',
+    onSuccess: () => setDraft({})
+  })
+
+  if (!kinds.length) return null
+
+  return (
+    <Card className='shadow-none'>
+      <CardHeader>
+        <CardTitle className='text-base'>Chat buttons</CardTitle>
+        <CardDescription>Floating buttons at the bottom right of the player site. On without a number or link: the button shows but does nothing.</CardDescription>
+      </CardHeader>
+      <CardContent>
+        {q.error && <ErrorState error={q.error} />}
+        <form
+          className='grid gap-4'
+          onSubmit={e => {
+            e.preventDefault()
+            save.mutate(undefined, { onError: f.fromServer })
+          }}
+        >
+          <FormErrorsProvider errors={f.errors} onClear={f.clear}>
+            {kinds.map(kind => (
+              <div key={kind} className='grid gap-2'>
+                <label className='flex items-center gap-3 text-sm font-medium'>
+                  <Switch
+                    checked={value(`${kind}_enabled`, false) === true}
+                    disabled={!canEdit}
+                    onCheckedChange={v => setDraft({ ...draft, [`${kind}_enabled`]: v })}
+                  />
+                  Show the {CHAT[kind].name} button
+                </label>
+                <TextField
+                  id={`chat-${kind}-link`}
+                  label={`${CHAT[kind].name} number or link`}
+                  name={`${kind}_link`}
+                  hint={CHAT[kind].hint}
+                  placeholder={CHAT[kind].placeholder}
+                  maxLength={300}
+                  disabled={!canEdit}
+                  value={String(value(`${kind}_link`, ''))}
+                  onChange={(e: { target: { value: string } }) => setDraft({ ...draft, [`${kind}_link`]: e.target.value })}
+                />
+              </div>
+            ))}
+          </FormErrorsProvider>
+          {canEdit && (
+            <div>
+              <Button type='submit' size='sm' disabled={save.isPending || !Object.keys(draft).length}>
+                Save
+              </Button>
+            </div>
+          )}
+        </form>
+      </CardContent>
+    </Card>
+  )
 }
 
 /** The backend answers `/api/v1/admin/branding/asset/<hash>.<ext>`; this admin reaches the gateway through its own proxy. */
@@ -249,6 +334,7 @@ const Branding = () => {
               {canEdit && <p className='text-muted-foreground text-xs'>PNG, WebP or SVG, up to 256 KB. Logo: wide, transparent (576×128 is sharp). Icon: square.</p>}
             </CardContent>
           </Card>
+          <ChatButtons b={b} canEdit={can('config:write')} />
         </div>
       )}
     </div>

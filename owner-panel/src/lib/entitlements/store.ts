@@ -229,6 +229,13 @@ export async function readForEdit(): Promise<EditableDoc> {
 
   for (const f of FEATURE_CATALOGUE) {
     if (f.key in stored) continue
+
+    // The one Google switch replaced the `google_login` flag: a saved flag off stays off.
+    if (f.key === 'google_signin' && doc.flags?.google_login === false) {
+      variants[f.key] = 'off'
+      continue
+    }
+
     const fromTemplate = template?.variants[f.key]
     const fallback = f.policy ? (f.defaultVariant ?? f.variants[0].key) : 'none'
 
