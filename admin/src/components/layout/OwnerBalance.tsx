@@ -15,7 +15,7 @@ import type { OwnerWallet } from '@/views/exchange/types'
 
 /**
  * Header me owner (super admin) ka Direct Users balance (`staff_balances`) — theme
- * toggle ke bagal me, sirf wallet icon + number. Agent System wala balance yahan nahi.
+ * toggle ke bagal me: default coin ki image (INR ka ₹ coin) + number; image na ho to wallet icon. Agent System wala balance yahan nahi.
  * Sirf owner ko dikhta hai (executive ko nahi). Add Balance ke baad wahi query
  * invalidate hoti hai, isliye yahan bhi turant naya balance aa jata hai.
  * Click karne pe us wallet ka ledger khulta hai.
@@ -27,6 +27,8 @@ const OwnerBalanceInner = () => {
   // The wallet is kept in INR; shown in the owner's default coin at the live rate.
   const money = useReportMoney()
   const inr = data?.directBalance
+  const [noArt, setNoArt] = useState(false)
+  const shown = inr === undefined ? null : money.convert(inr, 'INR')
 
   if (error && !data) return null
 
@@ -38,8 +40,18 @@ const OwnerBalanceInner = () => {
         className='bg-accent hover:bg-primary/16 flex h-8 items-center gap-2 rounded-full px-3 text-[13px] transition-colors duration-250'
         title={`Direct Users balance${inr !== undefined ? ` (${formatIn(Number(inr) || 0, 'INR')})` : ''} — click for the ledger`}
       >
-        <WalletIcon className='text-primary size-3.5 shrink-0' />
-        <span className='text-foreground font-semibold tabular-nums'>{inr === undefined ? '…' : money.format(inr, 'INR')}</span>
+        {noArt ? (
+          <WalletIcon className='text-primary size-3.5 shrink-0' />
+        ) : (
+          <img src={`/images/coins/${money.code}.png`} alt={money.code} className='size-4 shrink-0 rounded-full' onError={() => setNoArt(true)} />
+        )}
+        <span className='text-foreground font-semibold tabular-nums'>
+          {inr === undefined
+            ? '…'
+            : shown === null
+              ? money.format(inr, 'INR')
+              : shown.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+        </span>
       </button>
       <OwnerDirectLedger open={ledgerOpen} onOpenChange={setLedgerOpen} />
     </>
