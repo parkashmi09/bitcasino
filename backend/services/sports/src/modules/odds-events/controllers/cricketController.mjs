@@ -29,6 +29,16 @@ async function matchPrivateDataReply(gmid, sid) {
     return { status: 500, body: { success: false, error: error.message } };
   }
 }
+/* The all-data answer as { status, body }: the REST route and the board push (sockets/boardPush.mjs)
+   both send exactly this. */
+async function sportBoardReply(id) {
+  try {
+    return { status: 200, body: { success: true, data: await CricketService_default.fetchCricketData(id) } };
+  } catch (error) {
+    console.error("❌ Error:", error.message);
+    return { status: 500, body: { success: false, error: error.message } };
+  }
+}
 var CricketController = {
   // fetch sports data by ID it will show all the data related to games id , ex : if 4 is cricket then it will show all the data [matches or events]related to cricket
   fetchCricketData: async (req, res) => {
@@ -39,19 +49,8 @@ var CricketController = {
         error: "ID is required to fetch cricket data"
       });
     }
-    try {
-      const cricketData = await CricketService_default.fetchCricketData(id);
-      return res.status(200).json({
-        success: true,
-        data: cricketData
-      });
-    } catch (error) {
-      console.error("\u274C Error:", error.message);
-      return res.status(500).json({
-        success: false,
-        error: error.message
-      });
-    }
+    const { status, body } = await sportBoardReply(id);
+    return res.status(status).json(body);
   },
   getSportdetailsById: async (req, res) => {
     const { gmid, sid } = req.body;
@@ -849,4 +848,4 @@ var CricketController = {
 };
 var cricketController_default = CricketController;
 
-export { cricketController_default, matchPrivateDataReply };
+export { cricketController_default, matchPrivateDataReply, sportBoardReply };

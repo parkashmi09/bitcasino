@@ -19,7 +19,8 @@ function setupBetsSocket(io) {
 
   // A subscriber-mode ioredis client can't run other commands, so the relay
   // needs its own duplicate connection.
-  const balanceUpdatesSub = redisClient.duplicate();
+  // No command timeout on the subscriber (the core client has one): it waits for messages by design.
+  const balanceUpdatesSub = redisClient.duplicate({ commandTimeout: 0, maxRetriesPerRequest: null });
   balanceUpdatesSub.subscribe(BALANCE_UPDATES_CHANNEL).catch((err) => {
     console.error('❌ Failed to subscribe to balance updates channel:', err.message);
   });

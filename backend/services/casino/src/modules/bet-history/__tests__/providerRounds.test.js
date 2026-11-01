@@ -100,3 +100,28 @@ test('slotegrator rounds reach the ticker and top wins with their name, art and 
     ['Aviator', '1', '1.55', 'USDT', 'https://cdn/aviator.png'],
   ]);
 });
+
+test('the public feeds name only players whose Preferences allow it, and carry the studio', async () => {
+  const svc = new BetHistoryService({
+    models: {
+      Bets: stub([
+        { gid: 1, uid: 7, game: 'limbo', amount: '1', profit: '1', coin: 'usdt', created: ago(1_000) },
+        { gid: 2, uid: 8, game: 'dice', amount: '1', profit: '1', coin: 'usdt', created: ago(2_000) },
+      ]),
+      GameTransaction: stub([{ ...v2('bet_result', 'r1', 10, 25, ago(3_000)), user_id: 7 }]),
+      JsGames: stub([{ game_uid: 'aviator-uid', game_name: 'Aviator', vendor: 'Spribe' }]),
+      Users: stub([{ id: 7, name: 'alice' }, { id: 8, name: 'bob' }]),
+      // bob switched off Show Bets Publicly (or Hide Username on)
+      Userconfig: stub([{ uid: 8 }]),
+    },
+    logger: { warn() {} },
+  });
+  for (const rows of [await svc.liveFeed({ limit: 10 }), await svc.topWins({ limit: 10 })]) {
+    const by = Object.fromEntries(rows.map((r) => [r.reference, r]));
+    assert.equal(by['1'].player, 'alice');
+    assert.equal(by['2'].player, null);
+    assert.equal(by.r1.player, 'alice');
+    assert.equal(by.r1.provider, 'Spribe');
+    assert.ok(rows.every((r) => !('userId' in r)), 'the user id stays inside the service');
+  }
+});

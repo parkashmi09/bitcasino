@@ -25,8 +25,12 @@ module.exports = function publicRoutes(deps) {
   const ctrl = createControllers({ service: new BannersService(deps) });
   const router = Router();
 
+  // rainbet: no guard set req.staff here, so "Show hidden" in the admin listed nothing. A staff
+  // token now identifies staff; no token, or a player's, sees active banners only, as before.
+  const staff = deps.auth.authenticateStaff({ optional: true });
+
   /** @legacy GET /api/banners/getBannerAll */
-  router.get('/', validate(v.list), ctrl.list);
+  router.get('/', staff, validate(v.list), ctrl.list);
 
   /**
    * @legacy GET /api/banners/getAllImagesBinary
@@ -36,13 +40,13 @@ module.exports = function publicRoutes(deps) {
    * have this collision; flattening the paths creates it, and route-ordering
    * shadowing has already bitten this codebase twice.
    */
-  router.get('/binary', validate(v.list), ctrl.listWithImages);
+  router.get('/binary', staff, validate(v.list), ctrl.listWithImages);
 
   /** @legacy GET /api/banners/image/:filename */
-  router.get('/image/:filename', validate(v.image), ctrl.image);
+  router.get('/image/:filename', staff, validate(v.image), ctrl.image);
 
   /** @legacy GET /api/banners/banner/:type */
-  router.get('/:type', validate(v.byType), ctrl.byType);
+  router.get('/:type', staff, validate(v.byType), ctrl.byType);
 
   return router;
 };

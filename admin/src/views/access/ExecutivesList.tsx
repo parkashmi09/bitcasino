@@ -177,7 +177,7 @@ const RowActions = ({ row, kind }: { row: ExecutiveRow; kind: Kind }) => {
             </Button>
           }
           title={`Reset password for ${row.username}`}
-          description='At least 12 characters.'
+          description='At least 8 characters.'
           submitLabel='Reset'
           validate={() => ({ password: !password ? 'New password is required' : check.length(password, 'New password', { min: 8, max: 200 }) })}
           onSubmit={() => resetPw.mutateAsync()}

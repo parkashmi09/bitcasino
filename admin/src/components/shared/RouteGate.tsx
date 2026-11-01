@@ -29,6 +29,8 @@ const noticeReason = (pathname: string, reason: Refusal) => {
     return 'Promotions are managed by the site operator and are not part of agent accounts.'
   }
 
+  // Other Super-Admin-only screens are refused with the same reason; they are not about direct users.
+  if (reason === 'direct' && !DIRECT_ROUTES.some(r => isRoute(pathname, r))) return 'Only the Super Admin can open this screen.'
   if (reason === 'direct') return 'Direct users are managed by the Super Admin and are not part of your account.'
   if (reason === 'account') return 'This screen is only for marketing logins.'
   if (reason === 'plan') return 'This section is not enabled for this site. Contact the platform to add it.'

@@ -115,7 +115,7 @@ const BetsList = ({ channel }: { channel: Channel }) => {
   })
 
   const rows = useMemo(() => (loaded ? (data?.rows ?? []) : []), [data, loaded])
-  const totalPages = data?.pagination.totalPages ?? 1
+  const totalPages = Math.max(1, data?.pagination.totalPages ?? 1)
 
   // search: dikhne wale saare columns pe, case-insensitive
   const term = search.trim().toLowerCase()

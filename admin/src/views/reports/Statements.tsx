@@ -236,7 +236,19 @@ const StatementTab = () => {
             <StatCard label='Closing' value={<Money value={s.balance.closing} currency={s.currency} />} hint={<>live <Money value={s.balance.live} currency={s.currency} /></>} />
             <StatCard label='Total in' value={<Money value={s.balance.totalIn} currency={s.currency} />} hint={<span title='Credits the upline (agent or staff) transferred to this account in the period. Gateway and bank deposits are in the rows, not in this figure.'>credits from upline <Money value={s.balance.depositIn} /></span>} />
             <StatCard label='Total out' value={<Money value={s.balance.totalOut} currency={s.currency} />} hint={<>withdrawals <Money value={s.balance.withdrawOut} /></>} />
-            <StatCard label='Movement' value={<Money value={s.balance.movement} currency={s.currency} signed />} hint={<>unexplained <Money value={s.balance.unexplained} /></>} />
+            <StatCard label='Movement' value={<Money value={s.balance.movement} currency={s.currency} signed />} hint={
+                <>
+                  unexplained <Money value={s.balance.unexplained} />
+                  {/* The period can add up while the account as a whole does not (live ≠ ledger). */}
+                  {Number(s.balance.lifetimeUnreconciled ?? 0) !== 0 && (
+                    <>
+                      {' · all time '}
+                      <Money value={s.balance.lifetimeUnreconciled} />
+                    </>
+                  )}
+                </>
+              }
+            />
             <StatCard label='Open exposure' value={<Money value={s.balance.openExposure} />} />
             {s.balance.adminCredit !== undefined && (
               <StatCard

@@ -17,6 +17,10 @@ var init_redisClient = __esm({
       password: process.env.REDIS_PASSWORD || void 0,
       // undefined means no password
       db: process.env.REDIS_DB || 1,
+      // rainbet: bounded like packages/common cache.js — with Redis down a request fails fast instead of waiting forever.
+      maxRetriesPerRequest: 2,
+      commandTimeout: 2e3,
+      connectTimeout: 3e3,
       retryStrategy: (times) => {
         const delay = Math.min(times * 50, 2e3);
         return delay;

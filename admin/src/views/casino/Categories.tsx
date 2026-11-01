@@ -235,6 +235,9 @@ export const CategoriesTab = () => {
 
     if (at < 0 || at + by < 0 || at + by >= slugs.length) return
     ;[slugs[at], slugs[at + by]] = [slugs[at + by], slugs[at]]
+
+    // Pin the moved category: with nothing picked the editor follows list[0], which changes here.
+    setPicked(slugs[at + by])
     reorder.mutate(slugs)
   }
 

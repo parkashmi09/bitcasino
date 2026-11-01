@@ -460,6 +460,11 @@ class FirstDepositBonusService {
     };
   }
 
+  /** rainbet: the push prompt's "after first deposit" trigger asks this. */
+  hasDeposited(userId) {
+    return this.#hasDeposited(userId);
+  }
+
   /** Any credited deposit at all — what `eligible` means to the player. */
   async #hasDeposited(userId) {
     const ledger = await this.models.CreditsLedger.findOne({

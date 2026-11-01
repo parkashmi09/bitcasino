@@ -6,7 +6,7 @@ import { maxDateRange } from "./middleware/dateRangeMiddleware.mjs";
 import { requireOwner, requireBackoffice } from "./middleware/permissionMiddleware.mjs";
 import { MESSAGES } from "./constants/messages.mjs";
 import { verifyTransactionPasswordAs, transactionPasswordMiddleware_default } from "./middleware/transactionPasswordMiddleware.mjs";
-import { cricketController_default, matchPrivateDataReply } from "../modules/odds-events/controllers/cricketController.mjs";
+import { cricketController_default, matchPrivateDataReply, sportBoardReply } from "../modules/odds-events/controllers/cricketController.mjs";
 import { virtualEventController_default } from "../modules/odds-events/controllers/virtualEventController.mjs";
 import { bettingConfigController_default } from "../modules/odds-events/controllers/bettingConfigController.mjs";
 import { StakeButtonValueController_default } from "../modules/odds-events/controllers/StakeButtonValueController.mjs";
@@ -18,6 +18,7 @@ import { userExposureController_default } from "../modules/bets/controllers/user
 import { setIO, BALANCE_UPDATES_CHANNEL } from "./utils/socketUtils.mjs";
 import { setupSocketHandlers } from "../modules/bets/sockets/socketHandler.mjs";
 import { setupOddsPush } from "../modules/odds-events/sockets/oddsPush.mjs";
+import { setupBoardPush } from "../modules/odds-events/sockets/boardPush.mjs";
 import { UserStatementController_default } from "../modules/statement/controllers/UserStatementController.mjs";
 import { controller_default } from "../modules/settlement/controllers/manualSettleController.mjs";
 import { getMarketLockChildren, toggleMarketLock, bulkToggleMarketLock } from "../modules/sports-config/controllers/betLockController.mjs";
@@ -52,6 +53,8 @@ export {
   db_default as sequelize,
   setIO,
   setupOddsPush,
+  setupBoardPush,
+  sportBoardReply,
   setupSocketHandlers,
   toggleMarketLock,
   transactionPasswordMiddleware_default as verifyTransactionPassword,

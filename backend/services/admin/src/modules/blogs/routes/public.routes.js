@@ -31,7 +31,12 @@ module.exports = function publicRoutes(deps) {
    * route, not `router.use`: this router is mounted on the same path as the staff routes, and a
    * `use` here would also catch staff writes that fall through to them.
    */
-  const entitled = entitlements.requireFeature('blog');
+  const entitled = [
+    entitlements.requireFeature('blog'),
+    // rainbet: no guard set req.staff here, so the admin never saw drafts. A staff token now
+    // identifies staff; no token, or a player's, reads published posts only, as before.
+    deps.auth.authenticateStaff({ optional: true }),
+  ];
 
   /** @legacy GET /all */
   router.get('/', entitled, validate(v.list), ctrl.list);

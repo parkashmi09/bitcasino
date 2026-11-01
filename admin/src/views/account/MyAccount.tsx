@@ -173,7 +173,7 @@ const MyAccount = () => {
             <CardTitle className='flex items-center gap-2 text-base'>
               <KeyRoundIcon /> Change password
             </CardTitle>
-            <CardDescription>At least 12 characters.</CardDescription>
+            <CardDescription>At least 8 characters.</CardDescription>
           </CardHeader>
           <CardContent>
             <form

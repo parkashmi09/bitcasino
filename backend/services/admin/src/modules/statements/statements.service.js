@@ -59,7 +59,8 @@ const HOUSE_ADJUST_REASONS = Object.freeze(['ADMIN_CREDIT', 'ADMIN_DEBIT']);
 const ROUND_TABLE_REFS = Object.freeze(['GIS', 'INHOUSE', 'SEAMLESS']);
 
 /** Wallet-ledger bonuses and tips (the balance sheet's 6d), by the side they move. */
-const OTHER_CREDIT_REASONS = Object.freeze(['BONUS', 'TIP_RECEIVED']);
+// rainbet: reward claims that credit under their own reason (race, rakeback, raffle, reload) are bonuses too.
+const OTHER_CREDIT_REASONS = Object.freeze(['BONUS', 'TIP_RECEIVED', 'race_reward_claim', 'rakeback_claim', 'raffle_prize', 'reload_bonus']);
 const OTHER_DEBIT_REASONS = Object.freeze(['BONUS_REVERSAL', 'TIP_SENT']);
 
 /** `depositRails.js` rail → statement label. */

@@ -55,12 +55,21 @@ function createRewardMoney(deps = {}) {
     return code;
   }
 
+  // rainbet: one request reads the same rate once per row (race rewards, turnover, affiliate stats);
+  // kept 2 s so those collapse to one query, short enough that a payout never uses a rate an admin
+  // has just changed. A missing or failed one is asked again next time.
+  const RATE_TTL_MS = 2_000;
+  const rateMemo = new Map();
   async function rateOf(code) {
     if (USD_CODES.includes(code)) return '1';
     if (!rates) return null;
+    const hit = rateMemo.get(code);
+    if (hit && Date.now() - hit.at < RATE_TTL_MS) return hit.rate;
     try {
       const row = await rates.getRate(code);
-      return row?.usdRate && money.gt(row.usdRate, '0') ? row.usdRate : null;
+      const rate = row?.usdRate && money.gt(row.usdRate, '0') ? row.usdRate : null;
+      if (rate) rateMemo.set(code, { rate, at: Date.now() });
+      return rate;
     } catch {
       return null;
     }
