@@ -373,7 +373,9 @@ export function saveEntitlements(
     let branding = current.branding
 
     if (input.branding !== undefined) {
-      const problem = brandingProblem(input.branding)
+      // Judge the merged result, so a save that sends only `{ mark }` is not refused for a site name it didn't touch.
+      const partial = input.branding && typeof input.branding === 'object' && !Array.isArray(input.branding)
+      const problem = brandingProblem(partial ? { ...current.branding, ...input.branding } : input.branding)
 
       if (problem) throw new HttpError(422, 'VALIDATION_ERROR', problem)
       branding = cleanBranding({ ...current.branding, ...input.branding })
