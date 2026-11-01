@@ -346,14 +346,25 @@ export const navItems: NavItem[] = [
   },
 
   // Whitelabel copies of this site (admin modules/whitelabels), Super Admin only — never on a copy itself.
+  // On a copy: the company's own revenue-share statement (admin modules/whitelabel-statement).
   ...(siteConfig.whitelabel
-    ? []
+    ? [
+        {
+          groupLabel: 'Whitelabel',
+          groupIcon: 'Globe',
+          collapsible: true,
+          items: [{ icon: 'ChartColumn', label: 'Revenue share', href: '/revenue-share', permission: 'reports:read', direct: true } as MenuItem]
+        } as NavItem
+      ]
     : [
         {
           groupLabel: 'Whitelabel',
           groupIcon: 'Globe',
           collapsible: true,
-          items: [{ icon: 'Globe', label: 'Whitelabels', href: '/whitelabels', activePath: '/whitelabels', permission: 'reports:read', direct: true, policy: 'whitelabel' } as MenuItem]
+          items: [
+            { icon: 'Globe', label: 'Whitelabels', href: '/whitelabels', activePath: '/whitelabels', permission: 'reports:read', direct: true, policy: 'whitelabel' } as MenuItem,
+            { icon: 'ChartColumn', label: 'Revenue share report', href: '/whitelabels/report', permission: 'reports:read', direct: true, policy: 'whitelabel' } as MenuItem
+          ]
         } as NavItem
       ]),
   {

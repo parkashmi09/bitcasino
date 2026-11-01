@@ -1,6 +1,6 @@
 'use strict';
 
-const { z, featureCatalogue } = require('@ibitplay/common');
+const { z, featureCatalogue, whitelabelPlan } = require('@ibitplay/common');
 const { PALETTE_KEYS } = require('../whitelabel-link/whitelabelLink.service');
 // The copy validates the same shape (its link PUT /plan), so the two sides cannot drift.
 const { planSchema } = require('../whitelabel-link/routes/public.routes');
@@ -39,6 +39,20 @@ const image = z.object({ type: z.enum(['image/png', 'image/webp', 'image/svg+xml
 // A poster is a photo: PNG, JPEG or WebP, at most 600 KB (as base64 it stays inside the 1 MB body).
 const poster = z.object({ type: z.enum(['image/png', 'image/jpeg', 'image/webp']), data: z.string().max(820_000) }).strict();
 
+/** A percentage: 0–100, at most 2 decimals, as a string (no float rounding on the way). */
+const percent = z
+  .string()
+  .trim()
+  .regex(/^\d{1,3}(\.\d{1,2})?$/, 'a percentage with at most 2 decimals')
+  .refine((v) => Number(v) <= 100, 'at most 100%');
+const fee = z.object({ deposit: percent, withdraw: percent }).strict();
+const terms = z
+  .object({
+    fees: z.object(Object.fromEntries(whitelabelPlan.GATEWAYS.map((g) => [g, fee]))).strict(),
+    revenueShare: z.object(Object.fromEntries(whitelabelPlan.PRODUCTS.map((p) => [p, percent]))).strict(),
+  })
+  .strict();
+
 const amount = z
   .string()
   .trim()
@@ -58,6 +72,8 @@ const create = {
       template: z.enum(featureCatalogue.TEMPLATE_KEYS),
       // Required: the Super Admin chooses the products (at least one) and features.
       plan: planSchema(),
+      // Gateway charges and GGR revenue share: the parent's own record, never sent to the copy.
+      terms,
       palette: palette.nullable().optional(),
       // base64 of the file; checked byte by byte in the service (branding.rules imageProblem).
       logo: image.optional(),
@@ -74,7 +90,16 @@ const create = {
     .strict(),
 };
 
+/** A statement period: ISO dates, `to` exclusive, at most two years. */
+const isoDate = z.string().datetime({ offset: true }).or(z.string().date());
+const period = z
+  .object({ from: isoDate, to: isoDate })
+  .strict()
+  .refine((q) => Date.parse(q.from) < Date.parse(q.to) && Date.parse(q.to) - Date.parse(q.from) <= 731 * 86_400_000, 'from must be before to, at most 731 days');
+
 module.exports = {
+  report: { ...params, query: period },
+  reportAll: { query: period },
   list: {
     query: z
       .object({
@@ -95,6 +120,7 @@ module.exports = {
   maintenance: { ...params, body: z.object({ on: z.boolean() }).strict() },
   palette: { ...params, body: z.object({ palette: palette.nullable() }).strict() },
   plan: { ...params, body: z.object({ plan: planSchema() }).strict() },
+  terms: { ...params, body: z.object({ terms }).strict() },
   poster: {
     ...params,
     body: z

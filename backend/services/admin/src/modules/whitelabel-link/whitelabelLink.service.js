@@ -3,7 +3,7 @@
 const crypto = require('crypto');
 const { QueryTypes, literal } = require('sequelize');
 const { money, AppError, whitelabelPlan } = require('@ibitplay/common');
-const { hashPassword } = require('@ibitplay/auth');
+const { hashPassword, createSecretBox } = require('@ibitplay/auth');
 
 const { addWhitelabelTopup, readOwnerDirectBalance } = require('../lords/ownerWallet');
 const { PASSWORD_ROUNDS } = require('../staff/staff.constants');
@@ -116,6 +116,65 @@ class WhitelabelLinkService {
       }
     });
     return this.plan();
+  }
+
+  /**
+   * The hub link to the parent (user-service and casino-service modules/wl-hub): the parent's
+   * user-service and casino-service URLs on this machine, this copy's API key and its secret, sealed with this site's secret box. Read by
+   * user-service in place of PARENT_HUB_* env, so a new key needs no restart (within 30 s).
+   */
+  async setHub({ url, casinoUrl, key, secret }) {
+    const hub = { url, casinoUrl: casinoUrl ?? null, key, secret: createSecretBox({ config: this.config, logger: this.logger }).seal(secret) };
+    await this.#query(
+      `INSERT INTO whitelabel_settings (id, hub, updated_at) VALUES (1, CAST(:hub AS JSONB), NOW())
+       ON CONFLICT (id) DO UPDATE SET hub = EXCLUDED.hub, updated_at = NOW()
+       RETURNING id`,
+      { hub: JSON.stringify(hub) }
+    );
+    return { linked: true, key };
+  }
+
+  /**
+   * This copy's sports GGR for `[from, to)`, for the parent's revenue-share statement
+   * (common/whitelabelReport): its own P&L (reports/pnlStats — the dashboard's figure, the house
+   * side of the sports ledger) as the company sees it, in the site's reporting coin. Sports bets
+   * never pass through the parent, so this is the only place it can come from.
+   */
+  async sportsGgr({ from, to }) {
+    const { PnlStatsService } = require('../reports/pnlStats.service');
+    const company = await this.#company();
+    const staff = { id: company.id, level: 1, permissions: ['*'] };
+    const days = (Date.parse(to) - Date.parse(from)) / 86_400_000;
+    const { kpis, range } = await new PnlStatsService({ models: this.models, db: this.db, logger: this.logger, config: this.config }).summary({
+      staff,
+      from,
+      to,
+      granularity: days > 366 ? 'month' : 'day',
+    });
+    // The statement is in INR: a site reporting in another coin is carried over at its own rates.
+    const inr = await this.#toInr(range?.currency ?? 'INR');
+    if (!inr) return { currency: range?.currency ?? 'USD', ggr: kpis.sportsGgr, staked: kpis.sportsStaked ?? null, betCount: kpis.sportsBets ?? null, casinoGgr: null, originalsGgr: null };
+    return {
+      currency: 'INR',
+      ggr: inr(kpis.sportsGgr),
+      staked: kpis.sportsStaked == null ? null : inr(kpis.sportsStaked),
+      betCount: kpis.sportsBets ?? null,
+      // The copy's own casino figures, beside the parent's record (they should agree).
+      casinoGgr: kpis.thirdPartyGgr == null ? null : inr(kpis.thirdPartyGgr),
+      originalsGgr: kpis.originalsGgr == null ? null : inr(kpis.originalsGgr),
+    };
+  }
+
+  /** `amount in coin → INR` at this site's rates (usd_rate = USD per unit); null when a rate is missing. */
+  async #toInr(coin) {
+    const code = String(coin).toUpperCase();
+    if (code === 'INR') return (v) => money.fromStored(v);
+    const rows = await this.#query(`SELECT UPPER(currency) AS currency, usd_rate FROM exchangerate WHERE UPPER(currency) IN ('INR', :code)`, { code });
+    const rate = Object.fromEntries(rows.map((r) => [r.currency, r.usd_rate == null ? null : money.fromStored(r.usd_rate)]));
+    // USD is the P&L's own fallback unit: one USD per USD.
+    if (code === 'USD') rate.USD = '1';
+    if (!rate[code] || !rate.INR || money.isZero(rate.INR)) return null;
+    return (v) => money.toDecimalString(money.divide(money.toDecimalString(money.multiply(money.fromStored(v), rate[code])), rate.INR));
   }
 
   async setMaintenance(on) {

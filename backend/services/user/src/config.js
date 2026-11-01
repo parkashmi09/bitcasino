@@ -126,6 +126,9 @@ const config = loadEnv(
     // Optional override of CCPayment's live coin list, as JSON: {"USDT":1280,"BTC":1155}. Unset = live list.
     CCPAYMENT_COIN_IDS: coercers.optionalStr(),
     CCPAYMENT_RETURN_URL: coercers.optionalStr(),
+    // Crypto withdrawals sent through CCPayment: true = the site pays the network fee; false (default,
+    // CCPayment's own default) = it comes out of the amount the player receives.
+    CCPAYMENT_MERCHANT_PAYS_NETWORK_FEE: coercers.bool(false),
 
     // F2Pay — deposits (cashier page). Only its keys live here; its methods are the
     // `payment_methods` table (owner panel + Super Admin). Every request is RSA-SHA256 signed with our

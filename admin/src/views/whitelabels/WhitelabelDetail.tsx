@@ -26,8 +26,10 @@ import { TxnPasswordLabel } from '@/views/finance/StaffFloat'
 import ImageField, { POSTER, type PickedImage } from './ImageField'
 import PaletteEditor, { paletteError, type ThemeValue } from './PaletteEditor'
 import PlanPicker, { EMPTY_PLAN, planError } from './PlanPicker'
+import { CsvButton, MonthPicker, PdfButton, StatementView, monthPeriod, thisMonth, type Statement } from './RevenueShare'
+import TermsEditor, { termsError } from './TermsEditor'
 import { TEMPLATE_PALETTES } from './palettes'
-import { PALETTE_KEYS, type Palette, type Plan, type WhitelabelDetail as Detail, type WhitelabelTransfer } from './types'
+import { PALETTE_KEYS, type GatewayOrder, type Palette, type Plan, type Terms, type WhitelabelDetail as Detail, type WhitelabelTransfer } from './types'
 
 const BUSY = ['queued', 'creating', 'deleting']
 
@@ -303,6 +305,144 @@ const PlanCard = ({ wl, invalidate }: { wl: Detail; invalidate: string[][] }) =>
   )
 }
 
+const TermsCard = ({ wl, invalidate }: { wl: Detail; invalidate: string[][] }) => {
+  const [terms, setTerms] = useState<Terms>(() => wl.terms)
+  const error = termsError(terms)
+
+  const save = useApiMutation({
+    fn: () => api.put(`admin/whitelabels/${wl.id}/terms`, { terms }),
+    invalidate,
+    success: 'Charges and revenue share saved'
+  })
+
+  return (
+    <Card>
+      <CardHeader className='flex flex-row items-start justify-between gap-4'>
+        <div>
+          <CardTitle>Charges & revenue share</CardTitle>
+          <CardDescription>Yours only. A change applies to new gateway payments; earlier ones keep the rate they were charged.</CardDescription>
+        </div>
+        <Button size='sm' disabled={save.isPending || Boolean(error)} onClick={() => save.mutate()}>
+          {save.isPending && <Loader2Icon className='animate-spin' />} Save rates
+        </Button>
+      </CardHeader>
+      <CardContent className='grid gap-2'>
+        <TermsEditor value={terms} onChange={setTerms} plan={wl.plan ?? EMPTY_PLAN} />
+        {error && <span className='text-destructive text-sm'>{error}</span>}
+      </CardContent>
+    </Card>
+  )
+}
+
+/**
+ * Gateway payments the whitelabel runs on this site's gateway account: its API key (issue / rotate),
+ * the totals with the charges earned, and the latest orders with whether the whitelabel has heard
+ * each outcome (the job keeps sending until it has).
+ */
+const GatewayPayments = ({ wl, invalidate }: { wl: Detail; invalidate: string[][] }) => {
+  const issue = useApiMutation({
+    fn: () => api.post<{ hubKey: string }>(`admin/whitelabels/${wl.id}/hub-key`),
+    invalidate,
+    success: r => `New API key ${r.hubKey} — the whitelabel uses it within a minute`
+  })
+
+  const deposits = wl.gateway.totals.filter(t => t.flow === 'deposit' && t.status === 'success')
+  const payouts = wl.gateway.totals.filter(t => t.flow === 'payout' && t.status === 'success')
+
+  const columns: Column<GatewayOrder>[] = [
+    { key: 'created', header: 'When', cell: r => <DateTime value={r.createdAt} /> },
+    { key: 'flow', header: 'Type', cell: r => (r.flow === 'deposit' ? 'Deposit' : 'Withdrawal') },
+    { key: 'provider', header: 'Gateway', cell: r => r.provider },
+    { key: 'amount', header: 'Amount', align: 'right', cell: r => `${Number(r.amount).toLocaleString('en-IN')} ${r.currency}` },
+    { key: 'charge', header: 'Charge', align: 'right', cell: r => `${Number(r.chargePct)}%` },
+    {
+      key: 'status',
+      header: 'Status',
+      cell: r => (
+        <div className='flex items-center gap-1.5'>
+          <StatusBadge value={r.status} />
+          {r.status !== 'pending' && !r.delivered && (
+            <Badge variant='outline' title={r.deliveryError ?? 'Waiting for the whitelabel to confirm'}>
+              not yet told
+            </Badge>
+          )}
+        </div>
+      )
+    },
+    { key: 'ref', header: 'Reference', cell: r => <span className='text-muted-foreground font-mono text-xs'>{r.reference}</span> }
+  ]
+
+  return (
+    <Card>
+      <CardHeader className='flex flex-row items-start justify-between gap-4'>
+        <div>
+          <CardTitle>Gateway payments</CardTitle>
+          <CardDescription>
+            Run on your gateway account. API key: <span className='font-mono'>{wl.hubKey ?? 'not issued'}</span>
+            {wl.gateway.undelivered > 0 && ` · ${wl.gateway.undelivered} outcome(s) waiting for the whitelabel`}
+          </CardDescription>
+        </div>
+        <Button size='sm' variant='outline' disabled={issue.isPending} onClick={() => issue.mutate()}>
+          {issue.isPending ? <Loader2Icon className='animate-spin' /> : <KeyRoundIcon />} {wl.hubKey ? 'New API key' : 'Issue API key'}
+        </Button>
+      </CardHeader>
+      <CardContent className='grid gap-4'>
+        <div className='grid gap-2 text-sm sm:grid-cols-2'>
+          <div>
+            <span className='text-muted-foreground'>Deposits paid: </span>
+            {deposits.length
+              ? deposits.map(t => `${Number(t.amount).toLocaleString('en-IN')} ${t.currency} (${t.count}), charges ${Number(t.charges).toLocaleString('en-IN')}`).join(' · ')
+              : 'none'}
+          </div>
+          <div>
+            <span className='text-muted-foreground'>Withdrawals paid: </span>
+            {payouts.length
+              ? payouts.map(t => `${Number(t.amount).toLocaleString('en-IN')} ${t.currency} (${t.count}), charges ${Number(t.charges).toLocaleString('en-IN')}`).join(' · ')
+              : 'none'}
+          </div>
+        </div>
+        <DataTable columns={columns} rows={wl.gateway.orders} rowKey={r => r.id} loading={false} emptyMessage='No gateway payments yet.' />
+      </CardContent>
+    </Card>
+  )
+}
+
+/** This whitelabel's revenue-share statement for a month (reported, not collected). */
+const RevenueShareCard = ({ wl }: { wl: Detail }) => {
+  const [month, setMonth] = useState(thisMonth)
+  const period = monthPeriod(month)
+  const report = useApi<Statement>(`admin/whitelabels/${wl.id}/report`, period)
+
+  return (
+    <Card>
+      <CardHeader className='flex flex-row items-start justify-between gap-4'>
+        <div>
+          <CardTitle>Revenue share</CardTitle>
+          <CardDescription>GGR by product × your share for {wl.name}. The whitelabel sees the same statement.</CardDescription>
+        </div>
+        <div className='flex items-center gap-2'>
+          <MonthPicker value={month} onChange={setMonth} />
+          <PdfButton
+            title={`Revenue share — ${wl.name} — ${month}`}
+            fileName={`${wl.slug}-revenue-share-${month}`}
+            get={() => (report.data ? { statements: [{ ...report.data, name: wl.name, slug: wl.slug }] } : null)}
+          />
+          <CsvButton path={`admin/whitelabels/${wl.id}/report.csv`} period={period} fileName={`${wl.slug}-revenue-share-${month}.csv`} />
+        </div>
+      </CardHeader>
+      <CardContent>
+        {report.isLoading ? (
+          <p className='text-muted-foreground text-sm'>Loading…</p>
+        ) : report.data ? (
+          <StatementView statement={report.data} who='parent' />
+        ) : (
+          <p className='text-destructive text-sm'>{String((report.error as Error)?.message ?? 'Could not load the statement')}</p>
+        )}
+      </CardContent>
+    </Card>
+  )
+}
+
 const Colours = ({ wl, invalidate }: { wl: Detail; invalidate: string[][] }) => {
   const [theme, setTheme] = useState<ThemeValue>(() => shownTheme(wl))
   const error = paletteError(theme.palette)
@@ -510,6 +650,9 @@ const WhitelabelDetail = ({ id }: { id: string }) => {
 
       {!['creating', 'deleting'].includes(wl.status) && <BrandImages wl={wl} invalidate={invalidate} />}
       {!['creating', 'deleting'].includes(wl.status) && <PlanCard key={`plan-${wl.updatedAt}`} wl={wl} invalidate={invalidate} />}
+      {!['queued', 'creating'].includes(wl.status) && <RevenueShareCard wl={wl} />}
+      {wl.status !== 'deleting' && <GatewayPayments wl={wl} invalidate={invalidate} />}
+      {wl.status !== 'deleting' && <TermsCard key={`terms-${wl.updatedAt}`} wl={wl} invalidate={invalidate} />}
       {!['creating', 'deleting'].includes(wl.status) && <Poster wl={wl} invalidate={invalidate} />}
       {wl.status !== 'deleting' && <Colours key={wl.updatedAt} wl={wl} invalidate={invalidate} />}
     </div>

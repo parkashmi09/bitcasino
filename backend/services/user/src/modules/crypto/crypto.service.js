@@ -13,9 +13,13 @@ const {
 } = require('./crypto.constants');
 const { WalletService } = require('../wallet/wallet.service');
 const { createHttpClient } = require('../psp/providers/http');
+const { CryptoWithdrawService } = require('../crypto-withdraw/cryptoWithdraw.service');
 const { REASON } = require('../wallet/wallet.constants');
 const { FirstDepositBonusService } = require('../bonus/firstDepositBonus.service');
 const { notifyPlayer } = require('../notifications/notifyPlayer');
+const { withdrawalOutcome } = require('./ccpaymentApi');
+const hubOrders = require('../wl-hub/hubOrders');
+const { deliver } = require('../wl-hub/delivery');
 
 /**
  * Crypto arriving.
@@ -27,6 +31,7 @@ const { notifyPlayer } = require('../notifications/notifyPlayer');
 class CryptoService {
   constructor(deps) {
     const { models, db, logger, config, http } = deps;
+    this.deps = deps;
     this.models = models;
     this.db = db;
     this.logger = logger;
@@ -87,6 +92,8 @@ class CryptoService {
     const body = this.#parse(rawBody);
     const { type, msg } = body ?? {};
 
+    if (type === 'ApiWithdrawal') return this.#withdrawalWebhook(msg);
+
     if (type !== 'ApiDeposit') {
       // Acknowledged, not acted on. An unknown event type is the provider
       // telling us about something we do not handle, not an error.
@@ -99,6 +106,11 @@ class CryptoService {
 
     // Not ours (another app on the same CCPayment account): acknowledged, and CCPayment is not asked.
     const known = await this.models.Ccdeposit.findOne({ where: { orderid: orderId }, attributes: ['id'], raw: true });
+    // A whitelabel copy's deposit order, opened on this site's account (modules/wl-hub).
+    if (!known && !this.config.WHITELABEL_MODE) {
+      const wlOrder = await hubOrders.forCallback(this.db, 'ccpayment', 'deposit', orderId);
+      if (wlOrder) return this.#whitelabelDeposit(orderId, wlOrder);
+    }
     if (!known) {
       this.logger?.warn({ orderId }, 'CCPayment webhook for an unknown order');
       return { handled: false, reason: 'unknown order' };
@@ -158,6 +170,59 @@ class CryptoService {
       });
     }
     return { ...outcome, credited: outcome.credits.length > 0 };
+  }
+
+  /**
+   * `ApiWithdrawal`: one of OUR orders (a crypto withdrawal sent through CCPayment, or — on the
+   * parent — a whitelabel's). The webhook only says which; the outcome is read back from
+   * CCPayment (`getAppWithdrawRecord`) before anything moves, as with deposits.
+   */
+  async #withdrawalWebhook(msg) {
+    const orderId = msg?.orderId == null ? '' : String(msg.orderId);
+    if (!orderId) return { handled: false, reason: 'no order id' };
+    const own = await this.models.Withdrawals.findOne({ where: { gateway_order_id: orderId }, attributes: ['id'], raw: true });
+    const wlOrder = own || this.config.WHITELABEL_MODE ? null : await hubOrders.forCallback(this.db, 'ccpayment', 'payout', orderId);
+    if (!own && !wlOrder) {
+      this.logger?.warn({ orderId }, 'CCPayment withdrawal webhook for an unknown order');
+      return { handled: false, reason: 'unknown order' };
+    }
+    const data = await this.#ccpayment('/ccpayment/v2/getAppWithdrawRecord', { orderId });
+    const outcome = withdrawalOutcome(data?.data?.record?.status);
+    const txId = data?.data?.record?.txId ?? null;
+    if (!outcome) return { handled: true, orderId, pending: true };
+
+    if (own) {
+      const applied = await new CryptoWithdrawService({ ...this.deps, http: this.http }).applyGatewayOutcome({ orderId, outcome, txId });
+      return { handled: true, orderId, ...applied };
+    }
+    await hubOrders.settle(this.db, wlOrder.wl.id, outcome, { utr: txId });
+    await deliver({ db: this.db, config: this.config, logger: this.logger }, wlOrder.wl.id).catch(() => null);
+    return { handled: true, orderId, whitelabel: wlOrder.wl.whitelabelId, outcome };
+  }
+
+  /**
+   * `ApiDeposit` for a whitelabel's order: what ARRIVED (CCPayment's settled, not-risky payments,
+   * read back with `getAppOrderInfo`) is recorded on the order and pushed to the copy, which
+   * credits its player and company. A later payment on the same order raises the total and is
+   * pushed again; the copy credits only the difference.
+   */
+  async #whitelabelDeposit(orderId, wlOrder) {
+    const { data: order } = await this.#ccpayment('/ccpayment/v2/getAppOrderInfo', { orderId });
+    const payments = Array.isArray(order?.paidList) ? order.paidList : [];
+    const settled = payments.filter((p) => p.status === CCPAYMENT_STATUS.SUCCESS && p.recordId && p.isFlaggedAsRisky !== true);
+    let received = 0n;
+    for (const p of settled) received += money.toMinor(String(p.amount ?? '0').trim().replace(/(\.\d{8})\d+$/, '$1'));
+    const allFailed = payments.length > 0 && payments.every((p) => p.status === CCPAYMENT_STATUS.FAILED);
+
+    if (received > 0n) {
+      await hubOrders.receive(this.db, wlOrder.wl.id, money.toDecimalString(received));
+    } else if (allFailed) {
+      await hubOrders.settle(this.db, wlOrder.wl.id, 'failed');
+    } else {
+      return { handled: true, orderId, pending: true };
+    }
+    await deliver({ db: this.db, config: this.config, logger: this.logger }, wlOrder.wl.id).catch(() => null);
+    return { handled: true, orderId, whitelabel: wlOrder.wl.whitelabelId, received: money.toDecimalString(received) };
   }
 
   async #applyDeposit({ orderId, currency, paid }, transaction) {

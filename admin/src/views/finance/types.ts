@@ -119,7 +119,8 @@ export type CryptoWithdrawalRow = {
   decidedAt?: string | null
 }
 
-export const CRYPTO_WITHDRAW_STATUSES = ['In Queue', 'Approved', 'Sent', 'Rejected'] as const
+// `Sending` = handed to CCPayment; its webhook moves it to Sent or Rejected (refunded).
+export const CRYPTO_WITHDRAW_STATUSES = ['In Queue', 'Approved', 'Sending', 'Sent', 'Rejected'] as const
 
 export type CryptoWithdrawSummary = { status: string; coin: string; count: number; total: string }
 

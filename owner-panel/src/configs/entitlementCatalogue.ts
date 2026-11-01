@@ -588,6 +588,17 @@ const CATALOGUE: FeatureEntry[] = [
       { key: 'gtag', label: 'Google Analytics 4 (gtag.js)', description: 'Loads gtag.js directly with one GA4 measurement id — no container.' },
       { key: 'none', label: 'Off', description: 'No analytics tag is loaded.' }
     ]
+  },
+  {
+    key: 'live_tv',
+    label: 'Live TV (sports)',
+    category: 'engagement',
+    flag: null,
+    variants: [
+      { key: 'gated', label: 'Minimum balance and activity', description: 'Only players with at least the minimum balance AND a bet within the set hours; others are told to recharge or play.' },
+      { key: 'open', label: 'Every signed-in player', description: 'The stream for every signed-in player, whatever the balance (as before).' },
+      { key: 'none', label: 'Off', description: 'No live TV on any match.' }
+    ]
   }
 ]
 

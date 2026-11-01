@@ -1,7 +1,7 @@
 'use strict';
 
 const { Router } = require('express');
-const { validate, noBody, response, asyncHandler, createActivityRecorder, sitePolicy } = require('@ibitplay/common');
+const { validate, noBody, response, asyncHandler, createActivityRecorder, sitePolicy, whitelabelReport } = require('@ibitplay/common');
 const { PERMISSIONS, canIssueFunds } = require('@ibitplay/auth');
 
 const v = require('../whitelabels.validators');
@@ -23,7 +23,11 @@ const { WhitelabelsService } = require('../whitelabels.service');
  *   PUT    /admin/whitelabels/:id/company-password   { password } (company signed out)
  *   PUT    /admin/whitelabels/:id/maintenance        { on }  off = maintenance on the copy
  *   PUT    /admin/whitelabels/:id/palette            { palette | null }
- *   PUT    /admin/whitelabels/:id/plan               { plan } products (at least one) + features
+ *   PUT    /admin/whitelabels/:id/plan               { plan } products, features, payments
+ *   PUT    /admin/whitelabels/:id/terms              { terms } gateway charges + GGR revenue share (parent only)
+ *   POST   /admin/whitelabels/:id/hub-key            new API key + secret for its hub link (gateway payments)
+ *   GET    /admin/whitelabels/report[.csv]           revenue-share statements, every whitelabel ?from&to
+ *   GET    /admin/whitelabels/:id/report[.csv]       one whitelabel's statement ?from&to
  *   POST   /admin/whitelabels/:id/preview            → { url } one-time, read-only
  *   POST   /admin/whitelabels/:id/retry-setup        a failed setup, queued again
  *   DELETE /admin/whitelabels/:id                    { confirmName, acknowledgeBalances? }
@@ -74,6 +78,34 @@ module.exports = function adminRoutes(deps) {
 
   router.post('/', canWrite, validate(v.create), audited('whitelabel.create'), asyncHandler(async (req, res) => response.created(res, await service.create(req.body, req.staff))));
 
+  // Revenue share (reported, not collected): every whitelabel, or one; JSON or CSV. Before `/:id`.
+  const csv = (res, name, body) => {
+    res.set('Content-Type', 'text/csv; charset=utf-8');
+    res.set('Content-Disposition', `attachment; filename="${name}"`);
+    return res.send(`\uFEFF${body}`);
+  };
+  router.get('/report', canRead, validate(v.reportAll), asyncHandler(async (req, res) => response.ok(res, await service.reportAll(req.query))));
+  router.get(
+    '/report.csv',
+    canRead,
+    validate(v.reportAll),
+    asyncHandler(async (req, res) => {
+      const all = await service.reportAll(req.query);
+      const body = all.whitelabels.map((w) => whitelabelReport.toCsv(w, { name: `${w.name} (${w.slug})` })).join('\r\n\r\n');
+      return csv(res, `whitelabels-revenue-share-${req.query.from.slice(0, 10)}-${req.query.to.slice(0, 10)}.csv`, body);
+    })
+  );
+  router.get('/:id/report', canRead, validate(v.report), asyncHandler(async (req, res) => response.ok(res, await service.report(id(req), req.query))));
+  router.get(
+    '/:id/report.csv',
+    canRead,
+    validate(v.report),
+    asyncHandler(async (req, res) => {
+      const report = await service.report(id(req), req.query);
+      return csv(res, `whitelabel-${id(req)}-revenue-share-${req.query.from.slice(0, 10)}-${req.query.to.slice(0, 10)}.csv`, whitelabelReport.toCsv(report, { name: `${report.name} (${report.slug})` }));
+    })
+  );
+
   router.get('/:id', canRead, validate(v.byId), asyncHandler(async (req, res) => response.ok(res, await service.detail(id(req)))));
 
   const sendImage = (which) =>
@@ -113,6 +145,8 @@ module.exports = function adminRoutes(deps) {
   router.put('/:id/maintenance', canWrite, validate(v.maintenance), audited('whitelabel.maintenance'), asyncHandler(async (req, res) => response.ok(res, await service.setMaintenance(id(req), req.body.on))));
   router.put('/:id/palette', canWrite, validate(v.palette), audited('whitelabel.palette'), asyncHandler(async (req, res) => response.ok(res, await service.setPalette(id(req), req.body.palette))));
   router.put('/:id/plan', canWrite, validate(v.plan), audited('whitelabel.plan'), asyncHandler(async (req, res) => response.ok(res, await service.setPlan(id(req), req.body.plan))));
+  router.put('/:id/terms', canMoveMoney, validate(v.terms), audited('whitelabel.terms'), asyncHandler(async (req, res) => response.ok(res, await service.setTerms(id(req), req.body.terms))));
+  router.post('/:id/hub-key', canMoveMoney, validate(v.byId), noBody(), audited('whitelabel.hub-key'), asyncHandler(async (req, res) => response.ok(res, await service.issueHubKey(id(req)))));
   router.post('/:id/preview', canRead, validate(v.byId), noBody(), asyncHandler(async (req, res) => response.ok(res, await service.preview(id(req)))));
   router.post('/:id/retry-setup', canWrite, validate(v.byId), noBody(), audited('whitelabel.retry-setup'), asyncHandler(async (req, res) => response.ok(res, await service.retrySetup(id(req), req.staff))));
   router.delete(

@@ -55,6 +55,11 @@ const input = (n) => ({
   plan: {
     products: { casino: true, sports: true, originals: false },
     features: { branch_management: false, bonus: true, affiliate: false, vip: true, promotions: true },
+    payments: { manual: true, gateways: { ccpayment: true, f2pay: true, upi: false } },
+  },
+  terms: {
+    fees: Object.fromEntries(['ccpayment', 'f2pay', 'upi'].map((g) => [g, { deposit: '4', withdraw: '5' }])),
+    revenueShare: { casino: '10', sports: '8.5', originals: '12' },
   },
 });
 
@@ -69,6 +74,14 @@ test('create validators', () => {
   assert.equal(v.create.body.safeParse(noPlan).success, false);
   assert.equal(v.create.body.safeParse({ ...input(1), plan: { ...plan, products: { casino: false, sports: false, originals: false } } }).success, false);
   assert.equal(v.create.body.safeParse({ ...input(1), plan: { ...plan, features: { bonus: true } } }).success, false);
+  // Payments: manual, a gateway or both — never neither.
+  const noCashier = { ...plan, payments: { manual: false, gateways: { ...plan.payments.gateways, ccpayment: false, f2pay: false } } };
+  assert.equal(v.create.body.safeParse({ ...input(1), plan: noCashier }).success, false);
+  // Terms: percentages 0–100 with at most 2 decimals; required.
+  const { terms } = input(1);
+  assert.equal(v.create.body.safeParse({ ...input(1), terms: { ...terms, revenueShare: { ...terms.revenueShare, casino: '101' } } }).success, false);
+  assert.equal(v.create.body.safeParse({ ...input(1), terms: { ...terms, revenueShare: { ...terms.revenueShare, casino: '1.234' } } }).success, false);
+  assert.equal(v.terms.body.safeParse({ terms }).success, true);
   // The parent's plan body is what the copy's link accepts.
   assert.equal(linkSchemas.plan.body.safeParse({ plan }).success, true);
 });
@@ -85,6 +98,19 @@ test('a plan is a ceiling on the copy: what it leaves out is not entitled', () =
   assert.equal(out.flags.affiliate, false);
   assert.equal(out.variants.branch_management, 'off');
   assert.equal(out.variants.whitelabel, 'off');
+  // Gateways left out are off, and the ones the parent never integrated always are.
+  assert.equal(out.flags.gateway_upi, false);
+  assert.equal(out.flags.gateway_apay, false);
+  assert.equal(out.flags.gateway_cricpay, false);
+  assert.equal(out.flags.gateway_ccpayment, undefined);
+  assert.equal(out.variants.deposit_mode, 'both');
+  const gatewaysOnly = { ...input(1).plan, payments: { ...input(1).plan.payments, manual: false } };
+  assert.equal(whitelabelPlan.policiesOf(whitelabelPlan.cleanPlan(gatewaysOnly)).withdrawal_mode, 'automatic');
+  const manualOnly = { ...input(1).plan, payments: { manual: true, gateways: {} } };
+  assert.equal(whitelabelPlan.policiesOf(whitelabelPlan.cleanPlan(manualOnly)).deposit_mode, 'manual');
+  // Terms: anything malformed reads as 0%.
+  assert.equal(whitelabelPlan.cleanTerms({ revenueShare: { casino: 'abc' } }).revenueShare.casino, '0');
+  assert.equal(whitelabelPlan.cleanTerms(input(1).terms).fees.f2pay.deposit, '4');
   // No plan stored (a copy made before plans): unchanged.
   assert.equal(whitelabelPlan.applyPlan(owner, null), owner);
   // No owner variants: none invented (site_features keeps its own).

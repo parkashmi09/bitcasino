@@ -7,6 +7,7 @@ import Link from 'next/link'
 import { ArrowDownToLineIcon, ArrowUpFromLineIcon, DicesIcon, ReceiptTextIcon, ScaleIcon, TrophyIcon, UserPlusIcon, UsersIcon } from 'lucide-react'
 
 import DataTable, { type Column } from '@/components/shared/DataTable'
+import ExportButtons, { fetchAllRows } from '@/components/shared/ExportButtons'
 import DateTime from '@/components/shared/DateTime'
 import FormDialog from '@/components/shared/FormDialog'
 import { TextField } from '@/components/shared/FormField'
@@ -120,6 +121,11 @@ export const windowOf = (range: { from: string; to: string }) => ({
   to: new Date(new Date(`${range.to}T00:00:00`).getTime() + 86_400_000).toISOString()
 })
 
+/** A file name for an export: what it is and its days. */
+const fileOf = (what: string, from: string, to: string) => `branch-${what}-${from}_to_${to}`
+
+const dateText = (v: string | null | undefined) => (v ? new Date(v).toLocaleString('en-IN') : '')
+
 const paginationOf = (data: Report<unknown> | undefined, page: number, limit: number) =>
   data && { page, limit, total: data.total, totalPages: data.totalPages, hasNext: page < data.totalPages, hasPrev: page > 1 }
 
@@ -204,7 +210,33 @@ export const BranchDashboard = ({ base, actions }: { base: string; actions?: Rea
       />
       <div className='mb-4 flex flex-wrap items-center justify-between gap-2'>
         <p className='text-muted-foreground text-sm'>Totals for the period. Amounts in other coins are converted at today&apos;s rate.</p>
-        <DateRangePicker from={range.from} to={range.to} max={defaultRange().to} clearable={false} onChange={r => setRange({ from: r.from, to: r.to })} />
+        <div className='flex flex-wrap items-center gap-2'>
+          <DateRangePicker from={range.from} to={range.to} max={defaultRange().to} clearable={false} onChange={r => setRange({ from: r.from, to: r.to })} />
+          <ExportButtons
+            fileName={fileOf('summary', range.from, range.to)}
+            title={`${branch?.name ?? 'Branch'} — totals ${range.from} to ${range.to}`}
+            head={['Metric', 'Value', 'Count']}
+            disabled={!q.data}
+            rows={() => {
+              const t = q.data?.totals
+              const cur = q.data?.currency ?? ''
+
+              if (!t) return []
+
+              return [
+                ['Players', q.data?.players ?? 0, `${t.registrations} new`],
+                [`Total deposit (${cur})`, t.deposits, t.depositCount],
+                [`Total withdraw (${cur})`, t.withdrawals, t.withdrawalCount],
+                [`Net, deposit − withdraw (${cur})`, t.net, ''],
+                [`Casino bets (${cur})`, t.casinoWagered, t.casinoBets],
+                [`Casino won (${cur})`, t.casinoWon, ''],
+                [`Casino GGR (${cur})`, t.casinoGgr, ''],
+                [`Sports bets (${cur})`, t.sportsStaked, t.sportsBets],
+                [`Sports GGR (${cur})`, t.sportsGgr, '']
+              ]
+            }}
+          />
+        </div>
       </div>
       <BranchSummary data={q.data} loading={q.isLoading} />
     </div>
@@ -315,7 +347,29 @@ export const BranchPlayers = ({ base, playerHref }: { base: string; playerHref: 
       search={String(state.search ?? '')}
       onSearchChange={search => set({ search })}
       searchPlaceholder='Username or ID…'
-      toolbar={<CreatePlayer base={base} />}
+      toolbar={
+        <div className='flex flex-wrap items-center gap-2'>
+          <CreatePlayer base={base} />
+          <ExportButtons
+            fileName={`branch-players-${new Date().toISOString().slice(0, 10)}`}
+            title='Branch players'
+            head={['ID', 'Username', 'Email', 'Phone', 'Status', 'Balance', 'Created']}
+            rows={async () =>
+              (await fetchAllRows<Player>(`${base}/players`, { search: query.search }, { paged: true })).map(p => [
+                p.id,
+                p.name,
+                p.email,
+                p.phone,
+                p.status,
+                Object.entries(p.balances)
+                  .map(([c, a]) => `${a} ${c}`)
+                  .join(' · ') || '0',
+                dateText(p.createdAt)
+              ])
+            }
+          />
+        </div>
+      }
     />
   )
 }
@@ -383,6 +437,16 @@ export const MoneyReport = ({ base, kind, userId }: { base: string; kind: 'depos
             </SelectContent>
           </Select>
           {!userId && <PlayerIdFilter value={String(r.state.userId ?? '')} onChange={id => r.set({ userId: id })} />}
+          <ExportButtons
+            fileName={fileOf(kind, r.from, r.to)}
+            title={`${kind === 'deposits' ? 'Deposits' : 'Withdrawals'} ${r.from} to ${r.to}`}
+            head={['Date', 'Player ID', 'Player', 'Method', 'Type', 'Amount', 'Currency', 'Status', 'Reference', 'Details']}
+            rows={async () =>
+              (
+                await fetchAllRows<MoneyRow>(`${base}/${kind}`, { fromDate: r.from, toDate: r.to, status: r.state.status ? String(r.state.status) : undefined, userId: player })
+              ).map(x => [dateText(x.date), x.user.id, x.user.name, METHOD_LABELS[x.method] ?? x.method, x.type, x.amount, x.currency, x.status, x.reference, x.details])
+            }
+          />
         </div>
       }
     />
@@ -437,6 +501,22 @@ export const BetsReport = ({ base, kind, userId }: { base: string; kind: BetKind
         <div className='flex flex-wrap items-center gap-2'>
           <DateRangePicker from={r.from} to={r.to} clearable={false} onChange={v => r.set({ from: v.from, to: v.to })} />
           {!userId && <PlayerIdFilter value={String(r.state.userId ?? '')} onChange={id => r.set({ userId: id })} />}
+          <ExportButtons
+            fileName={fileOf(`${kind}-bets`, r.from, r.to)}
+            title={`${kind === 'originals' ? 'Original games' : kind === 'casino' ? 'Casino' : 'Sports'} bets ${r.from} to ${r.to}`}
+            head={
+              kind === 'sports'
+                ? ['Date', 'Player', 'Match', 'Market', 'Selection', 'Back / lay', 'Odds', 'Stake', 'Status', 'Result']
+                : ['Date', 'Player', 'Game', 'Provider', 'Stake', 'Wallet move', 'Currency', 'Status']
+            }
+            rows={async () => {
+              const bets = await fetchAllRows<SportsBet & CasinoBet>(`${base}/bets`, { kind, fromDate: r.from, toDate: r.to, userId: player })
+
+              return kind === 'sports'
+                ? bets.map(b => [dateText(b.ts), b.user, b.match, b.market, b.selection, b.side, b.odds, b.stake, b.status, b.result])
+                : bets.map(b => [dateText(b.ts), b.user, b.game, casinoSourceLabel(b.source), b.stake, b.amount, b.currency, b.status])
+            }}
+          />
         </div>
       }
     />
@@ -518,6 +598,26 @@ export const BranchStatement = ({ base, userId }: { base: string; userId?: strin
             </SelectContent>
           </Select>
           {!userId && <PlayerIdFilter value={String(r.state.userId ?? '')} onChange={id => r.set({ userId: id })} />}
+          <ExportButtons
+            fileName={fileOf('statement', r.from, r.to)}
+            title={`Statement ${r.from} to ${r.to}`}
+            head={['Date', 'Player ID', 'Player', 'Type', 'Description', 'Credit', 'Debit', 'Balance', 'Currency']}
+            rows={async () =>
+              (
+                await fetchAllRows<LedgerRow>(`${base}/statement`, { fromDate: r.from, toDate: r.to, category: String(r.state.category || 'ALL'), userId: player })
+              ).map(x => [
+                dateText(x.date),
+                x.user.id,
+                x.user.name,
+                `${x.category.replace('_', ' ').toLowerCase()}${x.void ? ' (void)' : ''}`,
+                x.bet ? [x.bet.sport, x.bet.event, x.bet.market, x.bet.selection].filter(Boolean).join(' · ') : x.description,
+                x.credit === '-' ? '' : x.credit,
+                x.debit === '-' ? '' : x.debit,
+                x.closing === '-' ? '' : x.closing,
+                x.currency
+              ])
+            }
+          />
         </div>
       }
     />

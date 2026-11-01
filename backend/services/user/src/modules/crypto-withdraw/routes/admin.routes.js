@@ -1,7 +1,7 @@
 'use strict';
 
 const { Router } = require('express');
-const { validate, createActivityRecorder, requireTxnPassword } = require('@ibitplay/common');
+const { validate, noBody, createActivityRecorder, requireTxnPassword, asyncHandler, response } = require('@ibitplay/common');
 const { PERMISSIONS } = require('@ibitplay/auth');
 
 const v = require('../cryptoWithdraw.validators');
@@ -20,7 +20,8 @@ const { createControllers } = require('../controllers');
  */
 module.exports = function adminRoutes(deps) {
   const { auth, clients, logger, config } = deps;
-  const ctrl = createControllers({ service: new CryptoWithdrawService(deps) });
+  const service = new CryptoWithdrawService(deps);
+  const ctrl = createControllers({ service });
 
   const withActivity = createActivityRecorder({
     client: clients.admin, logger, serviceName: config.SERVICE_NAME,
@@ -49,6 +50,31 @@ module.exports = function adminRoutes(deps) {
       }),
     }),
     ctrl.decide
+  );
+
+  /**
+   * Send it through CCPayment instead of by hand (owner, 2026-11-01): same permission and
+   * transaction code as approving. It moves to `Sending`; CCPayment's webhook finishes it.
+   */
+  router.post(
+    '/:withdrawalId/send-ccpayment',
+    auth.requirePermission(PERMISSIONS.WITHDRAWALS_APPROVE),
+    txnCode,
+    validate(v.gateway),
+    withActivity({
+      action: 'withdrawal.crypto.send-ccpayment',
+      describe: (req) => ({ targetType: 'WITHDRAWAL', targetId: req.params.withdrawalId, details: {} }),
+    }),
+    asyncHandler(async (req, res) => response.ok(res, await service.sendViaGateway({ withdrawalId: Number(req.params.withdrawalId) }, req.staff)))
+  );
+
+  /** A withdrawal still `Sending` (its webhook never came): ask CCPayment and settle it. */
+  router.post(
+    '/:withdrawalId/check-ccpayment',
+    auth.requirePermission(PERMISSIONS.WITHDRAWALS_APPROVE),
+    validate({ params: v.gateway.params }),
+    noBody(),
+    asyncHandler(async (req, res) => response.ok(res, await service.checkGateway({ withdrawalId: Number(req.params.withdrawalId) })))
   );
 
   return router;

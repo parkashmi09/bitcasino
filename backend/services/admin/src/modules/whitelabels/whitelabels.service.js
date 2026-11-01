@@ -2,7 +2,7 @@
 
 const crypto = require('crypto');
 const { QueryTypes } = require('sequelize');
-const { money, imageUpload, whitelabelPlan } = require('@ibitplay/common');
+const { money, imageUpload, whitelabelPlan, whitelabelReport, hubAuth } = require('@ibitplay/common');
 const { hashPassword, createSecretBox } = require('@ibitplay/auth');
 
 const errors = require('./whitelabels.errors');
@@ -66,6 +66,9 @@ function view(r) {
     palette: r.palette ?? null,
     // null = made before plans (not limited).
     plan: whitelabelPlan.cleanPlan(r.plan),
+    terms: whitelabelPlan.cleanTerms(r.terms),
+    // The hub link's API key (never its secret): gateway payments run through this site.
+    hubKey: r.hub_key ?? null,
     hasLogo: Boolean(r.logo_type),
     hasIcon: Boolean(r.icon_type),
     companyRoleName: r.company_role_name,
@@ -78,6 +81,11 @@ function view(r) {
     updatedAt: r.updated_at,
   };
 }
+
+/** Did anything happen in a statement's period: play, a paid gateway order, a transfer? */
+const hadActivity = (st) =>
+  st.products.some((p) => (p.betCount ?? 0) > 0 || (p.ggr != null && !money.isZero(p.ggr))) ||
+  st.gateway.depositCount + st.gateway.withdrawalCount + st.transfers.count > 0;
 
 const transferView = (t) => ({
   id: String(t.id),
@@ -160,10 +168,10 @@ class WhitelabelsService {
         [created] = await this.#q(
           `INSERT INTO whitelabels
              (slug, name, title, description, site_domain, admin_domain, api_domain, template, palette, logo, logo_type,
-              icon, icon_type, company_role_name, company_name, company_email, company_password_hash, link_key, plan, created_by)
+              icon, icon_type, company_role_name, company_name, company_email, company_password_hash, link_key, plan, terms, created_by)
            VALUES (:slug, :name, :title, :description, :siteDomain, :adminDomain, :apiDomain, :template, CAST(:palette AS JSONB),
               :logo, :logoType, :icon, :iconType, :companyRoleName, :companyName, :companyEmail, :passwordHash, :linkKey,
-              CAST(:plan AS JSONB), :actorId)
+              CAST(:plan AS JSONB), CAST(:terms AS JSONB), :actorId)
            RETURNING *`,
           {
             ...input,
@@ -171,6 +179,7 @@ class WhitelabelsService {
             description: input.description || null,
             palette: input.palette ? JSON.stringify(input.palette) : null,
             plan: JSON.stringify(whitelabelPlan.cleanPlan(input.plan)),
+            terms: JSON.stringify(whitelabelPlan.cleanTerms(input.terms)),
             logo,
             logoType: input.logo?.type ?? null,
             icon,
@@ -226,6 +235,7 @@ class WhitelabelsService {
     );
     const transfers = await this.#q('SELECT * FROM whitelabel_transfers WHERE whitelabel_id = :id ORDER BY id DESC LIMIT 25', { id });
     return {
+      gateway: await this.#gatewayRecord(id),
       ...view(row),
       posters: await this.posters(id),
       summary,
@@ -242,6 +252,115 @@ class WhitelabelsService {
       })),
       transfers: transfers.map(transferView),
     };
+  }
+
+  /**
+   * Gateway payments the copy ran on this site's account (user-service modules/wl-hub): totals by
+   * flow and status with the charges earned, and the latest 25 orders. Charges are in the order's
+   * coin; the copy's statement holds them in INR.
+   */
+  async #gatewayRecord(id) {
+    const totals = await this.#q(
+      `SELECT flow, status, currency, COUNT(*)::int AS count, SUM(amount) AS amount, SUM(amount * charge_pct / 100) AS charges
+         FROM whitelabel_gateway_orders WHERE whitelabel_id = :id GROUP BY flow, status, currency ORDER BY flow, status, currency`,
+      { id }
+    );
+    const orders = await this.#q(
+      `SELECT id, provider, flow, reference, copy_reference, currency, amount, charge_pct, status, utr, delivered, delivery_error, created_at
+         FROM whitelabel_gateway_orders WHERE whitelabel_id = :id ORDER BY id DESC LIMIT 25`,
+      { id }
+    );
+    const undelivered = await this.#q(
+      `SELECT COUNT(*)::int AS n FROM whitelabel_gateway_orders WHERE whitelabel_id = :id AND status <> 'pending' AND delivered = false`,
+      { id }
+    );
+    return {
+      totals: totals.map((t) => ({
+        flow: t.flow,
+        status: t.status,
+        currency: t.currency,
+        count: t.count,
+        amount: money.fromStored(t.amount),
+        charges: money.fromStored(t.charges ?? '0'),
+      })),
+      undelivered: undelivered[0]?.n ?? 0,
+      orders: orders.map((o) => ({
+        id: String(o.id),
+        provider: o.provider,
+        flow: o.flow,
+        reference: o.reference,
+        copyReference: o.copy_reference,
+        currency: o.currency,
+        amount: money.fromStored(o.amount),
+        chargePct: money.fromStored(o.charge_pct),
+        status: o.status,
+        utr: o.utr,
+        delivered: o.delivered,
+        deliveryError: o.delivery_error,
+        createdAt: o.created_at,
+      })),
+    };
+  }
+
+  /**
+   * The revenue-share statement of one whitelabel for `[from, to)` (common/whitelabelReport):
+   * casino and original games from this site's own round record, sports asked of the live copy
+   * (its P&L), gateway charges and transfers from this site's records. Reported, not collected.
+   */
+  async report(id, { from, to }) {
+    const row = await this.#row(id);
+    return { id: Number(row.id), name: row.name, slug: row.slug, status: row.status, ...(await this.#statement(row, { from, to })) };
+  }
+
+  /** Every whitelabel that has been live: one statement each, and the totals. */
+  async reportAll({ from, to }) {
+    // Never-built rows have nothing. A deleted one shows only when it had activity in the period
+    // (its last month is still owed); otherwise it is gone from the report as from the list.
+    const rows = await this.#q(`SELECT * FROM whitelabels WHERE status NOT IN ('queued', 'creating') ORDER BY id`);
+    const statements = [];
+    for (const row of rows) {
+      const statement = await this.#statement(row, { from, to });
+      if (['deleting', 'deleted'].includes(row.status) && !hadActivity(statement)) continue;
+      statements.push({ id: Number(row.id), name: row.name, slug: row.slug, status: row.status, ...statement });
+    }
+    const sum = (key) => money.toDecimalString(statements.reduce((n, s) => n + money.toMinorQuantised(s[key]), 0n));
+    return { from, to, currency: 'INR', whitelabels: statements, totalGgr: sum('totalGgr'), totalShare: sum('totalShare') };
+  }
+
+  async #statement(row, { from, to }) {
+    const ledger = await whitelabelReport.ledgerFigures(this.db, { whitelabelId: Number(row.id), from, to });
+    const plan = whitelabelPlan.cleanPlan(row.plan);
+    let sports = null;
+    let sportsError = null;
+    let copyFigures = null;
+    if (plan && !plan.products.sports) {
+      sports = null;
+    } else if (row.status !== 'live') {
+      sportsError = 'the whitelabel is not live';
+    } else {
+      try {
+        const answer = await this.link(row, 'GET', `/ggr?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`);
+        sports = { ggr: answer.ggr, staked: answer.staked, betCount: answer.betCount };
+        copyFigures = { currency: answer.currency, casinoGgr: answer.casinoGgr, originalsGgr: answer.originalsGgr };
+        if (String(answer.currency).toUpperCase() !== 'INR') {
+          sports = null;
+          sportsError = `the whitelabel reports in ${answer.currency}, not INR`;
+        }
+      } catch (error) {
+        sportsError = error.message;
+      }
+    }
+    const statement = whitelabelReport.assemble({
+      from,
+      to,
+      ledger,
+      sports,
+      sportsError,
+      revenueShare: whitelabelPlan.cleanTerms(row.terms).revenueShare,
+      products: plan?.products ?? null,
+    });
+    // What the whitelabel's own books say for casino and originals, beside this site's record.
+    return { ...statement, copyFigures };
   }
 
   /** `which` = 'logo' | 'icon': the image the whitelabel was created or last updated with. */
@@ -482,6 +601,43 @@ class WhitelabelsService {
       plan: JSON.stringify(clean),
     });
     return { plan: clean };
+  }
+
+  /** Gateway charges and GGR revenue share: the parent's record only (the copy never sees them). */
+  async setTerms(id, terms) {
+    const clean = whitelabelPlan.cleanTerms(terms);
+    await this.#row(id);
+    await this.#q('UPDATE whitelabels SET terms = CAST(:terms AS JSONB), updated_at = NOW() WHERE id = :id RETURNING id', {
+      id,
+      terms: JSON.stringify(clean),
+    });
+    return { terms: clean };
+  }
+
+  /**
+   * A new API key and secret for the copy's hub link (user-service modules/wl-hub). The secret is
+   * stored sealed and never shown; a live copy gets the pair over the link at once, a copy still
+   * being set up gets it from the setup (PARENT_HUB_* in its env). The old key stops working now.
+   */
+  async issueHubKey(id) {
+    const row = await this.#row(id);
+    const { key, secret } = hubAuth.newCredentials();
+    if (row.status === 'live') {
+      await this.link(row, 'PUT', '/hub', { url: this.#parentHubUrl('USER_SERVICE_URL', 4001), casinoUrl: this.#parentHubUrl('CASINO_SERVICE_URL', 4003), key, secret });
+    }
+    await this.#q('UPDATE whitelabels SET hub_key = :key, hub_secret = :secret, updated_at = NOW() WHERE id = :id RETURNING id', {
+      id,
+      key,
+      secret: this.secrets.seal(secret),
+    });
+    this.logger?.warn({ whitelabelId: id, hubKey: key }, 'Whitelabel hub key issued');
+    return { hubKey: key };
+  }
+
+  /** One of this site's services on this machine — where a copy's hub calls land. */
+  #parentHubUrl(key, fallbackPort) {
+    const { port } = new URL(this.config[key] || `http://127.0.0.1:${fallbackPort}`);
+    return `http://127.0.0.1:${port || 80}`;
   }
 
   /** A one-time link (about a minute) to the copy's admin, read-only, as its company. */

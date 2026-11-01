@@ -16,7 +16,8 @@ import { api } from '@/lib/api/client'
 import ImageField, { POSTER, type PickedImage } from './ImageField'
 import PaletteEditor, { paletteError, type ThemeValue } from './PaletteEditor'
 import PlanPicker, { EMPTY_PLAN, planError } from './PlanPicker'
-import type { Plan, Whitelabel } from './types'
+import TermsEditor, { termsError, ZERO_TERMS } from './TermsEditor'
+import type { Plan, Terms, Whitelabel } from './types'
 
 const DOMAIN = /^(?=.{4,253}$)([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$/
 const SLUG = /^[a-z][a-z0-9-]{2,28}[a-z0-9]$/
@@ -41,7 +42,7 @@ const Section = ({ title, description, children }: { title: string; description?
 )
 
 /**
- * New whitelabel: brand, domains, plan (products and features), colours and the company's login. Saving queues it for the setup
+ * New whitelabel: brand, domains, plan (products, features, payments), charges, colours and the company's login. Saving queues it for the setup
  * script, which builds the copy on this server (its own folder, database and processes); the
  * detail page shows the setup's progress.
  */
@@ -70,6 +71,7 @@ const WhitelabelCreate = () => {
   const [poster, setPoster] = useState<PickedImage | null>(null)
   const [posterMobile, setPosterMobile] = useState<PickedImage | null>(null)
   const [plan, setPlan] = useState<Plan>(EMPTY_PLAN)
+  const [terms, setTerms] = useState<Terms>(ZERO_TERMS)
   const [errors, setErrors] = useState<Record<string, string>>({})
 
   const set = (patch: Partial<typeof form>) => {
@@ -103,6 +105,9 @@ const WhitelabelCreate = () => {
     const products = planError(plan)
 
     if (products) e.plan = products
+    const rates = termsError(terms)
+
+    if (rates) e.terms = rates
     setErrors(e)
 
     return Object.keys(e).length === 0
@@ -121,6 +126,7 @@ const WhitelabelCreate = () => {
         template: theme.template,
         palette: theme.palette,
         plan,
+        terms,
         ...(logo ? { logo: { type: logo.type, data: logo.data } } : {}),
         ...(icon ? { icon: { type: icon.type, data: icon.data } } : {}),
         ...(poster ? { poster: { type: poster.type, data: poster.data } } : {}),
@@ -239,6 +245,7 @@ const WhitelabelCreate = () => {
 
       <Section title='Products & features' description='What the whitelabel runs. Choose at least one product; anything left out stays off and hidden on its site. You can change it later.'>
         <PlanPicker
+          groups={['products', 'features']}
           value={plan}
           onChange={next => {
             setPlan(next)
@@ -246,6 +253,42 @@ const WhitelabelCreate = () => {
           }}
         />
         {errors.plan && <span className='text-destructive text-sm'>{errors.plan}</span>}
+      </Section>
+
+      <Section
+        title='Payments & gateway charges'
+        description='Manual payments, a payment gateway or both. Gateways run on your gateway account; each deposit or withdrawal through one is charged to the whitelabel company at the rates you set.'
+      >
+        <PlanPicker
+          groups={['payments']}
+          value={plan}
+          onChange={next => {
+            setPlan(next)
+            setErrors(e => ({ ...e, plan: '' }))
+          }}
+        />
+        <TermsEditor
+          parts={['fees']}
+          value={terms}
+          plan={plan}
+          onChange={next => {
+            setTerms(next)
+            setErrors(e => ({ ...e, terms: '' }))
+          }}
+        />
+      </Section>
+
+      <Section title='GGR revenue share' description='Your share of each product’s GGR. Yours only: the whitelabel sees it on its revenue-share statement.'>
+        <TermsEditor
+          parts={['share']}
+          value={terms}
+          plan={plan}
+          onChange={next => {
+            setTerms(next)
+            setErrors(e => ({ ...e, terms: '' }))
+          }}
+        />
+        {errors.terms && <span className='text-destructive text-sm'>{errors.terms}</span>}
       </Section>
 
       <Section title='Colours'>

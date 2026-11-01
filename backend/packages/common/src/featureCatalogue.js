@@ -649,6 +649,37 @@ const ANALYTICS = {
 };
 
 /**
+ * Live TV on sports matches — who may watch the stream (owner, 2026-11-01). Hand-written, like the
+ * integrations above. `gated`: only a player with at least `minBalance` (INR) AND a bet within
+ * `inactiveHours` may watch; otherwise the stream stays off and the message says what is missing
+ * (recharge / play). Both are editable here; blank = 200 and 10. Read by user-service modules/live-tv, which
+ * the match page asks before (and while) it shows the stream.
+ */
+const LIVE_TV = {
+  key: 'live_tv',
+  label: 'Live TV (sports)',
+  category: 'engagement',
+  flag: null,
+  // The gate is on until changed (200 / 10 when the fields are blank).
+  defaultVariant: 'gated',
+  variants: [
+    {
+      key: 'gated',
+      label: 'Minimum balance and activity',
+      description: 'Only players with at least the minimum balance AND a bet within the set hours; others are told to recharge or play.',
+      publicFields: ['minBalance', 'inactiveHours', 'message'],
+      configFields: [
+        { key: 'minBalance', label: 'Minimum balance (INR)', required: false, pattern: '^\\d{1,8}(\\.\\d{1,2})?$', placeholder: '200' },
+        { key: 'inactiveHours', label: 'Inactive for (hours)', required: false, pattern: '^\\d{1,4}$', placeholder: '10' },
+        { key: 'message', label: 'Message shown (optional)', required: false, placeholder: 'Shown before the reasons, e.g. Live TV is for active players.' },
+      ],
+    },
+    { key: 'open', label: 'Every signed-in player', description: 'The stream for every signed-in player, whatever the balance (as before).' },
+    { key: 'none', label: 'Off', description: 'No live TV on any match.' },
+  ],
+};
+
+/**
  * Business policies — hand-written, like the integration above.
  *
  * `kind: 'policy'` means always in force: there is no on/off switch, only the
@@ -1000,7 +1031,7 @@ const GOOGLE_SIGNIN_POLICY = {
   ],
 };
 
-const FEATURES = Object.freeze([...POLICIES, REWARD_CURRENCY_POLICY, DEFAULT_CURRENCY_POLICY, REGION_RESTRICTION_POLICY, WITHDRAWAL_REQUIREMENTS_POLICY, CASINO_AGGREGATOR_POLICY, THEME_MODE_POLICY, ADMIN_THEME_POLICY, SLOTEGRATOR_INR_AS_PKR_POLICY, API_ENCRYPTION_POLICY, RATE_LIMIT_POLICY, BRANCH_MANAGEMENT_POLICY, WHITELABEL_POLICY, DEPOSIT_EMAIL_VERIFICATION_POLICY, GOOGLE_SIGNIN_POLICY, ...GENERATED, TIPS, P2P, PUSH_NOTIFICATIONS, ANALYTICS]);
+const FEATURES = Object.freeze([...POLICIES, REWARD_CURRENCY_POLICY, DEFAULT_CURRENCY_POLICY, REGION_RESTRICTION_POLICY, WITHDRAWAL_REQUIREMENTS_POLICY, CASINO_AGGREGATOR_POLICY, THEME_MODE_POLICY, ADMIN_THEME_POLICY, SLOTEGRATOR_INR_AS_PKR_POLICY, API_ENCRYPTION_POLICY, RATE_LIMIT_POLICY, BRANCH_MANAGEMENT_POLICY, WHITELABEL_POLICY, DEPOSIT_EMAIL_VERIFICATION_POLICY, GOOGLE_SIGNIN_POLICY, ...GENERATED, TIPS, P2P, PUSH_NOTIFICATIONS, ANALYTICS, LIVE_TV]);
 
 /**
  * Site templates — the bundles the OWNER picks for a site (docs/OWNER-PANEL.md

@@ -119,9 +119,13 @@ class GisService {
    *
    * Always resolves. Always HTTP 200 at the route.
    */
-  async handleTransaction({ body, headers }) {
+  /**
+   * `trusted`: a whitelabel copy settling a callback its parent verified and passed on
+   * (casino modules/wl-hub — that route checks the parent's hub signature first).
+   */
+  async handleTransaction({ body, headers, trusted = false }) {
     try {
-      const refusal = this.#verify(body, headers);
+      const refusal = trusted && this.config.WHITELABEL_MODE ? null : this.#verify(body, headers);
       if (refusal) return refusal;
 
       const action = String(body.action ?? '');
@@ -131,6 +135,10 @@ class GisService {
       if (!action || !playerId || !currency) {
         return this.#fail('action, player_id and currency are required');
       }
+
+      // A whitelabel copy's player (`wl<id>_<player>`, written by this site at launch): the copy settles it.
+      const wlPlayer = this.config.WHITELABEL_MODE ? null : whitelabelPlayer(playerId);
+      if (wlPlayer) return await forwardGis({ db: this.db, config: this.config, logger: this.logger }, { ...wlPlayer, body }, (d) => this.#fail(d));
 
       // A non-numeric player id is not a player. Legacy logged this case and
       // then went on to query `credits` with it anyway, one branch later.
@@ -1360,3 +1368,6 @@ class GisService {
 }
 
 module.exports = { GisService };
+
+// Required last: wl-hub/forward requires hubCredentials only, but keep the cycle-free order explicit.
+const { whitelabelPlayer, forwardGis } = require('../wl-hub/forward');

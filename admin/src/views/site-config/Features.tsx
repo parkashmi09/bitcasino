@@ -276,8 +276,9 @@ const Features = () => {
                   const ui = policy ? null : uiSupport(spec.key)
                   const on = policy ? cur.variant !== 'none' : cur.enabled && cur.variant !== 'none'
 
-                  const configurable =
-                    spec.category === 'integration' && canWrite && entitled && cur.enabled && cur.variant !== 'none'
+                  // An integration's keys, or any feature whose current variant has settings (e.g. Live TV's minimum balance and hours).
+                  const hasFields = spec.category === 'integration' || Boolean(spec.variants.find(v => v.key === cur.variant)?.configFields?.length)
+                  const configurable = hasFields && canWrite && entitled && cur.enabled && cur.variant !== 'none'
 
                   return (
                     <TableRow key={spec.key} className={entitled ? undefined : 'opacity-60'}>

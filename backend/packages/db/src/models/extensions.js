@@ -273,6 +273,10 @@ const EXTENSIONS = {
     decided_by: { type: DataTypes.BIGINT, allowNull: true, field: 'decided_by' },
     decided_at: { type: DataTypes.DATE, allowNull: true, field: 'decided_at' },
     note: { type: DataTypes.TEXT, allowNull: true, field: 'note' },
+    // migration 171: sent through CCPayment instead of by hand.
+    gateway: { type: DataTypes.STRING(20), allowNull: true, field: 'gateway' },
+    gateway_order_id: { type: DataTypes.STRING(64), allowNull: true, field: 'gateway_order_id' },
+    gateway_record_id: { type: DataTypes.STRING(64), allowNull: true, field: 'gateway_record_id' },
   },
 
   // ── migration 018-otp-integrity ──────────────────────────────────────

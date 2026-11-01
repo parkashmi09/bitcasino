@@ -22,13 +22,18 @@ const amount = z
   .regex(/^\d+(\.\d{1,2})?$/, 'must be a positive amount with at most 2 decimal places')
   .refine((v) => Number.parseFloat(v) > 0, 'amount must be greater than zero');
 
-/** Every plan key a boolean; at least one product on. Shared with the parent's validators. */
+/** Every plan key a boolean; at least one product, and manual payments or a gateway. Shared with the parent's validators. */
 function planSchema() {
   const bools = (keys) => z.object(Object.fromEntries(keys.map((k) => [k, z.boolean()]))).strict();
   return z
-    .object({ products: bools(whitelabelPlan.PRODUCTS), features: bools(whitelabelPlan.FEATURES) })
+    .object({
+      products: bools(whitelabelPlan.PRODUCTS),
+      features: bools(whitelabelPlan.FEATURES),
+      payments: z.object({ manual: z.boolean(), gateways: bools(whitelabelPlan.GATEWAYS) }).strict(),
+    })
     .strict()
-    .refine((p) => Object.values(p.products).some(Boolean), 'choose at least one product: casino, sports or original games');
+    .refine((p) => Object.values(p.products).some(Boolean), 'choose at least one product: casino, sports or original games')
+    .refine((p) => p.payments.manual || Object.values(p.payments.gateways).some(Boolean), 'choose manual payments, a payment gateway or both');
 }
 
 const schemas = {
@@ -58,6 +63,24 @@ const schemas = {
   },
   // Products and features the parent sold this copy; at least one product.
   plan: { body: z.object({ plan: planSchema() }).strict() },
+  // The hub link: the parent's user-service URL here, this copy's key and secret (common/hubAuth).
+  hub: {
+    body: z
+      .object({
+        url: z.string().regex(/^http:\/\/127\.0\.0\.1:\d{2,5}$/, 'the parent user-service on this machine'),
+        casinoUrl: z.string().regex(/^http:\/\/127\.0\.0\.1:\d{2,5}$/, 'the parent casino-service on this machine').optional(),
+        key: z.string().regex(/^wlk_[0-9a-f]{24}$/),
+        secret: z.string().regex(/^[0-9a-f]{64}$/),
+      })
+      .strict(),
+  },
+  // A statement period: two ISO dates, at most two years apart.
+  ggr: {
+    query: z
+      .object({ from: z.string().datetime({ offset: true }).or(z.string().date()), to: z.string().datetime({ offset: true }).or(z.string().date()) })
+      .strict()
+      .refine((q) => Date.parse(q.from) < Date.parse(q.to) && Date.parse(q.to) - Date.parse(q.from) <= 731 * 86_400_000, 'from must be before to, at most 731 days'),
+  },
   // Every token, as #RRGGBB; null clears it.
   palette: {
     body: z
@@ -147,6 +170,8 @@ function publicRoutes(deps) {
       return response.ok(res, out);
     })
   );
+  router.get('/ggr', validate(schemas.ggr), asyncHandler(async (req, res) => response.ok(res, await service.sportsGgr(req.query))));
+  router.put('/hub', validate(schemas.hub), asyncHandler(async (req, res) => response.ok(res, await service.setHub(req.body))));
   router.put('/palette', validate(schemas.palette), asyncHandler(async (req, res) => response.ok(res, await service.setPalette(req.body.palette))));
   router.put('/maintenance', validate(schemas.maintenance), asyncHandler(async (req, res) => response.ok(res, await service.setMaintenance(req.body.on))));
   router.post('/preview', noBody(), asyncHandler(async (_req, res) => response.ok(res, await service.preview())));

@@ -549,6 +549,8 @@ function coinIdMap(config) {
 
 /** CCPayment's own coin list → `liveCoinIds`. Skipped while the override is set or the list is under 10 min old. */
 async function refreshCcpaymentCoinIds(config, http) {
+  // A whitelabel copy has no CCPayment keys: the built-in ids stand, the parent checks the real list.
+  if (config?.WHITELABEL_MODE) return;
   if (Object.keys(configuredCoinIds(config)).length || Date.now() - liveCoinIdsAt < 600_000) return;
   const response = await http.raw(`${config.CCPAYMENT_BASE_URL}/ccpayment/v2/getCoinList`, {
     method: 'POST',

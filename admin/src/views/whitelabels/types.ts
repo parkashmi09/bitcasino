@@ -9,6 +9,17 @@ export type Palette = Record<PaletteKey, string>
 export type Plan = {
   products: { casino: boolean; sports: boolean; originals: boolean }
   features: { branch_management: boolean; bonus: boolean; affiliate: boolean; vip: boolean; promotions: boolean }
+  payments: { manual: boolean; gateways: Record<Gateway, boolean> }
+}
+
+export const GATEWAYS = ['ccpayment', 'f2pay', 'upi'] as const
+export type Gateway = (typeof GATEWAYS)[number]
+export type Product = keyof Plan['products']
+
+/** Percentages as strings. The parent's record only: never sent to the copy. */
+export type Terms = {
+  fees: Record<Gateway, { deposit: string; withdraw: string }>
+  revenueShare: Record<Product, string>
 }
 
 export type WhitelabelStatus = 'queued' | 'creating' | 'live' | 'failed' | 'deleting' | 'deleted'
@@ -27,6 +38,10 @@ export type Whitelabel = {
 
   /** null = made before plans: not limited. */
   plan: Plan | null
+  terms: Terms
+
+  /** The hub link's API key (gateway payments through this site); null = not issued yet. */
+  hubKey: string | null
   hasLogo: boolean
   hasIcon: boolean
   companyRoleName: string
@@ -69,7 +84,30 @@ export type WhitelabelTransfer = {
   updatedAt: string
 }
 
+export type GatewayOrder = {
+  id: string
+  provider: string
+  flow: 'deposit' | 'payout'
+  reference: string
+  copyReference: string
+  currency: string
+  amount: string
+  chargePct: string
+  status: 'pending' | 'success' | 'failed'
+  utr: string | null
+  delivered: boolean
+  deliveryError: string | null
+  createdAt: string
+}
+
+export type GatewayRecord = {
+  totals: { flow: 'deposit' | 'payout'; status: string; currency: string; count: number; amount: string; charges: string }[]
+  undelivered: number
+  orders: GatewayOrder[]
+}
+
 export type WhitelabelDetail = Whitelabel & {
+  gateway: GatewayRecord
 
   /** slot (`poster` | `poster_mobile`) → last updated; absent = none uploaded. */
   posters: Record<string, string>
