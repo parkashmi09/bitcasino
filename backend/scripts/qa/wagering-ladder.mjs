@@ -531,7 +531,7 @@ async function depositWithBonus() {
   let switched = false;
   if (WITH_DEPOSIT_BONUS && saved?.firstDepositBonus && (!saved.firstDepositBonus.enabled || !saved.firstDepositBonus.wagerMultiplier)) {
     const fdb = saved.firstDepositBonus;
-    const r = await api('PUT', cfgPath, { token: staff.token, body: { firstDepositBonus: { enabled: true, tiers: fdb.tiers, wagerMultiplier: 10, expiryDays: fdb.expiryDays ?? 30 } } });
+    const r = await api('PUT', cfgPath, { token: staff.token, body: { firstDepositBonus: { enabled: true, tiers: fdb.tiers, wagerMultiplier: 10, expiryDays: fdb.expiryDays ?? 30 }, transactionPassword: staff.txn } });
     switched = r.status === 200;
     check(g, 'first-deposit bonus switched on for the test (10x)', switched, `${r.status} ${r.body?.error?.code ?? ''}`);
   }
@@ -568,7 +568,7 @@ async function depositWithBonus() {
   } finally {
     if (switched) {
       const fdb = saved.firstDepositBonus;
-      const r = await api('PUT', cfgPath, { token: staff.token, body: { firstDepositBonus: { enabled: fdb.enabled, tiers: fdb.tiers, wagerMultiplier: fdb.wagerMultiplier ?? null, expiryDays: fdb.expiryDays ?? 30 } } });
+      const r = await api('PUT', cfgPath, { token: staff.token, body: { firstDepositBonus: { enabled: fdb.enabled, tiers: fdb.tiers, wagerMultiplier: fdb.wagerMultiplier ?? null, expiryDays: fdb.expiryDays ?? 30 }, transactionPassword: staff.txn } });
       check(g, 'first-deposit bonus settings restored', r.status === 200, `${r.status} ${r.body?.error?.code ?? ''}`);
     }
   }

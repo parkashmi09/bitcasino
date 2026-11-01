@@ -705,7 +705,7 @@ class StatementsService {
       where: {
         uid,
         currency: like,
-        status: { [Op.notIn]: ['rejected', 'failed', 'Rejected', 'Failed'] },
+        status: { [Op.notIn]: ['rejected', 'failed', 'Rejected', 'Failed', 'cancelled', 'Cancelled'] },
       },
       raw: true,
     })) {

@@ -24,6 +24,7 @@ const { createLogger, errorHandler } = require('@ibitplay/common');
 const TEST_DB = process.env.TEST_DB_NAME || 'ibitplay_test';
 const PNG = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0, 0, 0, 0]);
 const TAG = `u${process.pid % 100000}`;
+const UPI = `qa-limits-${TAG}@upi`;
 
 test('fiat deposit upload', async (t) => {
   const logger = createLogger({ name: 'fiat-upload-test', level: 'silent' });
@@ -52,6 +53,7 @@ test('fiat deposit upload', async (t) => {
   const storage = path.join(os.tmpdir(), `ibitplay-deposit-upload-${process.pid}`);
   const wipe = async () => {
     await FiatDeposits.destroy({ where: { user_id: uid } });
+    await connection.models.CurrencyPaymentDetails.destroy({ where: { upi_id: UPI } });
     await Credits.destroy({ where: { uid } });
     await Users.destroy({ where: { id: uid } });
   };
@@ -86,11 +88,12 @@ test('fiat deposit upload', async (t) => {
   });
   const url = `http://127.0.0.1:${server.address().port}/deposits/fiat`;
 
-  const lodge = async (file, ref) => {
+  const lodge = async (file, ref, extra = {}) => {
     const form = new FormData();
     form.set('amount', '500');
     form.set('currency', 'INR');
     form.set('transactionId', ref);
+    for (const [k, val] of Object.entries(extra)) form.set(k, val);
     if (file) form.set('screenshot', file);
     const res = await fetch(url, { method: 'POST', body: form });
     const json = await res.json().catch(() => null);
@@ -117,5 +120,20 @@ test('fiat deposit upload', async (t) => {
     const r = await lodge(new File([PNG], 'shot.png', { type: 'image/png' }), `QA-${TAG}-ok`);
     assert.equal(r.status, 201);
     assert.equal(await FiatDeposits.count({ where: { user_id: uid } }), 1, 'only the valid one was written');
+  });
+
+  await t.test("the payment method's min / max is enforced on submit, not only by the list", async () => {
+    await connection.models.CurrencyPaymentDetails.create({ coin_type: 'INR', upi_id: UPI, is_active: true, min_amount: 1000, max_amount: 2000 });
+    const png = () => new File([PNG], 'shot.png', { type: 'image/png' });
+    const below = await lodge(png(), `QA-${TAG}-low`, { upiId: UPI });
+    assert.equal(below.status, 422);
+    assert.equal(below.code, 'FIAT_DEPOSIT_AMOUNT_OUT_OF_RANGE');
+    const above = await lodge(png(), `QA-${TAG}-high`, { upiId: UPI, amount: '2000.01' });
+    assert.equal(above.code, 'FIAT_DEPOSIT_AMOUNT_OUT_OF_RANGE');
+    const inside = await lodge(png(), `QA-${TAG}-in`, { upiId: UPI, amount: '2000' });
+    assert.equal(inside.status, 201);
+    // Matched case-insensitively, as a player may type it.
+    const upper = await lodge(png(), `QA-${TAG}-up`, { upiId: UPI.toUpperCase() });
+    assert.equal(upper.code, 'FIAT_DEPOSIT_AMOUNT_OUT_OF_RANGE');
   });
 });

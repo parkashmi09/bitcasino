@@ -175,6 +175,61 @@ test('fiat withdrawal double submit', async (t) => {
     }
   });
 
+  await t.test('the rejection reason is kept and shown in the player history', async () => {
+    const uid = newUid();
+    await seedPlayer(uid);
+    const { withdrawalId } = await submit(uid);
+    await service.updateStatus({ withdrawalId, status: 'Rejected', comment: 'UPI name does not match' }, staff);
+    const mine = await service.listForUser({ userId: uid, limit: 10, offset: 0 });
+    assert.equal(mine.rows[0].status, 'Rejected');
+    assert.equal(mine.rows[0].comment, 'UPI name does not match');
+  });
+
+  await t.test('the player cancels a request still In Queue: refunded once, final, audited', async () => {
+    const uid = newUid();
+    await seedPlayer(uid);
+    const { withdrawalId } = await submit(uid);
+    assert.equal(await balanceOf(uid), '600.00000000');
+
+    const out = await service.cancel({ userId: uid, withdrawalId });
+    assert.equal(out.status, 'Cancelled');
+    assert.equal(await balanceOf(uid), '1000.00000000');
+    assert.equal(await refundsOf(uid), 1);
+    const refund = await models.CreditsLedger.findOne({ where: { user_id: String(uid), reason: REASON.WITHDRAWAL_REVERSAL }, raw: true });
+    assert.equal(String(refund.meta?.refId), String(withdrawalId));
+    assert.match(refund.description, /cancelled by the player/);
+
+    // Final: no second cancel, no staff decision after it.
+    await assert.rejects(() => service.cancel({ userId: uid, withdrawalId }), (e) => e.code === 'FIAT_WITHDRAW_NOT_CANCELLABLE');
+    await assert.rejects(() => service.updateStatus({ withdrawalId, status: 'Rejected' }, staff), (e) => e.code === 'FIAT_WITHDRAW_ALREADY_PROCESSED');
+    assert.equal(await refundsOf(uid), 1);
+    await reconciles(uid);
+  });
+
+  await t.test('no cancel once staff decided, nor of another player\'s request; a cancel racing a reject refunds once', async () => {
+    const uid = newUid();
+    await seedPlayer(uid);
+    const first = await submit(uid);
+    await service.updateStatus({ withdrawalId: first.withdrawalId, status: 'Approved' }, staff);
+    await assert.rejects(() => service.cancel({ userId: uid, withdrawalId: first.withdrawalId }), (e) => e.code === 'FIAT_WITHDRAW_NOT_CANCELLABLE');
+    await assert.rejects(() => service.cancel({ userId: uid + 1, withdrawalId: first.withdrawalId }), (e) => e.code === 'FIAT_WITHDRAW_NOT_FOUND');
+
+    const second = await submit(uid, { upiId: 'race@bank' });
+    const results = await Promise.allSettled([
+      service.cancel({ userId: uid, withdrawalId: second.withdrawalId }),
+      service.updateStatus({ withdrawalId: second.withdrawalId, status: 'Rejected' }, staff),
+    ]);
+    assert.equal(results.filter((r) => r.status === 'fulfilled').length, 1);
+    assert.equal(await refundsOf(uid), 1);
+    await reconciles(uid);
+  });
+
+  await t.test('staff cannot set Cancelled', () => {
+    const v = require('../fiatWithdraw.validators');
+    assert.equal(v.updateStatus.body.safeParse({ withdrawalId: 1, status: 'Cancelled' }).success, false);
+    assert.equal(v.listMine.query.safeParse({ status: 'Cancelled' }).success, true);
+  });
+
   await t.test('a different payout account within the minute is a separate request', async () => {
     const uid = newUid();
     await seedPlayer(uid);

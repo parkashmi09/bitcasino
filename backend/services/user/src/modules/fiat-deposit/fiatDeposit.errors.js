@@ -35,6 +35,11 @@ module.exports = defineErrors('FIAT_DEPOSIT', {
     status: 404,
     message: 'No proof of payment was attached to this deposit',
   },
+  /** The amount is outside the payment method's min / max — details `{ amount, currency, min, max }`. */
+  AMOUNT_OUT_OF_RANGE: {
+    status: 422,
+    message: 'The amount is outside this payment method\'s minimum and maximum',
+  },
   DUPLICATE_TRANSACTION: {
     status: 409,
     // Two deposits claiming one bank reference is the commonest fraud attempt

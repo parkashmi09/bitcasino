@@ -37,10 +37,10 @@ const INVALIDATE = [['paged', API], ['api', `${API}/multiplier`]]
 const validX = (v: string) => {
   const n = Number(v)
 
-  return v.trim() !== '' && Number.isFinite(n) && n > 0 && n <= 100 && Math.round(n * 100) === n * 100
+  return v.trim() !== '' && Number.isFinite(n) && n >= 0 && n <= 100 && Math.round(n * 100) === n * 100
 }
 
-const X_ERROR = 'Between 0.01 and 100, at most 2 decimals'
+const X_ERROR = 'Between 0 and 100, at most 2 decimals (0 = no rollover)'
 
 type Sort = { key: string; order: 'asc' | 'desc' }
 
@@ -203,7 +203,7 @@ const TurnoverReport = () => {
     <div>
       <PageHeader
         title='Turnover Report'
-        description='How much each direct player has wagered against a target of their deposits × TargetX. A report only: it does not block withdrawals or bonuses.'
+        description='How much each direct player has wagered against a target of their deposits × TargetX. It is the withdrawal rollover: a player cannot withdraw until the wager reaches the target. TargetX 0 = no requirement.'
         actions={
           <Button variant='outline' disabled={list.isFetching} onClick={() => invalidate(...INVALIDATE)}>
             <RefreshCwIcon className={cn(list.isFetching && 'animate-spin')} /> Refresh

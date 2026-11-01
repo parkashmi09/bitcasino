@@ -106,12 +106,20 @@ module.exports = function adminRoutes(deps) {
     validate(v.updateWelcomeBonusSettings),
     withActivity({
       action: 'site-config.welcome-bonuses.update',
-      describe: (req) => ({ targetType: 'SITE_CONFIG', targetId: 'welcome-bonuses', details: req.body }),
+      // Never the transaction password into the audit trail.
+      describe: (req) => {
+        const { transactionPassword: _secret, ...details } = req.body;
+        return { targetType: 'SITE_CONFIG', targetId: 'welcome-bonuses', details };
+      },
     }),
     asyncHandler(async (req, res) =>
       response.ok(
         res,
-        await service.updateWelcomeBonusSettings({ ...req.body, staffId: req.staff?.id ?? null })
+        await service.updateWelcomeBonusSettings({
+          ...req.body,
+          staffId: req.staff?.id ?? null,
+          executiveId: req.staff?.executiveId ?? null,
+        })
       )
     )
   );

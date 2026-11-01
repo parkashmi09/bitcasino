@@ -73,6 +73,12 @@ module.exports = (sequelize) => {
       allowNull: true,
       field: "name",
     },
+    // migration 182: the staff reason for the decision (shown to the player on a rejection).
+    admin_comment: {
+      type: DataTypes.TEXT,
+      allowNull: true,
+      field: "admin_comment",
+    },
   }, {
     sequelize,
     modelName: "FiatWithdrawals",

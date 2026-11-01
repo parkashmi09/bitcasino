@@ -1575,7 +1575,7 @@ class ReportsService {
       where: {
         uid,
         currency: { [Op.iLike]: currency },
-        status: { [Op.notIn]: ['rejected', 'failed', 'Rejected', 'Failed'] },
+        status: { [Op.notIn]: ['rejected', 'failed', 'Rejected', 'Failed', 'cancelled', 'Cancelled'] },
       },
       raw: true,
     });

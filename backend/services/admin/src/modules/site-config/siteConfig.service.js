@@ -507,8 +507,12 @@ class SiteConfigService {
     };
   }
 
-  /** A patch: any field left out keeps its stored value. `tiers` replaces the list. */
-  async updateWelcomeBonusSettings({ registerBonus, firstDepositBonus, depositProgram, staffId = null }) {
+  /**
+   * A patch: any field left out keeps its stored value. `tiers` replaces the list. These terms decide
+   * what the site pays out, so the save asks for the transaction password like the other money settings.
+   */
+  async updateWelcomeBonusSettings({ registerBonus, firstDepositBonus, depositProgram, staffId = null, executiveId = null, transactionPassword }) {
+    await assertTransactionPassword(this.models, staffId, transactionPassword, { required: true, executiveId });
     const row = await this.#configRow(['id']);
     if (!row) throw errors.NOT_CONFIGURED();
 

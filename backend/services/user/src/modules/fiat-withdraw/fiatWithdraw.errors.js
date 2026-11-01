@@ -11,6 +11,11 @@ module.exports = defineErrors('FIAT_WITHDRAW', {
     status: 409,
     message: 'This withdrawal has already been processed',
   },
+  /** The player's cancel, once staff have decided the request (it is no longer In Queue). */
+  NOT_CANCELLABLE: {
+    status: 409,
+    message: 'This withdrawal can no longer be cancelled',
+  },
   INSUFFICIENT_BALANCE: {
     status: 402,
     message: 'Insufficient balance for this withdrawal',

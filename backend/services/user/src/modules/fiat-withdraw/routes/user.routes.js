@@ -21,6 +21,9 @@ module.exports = function userRoutes(deps) {
   // Agent-tree players are paid out by their agent — no withdrawal rail. History stays readable.
   router.post('/', denyAgentPlayer('withdraw'), validate(v.create), ctrl.create);
   router.get('/', validate(v.listMine), ctrl.listMine);
+  // A request still In Queue (no staff decision yet) back to the balance. Not agent-gated: it only
+  // ever returns the player's own held funds.
+  router.post('/:withdrawalId/cancel', validate(v.withdrawalParam), ctrl.cancel);
 
   return router;
 };

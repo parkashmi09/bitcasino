@@ -127,6 +127,8 @@ const updateWelcomeBonusSettings = {
         })
         .strict()
         .optional(),
+      // Checked by the service (403 TXN_PASSWORD_REQUIRED / _INVALID), as the other money settings are.
+      transactionPassword: z.string().min(1).max(200).optional(),
       // hash.game's deposit bonus program (migration 136).
       depositProgram: z
         .object({

@@ -77,4 +77,14 @@ test('turnover report against a database', async (t) => {
     assert.equal(rowB.multiplier, 4);
     assert.equal((await service.settings()).defaultMultiplier, 4);
   });
+
+  await t.test('TargetX 0 clears a rollover: target 0, mirrored onto the withdrawal rollover', async () => {
+    const r = await service.setUser({ actor, userId: b, multiplier: 0 });
+    assert.equal(r.multiplier, 0);
+    const [[u]] = await sequelize.query('SELECT wager_multiplier FROM users WHERE id = :id', { replacements: { id: b } });
+    assert.equal(Number(u.wager_multiplier), 0);
+    const rowB = (await service.list({ search: String(b) })).rows.find((x) => x.id === String(b));
+    assert.equal(rowB.multiplier, 0);
+    assert.equal(rowB.target, '0.00');
+  });
 });

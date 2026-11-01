@@ -11,8 +11,9 @@ const { z } = require('@ibitplay/common');
 const multiplier = z
   .string({ required_error: 'multiplier is required' })
   .trim()
-  .regex(/^\d+(\.\d{1,4})?$/, 'multiplier must be a positive decimal')
-  .refine((v) => Number.parseFloat(v) > 0 && Number.parseFloat(v) <= 100, 'multiplier must be between 0 and 100');
+  .regex(/^\d+(\.\d{1,4})?$/, 'multiplier must be a decimal from 0')
+  // 0 = no rollover: the target is 0, which clears the withdrawal requirement.
+  .refine((v) => Number.parseFloat(v) >= 0 && Number.parseFloat(v) <= 100, 'multiplier must be between 0 and 100');
 
 const userParam = { params: z.object({ userId: z.coerce.number().int().positive() }) };
 
