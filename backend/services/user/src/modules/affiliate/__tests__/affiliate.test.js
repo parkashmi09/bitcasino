@@ -159,7 +159,7 @@ test('affiliate', async (t) => {
     // 1,500 → 20,000 passes Bronze II (3,000) and Bronze IV (15,000).
     assert.equal(second.tier, '15000');
     assert.equal(second.amount, '5.00000000');
-    assert.deepEqual(second.granted.map((g) => g.amountUsd), ['2.50', '5.00']);
+    assert.deepEqual(second.granted.map((g) => g.amountUsd), ['2.50000000', '5.00000000']);
   });
 
   await t.test('a wager with thousands separators still finds the right tier', async () => {
@@ -681,4 +681,26 @@ test('affiliate', async (t) => {
     const result = await service.myRewards({ userId: uid });
     assert.deepEqual(result, { total: 0, totalAmount: '0', rows: [] });
   });
+});
+
+test("default currency INR: the admin's referral steps are rupees, shown and paid as is", async () => {
+  const { AffiliateService: Service } = require('../affiliate.service');
+  const rate = '0.0105'; // 1 INR in USD
+  const rewardMoney = {
+    currency: async () => 'INR',
+    toUsd: async (amount, from) => (from === 'INR' ? (Number(amount) * Number(rate)).toFixed(8) : String(amount)),
+    convert: async (amount, from, to) => (from === to ? String(amount) : from === 'USD' && to === 'INR' ? String(Number(amount) / Number(rate)) : null),
+  };
+  const service = new Service({
+    models: { Team: { findAll: async () => [] }, SiteFeature: { findByPk: async (key) => (key === 'default_currency' ? { variant: 'INR' } : null) } },
+    db: {},
+    logger: null,
+    config: {},
+    rewardMoney,
+  });
+  service.settings = { read: async () => ({ unlockTiers: [{ level: 'Bronze I', wager: '1000', reward: '0.5' }, { level: 'Gold', wager: '5000', reward: '9.5' }] }) };
+  const locked = await service.lockedRewards({ ownerName: 'nobody' });
+  assert.equal(locked.currency, 'INR');
+  assert.equal(locked.perFriend, '10.00000000', '₹10 per friend, not $10 converted');
+  assert.equal(locked.perFriendUsd, '0.10500000');
 });

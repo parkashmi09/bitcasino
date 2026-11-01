@@ -761,13 +761,14 @@ class SiteConfigService {
 
   /**
    * The referral unlock table, as the Affiliate rates screen reads it.
-   * `totalWager` and `unlockAmount` are denominated in the site's reward
-   * currency (`currency`), like every other operator-entered reward amount.
+   * `totalWager` and `unlockAmount` are denominated in the owner's default
+   * currency (`currency`, owner panel `default_currency`); user-service pays
+   * them in the reward currency at the site rate when the two differ.
    * `stored: false` = the column is missing and these are the defaults.
    */
   async referralUnlockSettings() {
-    const [stored, rewardCurrency] = await Promise.all([this.#storedReferralUnlocks(), this.rewardCurrency()]);
-    return { ...stored, currency: rewardCurrency, rewardCurrency, maxTiers: REFERRAL_UNLOCK_MAX };
+    const [stored, rewardCurrency, currency] = await Promise.all([this.#storedReferralUnlocks(), this.rewardCurrency(), this.defaultCurrency()]);
+    return { ...stored, currency, rewardCurrency, maxTiers: REFERRAL_UNLOCK_MAX };
   }
 
   /** Replaces the whole list (the validator has already checked each row). */
@@ -1130,11 +1131,12 @@ class SiteConfigService {
 
     // What the site may promise a new player. Only the terms when it is on.
     const tiers = this.#tiers(row?.first_deposit_bonus_tiers);
-    const [rewardCurrency, defaultCurrency, referralUnlocks, rates] = await Promise.all([
+    const [rewardCurrency, defaultCurrency, referralUnlocks, rates, unlockCurrency] = await Promise.all([
       this.rewardCurrency(),
       this.#publicDefaultCurrency(),
       this.#storedReferralUnlocks(),
       this.#storedCommissionRates(),
+      this.defaultCurrency(),
     ]);
     const firstDepositBonus = row?.first_deposit_bonus_enabled && tiers.length
       ? { enabled: true, currency: rewardCurrency, payoutCurrency: rewardCurrency, tiers }
@@ -1153,8 +1155,8 @@ class SiteConfigService {
       firstDepositBonus,
       // The /referral/rules table (migration 106): friend's VIP level, the
       // total wager that reaches it, and what the referrer unlocks there —
-      // amounts in the reward currency. Display terms only.
-      referralUnlocks: { currency: rewardCurrency, tiers: referralUnlocks.tiers },
+      // amounts in the owner's default currency (what user-service pays on).
+      referralUnlocks: { currency: unlockCurrency, tiers: referralUnlocks.tiers },
       // The /referral/rules rate boxes and calculator (migration 134): percent
       // strings, the defaults until it runs. Display terms only.
       commissionRate: rates.commissionRate,
