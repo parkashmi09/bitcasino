@@ -6,7 +6,7 @@ const assert = require('node:assert');
 const db = require('@ibitplay/db');
 const { createLogger, money } = require('@ibitplay/common');
 
-const { JsGamesService } = require('../jsGames.service');
+const { JsGamesService, v2InrAccount, v2PlayerOf } = require('../jsGames.service');
 const { HuiduClient } = require('../providers/huidu');
 const { XGamesApiClient } = require('../providers/xgamesApi');
 const { CODE } = require('../jsGames.constants');
@@ -211,6 +211,27 @@ test('jsGames launch', async (t) => {
       service({ v2: v2Client(impl) }).launchV2({ userId: uid, gameUid: 'g-1', currencyCode: 'USDT' }),
       (error) => error.code === 'JSGAMES_UPSTREAM_REJECTED' && error.details?.upstreamCode === 10004,
     );
+  });
+
+  await t.test('v2 INR refused with 10004 (id locked to another currency) retries under the INR-only id', async () => {
+    const uid = await seedPlayer();
+    const { calls, impl } = mockFetch(() =>
+      calls.length === 1
+        ? { status: 400, json: { success: false, error: { code: 10004, message: 'Game launch failed' } } }
+        : { json: { success: true, data: { game_launch_url: 'https://p.test/inr', session_token: `inr-${uid}` } } },
+    );
+    const out = await service({ v2: v2Client(impl) }).launchV2({ userId: uid, gameUid: 'g-1', currencyCode: 'INR' });
+    assert.strictEqual(out.gameLaunchUrl, 'https://p.test/inr');
+    assert.deepStrictEqual(calls.map((c) => c.body.user_id), [String(uid), String(v2InrAccount(uid))]);
+    assert.strictEqual(v2PlayerOf(v2InrAccount(uid)), uid, 'the callback maps the INR id back to the player');
+    assert.strictEqual(v2PlayerOf(uid), uid);
+  });
+
+  await t.test('v2 USDT refused with 10004 is not retried', async () => {
+    const uid = await seedPlayer();
+    const { calls, impl } = mockFetch(() => ({ status: 400, json: { success: false, error: { code: 10004, message: 'Unsupported currency' } } }));
+    await assert.rejects(service({ v2: v2Client(impl) }).launchV2({ userId: uid, gameUid: 'g-1', currencyCode: 'USDT' }));
+    assert.strictEqual(calls.length, 1);
   });
 
   await t.test('v2 reports an HTTP-400 refusal as REJECTED (what USDT gets on the live operator)', async () => {
