@@ -7,7 +7,7 @@ import { launchSportsbook } from '@/lib/sportsbookLaunch';
 import { queryKeys } from '@/queries/keys';
 import { QueryError } from '@/components/ui/QueryState';
 import { Skeleton } from '@/components/ui/Skeleton';
-import { useSiteConfig } from '@/queries/siteConfig';
+import { useSiteConfig, useSportsbookSettings } from '@/queries/siteConfig';
 import ExchangeLobby from '@/pages/Exchange/Lobby';
 import ExchangeMyBets from '@/pages/Exchange/MyBets';
 import ExchangeStatement from '@/pages/Exchange/Statement';
@@ -16,25 +16,34 @@ import SportsInrDialog from '@/pages/Exchange/SportsInrDialog';
 const ExchangeMatch = lazy(() => import('@/pages/Exchange/Match/index.jsx'));
 
 /**
- * `/sports/*` — with the owner's `sportsbook` on, the provider's sportsbook in an iframe (`lib/sportsbookLaunch.js`: Slotegrator,
- * else LuckySports). Only reachable while the owner has `sports` + `sportsbook` on (`lib/gates.js`).
+ * `/sports/*` — the owner's two sports products, each switched on its own:
+ *   exchange only  `/sports/*` is the native exchange;
+ *   sportsbook only `/sports/*` is the provider's sportsbook in an iframe (`lib/sportsbookLaunch.js`:
+ *                  Slotegrator, else LuckySports);
+ *   both           `/sports/*` is the exchange and `/sports/book` the sportsbook.
  *
  * Signed out → `RequireAuth` sends the player to log in and back, like `/games/recent`.
  * One launch per sign-in: the key carries the player and never goes stale, so leaving and
  * coming back reuses the open book instead of starting a new upstream session.
  */
 export function Sports() {
-  // The gate (lib/gates.js) lets this page mount only when one of the two flags is on; the owner
-  // keeps them exclusive, so `sportsbook` on = the iframe, else the native exchange.
+  // The gate (lib/gates.js) lets this page mount only when one of the two flags is on.
   const { config } = useSiteConfig();
-  if (config.raw?.sportsbook === true) {
-    return (
-      <RequireAuth>
-        <Book />
-      </RequireAuth>
-    );
-  }
-  return <Exchange />;
+  const book = config.raw?.sportsbook === true;
+  const exchange = config.raw?.sportsexchange === true;
+  const bookPage = (
+    <RequireAuth>
+      <Book />
+    </RequireAuth>
+  );
+  if (book && !exchange) return bookPage;
+  if (!book) return <Exchange />;
+  return (
+    <Routes>
+      <Route path="book/*" element={bookPage} />
+      <Route path="*" element={<Exchange />} />
+    </Routes>
+  );
 }
 
 /**
@@ -86,9 +95,12 @@ const FRAME = 'h-[calc(100svh-9rem)] min-h-[480px] w-full rounded-lg md:h-[calc(
 
 function Book() {
   const { user } = useAuth();
+  const settings = useSportsbookSettings();
   const book = useQuery({
-    queryKey: queryKeys.play.sportsbook(user?.id ?? null),
-    queryFn: () => launchSportsbook(),
+    queryKey: [...queryKeys.play.sportsbook(user?.id ?? null), settings.gameUid],
+    queryFn: () => launchSportsbook('INR', settings.gameUid),
+    // Wait for the owner's game, or the default would open first.
+    enabled: !settings.isPending,
     staleTime: Infinity,
     gcTime: Infinity,
     retry: false,

@@ -1,7 +1,7 @@
 'use strict';
 
 const { Router } = require('express');
-const { response, asyncHandler, createRateLimiter, noBody, noQuery } = require('@ibitplay/common');
+const { response, asyncHandler, createRateLimiter, noBody, noQuery, entitlements } = require('@ibitplay/common');
 const { denyAgentPlayer } = require('@ibitplay/auth');
 
 const { RakebackService } = require('../rakeback.service');
@@ -20,6 +20,8 @@ const { RakebackService } = require('../rakeback.service');
 module.exports = function userRoutes(deps) {
   const service = new RakebackService(deps);
   const router = Router();
+  // The owner's 'Bonus and rakeback' feature, as reload-rewards.
+  router.use(entitlements.requireFeature('bonus'));
   // Agent-tree players (owner at staff level 4–6) have no promotions.
   router.use(denyAgentPlayer('promotions'));
 

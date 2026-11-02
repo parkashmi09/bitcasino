@@ -153,17 +153,16 @@ async function isFeatureEntitled(key) {
 }
 
 /* Flags that read OFF when the owner never set them (owner-panel DEFAULT_OFF_FLAGS): the
-   sportsbook replaces the exchange, so it is never on by default; idle logout signs players out. */
+   sportsbook adds a third-party book, so it is never on by default; idle logout signs players out. */
 const DEFAULT_OFF_FLAGS = new Set(['sportsbook', 'idle_logout']);
 
 /**
- * Sync flag read for code that holds the document. Sports runs one mode at a time: with the
- * sportsbook on, `sportsexchange` reads off whatever is stored, so every exchange gate closes.
+ * Sync flag read for code that holds the document. The sportsbook and the exchange are
+ * independent: either, both or neither may be on.
  */
 function flagOnIn(doc, key) {
   const value = doc?.flags?.[key];
-  const on = value === undefined ? !DEFAULT_OFF_FLAGS.has(key) : value !== false;
-  return key === 'sportsexchange' ? on && !flagOnIn(doc, 'sportsbook') : on;
+  return value === undefined ? !DEFAULT_OFF_FLAGS.has(key) : value !== false;
 }
 
 async function isFlagEntitled(key) {

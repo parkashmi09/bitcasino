@@ -1,8 +1,8 @@
 'use strict';
 
 const { Router } = require('express');
-const { response, asyncHandler, entitlements, currencyRegistry } = require('@ibitplay/common');
-const { LITERAL_EVENTS, PLATFORM_EVENTS, encode } = require('@ibitplay/socket');
+const { response, asyncHandler, entitlements, currencyRegistry, clearVipBranding } = require('@ibitplay/common');
+const { LITERAL_EVENTS, PLATFORM_EVENTS, encode, roomForUser } = require('@ibitplay/socket');
 const { invalidateSiteState } = require('../../sync/sockets');
 
 /**
@@ -69,12 +69,28 @@ module.exports = function internalRoutes(deps) {
       // rainbet: content scopes (names only, allow-listed by the sender; see contentPush.js).
       if (Array.isArray(content) && content.length) {
         const scopes = content.filter((s) => typeof s === 'string' && s.length <= 60).slice(0, 50);
+        // This process caches the ladder names (10 s): drop it so the refetch the push triggers is fresh.
+        if (scopes.includes('admin:vip-branding')) clearVipBranding();
         io.emit(PLATFORM_EVENTS.CONTENT_UPDATED, encode({ scopes }));
         pushed.push(PLATFORM_EVENTS.CONTENT_UPDATED);
       }
 
       deps.logger?.info({ pushed, caller: req.internalCaller ?? null, clients: io.engine?.clientsCount ?? null }, 'Site config pushed to every socket');
       return response.ok(res, { pushed, clients: io.engine?.clientsCount ?? null });
+    })
+  );
+
+  /**
+   * `POST /internal/user/preferences/inbox` `{ userIds }`: an admin notification was recorded for
+   * these players. Each one's socket room gets `notificationsUnread`, and the bell re-reads its inbox.
+   */
+  router.post(
+    '/inbox',
+    asyncHandler(async (req, res) => {
+      const ids = Array.isArray(req.body?.userIds) ? req.body.userIds.slice(0, 5000).map(String) : [];
+      const io = deps.io;
+      if (io) for (const id of ids) io.to(roomForUser(id)).emit(PLATFORM_EVENTS.NOTIFICATIONS_UNREAD, encode({ status: true }));
+      return response.ok(res, { pushed: io ? ids.length : 0 });
     })
   );
 

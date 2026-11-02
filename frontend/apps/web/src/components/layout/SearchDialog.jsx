@@ -84,6 +84,7 @@ export function SearchDialog({ open, onClose }) {
    */
   const popular = useGames({
     category: filter || undefined,
+    sort: 'popular',
     limit: FETCH_LIMIT,
     enabled: open,
   });

@@ -70,7 +70,7 @@ export function derivePalette(accent: string, secondary: string, bg: string): Pa
   }
 }
 
-/** The colours template `key` shows on the player site: the owner's own theme, a built-in, or Rainbet's ("Original"). */
+/** The colours template `key` shows on the player site: the owner's own theme, a built-in, or the site's own ("Original"). */
 export function coloursOf(key: string | undefined, palettes: OwnerPalette[] = []): PaletteColours {
   return palettes.find(p => p.key === key)?.colours ?? (key ? BUILTIN_PALETTES[key] : undefined) ?? ORIGINAL_PALETTE
 }

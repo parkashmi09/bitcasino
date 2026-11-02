@@ -1527,11 +1527,18 @@ class ReportsService {
 
       for (const row of transfers) {
         const isCredit = row.to_type === 'user' && String(row.to_id) === uid;
+        // 'direct' is the owner's Direct User balance paying a self-signed-up player, not an agent.
+        const owner = row.transfer_type === 'direct';
         push(
           row.created_at,
-          'Agent',
+          owner ? 'Owner' : 'Agent',
           isCredit ? 'CREDIT' : 'DEBIT',
-          [isCredit ? 'Credited by agent' : 'Collected by agent', row.note].filter(Boolean).join(' — '),
+          [
+            owner
+              ? (isCredit ? 'Credited by owner (Direct User balance)' : 'Collected by owner (Direct User balance)')
+              : (isCredit ? 'Credited by agent' : 'Collected by agent'),
+            row.note,
+          ].filter(Boolean).join(' — '),
           isCredit ? row.amount : `-${row.amount}`,
           Number(row.id) || 0
         );

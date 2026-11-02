@@ -4,7 +4,8 @@ import { cn } from '@/lib/cn';
 import { useGates } from '@/hooks/useGates';
 import { Brand } from '@/components/ui/Brand';
 import { withBrand } from '@/lib/branding';
-import { useSiteName } from '@/queries/siteConfig';
+import { usePublicCurrencies, useSiteName } from '@/queries/siteConfig';
+import { useProviders } from '@/queries/providers';
 
 /** A link in the copy below; plain text while its section is switched off. */
 function Link({ to, children }) {
@@ -49,35 +50,6 @@ const PROSE = [
   '[&>*:first-child]:mt-0',
 ].join(' ');
 
-const COINS = [
-  'Tether (USDT)',
-  'Bitcoin (BTC)',
-  'Ethereum (ETH)',
-  'Tron (TRX)',
-  'Litecoin (LTC)',
-  'Ripple (XRP)',
-  'Cardano (ADA)',
-  'Dogecoin (DOGE)',
-  'Binance Coin (BNB)',
-  'Polygon (MATIC)',
-  'Binance USD (BUSD)',
-  'USD Coin (USDC)',
-  'Solana',
-  'The Open Network (TON)',
-];
-
-const STUDIOS = [
-  'Evolution',
-  'NetEnt',
-  'Microgaming',
-  'AvatarUX',
-  'OneTouch',
-  'PGSoft',
-  'Caleta',
-  'Hacksaw Gaming',
-  'Spinomenal',
-  'Betsoft',
-];
 
 const ACCOUNT_STEPS = [
   'Visit the Bitcasino website or download the mobile app.',
@@ -106,6 +78,11 @@ const WITHDRAW_STEPS = [
 export function TrustSection() {
   const site = useSiteName();
   const [open, setOpen] = useState(false);
+  // The coins the site really has on (owner + admin) and its enabled studios.
+  const coins = usePublicCurrencies()
+    .filter((c) => c.kind === 'crypto')
+    .map((c) => (c.name && c.name !== c.code ? `${c.name} (${c.code})` : c.code));
+  const studios = (useProviders().data ?? []).slice(0, 12).map((p) => p.label);
   const contentId = useId();
 
   return (
@@ -255,7 +232,7 @@ export function TrustSection() {
           </p>
           <p>Here’s a list of all the supported crypto payments at <Brand />:</p>
           <ul>
-            {COINS.map((coin) => (
+            {coins.map((coin) => (
               <li key={coin}>{coin}</li>
             ))}
           </ul>
@@ -416,7 +393,7 @@ export function TrustSection() {
           </p>
           <p>Here are some of our top developers:</p>
           <ul>
-            {STUDIOS.map((studio) => (
+            {studios.map((studio) => (
               <li key={studio}>{studio}</li>
             ))}
           </ul>

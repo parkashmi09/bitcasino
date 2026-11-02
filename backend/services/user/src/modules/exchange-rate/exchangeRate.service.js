@@ -99,6 +99,8 @@ class ExchangeRateService {
       currency: String(r.currency).toUpperCase(),
       usdRate: money.toDecimalString(money.toMinor(r.usd_rate ?? '0')),
       lastUpdated: r.last_updated,
+      // 'site' = pinned by hand (the market refresh skips it), 'owner' = the owner's fixed rate, null = market.
+      managedBy: r.managed_by ?? null,
     }));
   }
 
@@ -111,6 +113,7 @@ class ExchangeRateService {
       currency: String(row.currency).toUpperCase(),
       usdRate: money.toDecimalString(money.toMinor(row.usd_rate ?? '0')),
       lastUpdated: row.last_updated,
+      managedBy: row.managed_by ?? null,
     };
   }
 
@@ -163,7 +166,7 @@ class ExchangeRateService {
   }
 
   /** @legacy PUT /exchangeRate/rates/:currency */
-  async updateRate({ currency, usdRate }) {
+  async updateRate({ currency, usdRate, followMarket = false }) {
     const existing = await this.#findRate(currency);
     if (!existing) throw errors.RATE_NOT_FOUND({ currency });
     assertSiteManaged(currency, existing);
@@ -171,7 +174,8 @@ class ExchangeRateService {
     const previous = money.toDecimalString(money.toMinor(existing.usd_rate ?? '0'));
 
     await this.models.Exchangerate.update(
-      { usd_rate: usdRate, last_updated: new Date() },
+      // 'site' = set by hand: refreshFromMarket leaves it alone until followMarket puts it back.
+      { usd_rate: usdRate, last_updated: new Date(), managed_by: followMarket ? null : 'site' },
       { where: { id: existing.id } }
     );
 
@@ -195,7 +199,7 @@ class ExchangeRateService {
     for (const row of rows) {
       const code = String(row.currency).toUpperCase();
       const usd = rates[code];
-      if (!usd || row.managed_by === 'owner' || isCustomCurrency(code)) continue;
+      if (!usd || row.managed_by === 'owner' || row.managed_by === 'site' || isCustomCurrency(code)) continue;
       await this.models.Exchangerate.update(
         { usd_rate: usd.toFixed(8), last_updated: new Date() },
         { where: { id: row.id } }

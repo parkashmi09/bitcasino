@@ -221,7 +221,7 @@ export const AdjustWalletDialog = ({ userId, userName, currencies, invalidate = 
       description={
         agentTree
           ? `Moves INR between your balance and user #${userId}. A reason is required and appears on both statements.`
-          : `Writes a ledger entry against user #${userId}. INR comes out of (and goes back to) your own wallet, except for a direct user (signed up on their own), who is not charged to you. A reason is required and audited.`
+          : `Writes a ledger entry against user #${userId}. INR comes out of (and goes back to) your own wallet; for a direct user (signed up on their own) it comes from your Direct User balance. A reason is required and audited.`
       }
       submitLabel='Apply'
       validate={() => ({

@@ -393,16 +393,18 @@ test('gift cards', async (t) => {
     }
   });
 
-  await t.test('a card with activations cannot be deleted', async () => {
+  await t.test('a card with activations is switched off, not deleted, and can no longer be claimed', async () => {
     const service = build();
     const uid = newUid();
     await seed(uid);
     const card = await makeCard(service);
     await service.activate({ userId: uid, giftCardId: card.id });
 
+    const out = await service.remove({ id: card.id });
+    assert.equal(out.deactivated, true);
     await assert.rejects(
-      () => service.remove({ id: card.id }),
-      (err) => err.code === 'GIFTCARD_IN_USE'
+      () => service.claim({ userId: uid, giftCardId: card.id }),
+      (err) => err.code === 'GIFTCARD_INACTIVE'
     );
   });
 

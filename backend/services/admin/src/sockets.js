@@ -71,11 +71,14 @@ function attachSockets({ server, container }) {
      * user-service it has no boundary to cross.
      */
     const staff = await models.Staff.findByPk(payload.sub, {
-      attributes: ['id', 'name', 'email', 'role_id', 'status', 'token_version'],
+      attributes: ['id', 'name', 'email', 'role_id', 'status', 'token_version', 'system_locked', 'must_change_password'],
       raw: true,
     });
 
-    if (!staff || staff.status === 'disabled' || staff.status === 'inactive') return null;
+    // As strict as the HTTP guard (packages/auth middleware): suspended, cascade-locked, or
+    // still on a temporary password opens no console socket either.
+    if (!staff || staff.status !== 'active' || staff.system_locked) return null;
+    if (!payload.ro && !payload.executiveId && staff.must_change_password === true) return null;
     // Logout / password change bump the version; an older token opens no socket (as the HTTP guard).
     if (Number(payload.tv ?? 0) !== Number(staff.token_version ?? 0)) return null;
     // An executive's own logout bumps its row's version instead.

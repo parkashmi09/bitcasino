@@ -30,7 +30,8 @@ module.exports = function publicRoutes(deps) {
     validate({ query: v.emptyQuery }),
     asyncHandler(async (_req, res) => {
       const current = deps.entitlementsStore?.current() ?? {};
-      res.set('Cache-Control', 'public, max-age=15');
+      // Revalidate every read (ETag answers 304): a cached copy would swallow the owner's live push.
+      res.set('Cache-Control', 'no-cache');
       return response.ok(res, store.view(current.branding ?? null, current.version ?? 0));
     })
   );

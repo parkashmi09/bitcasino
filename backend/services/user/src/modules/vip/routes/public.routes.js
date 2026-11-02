@@ -1,6 +1,7 @@
 'use strict';
 
 const { Router } = require('express');
+const { entitlements } = require('@ibitplay/common');
 
 const { VipService } = require('../vip.service');
 const { createControllers } = require('../controllers');
@@ -9,6 +10,7 @@ const { createControllers } = require('../controllers');
 module.exports = function publicRoutes(deps) {
   const ctrl = createControllers({ service: new VipService(deps) });
   const router = Router();
+  router.use(entitlements.requireFeature('vip'));
   router.get('/levels', ctrl.levels);
   return router;
 };

@@ -243,7 +243,8 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       const flagsDoc = entitlements.data?.flags ?? {}
       const on = (k: string) => (flagsDoc[k] === undefined ? !DEFAULT_OFF_FLAGS.has(k) : flagsDoc[k] !== false)
 
-      return key === 'sportsexchange' ? on(key) && !on('sportsbook') : on(key)
+      // The sportsbook and the exchange are independent (backend entitlements.flagOnIn).
+      return on(key)
     },
     [entitlements.data]
   )

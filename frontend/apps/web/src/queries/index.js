@@ -98,4 +98,5 @@ export {
   usePromotions,
   usePromotion,
   useHomeSlides,
+  useChallenges,
 } from './promotions';

@@ -1,8 +1,7 @@
 import { useEffect, useId, useState } from 'react';
-import { Icon } from '@/components/ui/Icon';
 import { KycDialog } from '@/components/account/KycDialog';
-import { COUNTRIES, DIAL_CODES } from '@/data/countries';
-import { LOCAL_FIELDS, useProfile } from '@/hooks/useProfile';
+import { COUNTRIES } from '@/data/countries';
+import { useProfile } from '@/hooks/useProfile';
 import { useGates } from '@/hooks/useGates';
 import { useKycStatus } from '@/queries';
 import { cn } from '@/lib/cn';
@@ -65,23 +64,15 @@ import { cn } from '@/lib/cn';
  *
  * ## What is real
  *
- * The username, the email address, the phone number and the country come from
- * `GET /user/profile`; the country is written back through `PUT /user/profile`,
- * which is the only one of the nine form fields the platform has a column for.
- * The identity card is driven by `GET /user/kyc/status`. The rest of the form
- * persists in the browser — `useProfile` documents that split and holds the
- * seam. The one fabricated value is `emailVerified`, which no endpoint reports;
- * it is marked as a fixture where it is defined.
- *
- * `Start verification` opens the real multipart submission as of Phase 6 —
- * see `components/account/KycDialog.jsx`. The resend button is the one control
- * left with nothing behind it: no route exists to resend a verification email.
- * It is `aria-disabled` with a title saying so, which is the rule the account
- * menu's unbuilt rows follow — told apart by what they do, not by how they
- * look.
+ * Everything shown comes from `GET /user/profile`: username, email, phone
+ * (read-only) and country, which `PUT /user/profile` saves. Fields the platform
+ * has no column for (birthday, names, address, Telegram…) are not drawn, and
+ * neither is an email-verification notice — no route reports or resends one.
+ * The identity card is driven by `GET /user/kyc/status`; `Start verification`
+ * opens the real multipart submission (`components/account/KycDialog.jsx`).
  */
 export function Account() {
-  const { profile, local, status, emailVerified, save, saving } = useProfile();
+  const { profile, status, save, saving } = useProfile();
   const { data: kyc, isSuccess: kycRead } = useKycStatus();
   // An agent's player: read-only, no email or contact fields — the site admin edits
   // their profile (backend PROFILE_EDIT_NOT_FOR_AGENT_USERS).
@@ -100,10 +91,7 @@ export function Account() {
    */
   useEffect(() => {
     if (!profile) return;
-    setForm(seed(profile, local));
-    // `local` is deliberately not a dependency: it changes on every save, and
-    // re-seeding from it would overwrite whatever is being typed.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    setForm({ country: profile.country ?? '' });
   }, [profile]);
 
   const set = (field) => (value) => {
@@ -128,7 +116,6 @@ export function Account() {
         {/* KYC column. First in the DOM at every width, second on screen once
             the columns split — see the note above. */}
         <div className="grid h-max gap-2 [@media(min-width:1500px)]:order-2">
-          {!agentPlayer && !emailVerified && <EmailNotice />}
           {gates.on('kyc') && kycRead && kyc?.status !== 'Verified' && (
             <IdentityCard kyc={kyc} />
           )}
@@ -149,15 +136,6 @@ export function Account() {
               <span className="truncate text-sm leading-6 text-trunks">
                 {profile?.email ?? <Placeholder w="18ch" />}
               </span>
-              {profile?.email && !emailVerified && (
-                <Icon
-                  name="warning"
-                  size={24}
-                  className="text-krillin"
-                  role="img"
-                  aria-label="Email address not confirmed"
-                />
-              )}
             </div>}
           </div>
 
@@ -177,37 +155,9 @@ export function Account() {
           ) : (
             <form onSubmit={onSubmit}>
               <fieldset disabled={!form || saving || agentPlayer} className="grid gap-4 border-0 p-0">
-                {/* Read-only on the reference too — a date of birth is set at
-                    signup and changed by support, not here. */}
-                <Fact label="Date of birth" value={formatBirthday(form?.dateOfBirth)} />
-
-                <Field label="Name" placeholder="First name" value={form?.firstName} onChange={set('firstName')} autoComplete="given-name" />
-                <Field label="Last name" placeholder="Last name" value={form?.lastName} onChange={set('lastName')} autoComplete="family-name" />
-
-                {/* `max-content` for the code, the rest for the number, bottom
-                    aligned so the two controls sit on one line while their
-                    labels stay over each. */}
-                {!agentPlayer && <>
-                <div className="grid grid-cols-[max-content_1fr] items-end gap-4">
-                  <SelectField
-                    label="Country Code"
-                    value={form?.dialCode}
-                    onChange={set('dialCode')}
-                    options={DIAL_CODES.map((d) => ({ value: d.code, label: d.label }))}
-                  />
-                  <Field
-                    label="Phone number"
-                    value={form?.phone}
-                    onChange={set('phone')}
-                    type="tel"
-                    autoComplete="tel-national"
-                  />
-                </div>
-
-                <Field label="Line ID" placeholder="Line ID" value={form?.lineId} onChange={set('lineId')} />
-                <Field label="Telegram ID" placeholder="Telegram ID" value={form?.telegramId} onChange={set('telegramId')} />
-                </>}
-                <Field label="Address" placeholder="Address" value={form?.address} onChange={set('address')} autoComplete="street-address" />
+                {/* Only what the platform stores: the phone from signup (read-only,
+                    `PUT /user/profile` has no phone) and the country, which it does save. */}
+                {!agentPlayer && profile?.phone && <Fact label="Phone number" value={profile.phone} />}
 
                 {/* Two equal columns at every width on the reference — no
                     responsive variant on its own `grid-cols-2`. */}
@@ -218,7 +168,6 @@ export function Account() {
                     onChange={set('country')}
                     options={COUNTRIES.map((c) => ({ value: c.name, label: c.name }))}
                   />
-                  <Field label="City" placeholder="City" value={form?.city} onChange={set('city')} autoComplete="address-level2" />
                 </div>
 
                 {!agentPlayer && <div className="grid w-max gap-4">
@@ -256,37 +205,6 @@ export function Account() {
           )}
         </div>
       </div>
-    </div>
-  );
-}
-
-/**
- * The unconfirmed-address notice.
- *
- * Transparent, not a card — it sits on the page background above the identity
- * card. The resend control is INLINE in the paragraph on the reference, so it
- * flows after "spam folder or" rather than sitting on its own line, which is
- * why it is a `<button>` inside the `<p>` and not a row under it.
- */
-function EmailNotice() {
-  return (
-    <div className="grid grid-cols-[min-content_auto] items-center gap-3 rounded-i-md p-3">
-      <div className="grid size-10 place-items-center">
-        <Icon name="alert" size={24} className="text-krillin" />
-      </div>
-      <p className="py-2 text-base leading-6 text-bulma">
-        Please <b className="font-bold">verify your account</b> to enable withdrawals.
-        We just sent you an email with a verification link – click it, and you&rsquo;re
-        all set. No email received? Check your spam folder or{' '}
-        <button
-          type="button"
-          aria-disabled="true"
-          title="Resending the confirmation email is not built yet"
-          className="rounded-i-sm bg-piccolo px-4 py-2 align-middle text-base leading-6 font-medium text-on-piccolo"
-        >
-          click here to resend.
-        </button>
-      </p>
     </div>
   );
 }
@@ -368,31 +286,6 @@ function Fact({ label, value }) {
   );
 }
 
-/** Label over input, 8px apart — the reference's `flex flex-col gap-2` field. */
-function Field({ label, value, onChange, placeholder, type = 'text', autoComplete }) {
-  const id = useId();
-  return (
-    <div className="flex w-full flex-col gap-2">
-      <label htmlFor={id} className="text-base leading-6 text-trunks">
-        {label}
-      </label>
-      <input
-        id={id}
-        type={type}
-        value={value ?? ''}
-        onChange={(event) => onChange(event.target.value)}
-        placeholder={placeholder}
-        autoComplete={autoComplete}
-        className={cn(
-          'h-10 w-full min-w-0 rounded-i-sm border-[1.6px] border-hit bg-transparent px-2.5 py-1',
-          'text-base leading-6 text-bulma outline-none transition-colors',
-          'placeholder:text-trunks focus:border-piccolo disabled:opacity-60',
-        )}
-      />
-    </div>
-  );
-}
-
 /**
  * The same field with a native `<select>`.
  *
@@ -438,50 +331,6 @@ function Placeholder({ w }) {
       &nbsp;
     </span>
   );
-}
-
-/**
- * Splits the platform's single `phone` string into the reference's two fields,
- * and fills everything else from the browser-held half.
- *
- * The split runs only when the local half has nothing — once the player has
- * saved the form, their own two values win, because the platform cannot store
- * the split and re-deriving it would undo an edit on every reload.
- *
- * The longest dial code that matches wins: `+1` is a prefix of `+34` in string
- * terms only, but `+35` is a real prefix of `+351`, and picking the first
- * match would file a Portuguese number under Greece.
- */
-function seed(profile, local) {
-  const values = Object.fromEntries(LOCAL_FIELDS.map((f) => [f, local[f] ?? '']));
-  values.country = profile.country ?? '';
-
-  if (!values.dialCode && !values.phone && profile.phone) {
-    const raw = String(profile.phone).trim();
-    const match = DIAL_CODES.filter((d) => raw.startsWith(d.code)).sort(
-      (a, b) => b.code.length - a.code.length,
-    )[0];
-    values.dialCode = match?.code ?? '';
-    values.phone = match ? raw.slice(match.code.length).trim() : raw;
-  }
-
-  return values;
-}
-
-/**
- * `August 16, 2005` — the long form the reference prints, `en-US` pinned for
- * the reason `Notifications.formatDate` pins it.
- *
- * An em dash rather than an empty row when there is no date: the reference
- * always draws the row, and a caption with nothing under it reads as a bug.
- * Nothing sets this yet — signup collects a birthday and the platform has no
- * column for it, so it stays empty until one lands. See `useProfile`.
- */
-function formatBirthday(iso) {
-  if (!iso) return '—';
-  const date = new Date(`${iso}T00:00:00`);
-  if (Number.isNaN(date.getTime())) return '—';
-  return date.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
 }
 
 /** The line under the button. Empty until something has been submitted. */

@@ -19,6 +19,7 @@ import { currencyMeta, currencyNetworks } from '@/data/currencies';
 import QRCode from 'qrcode';
 import { compareDecimal, formatBalance, formatFiat, percentOf } from '@/lib/format';
 import {
+  useBankDetails,
   useDepositAddress,
   useSubmitWithdrawal,
   useSubmitFiatWithdrawal,
@@ -27,7 +28,7 @@ import {
   useWhitelist,
   useWithdrawalRequirements,
 } from '@/queries/wallet';
-import { ManualDepositPanel } from '@/components/wallet/ManualDepositPanel';
+import { AccountQr, ManualDepositPanel } from '@/components/wallet/ManualDepositPanel';
 import { fiatDestinationReady, requirementLines, savedFor } from '@/components/wallet/withdrawRules';
 import { cn } from '@/lib/cn';
 
@@ -103,7 +104,6 @@ const ANIMATION_MS = 150;
 
 const TABS = [
   { value: 'deposit', label: 'Deposit', icon: 'plus', disc: true },
-  { value: 'buy', label: 'Buy', icon: 'card' },
   { value: 'withdraw', label: 'Withdraw', icon: 'send' },
 ];
 
@@ -347,8 +347,6 @@ export function DepositDialog({ open, onClose }) {
 
           {active === 'deposit' && gates.autoDeposit() && (
             <div className="grid gap-3">
-              <ExchangeCard />
-
               {chain && (
                 <NetworkRow
                   currency={currency}
@@ -382,14 +380,6 @@ export function DepositDialog({ open, onClose }) {
             <div className={cn(gates.autoDeposit() && 'mt-3')}>
               <ManualDepositPanel currency={currency} crypto={Boolean(chain)} quiet={gates.autoDeposit()} />
             </div>
-          )}
-
-          {active === 'buy' && (
-            <Waiting
-              icon="card"
-              title={`Buy ${currency} with card`}
-              body="The card on-ramp is a hosted checkout opened with a session token from the payments service. This build does not hold the credentials to open one, so nothing is shown here rather than a form that cannot submit."
-            />
           )}
 
           {/* Kept for a withdraw-locked player so the drawer can say why. */}
@@ -784,56 +774,6 @@ function Segmented({ tabs, value, onChange, hasHint }) {
   );
 }
 
-/**
- * `Deposit from Exchange or Wallet`, the reference's aggregator card.
- *
- * Carried for the shape and the position — it is the first thing under the
- * actions there, and leaving a hole where it sits changes the rhythm of the
- * whole sheet. It does nothing, and says so: `aria-disabled` keeps it in the
- * tab order so the reason reaches a screen reader, which `disabled` would
- * not.
- */
-function ExchangeCard() {
-  return (
-    <div className="overflow-hidden rounded-i-md border-[0.8px] border-beerus bg-goku">
-      <button
-        type="button"
-        aria-disabled="true"
-        aria-describedby="bc-exchange-note"
-        onClick={(event) => event.preventDefault()}
-        className="flex w-full cursor-not-allowed items-center gap-3 px-4 py-3.5 text-start"
-      >
-        {/* Three overlapping discs where the reference shows its partners'
-            marks. This project has no licence to those logos and no
-            partnership to claim, so they are shapes, not traced brands. */}
-        <span aria-hidden="true" className="flex shrink-0 -space-x-2">
-          {['#1652f0', '#f0b90b', '#e2761b'].map((tint) => (
-            <span
-              key={tint}
-              style={{ backgroundColor: tint }}
-              className="size-7 rounded-full ring-2 ring-goku"
-            />
-          ))}
-        </span>
-
-        <span className="min-w-0 flex-1">
-          <span className="block text-base font-semibold text-bulma">
-            Deposit from Exchange or Wallet
-          </span>
-          <span className="block text-sm text-trunks">Connect an account</span>
-        </span>
-      </button>
-
-      <p
-        id="bc-exchange-note"
-        className="bg-whis/10 py-2.5 text-center text-xs font-semibold tracking-[0.08em] text-whis uppercase"
-      >
-        Smart deposit — not available yet
-      </p>
-    </div>
-  );
-}
-
 /** F2Pay's method codes as a player reads them; any other shows as sent. */
 const F2PAY_METHOD_LABELS = { UpiMixed: 'UPI', PI_USDT_TRX: 'USDT · TRC20' };
 
@@ -1084,14 +1024,29 @@ function NetworkMark({ currency, short, size = 40 }) {
  * most dangerous fact on the screen.
  * ═════════════════════════════════════════════════════════════════════════
  */
+/* Admin Bank details name a network as free text ('TRC20', 'Tron', 'BEP20'…): matched to a chain id. */
+const HOUSE_NETWORK = { TRC20: 'TRX', TRON: 'TRX', TRX: 'TRX', ERC20: 'ETH', ETH: 'ETH', ETHEREUM: 'ETH', BEP20: 'BSC', BSC: 'BSC', BNB: 'BSC', POLYGON: 'MATIC', MATIC: 'MATIC' };
+const houseChain = (network) => HOUSE_NETWORK[String(network ?? '').toUpperCase().replace(/[^A-Z0-9]/g, '')] ?? null;
+
 function AddressPanel({ currency, chain: _chain, networks }) {
-  const { data, isPending, isError, error, refetch } = useDepositAddress(currency);
+  const { data, isPending: addressPending, isError: addressError, error, refetch } = useDepositAddress(currency);
   const [copied, setCopied] = useState(false);
   const [showQr, setShowQr] = useState(true);
 
-  const address = data?.allocated ? data.address : null;
-  /** The network the PLATFORM names, never the one the player picked. */
-  const confirmedChain = data?.chain ?? null;
+  /* No per-player address issued: the house wallet the site admin set for this coin and network
+     (admin Bank details, with its uploaded QR) is the address. Its network is the admin's own
+     statement, so it is labelled; a row for another network never stands in. */
+  const houseRows = useBankDetails(currency);
+  const playerAddress = data?.allocated ? data.address : null;
+  const house = playerAddress
+    ? null
+    : (houseRows.data ?? []).find((row) => row.walletAddress && houseChain(row.network) === _chain?.id) ?? null;
+  const address = playerAddress ?? house?.walletAddress ?? null;
+  const isPending = addressPending || (!playerAddress && houseRows.isPending);
+  const isError = addressError && !house;
+
+  /** The network the PLATFORM names (or the admin, for a house wallet), never the one the player picked. */
+  const confirmedChain = house ? _chain?.id : (data?.chain ?? null);
   const ambiguous = Boolean(address) && !confirmedChain && (networks?.length ?? 0) > 1;
   /* Only a confirmed network gets badged on to the QR. When the coin runs on
      several networks and the platform names none, the badge would be picking
@@ -1114,6 +1069,8 @@ function AddressPanel({ currency, chain: _chain, networks }) {
     <div className="grid justify-items-center gap-3 rounded-i-md border-[0.8px] border-beerus bg-goku px-6 py-8 text-center">
       {isPending ? (
         <Skeleton className="aspect-square w-40 rounded-i-sm" />
+      ) : house?.hasQrImage && showQr ? (
+        <AccountQr coin={String(currency).toUpperCase()} id={house.id} caption={false} />
       ) : address && showQr ? (
         <div className="relative">
           <AddressQr value={address} />
@@ -1169,7 +1126,7 @@ function AddressPanel({ currency, chain: _chain, networks }) {
             {address}
           </span>
           <span className="text-xs text-trunks">
-            Your {currencyMeta(currency).name} address
+            {house ? `${currencyMeta(currency).name} deposit address (${house.network})` : `Your ${currencyMeta(currency).name} address`}
           </span>
 
           <div className="flex items-center gap-2">

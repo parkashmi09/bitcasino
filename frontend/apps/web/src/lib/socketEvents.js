@@ -47,6 +47,9 @@ export const EVENTS = Object.freeze({
   /** The player's wallet movements. */
   WALLET_HISTORY: 'c23c59dd3258d3a53d7132652f8bf98a',
 
+  /** Server push to `user:<id>` after any balance change (deposit approved, admin adjust, game win). */
+  CREDIT: '660cb6fe7737d7b70e7a07b706b93f70',
+
   /** The signed-in player's own record. */
   USER_INFO: '18566cda79f670c2098360799275aa31',
 

@@ -1,5 +1,6 @@
 import { useCallback, useMemo, useSyncExternalStore } from 'react';
 import { useAuth } from '@/auth/AuthProvider';
+import { useGates } from '@/hooks/useGates';
 import { useNotificationFeed } from '@/queries/live';
 import { useInbox, useMarkInboxRead } from '@/queries/notifications';
 
@@ -89,10 +90,12 @@ const readStore = {
  * the two actions.
  */
 export function useNotifications() {
-  const { user } = useAuth();
+  const { user, status } = useAuth();
+  const gates = useGates();
   const readIds = useSyncExternalStore(readStore.subscribe, readStore.get, readStore.get);
   const feed = useNotificationFeed();
-  const inbox = useInbox({ enabled: Boolean(user) });
+  // Not on a temporary password (every call 403s) nor with the owner's notifications feature off.
+  const inbox = useInbox({ enabled: Boolean(user) && status === 'authenticated' && gates.on('notifications') });
   const markInbox = useMarkInboxRead();
 
   // Memoised so a not-yet-loaded feed does not hand `markAllRead` a new `[]` every render.

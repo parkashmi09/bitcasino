@@ -64,12 +64,13 @@ async function slotegrator(currency) {
 }
 
 /** `{ url, via }` for the sportsbook iframe; throws an ApiError when the backend refuses. */
-export async function launchSportsbook(currency = 'INR') {
+export async function launchSportsbook(currency = 'INR', gameUid = null) {
   const book = await slotegrator(currency);
   if (book) return book;
   const res = await api(ENDPOINTS.gameLaunch, {
     method: 'POST',
-    body: { gameUuid: LUCKY_SPORTS_UID, currencyCode: 'INR', device: device() },
+    // The owner's game (owner panel → Branding → Sportsbook), else this build's default.
+    body: { gameUuid: gameUid || LUCKY_SPORTS_UID, currencyCode: 'INR', device: device() },
   });
   if (!res?.gameLaunchUrl) throw new ApiError({ code: 'JSGAMES_UPSTREAM_REJECTED', message: 'No sportsbook URL', status: 502 });
   return { url: res.gameLaunchUrl, via: res.via === 'slotegrator' ? 'slotegrator' : 'jsgames-v2' };

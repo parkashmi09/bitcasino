@@ -9,6 +9,7 @@ const E = require('./gis.errors');
 const { addChildGamePoints } = require('../js-games/pointLedger');
 const { responseIdFor } = require('./responseId');
 const { chosenAggregator, LIVE, PARKED } = require('../games/catalogueSwitch');
+const { pkrPerInr } = require('../games/pkrPerInr');
 const {
   ERROR_CODE,
   ACTION,
@@ -161,13 +162,9 @@ class GisService {
 
   /** PKR per INR at the site's exchange rates (usd_rate is USD per unit). */
   async #pkrPerInr() {
-    const rows = await this.db.sequelize.query(
-      "SELECT UPPER(currency) AS currency, usd_rate FROM exchangerate WHERE UPPER(currency) IN ('INR', 'PKR')",
-      { type: this.db.sequelize.QueryTypes.SELECT }
-    );
-    const rate = Object.fromEntries(rows.map((r) => [r.currency, String(r.usd_rate)]));
-    if (!rate.INR || !rate.PKR || money.isZero(rate.PKR)) throw E.UNSUPPORTED_CURRENCY({ currency: 'PKR' });
-    return money.toDecimalString(money.divide(rate.INR, rate.PKR));
+    const fx = await pkrPerInr(this.db);
+    if (!fx) throw E.UNSUPPORTED_CURRENCY({ currency: 'PKR' });
+    return fx;
   }
 
   async #settle({ body, action, playerId, settlement }) {

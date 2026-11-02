@@ -80,7 +80,8 @@ class KycService {
       status: row.status,
       submitted: true,
       submittedAt: row.created_at,
-      reviewedAt: row.updated_at,
+      // updated_at is also the (re)submission time: no review time while nobody has reviewed it.
+      reviewedAt: row.status === KYC_STATUS.PENDING ? null : row.updated_at,
       // Only surfaced when rejected — there is nothing to act on otherwise.
       rejectionReason: row.status === KYC_STATUS.REJECTED ? row.rejection_reason : null,
       documentType: row.document_type,
@@ -244,7 +245,7 @@ class KycService {
         status: r.status,
         rejectionReason: r.rejection_reason,
         submittedAt: r.created_at,
-        reviewedAt: r.updated_at,
+        reviewedAt: r.status === KYC_STATUS.PENDING ? null : r.updated_at,
         documents: this.#describeDocuments(r),
       })),
     };

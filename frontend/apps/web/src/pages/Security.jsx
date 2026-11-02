@@ -391,7 +391,18 @@ const MIN_LENGTH = 10;
  * caller's included. So the success state does not pretend the player is still
  * signed in — it says what happened and offers the one action left.
  */
-function ChangePasswordDialog({ open, onClose }) {
+/**
+ * An agent's new player (or one whose password staff reset) holds a temporary password: the
+ * backend answers every call but /auth/me, change-password and logout with 403
+ * PASSWORD_CHANGE_REQUIRED until it is changed. Shown over every page, not closable.
+ */
+export function ForcedPasswordChange() {
+  const { user, status } = useAuth();
+  const forced = status === 'password-change' && Boolean(user?.mustChangePassword);
+  return <ChangePasswordDialog open={forced} onClose={() => {}} forced />;
+}
+
+function ChangePasswordDialog({ open, onClose, forced = false }) {
   const { logout } = useAuth();
   const navigate = useNavigate();
 
@@ -478,7 +489,7 @@ function ChangePasswordDialog({ open, onClose }) {
   }
 
   return (
-    <Dialog open={open} onClose={onClose} title="Change password" initialFocus={firstFieldRef}>
+    <Dialog open={open} onClose={onClose} title="Change password" initialFocus={firstFieldRef} dismissible={!forced}>
       {done ? (
         <div className="grid gap-4">
           <p className="text-base leading-6 text-bulma">Your password has been changed.</p>
@@ -495,6 +506,11 @@ function ChangePasswordDialog({ open, onClose }) {
         </div>
       ) : (
         <form onSubmit={submit} className="grid gap-4">
+          {forced && (
+            <p className="text-base leading-6 text-bulma">
+              Your account was set up with a temporary password. Choose your own to continue.
+            </p>
+          )}
           <p className="text-base leading-6 text-trunks">
             Let&apos;s make this strong together! Your password must be at least{' '}
             {MIN_LENGTH} characters.
@@ -540,6 +556,11 @@ function ChangePasswordDialog({ open, onClose }) {
           <Button type="submit" size="lg" fullWidth disabled={busy}>
             {busy ? 'Changing…' : 'Change password'}
           </Button>
+          {forced && (
+            <Button type="button" variant="ghost" size="lg" fullWidth onClick={signInAgain}>
+              Sign out
+            </Button>
+          )}
         </form>
       )}
     </Dialog>

@@ -1,7 +1,7 @@
 'use strict';
 
 const { Router } = require('express');
-const { validate, noBody, noQuery } = require('@ibitplay/common');
+const { validate, noBody, noQuery, entitlements } = require('@ibitplay/common');
 
 const v = require('../notifications.validators');
 const { NotificationsService } = require('../notifications.service');
@@ -18,6 +18,8 @@ module.exports = function userRoutes(deps) {
   const ctrl = createControllers({ service });
 
   const router = Router();
+  // Rows are still written while the owner's feature is off; only the player inbox closes.
+  router.use(entitlements.requireFeature('notifications'));
 
   router.get('/', validate(v.list), ctrl.list);
   router.get('/unread-count', noQuery(), ctrl.unreadCount);

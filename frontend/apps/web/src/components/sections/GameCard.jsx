@@ -178,6 +178,7 @@ export function GameCard({ game, wide = false, className }) {
               Nothing about it looked wrong in the source, which is exactly why
               it survived. The rule is one scope, size first, leading second.
             */
+            dir="auto"
             className={cn(
               'font-display font-black uppercase text-goten',
               wide
@@ -187,7 +188,7 @@ export function GameCard({ game, wide = false, className }) {
           >
             {game.title}
           </span>
-          <span className="text-[9px] font-semibold leading-3 text-goten opacity-80">
+          <span dir="auto" className="text-[9px] font-semibold leading-3 text-goten opacity-80">
             {providerLabel(game.provider)}
           </span>
         </span>

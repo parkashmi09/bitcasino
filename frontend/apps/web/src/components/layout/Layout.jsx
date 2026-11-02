@@ -13,6 +13,7 @@ import { useFavourites } from '@/hooks/useFavourites';
 import { RouteGate } from '@/hooks/useGates';
 import { useAuth } from '@/auth/AuthProvider';
 import { toast } from '@/lib/toast';
+import { ForcedPasswordChange } from '@/pages/Security';
 
 export function Layout() {
   const [menuOpen, setMenuOpen] = useState(false);
@@ -161,6 +162,7 @@ export function Layout() {
             </RouteErrorBoundary>
             <Footer />
           </main>
+          <ForcedPasswordChange />
         </div>
       </div>
     </div>

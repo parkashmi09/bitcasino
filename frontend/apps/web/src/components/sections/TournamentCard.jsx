@@ -1,8 +1,10 @@
+import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Icon } from '@/components/ui/Icon';
 import { Button } from '@/components/ui/Button';
 import { useCountdown } from '@/hooks/useCountdown';
 import { cn } from '@/lib/cn';
+import { formatBalance } from '@/lib/format';
 
 /**
  * One tournament, as the reference draws it on `/tournaments`.
@@ -35,23 +37,17 @@ import { cn } from '@/lib/cn';
  *
  * ## The controls
  *
- * The cards are wager races, which need no opt-in: an open one (`href`) gets
- * a `Leaderboard` link to its board; a finished one keeps the disabled button.
- *
- * The arrow opens `/tournaments/<slug>` on the reference — a detail page with
- * a leaderboard, a prize breakdown and the rules, which this project has not
- * built. So it is a `span` with no role and no tab stop rather than a link to
- * a 404: the same rule the account tab bar uses for `Tournaments` and the
- * sidebar uses for its favourites star. `docs/11` carries it.
- *
- * Both are drawn at full strength apart from the button's `disabled` fade.
- * Greying the card out would say the tournament is unavailable, which is not
- * what is missing — the tournament is real, the page behind it is not.
+ * The cards are wager races, which need no opt-in. An open one (`href`): the
+ * `Leaderboard` button and the arrow both open its board on the league page.
+ * A finished one: `Results` swaps the prize panel for the race's podium
+ * (`winners` from `GET /user/race/history`); no arrow, as there is no page for
+ * a settled race.
  */
 export function TournamentCard({ tournament }) {
-  const { title, slug, art, status, prizePool, leader, endsAt, href } = tournament;
+  const { title, art, status, prizePool, leader, endsAt, href, winners = [] } = tournament;
   const finished = status === 'finished';
   const time = useCountdown(endsAt);
+  const [showResults, setShowResults] = useState(false);
 
   return (
     <article
@@ -104,26 +100,49 @@ export function TournamentCard({ tournament }) {
           </p>
 
           <div className="grid grid-cols-[1fr_0.75fr] gap-2">
-            {/* A race needs no opt-in — every settled bet is entered — so an open
-                one links to its board instead. */}
+            {/* A race needs no opt-in — every settled bet is entered — so an open one links to
+                its board, and a settled one shows its podium. */}
             {href ?
               <Button as={Link} to={href} variant="primary" fullWidth>
                 Leaderboard
               </Button>
-            : <Button variant={finished ? 'outline' : 'primary'} disabled fullWidth>
-                {finished ? 'Finished' : 'Opt in'}
+            : <Button
+                variant="outline"
+                fullWidth
+                disabled={winners.length === 0}
+                aria-expanded={showResults}
+                onClick={() => setShowResults((open) => !open)}
+              >
+                {showResults ? 'Hide results' : 'Results'}
               </Button>
             }
 
-            <span
-              data-slug={slug}
-              className="grid size-10 place-items-center justify-self-start rounded-full bg-goku text-bulma"
-            >
-              <Icon name="arrow-right" size={24} />
-            </span>
+            {href && (
+              <Link
+                to={href}
+                aria-label={`${title} leaderboard`}
+                className="grid size-10 place-items-center justify-self-start rounded-full bg-goku text-bulma transition-colors hover:bg-heles"
+              >
+                <Icon name="arrow-right" size={24} />
+              </Link>
+            )}
           </div>
         </div>
 
+        {showResults ? (
+          <ol className="grid h-44 content-start gap-1 overflow-y-auto rounded-s-sm bg-goku px-4 py-3">
+            {winners.map((w) => (
+              <li key={`${w.rank}-${w.name}`} className="flex items-center justify-between gap-2 text-sm leading-6 text-bulma">
+                <span className="truncate">
+                  #{w.rank} {w.name ?? '—'}
+                </span>
+                <span className="shrink-0 tabular-nums text-trunks">
+                  {formatBalance(w.amount)} {w.currency}
+                </span>
+              </li>
+            ))}
+          </ol>
+        ) : (
         <div className="grid h-44 gap-1 rounded-s-sm bg-goku px-4 py-5">
           <div className="grid gap-2">
             <p className="text-xs leading-4 text-trunks">Prize pool</p>
@@ -134,6 +153,7 @@ export function TournamentCard({ tournament }) {
 
           <Countdown time={time} />
         </div>
+        )}
       </div>
     </article>
   );

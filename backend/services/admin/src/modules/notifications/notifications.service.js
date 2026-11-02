@@ -32,8 +32,9 @@ function typeWhere(types, excludeTypes) {
 }
 
 class NotificationsService {
-  constructor({ models, db, logger, config, push, features, fetchImpl }) {
+  constructor({ models, db, logger, config, push, features, fetchImpl, clients }) {
     this.models = models;
+    this.clients = clients;
     this.db = db;
     this.logger = logger;
     this.config = config;
@@ -542,6 +543,9 @@ class NotificationsService {
       })),
       { returning: true }
     );
+    // Wake the players' bells now instead of on their 60 s inbox poll. Best effort: the row is the record.
+    this.clients?.user?.post('/internal/user/preferences/inbox', { userIds: userIds.slice(0, 5000).map(String) })
+      .catch((error) => this.logger?.warn({ err: error?.message }, 'Inbox push failed'));
     return rows.map((r) => r.id);
   }
 

@@ -510,7 +510,7 @@ export const HOME_BANNERS = [
     id: 'banner-deposit-rewards',
     title: 'Welcome bonus on your first deposit',
     blurb: 'Make your first deposit and get a bonus on top — the more you deposit, the bigger it is.',
-    href: '/promotions/welcome',
+    href: '/deposit-offer',
     art: '/images/banners/deposit-rewards.webp',
     emblem: 'jackpots',
   },

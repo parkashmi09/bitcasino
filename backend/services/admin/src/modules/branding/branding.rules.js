@@ -82,6 +82,12 @@ function cleanBranding(input) {
   out.whatsappLink = whatsappLinkValue(input.whatsappLink);
   const message = str(input.whatsappMessage);
   out.whatsappMessage = message.length <= 300 && !BAD_TEXT.test(message) ? message : '';
+  // The sportsbook beside the exchange (owner panel → Branding → Sportsbook): its sidebar tab name, and
+  // the catalogue game it launches (else the player site's VITE_SPORTSBOOK_GAME_UID).
+  const tab = str(input.sportsbookTabName);
+  out.sportsbookTabName = tab.length <= 30 && !BAD_TEXT.test(tab) ? tab : '';
+  const uid = str(input.sportsbookGameUid);
+  out.sportsbookGameUid = /^[A-Za-z0-9_-]{1,64}$/.test(uid) ? uid : '';
   return out;
 }
 

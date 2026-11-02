@@ -231,6 +231,43 @@ test('jsGames', async (t) => {
     currency,
   });
 
+  await t.test("owner's INR-as-PKR: a PKR callback converts PKR → INR, moves the INR wallet and answers in PKR", async () => {
+    const q = (sql) => connection.sequelize.query(sql);
+    // 1 INR = 3 PKR at these rates. Inserted only when missing, removed after.
+    const added = [];
+    for (const [cur, rate] of [['INR', '0.012'], ['PKR', '0.004']]) {
+      const [rows] = await q(`SELECT 1 FROM exchangerate WHERE UPPER(currency) = '${cur}'`);
+      if (!rows.length) {
+        await q(`INSERT INTO exchangerate (currency, usd_rate) VALUES ('${cur}', ${rate})`);
+        added.push(cur);
+      }
+    }
+    try {
+      const [r] = await q("SELECT usd_rate FROM exchangerate WHERE UPPER(currency) = 'INR'");
+      const [p] = await q("SELECT usd_rate FROM exchangerate WHERE UPPER(currency) = 'PKR'");
+      const fx = Number(r[0].usd_rate) / Number(p[0].usd_rate);
+
+      const uid = await seedPlayer(newUid());
+      const balances = new Map([[String(uid), '1000']]);
+      const { service } = build(balances);
+      const round = newRound();
+
+      const bet = await service.betCallbackV2(v2Callback(stake(uid, round, (30 * fx).toFixed(8), 'PKR')));
+      assert.equal(bet.success, true);
+      assert.equal(Number(balances.get(String(uid))).toFixed(4), '970.0000', 'a PKR stake debits its INR value');
+      assert.equal(Number(bet.new_balance).toFixed(2), (970 * fx).toFixed(2), 'the balance is answered in PKR');
+
+      const win = await service.betCallbackV2(v2Callback(payout(uid, round, (50 * fx).toFixed(8), 'PKR')));
+      assert.equal(win.success, true);
+      assert.equal(Number(balances.get(String(uid))).toFixed(4), '1020.0000', 'a PKR win credits its INR value');
+
+      const rows = await models.GameTransaction.findAll({ where: { external_transaction_id: round }, raw: true });
+      assert.ok(rows.every((row) => row.currency === 'INR'), 'settled and recorded in INR');
+    } finally {
+      for (const cur of added) await q(`DELETE FROM exchangerate WHERE UPPER(currency) = '${cur}'`);
+    }
+  });
+
   await t.test('v2 IGNORES a balance supplied in the request body', async () => {
     /**
      * THE headline defect:
