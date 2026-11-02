@@ -515,3 +515,13 @@ export const HOME_BANNERS = [
     emblem: 'jackpots',
   },
 ];
+
+/** Takes the welcome-bonus card's slot while the first-deposit bonus is off. */
+export const TOURNAMENTS_BANNER = {
+  id: 'banner-tournaments',
+  title: 'Tournaments',
+  blurb: 'Daily, weekly and monthly races plus game challenges. Climb the board to win a share of the prizes.',
+  href: '/tournaments',
+  art: '/images/banners/game-of-the-week.webp',
+  emblem: 'game-shows',
+};

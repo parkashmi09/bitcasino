@@ -1,6 +1,6 @@
 'use strict';
 
-const { EVENTS, AUDIENCE } = require('@ibitplay/socket');
+const { EVENTS, AUDIENCE, PLATFORM_EVENTS, encode } = require('@ibitplay/socket');
 const { sitePolicy, currencyRegistry, assertCurrencySupportedFor } = require('@ibitplay/common');
 const { verifyPassword, assertPlayerCapability } = require('@ibitplay/auth');
 
@@ -107,6 +107,9 @@ function register({ on, deps }) {
           chain,
           forfeitBonus: forfeitBonus === true,
         });
+        // A new request in the staff queue: open admin tabs refetch it (RealtimeRefresh). This
+        // arrives over the socket, so the HTTP loader's queue:<module> push never sees it.
+        deps.io?.emit(PLATFORM_EVENTS.CONTENT_UPDATED, encode({ scopes: ['queue:crypto-withdraw'] }));
 
         // The shape this event has always answered with. `state` stays
         // 'pending' (awaiting review); `queueStatus` is the row's real status.
