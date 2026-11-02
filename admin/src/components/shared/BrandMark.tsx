@@ -54,7 +54,7 @@ export const BrandLogo = ({ className, fallback }: { className?: string; fallbac
   if (!logoUrl) return <>{fallback}</>
 
   return (
-    <span className={cn('inline-flex rounded-lg bg-white px-3 py-2', className)}>
+    <span className={cn('inline-flex self-start rounded-lg bg-white px-3 py-2', className)}>
       <img src={logoUrl} alt={siteName} className='h-10 w-auto max-w-[240px] object-contain' />
     </span>
   )
