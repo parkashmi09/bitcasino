@@ -119,7 +119,10 @@ const CATEGORIES = [
 ];
 
 function CategoryCard({ category }) {
-  const articles = withBrand(findHelpCategory(category.id)?.articles ?? [], useSiteName());
+  const data = findHelpCategory(category.id);
+  const articles = withBrand(data?.articles ?? [], useSiteName());
+  // Counted from the articles themselves, so removing one updates the card; static only where there is no data.
+  const count = data ? articles.filter((article) => article.slug).length : category.count;
   return (
     <article
       data-testid={category.id}
@@ -131,7 +134,7 @@ function CategoryCard({ category }) {
       <h2 className="text-2xl font-bold leading-8 text-bulma">
         <Link to={category.href} className="hover:text-piccolo">{category.title}</Link>
       </h2>
-      <span className="text-[10px] uppercase leading-4 tracking-[0.5px] text-trunks">{category.count} articles</span>
+      <span className="text-[10px] uppercase leading-4 tracking-[0.5px] text-trunks">{count} articles</span>
       <div className="grid content-start gap-1 overflow-hidden">
         {articles.slice(0, 3).map((article) => (
           <Link key={article.slug} to={`/help-center/${category.id}/${article.slug}`} className="truncate text-sm leading-5 text-bulma hover:text-piccolo">{article.title}</Link>

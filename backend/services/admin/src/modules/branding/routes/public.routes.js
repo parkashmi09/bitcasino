@@ -28,10 +28,13 @@ module.exports = function publicRoutes(deps) {
     '/public',
     limiter,
     validate({ query: v.emptyQuery }),
-    asyncHandler(async (_req, res) => {
+    asyncHandler(async (req, res) => {
       const current = deps.entitlementsStore?.current() ?? {};
-      // Revalidate every read (ETag answers 304): a cached copy would swallow the owner's live push.
-      res.set('Cache-Control', 'no-cache');
+      // Revalidate every read: a cached copy would swallow the owner's live push. The ETag is the
+      // owner document's version (createApp turns Express's own ETags off), so a repeat read is a 304.
+      const etag = `"branding-${current.version ?? 0}"`;
+      res.set({ 'Cache-Control': 'no-cache', ETag: etag });
+      if (req.headers['if-none-match'] === etag) return res.status(304).end();
       return response.ok(res, store.view(current.branding ?? null, current.version ?? 0));
     })
   );
