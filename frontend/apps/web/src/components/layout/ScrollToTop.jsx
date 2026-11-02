@@ -1,11 +1,8 @@
-import { useEffect } from 'react';
-import { useLocation } from 'react-router-dom';
+import { useLayoutEffect } from 'react';
 
-/** Reset scroll on navigation; the browser otherwise keeps the old offset. */
-export function ScrollToTop() {
-  const { pathname } = useLocation();
-
-  useEffect(() => {
+/** Reset scroll when a new page is drawn; the browser otherwise keeps the old offset. */
+export function ScrollToTop({ pathname }) {
+  useLayoutEffect(() => {
     window.scrollTo({ top: 0, behavior: 'instant' });
   }, [pathname]);
 

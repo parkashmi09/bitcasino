@@ -97,6 +97,8 @@ function AppRoutes() {
       {/* Route-change loading bar. Outside Routes on purpose: the reference
           shows it on every internal navigation, auth screens included. */}
       <RouteProgress />
+      {/* Follows the drawn page, not the URL: resetting at the click would jump the old page to the top. */}
+      <ScrollToTop pathname={display.pathname} />
       <Routes location={display}>
           {/* Outside `Layout` on purpose: the reference drops the whole app
               shell on these two and splits the viewport instead.
@@ -334,7 +336,6 @@ export default function App() {
   return (
     <BrowserRouter>
       <AuthProvider>
-        <ScrollToTop />
         <Toaster />
         <GatesProvider>
           <AppRoutes />
