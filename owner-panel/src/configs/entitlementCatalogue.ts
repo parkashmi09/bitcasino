@@ -691,7 +691,11 @@ export const FLAG_GROUPS: FlagGroup[] = [
     // rainbet: the player site's language picker (frontend/src/lib/i18n.js).
     title: 'Languages',
     description: 'Languages players can pick on the site. OFF: the language leaves the picker, and a player using it moves to another allowed one. With all off the site stays in English with no picker.',
-    keys: ['lang_en', 'lang_ar', 'lang_es', 'lang_fr', 'lang_ja', 'lang_pt', 'lang_ru', 'lang_tr', 'lang_zh']
+    keys: [
+      'lang_en', 'lang_ar', 'lang_es', 'lang_fr', 'lang_ja', 'lang_pt', 'lang_ru', 'lang_tr', 'lang_zh',
+      // roobet: the rest of its picker. Off until switched on (DEFAULT_OFF_FLAGS).
+      'lang_en-IN', 'lang_hi', 'lang_sr', 'lang_cs', 'lang_fil', 'lang_fa', 'lang_id', 'lang_fi', 'lang_vi', 'lang_th', 'lang_ko'
+    ]
   },
   {
     title: 'Home page sections',
@@ -716,7 +720,9 @@ export const FLAG_GROUPS: FlagGroup[] = [
 /* Flags that read OFF when the stored document has no value: switching one on changes what the
    site IS (the sportsbook adds a third-party book, idle logout signs players out), so it never happens
    by default or by "Allow all". Same set in backend/packages/common/src/entitlements.js. */
-export const DEFAULT_OFF_FLAGS = new Set(['sportsbook', 'idle_logout'])
+/** roobet: the languages added after the first nine; same list as backend entitlements.js. */
+const LATER_LANGUAGE_FLAGS = ['en-IN', 'hi', 'sr', 'cs', 'fil', 'fa', 'id', 'fi', 'vi', 'th', 'ko'].map(c => `lang_${c}`)
+export const DEFAULT_OFF_FLAGS = new Set(['sportsbook', 'idle_logout', ...LATER_LANGUAGE_FLAGS])
 
 export const FEATURE_KEYS = FEATURE_CATALOGUE.map(f => f.key)
 export const FLAG_KEYS = [...new Set(FLAG_GROUPS.flatMap(g => g.keys))]
@@ -769,6 +775,17 @@ export const FLAG_LABELS: Record<string, string> = {
   lang_ru: 'Russian (Русский)',
   lang_tr: 'Turkish (Türkçe)',
   lang_zh: 'Chinese (中文)',
+  'lang_en-IN': 'English (Indian)',
+  lang_hi: 'Hindi (हिंदी)',
+  lang_sr: 'Serbian (Srpski)',
+  lang_cs: 'Czech (Čeština)',
+  lang_fil: 'Filipino',
+  lang_fa: 'Persian (فارسی)',
+  lang_id: 'Indonesian (Bahasa Indonesia)',
+  lang_fi: 'Finnish (Suomi)',
+  lang_vi: 'Vietnamese (Tiếng Việt)',
+  lang_th: 'Thai (ภาษาไทย)',
+  lang_ko: 'Korean (한국어)',
   idr: 'IDR',
   home_heroSection: 'Hero carousel',
   home_welcomebanner: 'Welcome banner',

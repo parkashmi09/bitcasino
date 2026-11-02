@@ -212,7 +212,11 @@ const SETTING_PAIRS = Object.freeze([
  * browser reads to decide whether to draw a tab.
  */
 /** The owner's Languages switches (`lang_<code>`), in the player site's picker order. */
-const SITE_LANGUAGES = Object.freeze(['ar', 'en', 'es', 'fr', 'ja', 'pt', 'ru', 'tr', 'zh']);
+const SITE_LANGUAGES = Object.freeze([
+  'ar', 'en', 'es', 'fr', 'ja', 'pt', 'ru', 'tr', 'zh',
+  // roobet: the rest of its picker; off until the owner switches them on (entitlements DEFAULT_OFF_FLAGS).
+  'en-IN', 'hi', 'sr', 'cs', 'fil', 'fa', 'id', 'fi', 'vi', 'th', 'ko',
+]);
 
 const PUBLIC_FLAGS = Object.freeze([
   // top-level features
