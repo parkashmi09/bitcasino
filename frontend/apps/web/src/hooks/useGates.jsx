@@ -6,7 +6,7 @@ import { ENDPOINTS } from '@/lib/endpoints';
 import { ALL_ON, gateOf, makeGates } from '@/lib/gates';
 import { useAuth } from '@/auth/AuthProvider';
 import { useBranding, useSiteConfig } from '@/queries/siteConfig';
-import { applyBranding } from '@/lib/branding';
+import { applyBranding, pageNameFor } from '@/lib/branding';
 import { applyCustomPalette } from '@/lib/customPalette';
 import { DEFAULT_THEME, applyTheme, readStoredTheme } from '@/lib/theme';
 import { useLanguageGuard } from '@/lib/i18n';
@@ -93,7 +93,9 @@ export function GatesProvider({ children }) {
 
   // The owner's name, title, meta and favicon (owner panel → Branding).
   const branding = useBranding();
-  useEffect(() => applyBranding(branding), [branding]);
+  const { pathname } = useLocation();
+  const pageName = pageNameFor(pathname);
+  useEffect(() => applyBranding(branding, pageName), [branding, pageName]);
 
   // An admin or owner save pushes these to every player socket: re-read flags, plan and branding
   // now instead of waiting out the hour-long staleTime (hash `services/realtime.js` PUSHES).
@@ -117,7 +119,6 @@ export function GatesProvider({ children }) {
     return () => offs.forEach((off) => off());
   }, [queryClient, refreshUser]);
 
-  const { pathname } = useLocation();
   const navigate = useNavigate();
   const off = ready && !value.routeOn(pathname);
   useEffect(() => {

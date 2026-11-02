@@ -235,8 +235,8 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   )
 
   /* Same rule as the backend's `flagOnIn` (packages/common/src/entitlements.js): the sportsbook and
-     idle logout are off unless the owner switched them on, and while the sportsbook is on the
-     exchange reads off — sports runs one mode at a time, so every exchange screen hides. */
+     idle logout are off unless the owner switched them on. The exchange and the sportsbook are
+     independent. */
   const flagEntitled = useCallback(
     (key?: string | null): boolean => {
       if (!key) return true

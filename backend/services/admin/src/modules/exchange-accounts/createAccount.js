@@ -146,11 +146,11 @@ class CreateAccountService {
 
     this.logger?.info({ actorStaffId: staffActor.id, accountType: account.accountType, accountId: account.id, opening }, 'Exchange account created');
 
+    // The route wraps this in the envelope ({success, data}): no second success/data inside it.
     return {
-      success: true,
       creditSkipped: parentShort,
       message: parentShort ? MESSAGES.createdInsufficientCredit(spendable) : MESSAGES.INSERTED,
-      data: account,
+      account,
     };
   }
 

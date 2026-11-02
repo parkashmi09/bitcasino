@@ -329,12 +329,6 @@ export const HELP_ARTICLE_CATEGORIES = [
         ]
       },
       {
-        slug: 'how-do-i-buy-crypto', title: 'How do I buy crypto?', content: [
-          { type: 'ordered-list', values: ['Log in to Bitcasino.', 'At the top right of the page, click Deposit. ', 'Under "Active Balance", choose the cryptocurrency you are interested in purchasing.', 'Select the "Buy Crypto" option on the slider (once highlighted, it will be selected)', 'You will see a selection of methods you can use to purchase cryptocurrency.', 'Choose the corresponding method, for additional help or instructions please check the following help centre articles: Credit/Debit/Apple Pay/Google Pay, Bitget', 'Proceed to complete the steps according to the payment method that you selected.'] },
-          { type: 'link-paragraph', prefix: 'More information about depositing using various currencies and payment methods is available at the ', href: '/help-center/help-payment-options', linkLabel: 'Payment Options', suffix: ' section.', }
-        ]
-      },
-      {
         slug: 'how-do-i-make-a-deposit', title: 'How do I make a deposit?', content: [
           { type: 'ordered-list', values: ['Log in to Bitcasino.', 'Click on "Deposit"', 'Select the currency you wish to make a withdrawal with by clicking on “Active Balance” and choosing the currency you wish to use.', 'Once you’ve selected your preferred currency, make sure the tab below “Active Balance” has “Withdraw” as the highlighted tab.', '(Optional) Some currencies allow you to connect your wallet via available wallet providers, this allows more convenient methods for depositing.', 'Check the "Deposit Network" you have selected. Some currencies offer the ability to transfer funds using different networks (such as ERC20, TRC20 etc.)', 'Copy the one-time deposit address you will see below the currency drop-down list and use it in your wallet'] },
           { type: 'link-paragraph', prefix: 'N.B Please make sure to check that your deposit amount meets the', href: 'help-center/help-your-transactions/what-is-the-minimum-deposit', linkLabel: 'minimum deposit requirement,', suffix: 'as otherwise it will not be credited.' },
@@ -788,7 +782,7 @@ export const HELP_ARTICLE_CATEGORIES = [
             content: [
               {
                 type: 'paragraph',
-                value: 'Bitcasino does not support exchanging your balance to other currencies. When making a deposit using 3rd party onramping services (found in our "Buy Crypto" section in Cashier), you can purchase cryptocurrency with eligible currencies. If you wish to exchange your balance, we advise withdrawing it to your private wallet or bank account, and from there you may exchange your funds with relevant service providers.',
+                value: 'Bitcasino does not support exchanging your balance to other currencies. If you wish to exchange your balance, we advise withdrawing it to your private wallet or bank account, and from there you may exchange your funds with relevant service providers.',
               },
             ],
           },
@@ -982,27 +976,6 @@ export const HELP_ARTICLE_CATEGORIES = [
           { type: 'paragraph', value: 'The following cryptocurrencies are available for use:' },
           { type: 'paragraph', value: 'Bitcoin (BTC), Ethereum (ETH), Ripple (XRP), Litecoin (LTC), Tron (TRX), Tether (USDT), Cardano (ADA), Dogecoin (DOGE), BNB, Toncoin (TON), Polygon (POL), USD Coin (USDC), Shiba Inu (SHIB)' },
           {
-            type: 'list',
-            values: [{ parts: [{ bold: 'Buy Cryptocurrency:' }] }],
-          },
-          {
-            type: 'ordered-list',
-            values: [
-              'Click “Deposit” at the top right of the page',
-              'Under “Balance”, select the cryptocurrency you want to buy',
-              'Choose the “Buy Cryptocurrency” option using the slider',
-              'A list of available methods for buying cryptocurrency will appear',
-              {
-                parts: [
-                  { text: 'Select the appropriate method. For further help or instructions, please refer to the following Help Center article: ' },
-                  { href: '/help-center/how-to-buy-crypto/bitget-exchange', linkLabel: 'Credit/Debit Card, Apple Pay, Google Pay, Bitget' },
-                  { text: '.' },
-                ],
-              },
-              'Follow the steps for your selected payment method to complete the process.',
-            ],
-          },
-          {
             type: 'link-paragraph',
             prefix: 'For more details on depositing with various currencies and payment methods, please refer to the ',
             href: '/help-center/how-to-buy-crypto',
@@ -1133,10 +1106,6 @@ export const HELP_ARTICLE_CATEGORIES = [
           { type: 'subheading', value: 'For Withdrawing (Once you have connected your wallet)' },
           { type: 'ordered-list', values: ['Click on "Withdrawal"', 'Your connected wallet/exchange address will be a selectable option. Click on it.', 'Enter your desired amount you wish to withdraw from your Bitcasino balance to this wallet address and click on "Next".', 'Confirm the details of your withdrawal and once you submit your request, it will be processed as quickly as possible.'] },
           { type: 'paragraph', value: '' },
-        ]
-      },
-      {
-        slug: 'how-to-deposit-with-credit-card-or-online-wallet', title: 'How to deposit with Credit/Debit Card or Online Wallet?', content: [{ type: 'subheading', value: 'Deposit via Onramper' }, { type: 'list', values: ['Choose the “Onramper” payment method', 'Select your Fiat currency and which Crypto you would like to purchase', 'Fill in the amount you would like to deposit', 'Fill in your email address', 'Retrieve the code sent to your email address and fill it in on the webpage', 'Fill in your details and click continue', 'Review your payment', 'Fill in your card details'] }
         ]
       },
     ],
@@ -1270,117 +1239,6 @@ export const HELP_ARTICLE_CATEGORIES = [
         { type: 'paragraph', value: 'Important Note: When copying a wallet address, always ensure that you and the receiver are on the same network. For example, you should only send Bitcoin to other Bitcoin addresses. If you send it to other networks like Ethereum, you will lose your funds forever.' },
         { type: 'paragraph', value: '' },
       ]
-    },
-    {
-      slug: 'buy-cryptocurrency-without-leaving-bitcasino',
-      title: 'Buy Cryptocurrency without leaving Bitcasino',
-      content: [
-        { type: 'paragraph', value: 'Buy crypto using fiat currencies without switching platforms on Bitcasino using Swapped, a leading platform where you can purchase cryptocurrencies that you can use for your bets. Start your gaming sessions without ever leaving the site.' },
-        { type: 'heading', value: 'Supported cryptos' },
-        {
-          type: 'list',
-          values: [
-            'Tether (USDT)',
-            'Bitcoin (BTC)',
-            'Litecoin (LTC)',
-            'Ethereum (ETH)',
-            'USD Coin (USDC)',
-            'Ton (TON)',
-            'Binance Smart Chain (BNB)',
-            'Dogecoin (DOGE)',
-            'Ripple (XRP)',
-          ],
-        },
-        { type: 'heading', value: 'Supported fiat currencies' },
-        {
-          type: 'list',
-          values: [
-            'AED    UAE-Dirham',
-            'MXN    Mexico Peso',
-            'VND    Vietnam Dong',
-            'NGN    Nigeria Naira',
-            'BRL    Brazil Real',
-            'COP    Colombia Peso',
-            'CLP    Chile Peso',
-            'EUR    Euro',
-            'IDR    Indonesia Rupiah',
-            'KES    Kenyan Shilling',
-            'DKK    Danish Krone',
-            'GHS    Ghanaian Cedi',
-            'JPY    Japanese Yen',
-            'NDZ    New Zealand Dollar',
-            'PHP    Philippine Peso',
-            'ZAR    South African Rand',
-            'ZMW    Zambian Kwacha',
-            'THB    Thai Baht',
-            'PEN    Peruvian Sol',
-          ],
-        },
-        { type: 'heading', value: 'How to buy crypto with Swapped at Bitcasino' },
-        {
-          type: 'ordered-list',
-          values: [
-            'Log in to your Bitcasino account',
-            'Ensure you’re using any of the supported currencies',
-            'Open the cashier by clicking the ‘deposit’ button',
-            'Click the ‘Buy Crypto’ tab',
-            'Choose your preferred payment method',
-          ],
-        },
-        {
-          type: 'image',
-          src: 'https://sportsbet.imgix.net/news/1A%20Bitcasino/swapped-en-gif-1.gif?auto=compress%2Cformat&w=850&h=850&fit=max&q=50',
-          alt: 'Buy crypto with Swapped in the Bitcasino cashier',
-        },
-        { type: 'paragraph', value: 'The ‘Pay.io’ widget option is linked to Swapped.' },
-        {
-          type: 'ordered-list',
-          values: [
-            'Click the payment option.',
-            'You’ll be redirected to the designated Bitcasino cashier without leaving the website',
-            'Pick your currency and enter the amount you want to convert into crypto',
-          ],
-        },
-        {
-          type: 'image',
-          src: 'https://sportsbet.imgix.net/news/1A%20Bitcasino/swapped-en-image-1.jpg?w=850&auto=compress%2Cformat&h=850&fit=max&q=50',
-          alt: 'Select currency and amount in the Swapped cashier',
-        },
-        {
-          type: 'ordered-list',
-          values: ['Select your preferred payment method and follow the on-screen instructions.'],
-        },
-        { type: 'paragraph', value: 'Before proceeding to the next transaction step, Bitcasino will send a verification code to your email so you can proceed. This ensures you are the authorised purchaser of the crypto transaction.' },
-        {
-          type: 'ordered-list',
-          values: ['Finalise your request and complete the transaction.'],
-        },
-        { type: 'heading', value: 'Processing fees with Swapped' },
-        {
-          type: 'rich-paragraph',
-          parts: [
-            { text: 'The ' },
-            { href: 'https://swapped.com/fees', linkLabel: 'fees vary' },
-            { text: ' depending on which payment method you choose. Here are the top methods and their corresponding fees:' },
-          ],
-        },
-        {
-          type: 'table',
-          headers: ['Payment method', 'Fee'],
-          rows: [
-            ['Bank Transfer', '0.5%'],
-            ['Bank Transfer (GBP)', '0.5%'],
-            ['iDeal', '2.9%'],
-            ['Blik', '3.5%'],
-            ['Jeton', '3.75%'],
-            ['PaySafeCard', '10.0%'],
-            ['ePay', '5.0%'],
-            ['Neteller', '3.5%'],
-            ['Skrill', '3.5%'],
-            ['Giropay', '1.5%'],
-          ],
-        },
-      ],
     },
     {
       slug: 'binance-exchange',

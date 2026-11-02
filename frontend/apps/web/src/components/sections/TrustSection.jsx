@@ -162,29 +162,9 @@ export function TrustSection() {
             coming back for more.
           </p>
 
-          <h2>Fun mode</h2>
-          <p>
-            Not quite ready to wager real crypto? No problem. With <Brand />’s Fun
-            Mode, you can explore your favourite games without risking any funds.
-            It’s the perfect way to get familiar with different titles and test
-            out features before you commit.
-          </p>
-          <p>
-            To activate Fun Mode, simply toggle the switch at the bottom of your
-            game screen. The game will reload in demo mode, letting you explore
-            its payout frequency, bonus mechanics, and overall gameplay—no deposit
-            required.
-          </p>
-          <p>
-            Once you’ve found the game that suits your style, switching to Real
-            Mode takes just a click, so you can start playing for real crypto
-            rewards anytime.
-          </p>
-
           <h2>Real mode</h2>
           <p>
-            Found the perfect game? It’s time to switch to Real Mode and play for
-            real winnings. Place your wager, take the plunge, and experience the
+            Found the perfect game? Every game here plays for real winnings. Place your wager, take the plunge, and experience the
             thrill of high-stakes crypto gaming. This is where the excitement—and
             the biggest payouts—begin.
           </p>
