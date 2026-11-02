@@ -5,6 +5,7 @@ import { withBrand } from '@/lib/branding';
 import { useSiteName } from '@/queries/siteConfig';
 import { useGates } from '@/hooks/useGates';
 import { useHomeSlides } from '@/queries';
+import { useFirstDepositOffer } from '@/queries/rewards';
 import { cn } from '@/lib/cn';
 import { Rail } from './Rail';
 
@@ -96,8 +97,10 @@ export function HomeBanner() {
   const show = flag('home_heroSection');
   const { data: slides } = useHomeSlides({ enabled: show });
   const site = useSiteName();
+  const { data: offer } = useFirstDepositOffer();
   const banners = (slides?.length ? slides : withBrand(HOME_BANNERS, site)).filter(
-    (banner) => !banner.href || routeOn(banner.href),
+    // The built-in welcome-bonus banner only while the first-deposit bonus is on.
+    (banner) => (!banner.href || routeOn(banner.href)) && (banner.id !== 'banner-deposit-rewards' || offer),
   );
   const N = banners.length;
   const trackRef = useRef(null);
