@@ -26,22 +26,53 @@ const GatesContext = createContext(ALL_ON);
 
 /** Backend content scope → first element of the query keys that show it (`queries/keys.js`). */
 const GAMES = ['games', 'providers', 'lobby-category', 'lobby-categories', 'in-house-games'];
+/* Every staff write is pushed; a scope not listed here (KYC queue, reports, staff…) changes nothing a
+   player has on screen, so it triggers no re-read. */
 const CONTENT_KEYS = {
   'admin:banners': ['content'],
   'admin:blogs': ['content'],
   'admin:promotions': ['promotions'],
   'admin:branding': ['site'],
+  'admin:site-config': ['site', 'rewards', 'promotions'],
+  'admin:features': ['site'],
+  'admin:currencies': ['site', 'wallet'],
   'admin:vip-branding': ['rewards'],
+  'admin:withdrawal-control': ['wallet'],
+  'admin:manual-payments': ['wallet'],
   'admin:original-games': GAMES,
   'casino:games': GAMES,
   'casino:catalogue': GAMES,
   'casino:gis': GAMES,
+  'casino:aggregators': GAMES,
+  'casino:js-games': GAMES,
+  'casino:house': GAMES,
+  'casino:in-house': GAMES,
   'casino:original-games': GAMES,
   'casino:challenges': ['promotions'],
   'user:race': ['promotions'],
+  'user:raffle': ['promotions'],
+  'user:quests': ['promotions', 'rewards'],
   'user:bonus': ['promotions', 'rewards'],
+  'user:player-bonuses': ['rewards', 'wallet'],
   'user:spin-wheel': ['promotions'],
   'user:reload-rewards': ['rewards'],
+  'user:rakeback': ['rewards'],
+  'user:loss-bonus': ['rewards'],
+  'user:gift-cards': ['rewards'],
+  'user:vip': ['rewards'],
+  'user:medals': ['rewards'],
+  'user:bank-details': ['wallet'],
+  'user:payment-orders': ['wallet'],
+  'user:psp': ['wallet'],
+  'user:withdraw-requirements': ['wallet'],
+  'user:fiat-deposit': ['wallet'],
+  'user:fiat-withdraw': ['wallet'],
+  'user:crypto-withdraw': ['wallet'],
+  'user:wallet': ['wallet'],
+  'user:kyc': ['account'],
+  'admin:players': ['account'],
+  'admin:locks': ['account'],
+  'user:kyc-levels': ['account'],
 };
 
 /** `{ ready, on(gate), routeOn(href), can(cap), policy(key), flag(key), agentPlayer, canSignUp() }` */

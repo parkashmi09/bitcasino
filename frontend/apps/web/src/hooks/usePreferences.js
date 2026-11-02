@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState, useSyncExternalStore } from 'react';
 import { ApiError, api } from '@/lib/api';
 import { ENDPOINTS } from '@/lib/endpoints';
+import { subscribe } from '@/lib/socket';
 import { useAuth } from '@/auth/AuthProvider';
 
 /**
@@ -195,6 +196,17 @@ export function usePreferences() {
  */
 export function useExchangeRates() {
   const [state, setState] = useState({ rates: {}, status: 'loading' });
+  const [nonce, setNonce] = useState(0);
+
+  // An admin rate edit is pushed as `contentUpdated` (scope `user:exchange-rate`): re-read at once.
+  useEffect(
+    () => subscribe('contentUpdated', (payload) => {
+      if ((payload?.scopes ?? []).some((scope) => scope === 'user:exchange-rate' || scope === 'admin:currencies')) {
+        setNonce((n) => n + 1);
+      }
+    }),
+    [],
+  );
 
   useEffect(() => {
     const controller = new AbortController();
@@ -216,7 +228,7 @@ export function useExchangeRates() {
       });
 
     return () => controller.abort();
-  }, []);
+  }, [nonce]);
 
   return state;
 }

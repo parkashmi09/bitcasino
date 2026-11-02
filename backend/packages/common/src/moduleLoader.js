@@ -210,6 +210,9 @@ function findUnauthorizedWrites(router, prefix = '') {
  * @param {string}   [options.internalPrefix='/internal']
  * @param {string}   [options.adminSegment='admin'] path segment for staff routes
  */
+/** Player modules whose writes create work in a staff queue (admin deposit/withdraw/KYC lists). */
+const STAFF_QUEUE_MODULES = new Set(['fiat-deposit', 'fiat-withdraw', 'crypto-withdraw', 'kyc', 'payment-orders', 'p2p']);
+
 function mountModules({
   modules,
   deps,
@@ -283,14 +286,18 @@ function mountModules({
         }
       }
 
-      // rainbet: tell the player site that this module's data changed (contentPush.js).
+      // rainbet: tell the player site that this module's data changed (contentPush.js). A player
+      // write that lands in a staff queue (a deposit, a withdrawal, a KYC file) is reported too, as
+      // `queue:<module>`, so open admin queues refresh; the player site maps no `queue:` scope.
+      const scope =
+        audience === 'admin' ? `${service}:${name}` : audience === 'user' && STAFF_QUEUE_MODULES.has(name) ? `queue:${name}` : null;
       const notify =
-        audience === 'admin' && typeof onAdminWrite === 'function'
+        scope && typeof onAdminWrite === 'function'
           ? [
               (req, res, next) => {
                 if (!['GET', 'HEAD', 'OPTIONS'].includes(req.method)) {
                   res.on('finish', () => {
-                    if (res.statusCode < 400) onAdminWrite(`${service}:${name}`);
+                    if (res.statusCode < 400) onAdminWrite(scope);
                   });
                 }
                 next();
