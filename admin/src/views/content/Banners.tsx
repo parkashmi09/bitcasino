@@ -53,7 +53,8 @@ const PLACEMENTS: { value: string; label: string; hint: string; mode: BannerMode
     label: `Home · partner ${n}`,
     hint: 'One tile of the home Partners strip. The title is the partner name ("Official Partner of …"), the image a transparent photo, about 400×320. The strip is hidden until one is added.'
   })),
-  { mode: 'direct', value: 'casino', label: 'Casino · wide promo banner', hint: 'A finished banner across the casino lobby, about 1280×260.' }
+  { mode: 'direct', value: 'casino', label: 'Casino · wide promo banner', hint: 'A finished banner across the casino lobby, about 1280×260.' },
+  { mode: 'direct', value: 'sidebar', label: 'Sidebar · promo card', hint: 'The card at the top of the player site menu, 232×75 (upload about 464×150). A finished image: the title is only its alt text. The call-to-action link is where a click goes (default /promotions). With none uploaded the site shows its League card.' }
 ]
 
 /** banners.constants.js AGENT_PREFIX: an `agent-…` placement is agent mode's. */

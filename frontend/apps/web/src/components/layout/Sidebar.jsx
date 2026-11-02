@@ -9,6 +9,11 @@ import { useAuth } from '@/auth/AuthProvider';
 import { cn } from '@/lib/cn';
 import { useGates } from '@/hooks/useGates';
 import { useSportsbookSettings } from '@/queries/siteConfig';
+import { useSidebarBanner } from '@/queries/promotions';
+
+/** An admin CTA may be an absolute http(s) url, which `Link` would read as a path. */
+const PromoLink = ({ href, ...props }) =>
+  /^https?:/i.test(href) ? <a href={href} {...props} /> : <Link to={href} {...props} />;
 
 /**
  * Navigation column.
@@ -279,6 +284,10 @@ export function SidebarNav({ onNavigate, recentsCount, favouritesCount }) {
   const gates = useGates();
   // The owner names the sportsbook tab (owner panel → Branding → Sportsbook).
   const { tabName: sportsbookTab } = useSportsbookSettings();
+  const { data: adminPromo } = useSidebarBanner();
+  const promo = adminPromo
+    ? { ...adminPromo, href: adminPromo.href || '/promotions' }
+    : { href: '/promotions/league-of-bitcasino', art: '/images/sidebar-promo.svg', title: 'League — climb the ranks' };
   // A group whose every link is switched off (casino off) draws no empty header.
   const liveItems = LIVE_GROUP.filter((item) => gates.routeOn(item.to));
   const gameItems = GAMES.filter((item) => gates.routeOn(item.to));
@@ -292,24 +301,22 @@ export function SidebarNav({ onNavigate, recentsCount, favouritesCount }) {
       {/* The card is 3px taller than the artwork it holds, exactly as on the
           reference — `min-h` rather than a fixed height. The rail drops it
           outright; there is no 56px-wide form of a 232px banner. */}
-      {gates.routeOn('/promotions/league-of-bitcasino') && (
+      {/* The admin's `sidebar` banner (Content → Banners) when uploaded; else the built-in League card. */}
+      {promo.href && gates.routeOn(promo.href) && (
       <div className="px-3 pb-2 group-data-[collapsed=true]/rail:hidden">
-        {/* The card is the League artwork and its label says so, so it goes to
-            the League page rather than to the promotions index — the same fix
-            the home banner's first card needed. */}
-        <Link
-          to="/promotions/league-of-bitcasino"
+        <PromoLink
+          href={promo.href}
           onClick={onNavigate}
           className="relative block min-h-[78px] overflow-hidden rounded-xl focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-piccolo"
         >
           <img
-            src="/images/sidebar-promo.svg"
-            alt="League — climb the ranks"
+            src={promo.art}
+            alt={promo.title}
             width={232}
             height={75}
             className="size-full object-cover"
           />
-        </Link>
+        </PromoLink>
       </div>
       )}
 

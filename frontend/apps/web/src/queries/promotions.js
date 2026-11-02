@@ -453,6 +453,25 @@ export function toSlides(rows) {
     }));
 }
 
+/** The sidebar promo card: the admin's `sidebar` placement (image + CTA link), or null. Shares the slides' request. */
+export function useSidebarBanner() {
+  return useQuery({
+    queryKey: queryKeys.content.slides(),
+    queryFn: ({ signal }) =>
+      api(ENDPOINTS.banners, { query: { mode: 'direct' }, auth: false, signal }),
+    select: (rows) => {
+      const row = (Array.isArray(rows) ? rows : []).find((r) => r?.type === 'sidebar' && r.active !== false);
+      if (!row) return null;
+      return {
+        title: row.title ?? '',
+        href: row.cta?.href ?? null,
+        art: versioned(row.url ?? path(ENDPOINTS.bannerImage, { filename: row.type }), row.updatedAt),
+      };
+    },
+    staleTime: 10 * 60 * 1000,
+  });
+}
+
 export function useHomeSlides({ enabled = true } = {}) {
   return useQuery({
     queryKey: queryKeys.content.slides(),
