@@ -44,7 +44,7 @@ const CHILDREN_SQL = `
          c.id, c.inr, c.credit, c.all_point,
          COALESCE((SELECT ABS(SUM(e.total_exposure)) FROM mssports.total_exposures e WHERE e.user_id = u.id), 0),
          false, u.parent_staff_id IS NULL,
-         u.phone, u.email, u.last_city, u.created, c.sports_pts, c.upper_point, c.down_point, c.thirdparty_pts, c.original_game_pts,
+         u.phone, u.email, COALESCE(u.country, u.last_city), u.created, c.sports_pts, c.upper_point, c.down_point, c.thirdparty_pts, c.original_game_pts,
          u.system_locked
     FROM users u
     LEFT JOIN credits c ON c.uid = u.id

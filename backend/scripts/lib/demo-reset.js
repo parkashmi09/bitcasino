@@ -145,7 +145,10 @@ async function columnTypes(sequelize, transaction) {
  *
  * @returns {{ users, staff, steps: [{ label, count }], blocked: string[] }}
  */
-async function resetDemo({ sequelize, apply, logger }) {
+async function resetDemo({ sequelize, apply, logger, match = DEMO_LIKE }) {
+  // `match`: the SQL predicate an account's name/email must meet (default the `demo_` prefix;
+  // scripts/reset-qa-data.js passes the QA testers' `qa` prefix).
+  const DEMO_LIKE = match;
   const run = async (transaction) => {
     const q = (sql, replacements = {}) => sequelize.query(sql, { replacements, type: QueryTypes.SELECT, transaction });
     const users = await q(`SELECT id, name, email FROM users WHERE name ${DEMO_LIKE} OR email ${DEMO_LIKE}`);

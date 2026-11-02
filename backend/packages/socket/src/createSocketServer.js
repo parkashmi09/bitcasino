@@ -207,7 +207,13 @@ function createSocketServer({ io, authenticate, authenticateStaff, logger, confi
    * `docs/SOCKETS.md` §4 for what legacy's `setupSiteConfigSocket(io)` inside
    * `onPublicConnection` did.
    */
-  io.on('connection', async (socket) => {
+  /*
+   * The identity is resolved in a middleware, not in the connection handler: Socket.IO sends the
+   * client 'connect' only after every middleware has finished, so an event the client sends right
+   * after connecting always finds its handlers attached (an awaited DB read inside 'connection'
+   * left a window where early events were dropped).
+   */
+  io.use(async (socket, next) => {
     /**
      * The token may be absent, and that is fine — it means a signed-out
      * visitor, who may still send `PUBLIC` events. Legacy did
@@ -251,6 +257,13 @@ function createSocketServer({ io, authenticate, authenticateStaff, logger, confi
         }
       }
     }
+
+    socket.data.auth = { token, userId, expiresAt, staff };
+    next();
+  });
+
+  io.on('connection', (socket) => {
+    const { token, userId, expiresAt, staff } = socket.data.auth ?? {};
 
     /**
      * Per-socket, never module-scope.

@@ -279,6 +279,9 @@ export function SidebarNav({ onNavigate, recentsCount, favouritesCount }) {
   const gates = useGates();
   // The owner names the sportsbook tab (owner panel → Branding → Sportsbook).
   const { tabName: sportsbookTab } = useSportsbookSettings();
+  // A group whose every link is switched off (casino off) draws no empty header.
+  const liveItems = LIVE_GROUP.filter((item) => gates.routeOn(item.to));
+  const gameItems = GAMES.filter((item) => gates.routeOn(item.to));
   const [liveOpen, setLiveOpen] = useState(true);
   const [gamesOpen, setGamesOpen] = useState(true);
   const [liveTip, liveHandlers] = useRailTip();
@@ -336,6 +339,7 @@ export function SidebarNav({ onNavigate, recentsCount, favouritesCount }) {
               shrinks to the trigger's own 32px square and the children go, but
               `liveOpen` is untouched, so re-expanding restores the group as it
               was left. */}
+          {liveItems.length > 0 && (
           <li className="rounded-xl bg-gohan">
             <button
               type="button"
@@ -357,7 +361,7 @@ export function SidebarNav({ onNavigate, recentsCount, favouritesCount }) {
 
             {liveOpen && (
               <ul className="flex flex-col gap-1 group-data-[collapsed=true]/rail:hidden">
-                {LIVE_GROUP.filter((item) => gates.routeOn(item.to)).map((item) => (
+                {liveItems.map((item) => (
                   <li key={item.to}>
                     <NavItem item={item} onNavigate={onNavigate} />
                   </li>
@@ -365,7 +369,9 @@ export function SidebarNav({ onNavigate, recentsCount, favouritesCount }) {
               </ul>
             )}
           </li>
+          )}
 
+          {gameItems.length > 0 && (
           <li className="rounded-xl bg-gohan">
             <button
               type="button"
@@ -387,7 +393,7 @@ export function SidebarNav({ onNavigate, recentsCount, favouritesCount }) {
 
             {gamesOpen && (
               <ul className="flex flex-col gap-1 group-data-[collapsed=true]/rail:hidden">
-                {GAMES.filter((item) => gates.routeOn(item.to)).map((item) => (
+                {gameItems.map((item) => (
                   <li key={item.to}>
                     <NavItem item={item} onNavigate={onNavigate} />
                   </li>
@@ -395,6 +401,7 @@ export function SidebarNav({ onNavigate, recentsCount, favouritesCount }) {
               </ul>
             )}
           </li>
+          )}
         </ul>
       </nav>
     </>
