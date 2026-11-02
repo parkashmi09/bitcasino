@@ -14,7 +14,8 @@ import { useSiteConfig } from '@/queries/siteConfig';
  */
 export function IdleLogout() {
   const { status, logout } = useAuth();
-  const minutes = useSiteConfig().raw.idleLogoutMinutes;
+  // `raw` is undefined until the public site-config answers; a crash here whites the whole site.
+  const minutes = useSiteConfig().raw?.idleLogoutMinutes;
   const signedIn = status === 'authenticated';
 
   useEffect(() => {
