@@ -30,7 +30,9 @@ export const metadata: Metadata = {
   title: { default: siteConfig.name, template: `%s · ${siteConfig.name}` },
   description: siteConfig.name,
   robots: { index: false, follow: false },
-  icons: { icon: { url: '/brand-mark.svg', type: 'image/svg+xml' }, apple: '/brand-mark.svg' }
+
+  // The owner's mark (app/api/brand/favicon), else the TestPlay one.
+  icons: { icon: '/api/brand/favicon', apple: '/api/brand/favicon' }
 }
 
 const RootLayout = ({ children }: Readonly<{ children: ReactNode }>) => {

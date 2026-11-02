@@ -263,6 +263,14 @@ export function useSubmitFiatWithdrawal() {
   });
 }
 
+/**
+ * This app's network names (data/currencies.js `short`: 'TRX', 'ETH'…) → the coin registry's keys the
+ * backend checks (`GET /admin/currencies/public` networks: 'TRC20', 'ERC20'…). Anything else, such as a
+ * single-chain coin's own code ('BTC', 'LTC'), is already the registry key.
+ */
+const REGISTRY_NETWORK = { TRX: 'TRC20', TRON: 'TRC20', ETH: 'ERC20', BSC: 'BEP20', BNB: 'BEP20', MATIC: 'POLYGON' };
+export const registryNetwork = (chain) => (chain ? REGISTRY_NETWORK[String(chain).toUpperCase()] ?? String(chain) : null);
+
 export function useSubmitWithdrawal() {
   const client = useQueryClient();
 
@@ -274,7 +282,7 @@ export function useSubmitWithdrawal() {
         amount: String(amount),
         wallet: String(wallet).trim(),
         password,
-        ...(chain ? { chain } : {}),
+        ...(chain ? { chain: registryNetwork(chain) } : {}),
       }),
     onSuccess: () => {
       // The balance moved and a pending row appeared. Neither is on a timer.
