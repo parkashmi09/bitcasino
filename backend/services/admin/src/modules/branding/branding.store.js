@@ -183,8 +183,9 @@ function createBrandingStore({ logger, models }) {
         logoUrl: null,
         markUrl: null,
         ogImageUrl: null,
-        whatsapp: chat('whatsapp'),
+        whatsapp: { ...chat('whatsapp'), message: null },
         telegram: chat('telegram'),
+        sportsbook: { tabName: null, gameUid: null },
       };
     }
     if (SLOTS.some((s) => branding[s] && !has(branding[s].file))) kick(ownerBranding);
@@ -203,8 +204,15 @@ function createBrandingStore({ logger, models }) {
       logoUrl: url(branding.logo),
       markUrl: url(branding.mark),
       ogImageUrl: url(branding.ogImage),
-      whatsapp: chat('whatsapp'),
+      // WhatsApp: hash's chat button (owner allows, site admin switches + link), with the owner's own link / opening
+      // message (owner panel → Branding) when the admin set none.
+      whatsapp: (() => { const c = chat('whatsapp'); return { ...c, link: c.link || orNull(branding.whatsappLink), message: orNull(branding.whatsappMessage) }; })(),
       telegram: chat('telegram'),
+      // Not branding as such, and readable unbranded: the sportsbook tab name and game (owner panel).
+      sportsbook: {
+        tabName: orNull(branding.sportsbookTabName),
+        gameUid: orNull(branding.sportsbookGameUid),
+      },
     };
   }
 

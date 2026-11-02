@@ -284,6 +284,8 @@ export function toTournament(race, { finished = false } = {}) {
     leader: leader ?? '—',
     endsAt: race.endsAt,
     href: finished ? null : `/promotions/league-of-bitcasino?race=${race.type}`,
+    // A settled race's podium: `[{rank, name, amount, currency}]`.
+    winners: finished ? (race.winners ?? []) : [],
   };
 }
 
@@ -451,6 +453,25 @@ export function toSlides(rows) {
     }));
 }
 
+/** The sidebar promo card: the admin's `sidebar` placement (image + CTA link), or null. Shares the slides' request. */
+export function useSidebarBanner() {
+  return useQuery({
+    queryKey: queryKeys.content.slides(),
+    queryFn: ({ signal }) =>
+      api(ENDPOINTS.banners, { query: { mode: 'direct' }, auth: false, signal }),
+    select: (rows) => {
+      const row = (Array.isArray(rows) ? rows : []).find((r) => r?.type === 'sidebar' && r.active !== false);
+      if (!row) return null;
+      return {
+        title: row.title ?? '',
+        href: row.cta?.href ?? null,
+        art: versioned(row.url ?? path(ENDPOINTS.bannerImage, { filename: row.type }), row.updatedAt),
+      };
+    },
+    staleTime: 10 * 60 * 1000,
+  });
+}
+
 export function useHomeSlides({ enabled = true } = {}) {
   return useQuery({
     queryKey: queryKeys.content.slides(),
@@ -459,5 +480,17 @@ export function useHomeSlides({ enabled = true } = {}) {
     select: toSlides,
     enabled,
     staleTime: 10 * 60 * 1000,
+  });
+}
+
+/** Casino challenges: first players to hit a multiplier on one game win a prize. `{active, completed}`. */
+export function useChallenges({ enabled = true } = {}) {
+  return useQuery({
+    queryKey: queryKeys.promotions.challenges(),
+    queryFn: ({ signal }) => api(ENDPOINTS.challenges, { auth: false, signal }),
+    select: (data) => ({ active: data?.active ?? [], completed: data?.completed ?? [] }),
+    enabled,
+    staleTime: 30 * 1000,
+    retry: false,
   });
 }

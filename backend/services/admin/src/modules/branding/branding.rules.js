@@ -67,6 +67,23 @@ function chatLink(kind, value) {
   }
 }
 
+/** A phone number (+ and 6–15 digits) or an https link on wa.me / whatsapp.com; else ''. Same as the owner panel's. */
+function whatsappLinkValue(value) {
+  const raw = str(value);
+  if (/^\+?[\d\s-]+$/.test(raw)) {
+    const number = raw.replace(/[\s-]/g, '');
+    return /^\+?\d{6,15}$/.test(number) ? number : '';
+  }
+  if (raw.length > 300) return '';
+  try {
+    const url = new URL(raw);
+    const host = url.hostname.toLowerCase();
+    return url.protocol === 'https:' && (host === 'wa.me' || host === 'whatsapp.com' || host.endsWith('.whatsapp.com')) ? url.href : '';
+  } catch {
+    return '';
+  }
+}
+
 /** Every field, well-formed or unset. `null` when the document has no branding (not branded). */
 function cleanBranding(input) {
   if (!input || typeof input !== 'object' || Array.isArray(input)) return null;
@@ -88,6 +105,15 @@ function cleanBranding(input) {
   // Which floating chat buttons the site admin may show (owner panel → Branding).
   out.whatsappEnabled = input.whatsappEnabled === true;
   out.telegramEnabled = input.telegramEnabled === true;
+  out.whatsappLink = whatsappLinkValue(input.whatsappLink);
+  const message = str(input.whatsappMessage);
+  out.whatsappMessage = message.length <= 300 && !BAD_TEXT.test(message) ? message : '';
+  // The sportsbook beside the exchange (owner panel → Branding → Sportsbook): its sidebar tab name, and
+  // the catalogue game it launches (else the player site's VITE_SPORTSBOOK_GAME_UID).
+  const tab = str(input.sportsbookTabName);
+  out.sportsbookTabName = tab.length <= 30 && !BAD_TEXT.test(tab) ? tab : '';
+  const uid = str(input.sportsbookGameUid);
+  out.sportsbookGameUid = /^[A-Za-z0-9_-]{1,64}$/.test(uid) ? uid : '';
   return out;
 }
 

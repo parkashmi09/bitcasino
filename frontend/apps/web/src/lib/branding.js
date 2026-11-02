@@ -72,7 +72,18 @@ export function withBrand(value, name) {
   return value;
 }
 
+// index.html's own values, so a branding the owner clears puts them back on an open page.
+const DEFAULTS = typeof document === 'undefined' ? null : {
+  title: document.title,
+  meta: new Map(),
+  icons: [...document.head.querySelectorAll('link[rel~="icon"], link[rel="apple-touch-icon"]')]
+    .map((link) => [link, link.getAttribute('href'), link.getAttribute('type')]),
+};
+
 function setMeta(attr, key, content) {
+  const id = `${attr}=${key}`;
+  if (!DEFAULTS.meta.has(id)) DEFAULTS.meta.set(id, document.head.querySelector(`meta[${attr}="${key}"]`)?.getAttribute('content') ?? null);
+  if (!content) content = DEFAULTS.meta.get(id);
   if (!content) return;
   let meta = document.head.querySelector(`meta[${attr}="${key}"]`);
   if (!meta) {
@@ -83,13 +94,56 @@ function setMeta(attr, key, content) {
   meta.setAttribute('content', content);
 }
 
-/** Puts the branding on the document; leaves index.html's values where nothing is set. */
-export function applyBranding(branding) {
-  if (!branding || typeof document === 'undefined') return;
+/** Path prefix → page name for the owner's title template (`%s · Bitcasino`), most specific first. */
+const PAGE_NAMES = [
+  ['/games/favourite', 'Favourites'],
+  ['/games/recent', 'Recently played'],
+  ['/categories/originals', 'Originals'],
+  ['/promotions/participations', 'My participations'],
+  ['/help-center', 'Help Center'],
+  ['/games', 'Games'],
+  ['/categories', 'Games'],
+  ['/providers', 'Providers'],
+  ['/play', 'Play'],
+  ['/promotions', 'Promotions'],
+  ['/tournaments', 'Tournaments'],
+  ['/vip', 'VIP Club'],
+  ['/loyalty', 'Loyalty'],
+  ['/sports', 'Sports'],
+  ['/blog', 'Blog'],
+  ['/profile/rewards', 'Rewards'],
+  ['/profile/boosts', 'Boosts'],
+  ['/profile/refer-a-friend', 'Refer a friend'],
+  ['/profile/notifications', 'Notifications'],
+  ['/profile/transactions', 'Transactions'],
+  ['/profile/security', 'Security'],
+  ['/profile/settings', 'Settings'],
+  ['/profile', 'Account'],
+  ['/login', 'Sign in'],
+  ['/register', 'Sign up'],
+  ['/forgot-password', 'Reset password'],
+  ['/testimonials', 'Testimonials'],
+];
+
+/** The page name for `pathname`, or null (the home page and unnamed routes use the plain title). */
+export function pageNameFor(pathname) {
+  const path = String(pathname ?? '');
+  return PAGE_NAMES.find(([p]) => path === p || path.startsWith(`${p}/`))?.[1] ?? null;
+}
+
+/**
+ * Puts the branding on the document; leaves index.html's values where nothing is set. With a page
+ * name and the owner's title template, the tab reads e.g. `Promotions · Bitcasino`.
+ */
+export function applyBranding(input, pageName = null) {
+  if (typeof document === 'undefined') return;
+  const branding = input ?? { keywords: [] };
   const title = branding.title ?? branding.siteName;
-  if (title) document.title = title;
+  document.title = pageName && branding.titleTemplate
+    ? branding.titleTemplate.replace('%s', pageName)
+    : title || DEFAULTS.title;
   setMeta('name', 'description', branding.description);
-  setMeta('name', 'keywords', branding.keywords.join(', '));
+  setMeta('name', 'keywords', (branding.keywords ?? []).join(', '));
   setMeta('name', 'theme-color', branding.themeColor);
   setMeta('property', 'og:title', branding.ogTitle ?? title);
   setMeta('property', 'og:description', branding.ogDescription ?? branding.description);
@@ -99,6 +153,12 @@ export function applyBranding(branding) {
     for (const link of document.head.querySelectorAll('link[rel~="icon"], link[rel="apple-touch-icon"]')) {
       link.setAttribute('href', branding.markUrl);
       if (link.relList.contains('icon')) link.setAttribute('type', type);
+    }
+  }
+  else {
+    for (const [link, href, type] of DEFAULTS.icons) {
+      if (href != null) link.setAttribute('href', href);
+      if (type != null) link.setAttribute('type', type);
     }
   }
 }

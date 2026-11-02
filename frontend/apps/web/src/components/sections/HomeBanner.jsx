@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { HOME_BANNERS } from '@/data/catalog';
+import { HOME_BANNERS, TOURNAMENTS_BANNER } from '@/data/catalog';
 import { withBrand } from '@/lib/branding';
 import { useSiteName } from '@/queries/siteConfig';
 import { useGates } from '@/hooks/useGates';
 import { useHomeSlides } from '@/queries';
+import { useFirstDepositOffer } from '@/queries/rewards';
 import { cn } from '@/lib/cn';
 import { Rail } from './Rail';
 
@@ -96,9 +97,11 @@ export function HomeBanner() {
   const show = flag('home_heroSection');
   const { data: slides } = useHomeSlides({ enabled: show });
   const site = useSiteName();
-  const banners = (slides?.length ? slides : withBrand(HOME_BANNERS, site)).filter(
-    (banner) => !banner.href || routeOn(banner.href),
-  );
+  const { data: offer } = useFirstDepositOffer();
+  const banners = (slides?.length ? slides : withBrand(HOME_BANNERS, site))
+    // The built-in welcome-bonus banner only while the first-deposit bonus is on; Tournaments otherwise.
+    .map((banner) => (banner.id === 'banner-deposit-rewards' && !offer ? TOURNAMENTS_BANNER : banner))
+    .filter((banner) => !banner.href || routeOn(banner.href));
   const N = banners.length;
   const trackRef = useRef(null);
   const settleRef = useRef(0);
@@ -245,8 +248,16 @@ export function HomeBanner() {
       {/* From `sm`: the reference's row, measured on bitcasino.io at 1920 — three 499×304 cards, 12px
           apart, the rest a scroll away (Rail's arrows). */}
       <Rail title="Featured promotions" headingClassName="sr-only" className="-mt-5 max-sm:hidden">
+        {/* Up to three share the row evenly (two cards = halves); a fourth and on scroll. */}
         {banners.map((banner) => (
-          <BannerCard key={banner.id} banner={banner} className="w-[calc((100%-24px)/3)] shrink-0" />
+          <BannerCard
+            key={banner.id}
+            banner={banner}
+            className="shrink-0"
+            style={{ width: `calc((100% - ${(Math.min(N, 3) - 1) * 12}px) / ${Math.min(N, 3)})` }}
+            // Wider cards keep the three-card row's height.
+            aspect={(499 / 304) * (3 / Math.min(N, 3))}
+          />
         ))}
       </Rail>
 
@@ -305,16 +316,17 @@ export function HomeBanner() {
  * One promo card, sized as the reference's: 499×304, 12px corners, art covering it; the title
  * (Big Shoulders 900, uppercase) and blurb sit top-left in the left 40%, scaled to the card width.
  */
-function BannerCard({ banner, spare = false, className }) {
+function BannerCard({ banner, spare = false, className, style, aspect = 499 / 304 }) {
   return (
-    <div aria-hidden={spare || undefined} className={cn('@container relative', className)}>
+    <div aria-hidden={spare || undefined} className={cn('relative', className)} style={style}>
+      {/* Type is sized off the card's height (cqh), so it stays put however wide the card gets. */}
       <div
-        style={{ backgroundImage: `url(${banner.art})` }}
-        className="relative aspect-[499/304] overflow-hidden rounded-[12px] bg-[#0F0025] bg-cover bg-center bg-no-repeat"
+        style={{ backgroundImage: `url(${banner.art})`, aspectRatio: aspect }}
+        className="relative overflow-hidden rounded-[12px] bg-[#0F0025] bg-cover bg-center bg-no-repeat [container-type:size]"
       >
-        <div className="absolute left-[5.4%] top-[8.9%] w-[40%] text-goten">
-          <h2 className="font-display text-[7.6cqw] font-black uppercase leading-none">{banner.title}</h2>
-          {banner.blurb && <p className="mt-[3.4cqw] text-[3.27cqw] leading-[1.33]">{banner.blurb}</p>}
+        <div className="absolute left-[8.9cqh] top-[8.9%] w-[65.6cqh] text-goten">
+          <h2 className="font-display text-[12.5cqh] font-black uppercase leading-none">{banner.title}</h2>
+          {banner.blurb && <p className="mt-[5.6cqh] text-[5.37cqh] leading-[1.33]">{banner.blurb}</p>}
         </div>
       </div>
       {banner.href && (

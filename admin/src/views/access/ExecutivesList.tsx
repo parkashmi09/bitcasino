@@ -34,7 +34,8 @@ const PermissionPicker = ({ value, onChange, instantRoles = false }: { value: st
   const offered = PERMISSION_GROUPS.map(g => ({ ...g, permissions: g.permissions.filter(p => can(p)) })).filter(g => g.permissions.length)
   const all = offered.flatMap(g => g.permissions)
   const toggle = (p: string, on: boolean) => onChange(on ? [...new Set([...value, p])] : value.filter(x => x !== p))
-  const roles = EXECUTIVE_ROLES.map(r => ({ ...r, permissions: r.permissions.filter(p => can(p)) })).filter(r => r.permissions.length)
+  // Only roles the creator can grant in full: a trimmed 'Sports' that ticks only reports:read misleads.
+  const roles = EXECUTIVE_ROLES.filter(r => r.permissions.every(p => can(p)))
   const isRole = (p: string[]) => p.length === value.length && p.every(x => value.includes(x))
 
   return (

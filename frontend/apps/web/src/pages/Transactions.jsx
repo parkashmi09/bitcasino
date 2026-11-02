@@ -179,7 +179,23 @@ function rowKey(row, index) {
   return `${row.method ?? row.type ?? 'row'}-${row.id ?? row.transactionId ?? index}`;
 }
 
-function Row({ row }) {
+/* A transfers-tab row (staff_transfers: INR only) is `{amount, direction, transferType, note}`. */
+const TRANSFER_LABEL = { direct: 'Site credit', adjust: 'Adjustment', transfer: 'Agent', refill: 'Agent', issuance: 'Agent', points_settle: 'Settlement', tip: 'Tip' };
+
+function asTransfer(row) {
+  if (!row.transferType) return row;
+  const out = row.direction === 'debit';
+  return {
+    ...row,
+    method: TRANSFER_LABEL[row.transferType] ?? row.transferType,
+    amount: `${out ? '-' : '+'}${row.amount ?? '0'}`,
+    currency: row.currency ?? 'INR',
+    status: out ? 'Sent' : 'Received',
+  };
+}
+
+function Row({ row: raw }) {
+  const row = asTransfer(raw);
   const currency = row.currency ?? null;
 
   /**
@@ -212,6 +228,7 @@ function Row({ row }) {
       </Td>
       <Td>
         <span className="text-bulma">{label(row.method ?? row.type)}</span>
+        {row.note && <span className="block text-xs text-trunks">{row.note}</span>}
       </Td>
       <Td align="end">
         <span className="whitespace-nowrap text-bulma tabular-nums">
@@ -245,7 +262,7 @@ function Row({ row }) {
 function StatusPill({ status }) {
   const value = String(status ?? '').toLowerCase();
 
-  const tone = ['completed', 'approved', 'success', 'confirmed', 'paid'].includes(value)
+  const tone = ['completed', 'approved', 'success', 'confirmed', 'paid', 'received'].includes(value)
     ? 'bg-roshi/15 text-roshi'
     : ['rejected', 'failed', 'cancelled', 'canceled', 'expired'].includes(value)
       ? 'bg-dodoria/15 text-dodoria'
@@ -283,7 +300,7 @@ function Empty({ tab, paged, onBack }) {
       <p className="text-sm text-bulma">No {tab} yet.</p>
       <p className="max-w-[380px] text-xs leading-relaxed text-trunks">
         {tab === 'transfers'
-          ? 'Tips you send or receive from other players appear here.'
+          ? 'Credits, transfers and tips to or from your account appear here.'
           : `Your ${tab} will appear here once you have made one.`}
       </p>
     </div>

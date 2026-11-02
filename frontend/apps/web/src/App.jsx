@@ -99,6 +99,8 @@ function AppRoutes() {
       {/* Route-change loading bar. Outside Routes on purpose: the reference
           shows it on every internal navigation, auth screens included. */}
       <RouteProgress />
+      {/* Follows the drawn page, not the URL: resetting at the click would jump the old page to the top. */}
+      <ScrollToTop pathname={display.pathname} />
       <Routes location={display}>
           {/* Outside `Layout` on purpose: the reference drops the whole app
               shell on these two and splits the viewport instead.
@@ -134,6 +136,8 @@ function AppRoutes() {
               outside the auth guards, because the whole point of the link is
               that a stranger opens it. */}
           <Route path="ref/:code" element={<ReferralLanding />} />
+          {/* The backend hands out `/referal/<code>` (referrerResolver.js, admin players). */}
+          <Route path="referal/:code" element={<ReferralLanding />} />
           {/* Password recovery. It WAS `<Navigate to="/login" />` — the link
               in the login panel's own footer sent a locked-out player back to
               the panel they had just failed at, which is to say the site had
@@ -151,8 +155,8 @@ function AppRoutes() {
               </RedirectIfAuthenticated>
             }
           />
-          <Route path="terms" element={<Navigate to="/register" replace />} />
-          <Route path="privacy" element={<Navigate to="/register" replace />} />
+          <Route path="terms" element={<Navigate to="/help-center/terms-and-conditions" replace />} />
+          <Route path="privacy" element={<Navigate to="/help-center/privacy-policy" replace />} />
 
           <Route element={<Layout />}>
             <Route index element={<Home />} />
@@ -334,7 +338,6 @@ export default function App() {
   return (
     <BrowserRouter>
       <AuthProvider>
-        <ScrollToTop />
         <Toaster />
         <CookieConsent />
         <IdleLogout />

@@ -95,7 +95,7 @@ class CreateAccountService {
    * @param {object} p.staffActor   StaffService wala actor (actorFrom)
    * @param {object} p.playerActor  PlayersService wala actor (req.staff)
    */
-  async create({ staffActor, playerActor, username, email, password, phone, creditAmount, userType, percentage, transactionPassword }) {
+  async create({ staffActor, playerActor, username, email, password, phone, city, creditAmount, userType, percentage, transactionPassword }) {
     // Route dono me se koi grant le leta hai; staff login banana staff:write hai
     // (staff module ka create bhi yahi maangta hai), player users:write.
     const neededGrant = userType === 'USER' ? PERMISSIONS.USERS_WRITE : PERMISSIONS.STAFF_WRITE;
@@ -141,16 +141,16 @@ class CreateAccountService {
     const opening = wantsCredit && !parentShort ? credit : '0';
 
     const account = isPlayer
-      ? await this.#createPlayer({ playerActor, username, password, phone, opening, transactionPassword })
-      : await this.#createStaff({ staffActor, username, email, password, phone, roleId, percentage: rate, opening, transactionPassword });
+      ? await this.#createPlayer({ playerActor, username, password, phone, city, opening, transactionPassword })
+      : await this.#createStaff({ staffActor, username, email, password, phone, city, roleId, percentage: rate, opening, transactionPassword });
 
     this.logger?.info({ actorStaffId: staffActor.id, accountType: account.accountType, accountId: account.id, opening }, 'Exchange account created');
 
+    // The route wraps this in the envelope ({success, data}): no second success/data inside it.
     return {
-      success: true,
       creditSkipped: parentShort,
       message: parentShort ? MESSAGES.createdInsufficientCredit(spendable) : MESSAGES.INSERTED,
-      data: account,
+      account,
     };
   }
 
@@ -164,11 +164,13 @@ class CreateAccountService {
     return extra > 0n ? money.toDecimalString(money.toMinor(balance) - extra) : balance;
   }
 
-  async #createPlayer({ playerActor, username, password, phone, opening, transactionPassword }) {
+  async #createPlayer({ playerActor, username, password, phone, city, opening, transactionPassword }) {
     const user = await this.playersService.create({
       actor: playerActor,
       username,
       phone: phone || undefined,
+      // The form's City is the only place it is kept (users.country / staff.country).
+      country: city || undefined,
       password,
       initialBalance: opening,
       transactionPassword,
@@ -181,7 +183,7 @@ class CreateAccountService {
    * (jaise parent ke paas grant / balance nahi) to account bhi nahi banta. Opening ki point entry
    * 'User creation' / open:<walletId>.
    */
-  async #createStaff({ staffActor, username, email, password, phone, roleId, percentage, opening, transactionPassword }) {
+  async #createStaff({ staffActor, username, email, password, phone, city, roleId, percentage, opening, transactionPassword }) {
     return this.db.transaction(async (transaction) => {
     // Email Create Account form se (zaroori, `create` me check ho chuki).
     const staff = await this.staffService.create({
@@ -190,6 +192,7 @@ class CreateAccountService {
       email,
       password,
       phone: phone || undefined,
+      country: city || undefined,
       roleId,
       percentage,
     }, { transaction });

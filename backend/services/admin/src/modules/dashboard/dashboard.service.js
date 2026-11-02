@@ -51,6 +51,25 @@ const unsign = (source, amount) => {
  * could not be converted is counted and reported, so a total that is missing
  * something says so on the same screen.
  */
+
+/**
+ * users.country holds names from sign-up ('India') and ISO codes from the seeder and agents ('IN'):
+ * one row per country, named.
+ */
+const REGION = new Intl.DisplayNames(['en'], { type: 'region' });
+function mergeCountries(rows) {
+  const byName = new Map();
+  for (const row of rows) {
+    const raw = String(row.country).trim();
+    let name = raw;
+    if (/^[A-Za-z]{2}$/.test(raw)) {
+      try { name = REGION.of(raw.toUpperCase()) ?? raw; } catch { /* not a region code */ }
+    }
+    byName.set(name, (byName.get(name) ?? 0) + Number(row.count));
+  }
+  return [...byName].map(([country, count]) => ({ country, count })).sort((a, b) => b.count - a.count);
+}
+
 class DashboardService {
   constructor({ models, db, logger, config }) {
     this.models = models;
@@ -176,7 +195,7 @@ class DashboardService {
           attributes: ['country', [fn('COUNT', literal('*')), 'count']],
           group: ['country'],
           order: [[fn('COUNT', literal('*')), 'DESC']],
-          limit: TOP_COUNTRIES,
+          // No limit here: 'IN' and 'India' are merged below before the top N is taken.
           raw: true,
         }),
         this.models.Users.findAll({
@@ -226,7 +245,7 @@ class DashboardService {
        */
       verified,
 
-      topCountries: countries.map((row) => ({ country: row.country, count: Number(row.count) })),
+      topCountries: mergeCountries(countries).slice(0, TOP_COUNTRIES),
       registrationTrend: trend.map((row) => ({
         date: new Date(row.date).toISOString().slice(0, 10),
         count: Number(row.count),

@@ -6,7 +6,7 @@ import { HeaderIconButton, MenuDivider, MenuPanel } from './HeaderMenu';
 import { usePopover } from '@/hooks/usePopover';
 import { useAuth } from '@/auth/AuthProvider';
 import { ASSETS } from '@/data/assets.generated';
-import { useVipStanding } from '@/queries/rewards';
+import { useVipStanding, useVipTiers } from '@/queries/rewards';
 import { cn } from '@/lib/cn';
 import { useGates } from '@/hooks/useGates';
 
@@ -226,8 +226,8 @@ function MenuRow({ icon, label, to, badge, onClick, onNavigate, disabled }) {
  * The card under the greeting: a tile, two facts and a progress bar, all on a
  * `beerus` ground with each piece cut back out of it in `goku`.
  *
- * The tile holds the TIER emblem, as on the reference — the entry tier's egg,
- * served from `images/ui`. Not the player's avatar: the reference's element
+ * The tile holds the player's TIER emblem: the admin's badge for the tier, else
+ * the same tier art as `/loyalty`. Not the player's avatar: the reference's element
  * here is an avatar component, but the picture in it is the tier's, and a
  * profile picture in a loyalty card says the wrong thing.
  *
@@ -241,6 +241,7 @@ function LoyaltyCard() {
   const gates = useGates();
   const enabled = gates.ready && gates.on('vip');
   const { data: vip, isPending } = useVipStanding({ enabled });
+  const { data: tiers = [] } = useVipTiers();
   if (!enabled) return null;
   if (isPending) return <Skeleton className="h-[86px] rounded-i-sm" />;
   if (!vip) return null;
@@ -257,9 +258,11 @@ function LoyaltyCard() {
   return (
     <div className="grid gap-2 rounded-i-sm bg-beerus p-2">
       <div className="flex items-stretch gap-2">
-        <div className="flex w-11 items-center justify-center rounded-i-sm bg-goku px-1 py-1.5">
+        <div className="flex w-11 items-center justify-center px-1 py-1.5">
           <img
-            src={ASSETS.ui.loyaltyBeginner}
+            // The player's tier: the badge the admin uploaded for it (VIP Club → badges), else the
+            // tier picture /loyalty draws; the entry egg only until the ladder answers.
+            src={vip.badgeUrl || tiers.find((tier) => tier.card === vip.card)?.art || ASSETS.ui.loyaltyBeginner}
             alt=""
             width={32}
             height={32}

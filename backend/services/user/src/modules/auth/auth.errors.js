@@ -153,7 +153,8 @@ module.exports = defineErrors('AUTH', {
      * LOGIN endpoint distinguishing a missing user from a wrong password,
      * which reveals something the caller did not already know.
      */
-    message: 'That username or email is already registered',
+    // One message for every field (details.field names it): username, email or phone.
+    message: 'That username, email or phone number is already registered',
   },
 
   /**

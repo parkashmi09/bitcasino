@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom';
 import { Button } from '@/components/ui/Button';
 import { useGates } from '@/hooks/useGates';
+import { useFirstDepositOffer } from '@/queries/rewards';
 
 const POINTS = [
   'Huge selection of high RTP games',
@@ -28,6 +29,7 @@ const POINTS = [
  * (~1500px). Matching that is what keeps the line wraps identical.
  */
 export function Hero() {
+  const { data: offer } = useFirstDepositOffer();
   const { canSignUp } = useGates();
   return (
     <section
@@ -49,9 +51,12 @@ export function Hero() {
           Play your favourite casino games with crypto
         </h1>
 
-        <p className="text-base leading-6 text-bulma md:text-xl md:leading-7">
-          Welcome bonus on your first deposit*
-        </p>
+        {/* Only while the first-deposit bonus is on (admin Site config → Welcome bonuses). */}
+        {offer && (
+          <p className="text-base leading-6 text-bulma md:text-xl md:leading-7">
+            Welcome bonus on your first deposit*
+          </p>
+        )}
 
         {/* #858585 is lighter than --trunks; the reference uses it for this
             list only, and keeps --trunks for the fine print below. */}

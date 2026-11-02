@@ -38,6 +38,9 @@ const CONTENT_SCOPES = Object.freeze(
   ])
 );
 
+/** `<service>:<module>`, as the module loader reports a staff write. */
+const SCOPE_RE = /^(admin|user|casino|sports|queue):[a-z0-9_-]{1,50}$/;
+
 /** `(scope) => void`, batching scopes into one `send(scopes)` call per `delayMs`. Never throws. */
 function createContentNotifier({ send, logger, delayMs = 500 } = {}) {
   let pending = new Set();
@@ -55,7 +58,10 @@ function createContentNotifier({ send, logger, delayMs = 500 } = {}) {
   };
 
   return (scope) => {
-    if (!CONTENT_SCOPES.has(scope)) return;
+    // Every staff write goes out (names only, never data): the player site and the admin panel
+    // each re-read what a scope changes, so a save shows everywhere without a reload.
+    // CONTENT_SCOPES above is the player-visible subset, kept for reference.
+    if (!SCOPE_RE.test(String(scope))) return;
     pending.add(scope);
     if (!timer) timer = setTimeout(flush, delayMs);
   };

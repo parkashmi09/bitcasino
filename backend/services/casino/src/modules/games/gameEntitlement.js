@@ -154,10 +154,13 @@ function requireGameEntitled(deps = {}, pick, { mustExist = false } = {}) {
         if (player?.is_demo) throw E.DEMO_NOT_ALLOWED();
       }
       const given = pick(req) ?? {};
+      // The owner's sportsbook uid (owner panel → Branding → Sportsbook) is a book too.
+      const ownerUid = (await entitlements.getEntitlements())?.branding?.sportsbookGameUid;
+      const books = ownerUid ? new Set([...bookUids, String(ownerUid).toLowerCase()]) : bookUids;
       const row = await lookup(models ?? {}, given.uid);
-      if (mustExist && given.uid && !row && !bookUids.has(String(given.uid).toLowerCase())) throw E.NOT_FOUND({ uid: given.uid });
+      if (mustExist && given.uid && !row && !books.has(String(given.uid).toLowerCase())) throw E.NOT_FOUND({ uid: given.uid });
       const game = { uid: given.uid, provider: row?.provider ?? given.provider, type: row?.type ?? given.type };
-      const flags = flagsFor(game, bookUids);
+      const flags = flagsFor(game, books);
       for (const flag of flags) await entitlements.assertFlagEntitled(flag);
       if (flags.includes('sportsbook')) await assertSportsSwitchOn(deps);
       // The site admin's own Casino switch, as the owner's flag above. The books are not casino.

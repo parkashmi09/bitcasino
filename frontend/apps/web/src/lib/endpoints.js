@@ -297,6 +297,17 @@ export const ENDPOINTS = {
   // `{game_uuid, played_at, game}` and `game` is null for a title that has
   // left the catalogue since it was played.
   recentlyPlayed: `${CASINO}/games/recently-played`,
+  // Casino challenges (owner `challenges` feature): `{active, completed}`, each `{id, game (catalogue uuid),
+  // gameName, imageUrl, minMultiplier, minBetUsd, prizeUsd, winners, winnersFound, winnerNames, endsAt}`.
+  challenges: `${CASINO}/challenges`,
+  // The player's starred games: `[{game_ref, source, created_at, game}]` newest first (limit ≤ 500);
+  // PUT `{source?}` stars, DELETE un-stars. Both idempotent.
+  favourites: `${CASINO}/games/favourites`,
+  // Gift cards (user `gift-cards`): `redeem {code}` activates a card by its key, `claim {giftCardId}`
+  // pays it once its deposit/wager conditions are met (GIFTCARD_*_CONDITION_UNMET until then).
+  giftCardRedeem: `${USER}/gift-cards/redeem`,
+  giftCardClaim: `${USER}/gift-cards/claim`,
+  favourite: `${CASINO}/games/favourites/:gameRef`,
 
   // The player's own settled rounds, across all four casino sources —
   // `bets` (in-house), `gis_transactions`, and the two jsGames tables — merged
@@ -375,7 +386,6 @@ export const ENDPOINTS = {
   // an unauthenticated route, so anyone could open a session against any
   // account and play its balance.
   //
-  // `launch-demo` is fun mode. No session row, no wallet, no player id.
   //
   // ═══════════════════════════════════════════════════════════════════
   // BOTH ANSWER 503 `GIS_NOT_CONFIGURED` ON THIS DEPLOYMENT.
@@ -391,7 +401,6 @@ export const ENDPOINTS = {
   // Any lobby game: the backend opens it through the owner's aggregator (JSGames V2 or GIS) and
   // answers `{gameLaunchUrl, via}` (casino `games/gameLauncher.js`).
   gameLaunch: `${CASINO}/games/launch`,
-  gisLaunchDemo: `${CASINO}/gis/launch-demo`,
   // The Slotegrator sportsbook (`lib/sportsbookLaunch.js`): list the books, open / reopen a
   // session, close it on sign-out. 503 SPORTSBOOK_NOT_CONFIGURED while the provider is unset.
   sportsbooks: `${CASINO}/sportsbook`,
@@ -411,6 +420,8 @@ export const ENDPOINTS = {
   ownerFeatures: `${ADMIN}/features/public`,
   // The OWNER panel's branding: name, title/meta, logo and square mark (`lib/branding.js`).
   branding: `${ADMIN}/branding/public`,
+  // The coins the owner and admin have on, in the site's order: `[{code, name, symbol, kind, image, networks, sort}]`.
+  currenciesPublic: `${ADMIN}/currencies/public`,
 
   // ── Content ─────────────────────────────────────────────────────────
   // All public, and all on ADMIN-service — the `public` audience mounts at

@@ -1,8 +1,10 @@
 import { Rail } from '@/components/sections/Rail';
 import { TournamentCard } from '@/components/sections/TournamentCard';
+import { ChallengeCard } from '@/components/sections/ChallengeCard';
+import { useGates } from '@/hooks/useGates';
 import { Icon } from '@/components/ui/Icon';
 import { Skeleton } from '@/components/ui/Skeleton';
-import { useTournaments } from '@/queries';
+import { useChallenges, useTournaments } from '@/queries';
 
 /**
  * `/tournaments` — where the sidebar's Tournaments link, the account menu's
@@ -38,6 +40,9 @@ import { useTournaments } from '@/queries';
  */
 export function Tournaments() {
   const { active, finished, isPending } = useTournaments();
+  const gates = useGates();
+  const { data: challenges } = useChallenges({ enabled: gates.ready && gates.on('challenges') });
+  const liveChallenges = gates.on('challenges') ? (challenges?.active ?? []) : [];
 
   return (
     <div className="flex flex-col gap-2 py-2">
@@ -53,10 +58,24 @@ export function Tournaments() {
         tournaments={active}
       />
 
-      <section className="grid gap-2">
-        <h2 className="text-lg leading-7 font-normal text-bulma">Coming soon</h2>
-        <ComingSoon />
-      </section>
+      {liveChallenges.length > 0 ? (
+        <Rail
+          title={`Challenges (${liveChallenges.length})`}
+          className="gap-2"
+          headingClassName="font-primary text-lg font-normal leading-6 text-trunks md:text-lg"
+        >
+          {liveChallenges.map((challenge) => (
+            <div key={challenge.id} className="w-[36.125rem] max-w-[85vw]">
+              <ChallengeCard challenge={challenge} />
+            </div>
+          ))}
+        </Rail>
+      ) : (
+        <section className="grid gap-2">
+          <h2 className="text-lg leading-7 font-normal text-bulma">Coming soon</h2>
+          <ComingSoon />
+        </section>
+      )}
 
       <TournamentRail
         title={`Finished (${finished.length})`}

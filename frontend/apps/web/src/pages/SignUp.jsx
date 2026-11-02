@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react';
 import { Link, Navigate, useNavigate, useSearchParams } from 'react-router-dom';
 import { Button } from '@/components/ui/Button';
+import { LanguageSelect } from '@/components/ui/LanguageSelect';
+import { useLanguageLabel } from '@/lib/i18n';
 import { Icon } from '@/components/ui/Icon';
 import {
   AuthShell,
@@ -17,8 +19,8 @@ import { useAuth } from '@/auth/AuthProvider';
 import { useGates } from '@/hooks/useGates';
 import { ApiError, api } from '@/lib/api';
 import { ENDPOINTS, path } from '@/lib/endpoints';
+import { cn } from '@/lib/cn';
 import { DIAL_CODES } from '@/data/countries';
-import { Brand } from '@/components/ui/Brand';
 
 /** Same shape the backend's email rule accepts; the server still has the last word. */
 const EMAIL_SHAPE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -56,18 +58,16 @@ const EMAIL_MESSAGE = 'Enter a valid email address.';
  * below is therefore a projection, not a spread, and it is the only place that
  * decides what is sent.
  *
- * The three things the form collects that the account does not carry:
+ * The form asks only for what the platform keeps (no date of birth, no
+ * marketing opt-in — neither has a column). Two notes:
  *
- * - **Date of birth** is the age gate stated in the fine print. There is no
- *   column for it, and KYC is where the platform actually establishes age
- *   (`POST /user/kyc/submit`), so it is checked here and dropped.
  * - **Dial code** is not its own field either; it is joined to the number, so
  *   `+44` and `7700900000` reach the platform as one `phone` string.
  * - **The consent boxes** gate the submit. Terms acceptance is recorded by the
  *   act of creating the account; there is no endpoint that takes it separately,
  *   and inventing a field for it would 422.
  *
- * Password is the one rule worth stating in the UI: **ten characters minimum,
+ * Password is the one rule worth stating in the UI: **eight characters minimum,
  * no composition rule**. Saying so under the field is kinder than letting the
  * server say it after the form has been filled in.
  *
@@ -96,30 +96,8 @@ const BENEFITS = [
   },
 ];
 
-const DAYS = Array.from({ length: 31 }, (_, index) => String(index + 1));
-
-const MONTHS = [
-  'January',
-  'February',
-  'March',
-  'April',
-  'May',
-  'June',
-  'July',
-  'August',
-  'September',
-  'October',
-  'November',
-  'December',
-];
-
-/* Eighteen years back is the newest date of birth the form will offer, which
-   is the age gate stated in the fine print rather than a validation rule. */
-const NEWEST_BIRTH_YEAR = new Date().getFullYear() - 18;
-const YEARS = Array.from({ length: 83 }, (_, index) => String(NEWEST_BIRTH_YEAR - index));
-
 /** The platform's own floor, restated so the form can enforce it first. */
-const MIN_PASSWORD = 10;
+const MIN_PASSWORD = 8;
 
 /** A select with the empty row the reference shows before a choice is made. */
 function Select({ id, value, onChange, options, disabled }) {
@@ -134,7 +112,7 @@ function Select({ id, value, onChange, options, disabled }) {
     >
       <option value="" />
       {options.map((option) => {
-        const optionValue = typeof option === 'string' ? option : option.code;
+        const optionValue = typeof option === 'string' ? option : (option.id ?? option.code);
         const optionLabel = typeof option === 'string' ? option : option.label;
         return (
           <option key={optionValue} value={optionValue}>
@@ -143,6 +121,19 @@ function Select({ id, value, onChange, options, disabled }) {
         );
       })}
     </select>
+  );
+}
+
+/** The language picker under the form; nothing when the owner allows fewer than two. */
+function SignUpLanguage() {
+  const { label, show } = useLanguageLabel();
+  if (!show) return null;
+  return (
+    <div className="relative mt-2 flex h-10 w-1/2 items-center justify-between gap-1.5 rounded-i-sm border-[0.8px] border-hit bg-transparent py-2 pe-2 ps-2.5 text-sm text-trunks transition-colors hover:bg-heles">
+      <span className="notranslate">{label}</span>
+      <Icon name="chevron-down" size={16} />
+      <LanguageSelect overlay />
+    </div>
   );
 }
 
@@ -162,16 +153,11 @@ function SignUpForm() {
   const [form, setForm] = useState({
     username: '',
     email: '',
-    day: '',
-    month: '',
-    year: '',
     dialCode: '',
     phone: '',
     password: '',
   });
   const [acceptsTerms, setAcceptsTerms] = useState(false);
-  // Pre-ticked, as on the reference.
-  const [acceptsOffers, setAcceptsOffers] = useState(true);
 
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(null);
@@ -206,22 +192,21 @@ function SignUpForm() {
     return () => controller.abort();
   }, [referredBy]);
 
-  const bornOn = form.day && form.month && form.year;
-
   /**
    * Only the six fields the validator declares, and only the optional ones
    * that were actually filled in — an empty string is a value, and `email: ''`
    * fails the address rule rather than being read as "no email given".
    */
   function body() {
-    const country = DIAL_CODES.find((entry) => entry.code === form.dialCode)?.country;
+    const dial = DIAL_CODES.find((entry) => entry.id === form.dialCode);
+    const country = dial?.country;
     const phone = form.phone.trim();
 
     return {
       username: form.username.trim(),
       password: form.password,
       ...(form.email.trim() ? { email: form.email.trim() } : {}),
-      ...(phone ? { phone: `${form.dialCode}${phone}` } : {}),
+      ...(phone ? { phone: `${dial?.code ?? ''}${phone}` } : {}),
       ...(country ? { country } : {}),
       // A code the check already said does not exist is dropped, as the banner promises.
       ...(referredBy && referralValid !== false ? { referredBy } : {}),
@@ -233,7 +218,7 @@ function SignUpForm() {
    *
    * The submit stays enabled while these fail, which is the reference's
    * behaviour — it validates on press, not on keystroke — and the reason the
-   * two consent and age gates are checked here rather than by disabling the
+   * terms gate is checked here rather than by disabling the
    * button: a button that is dark for no stated reason is the worst of the
    * three ways to say "not yet".
    */
@@ -256,9 +241,8 @@ function SignUpForm() {
     return found;
   }
 
-  /** The two gates that have no field of their own to be marked. */
+  /** The gate that has no field of its own to be marked. */
   function gateMessage() {
-    if (!bornOn) return 'Enter your date of birth. You must be 18 or over to play.';
     if (!acceptsTerms) return 'Accept the Terms & Conditions and Privacy Policy to continue.';
     return null;
   }
@@ -310,8 +294,11 @@ function SignUpForm() {
           // The one place the platform names the colliding field, deliberately:
           // a signup form that cannot say "that username is taken" is unusable,
           // and both values were just supplied by the person reading this.
-          setFieldErrors({ [failure.details?.field ?? 'username']: 'That is already registered.' });
-          setError(failure.message);
+          {
+            const field = failure.details?.field ?? 'username';
+            setFieldErrors({ [field]: 'That is already registered.' });
+            setError(`That ${field === 'phone' ? 'phone number' : field} is already registered.`);
+          }
           break;
 
         default:
@@ -348,15 +335,8 @@ function SignUpForm() {
           <RecaptchaNotice />
 
           {/* Locale picker, bottom of the panel and half width — the reference
-              puts one here on sign-up but not on log in. Static, like the
-              sidebar's. */}
-          <button
-            type="button"
-            className="mt-2 flex h-10 w-1/2 items-center justify-between gap-1.5 rounded-i-sm border-[0.8px] border-hit bg-transparent py-2 pe-2 ps-2.5 text-sm text-trunks transition-colors hover:bg-heles"
-          >
-            English
-            <Icon name="chevron-down" size={16} />
-          </button>
+              puts one here on sign-up but not on log in. */}
+          <SignUpLanguage />
         </div>
       }
     >
@@ -386,35 +366,6 @@ function SignUpForm() {
           disabled={busy}
         />
 
-        {/* Three equal columns; the sub-grid's own 8px row gap replaces the
-            padding a standalone label would carry. */}
-        <div className="grid grid-cols-3 gap-2">
-          <AuthLabel htmlFor="day" inGrid>
-            Day
-          </AuthLabel>
-          <AuthLabel htmlFor="month" inGrid>
-            Month
-          </AuthLabel>
-          <AuthLabel htmlFor="year" inGrid>
-            Year
-          </AuthLabel>
-          <Select id="day" value={form.day} onChange={set('day')} options={DAYS} disabled={busy} />
-          <Select
-            id="month"
-            value={form.month}
-            onChange={set('month')}
-            options={MONTHS}
-            disabled={busy}
-          />
-          <Select
-            id="year"
-            value={form.year}
-            onChange={set('year')}
-            options={YEARS}
-            disabled={busy}
-          />
-        </div>
-
         <div className="grid grid-cols-[121px_1fr] gap-x-4 gap-y-2">
           <AuthLabel htmlFor="dialCode" inGrid>
             Country Code
@@ -437,7 +388,8 @@ function SignUpForm() {
             onChange={(event) => set('phone')(event.target.value)}
             autoComplete="tel-national"
             disabled={busy}
-            className={AUTH_INPUT}
+            aria-invalid={fieldErrors.phone ? true : undefined}
+            className={cn(AUTH_INPUT, fieldErrors.phone && 'border-chichi focus-visible:border-chichi focus-visible:ring-chichi/40')}
           />
           {(fieldErrors.dialCode || fieldErrors.phone) && (
             <p className="col-span-2 text-xs leading-4 text-chichi">
@@ -476,11 +428,6 @@ function SignUpForm() {
 
         <AuthCheckbox name="acceptsTerms" checked={acceptsTerms} onChange={setAcceptsTerms}>
           I agree to Terms &amp; Conditions and Privacy Policy
-        </AuthCheckbox>
-
-        <AuthCheckbox name="acceptsOffers" checked={acceptsOffers} onChange={setAcceptsOffers}>
-          I agree to receive marketing communication about exclusive <Brand /> rewards and
-          promotions
         </AuthCheckbox>
 
         <AuthError attempt={attempt}>{error}</AuthError>

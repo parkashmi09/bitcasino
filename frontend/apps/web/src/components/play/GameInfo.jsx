@@ -72,7 +72,7 @@ function describe(game, site) {
   }
   const rtp = game.rtp !== undefined ? ` The average return to player is ${fmt(game.rtp)}%.` : '';
   const brand = providerLabel(game.provider);
-  return `${game.title} is played inside a ${brand} client from the ${site} lobby.${rtp} Open it in the frame above with a real-money session, or use fun mode to try the game with no stake at all.`;
+  return `${game.title} is played inside a ${brand} client from the ${site} lobby.${rtp} Open it in the frame above with a real-money session.`;
 }
 
 /**
@@ -102,9 +102,8 @@ function GameSeo({ game }) {
         {!open && <span className="pointer-events-none absolute inset-x-0 bottom-0 h-16 bg-gradient-to-t from-gohan to-transparent" />}
 
         <p>
-          {game.title} is available at <Brand />{game.rtp !== undefined ? `, with an average RTP of ${fmt(game.rtp)}%` : ''}. It can be opened in
-          real-money mode, which settles against your wallet, or in fun mode, which plays with no
-          stake at all{game.inHouse ? ' — an in-house original, drawn and settled here on the platform' : ` — it is supplied by ${brand}`}.
+          {game.title} is available at <Brand />{game.rtp !== undefined ? `, with an average RTP of ${fmt(game.rtp)}%` : ''}. It is played in
+          real-money mode, which settles against your wallet{game.inHouse ? ' — an in-house original, drawn and settled here on the platform' : ` — it is supplied by ${brand}`}.
         </p>
         <p className="mt-3">
           {game.inHouse

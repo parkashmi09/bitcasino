@@ -463,9 +463,14 @@ test('email and one-time codes', async (t) => {
       config: {},
     });
 
+    // An account-only purpose answers like an unknown address (no enumeration) and keeps no dead code.
+    assert.deepEqual(await service.requestOtp({ email, purpose: 'login' }), { requested: true });
+    assert.equal(await models.UserOtps.count({ where: { email, purpose: 'login', is_verified: false } }), 0);
+
+    // Any other purpose reports the failure, without the mailer's reason.
     await assert.rejects(
-      () => service.requestOtp({ email, purpose: 'login' }),
-      (err) => err.code === 'EMAIL_SEND_FAILED'
+      () => service.requestOtp({ email: `nobody-${Date.now()}@test.invalid`, purpose: 'register' }),
+      (err) => err.code === 'EMAIL_SEND_FAILED' && !err.details?.reason
     );
   });
 

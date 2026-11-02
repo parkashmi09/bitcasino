@@ -4,7 +4,8 @@ import { cn } from '@/lib/cn';
 import { useGates } from '@/hooks/useGates';
 import { Brand } from '@/components/ui/Brand';
 import { withBrand } from '@/lib/branding';
-import { useSiteName } from '@/queries/siteConfig';
+import { usePublicCurrencies, useSiteName } from '@/queries/siteConfig';
+import { useProviders } from '@/queries/providers';
 
 /** A link in the copy below; plain text while its section is switched off. */
 function Link({ to, children }) {
@@ -49,35 +50,6 @@ const PROSE = [
   '[&>*:first-child]:mt-0',
 ].join(' ');
 
-const COINS = [
-  'Tether (USDT)',
-  'Bitcoin (BTC)',
-  'Ethereum (ETH)',
-  'Tron (TRX)',
-  'Litecoin (LTC)',
-  'Ripple (XRP)',
-  'Cardano (ADA)',
-  'Dogecoin (DOGE)',
-  'Binance Coin (BNB)',
-  'Polygon (MATIC)',
-  'Binance USD (BUSD)',
-  'USD Coin (USDC)',
-  'Solana',
-  'The Open Network (TON)',
-];
-
-const STUDIOS = [
-  'Evolution',
-  'NetEnt',
-  'Microgaming',
-  'AvatarUX',
-  'OneTouch',
-  'PGSoft',
-  'Caleta',
-  'Hacksaw Gaming',
-  'Spinomenal',
-  'Betsoft',
-];
 
 const ACCOUNT_STEPS = [
   'Visit the Bitcasino website or download the mobile app.',
@@ -106,6 +78,11 @@ const WITHDRAW_STEPS = [
 export function TrustSection() {
   const site = useSiteName();
   const [open, setOpen] = useState(false);
+  // The coins the site really has on (owner + admin) and its enabled studios.
+  const coins = usePublicCurrencies()
+    .filter((c) => c.kind === 'crypto')
+    .map((c) => (c.name && c.name !== c.code ? `${c.name} (${c.code})` : c.code));
+  const studios = (useProviders().data ?? []).slice(0, 12).map((p) => p.label);
   const contentId = useId();
 
   return (
@@ -185,29 +162,9 @@ export function TrustSection() {
             coming back for more.
           </p>
 
-          <h2>Fun mode</h2>
-          <p>
-            Not quite ready to wager real crypto? No problem. With <Brand />’s Fun
-            Mode, you can explore your favourite games without risking any funds.
-            It’s the perfect way to get familiar with different titles and test
-            out features before you commit.
-          </p>
-          <p>
-            To activate Fun Mode, simply toggle the switch at the bottom of your
-            game screen. The game will reload in demo mode, letting you explore
-            its payout frequency, bonus mechanics, and overall gameplay—no deposit
-            required.
-          </p>
-          <p>
-            Once you’ve found the game that suits your style, switching to Real
-            Mode takes just a click, so you can start playing for real crypto
-            rewards anytime.
-          </p>
-
           <h2>Real mode</h2>
           <p>
-            Found the perfect game? It’s time to switch to Real Mode and play for
-            real winnings. Place your wager, take the plunge, and experience the
+            Found the perfect game? Every game here plays for real winnings. Place your wager, take the plunge, and experience the
             thrill of high-stakes crypto gaming. This is where the excitement—and
             the biggest payouts—begin.
           </p>
@@ -255,7 +212,7 @@ export function TrustSection() {
           </p>
           <p>Here’s a list of all the supported crypto payments at <Brand />:</p>
           <ul>
-            {COINS.map((coin) => (
+            {coins.map((coin) => (
               <li key={coin}>{coin}</li>
             ))}
           </ul>
@@ -416,7 +373,7 @@ export function TrustSection() {
           </p>
           <p>Here are some of our top developers:</p>
           <ul>
-            {STUDIOS.map((studio) => (
+            {studios.map((studio) => (
               <li key={studio}>{studio}</li>
             ))}
           </ul>

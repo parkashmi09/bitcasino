@@ -125,6 +125,9 @@ function createSocketServer({ io, authenticate, authenticateStaff, logger, confi
   }
 
   /** Wire a connection up to everything registered. */
+  /** How stale a staff socket's row may get before a staff event re-reads it. */
+  const STAFF_RECHECK_MS = 5000;
+
   function attach(socket, context) {
     for (const [event, spec] of handlers) {
       socket.on(event, async (frame, ack) => {
@@ -161,6 +164,18 @@ function createSocketServer({ io, authenticate, authenticateStaff, logger, confi
             return refuse(errors.UNAUTHENTICATED({ event: name }));
           }
 
+          // The row may have changed since the handshake (suspended, locked, logged out, password
+          // reset): re-resolve the staff token, at most every STAFF_RECHECK_MS, as HTTP does per request.
+          if (spec.audience === AUDIENCE.STAFF && Date.now() - (context.staffCheckedAt ?? 0) > STAFF_RECHECK_MS) {
+            const fresh = await Promise.resolve(authenticateStaff?.(context.staffToken)).catch(() => null);
+            context.staffCheckedAt = Date.now();
+            if (!fresh) {
+              context.staff = null;
+              return refuse(errors.UNAUTHENTICATED({ event: name }));
+            }
+            context.staff = fresh;
+          }
+
           const key = bucketKey(context, socket);
           if (!limiter.allow(`${key}:${event}`, spec.limit)) {
             return refuse(errors.RATE_LIMITED({ event: name }));
@@ -192,7 +207,13 @@ function createSocketServer({ io, authenticate, authenticateStaff, logger, confi
    * `docs/SOCKETS.md` §4 for what legacy's `setupSiteConfigSocket(io)` inside
    * `onPublicConnection` did.
    */
-  io.on('connection', async (socket) => {
+  /*
+   * The identity is resolved in a middleware, not in the connection handler: Socket.IO sends the
+   * client 'connect' only after every middleware has finished, so an event the client sends right
+   * after connecting always finds its handlers attached (an awaited DB read inside 'connection'
+   * left a window where early events were dropped).
+   */
+  io.use(async (socket, next) => {
     /**
      * The token may be absent, and that is fine — it means a signed-out
      * visitor, who may still send `PUBLIC` events. Legacy did
@@ -237,6 +258,13 @@ function createSocketServer({ io, authenticate, authenticateStaff, logger, confi
       }
     }
 
+    socket.data.auth = { token, userId, expiresAt, staff };
+    next();
+  });
+
+  io.on('connection', (socket) => {
+    const { token, userId, expiresAt, staff } = socket.data.auth ?? {};
+
     /**
      * Per-socket, never module-scope.
      *
@@ -248,6 +276,8 @@ function createSocketServer({ io, authenticate, authenticateStaff, logger, confi
       expiresAt,
       /** The verified staff row, or null. Only ever set by the transport. */
       staff,
+      staffToken: staff ? String(token) : null,
+      staffCheckedAt: staff ? Date.now() : 0,
       socket,
       ip: ipOf(socket),
       userAgent: socket.handshake.headers?.['user-agent'] ?? null,

@@ -22,7 +22,6 @@
 export const GATES = {
   // `rail`: the owner's cashier policy. Deposit stays open on a manual-only site when manual is allowed.
   deposit: { capability: 'deposit', rail: ['deposit_mode', 'automatic'], orManual: true },
-  buy: { capability: 'deposit' },
   withdraw: { capability: 'withdraw', rail: ['withdrawal_mode', 'manual'] },
   swap: { feature: 'swap', capability: 'swap' },
   vault: { feature: 'vault', capability: 'vault' },
@@ -35,16 +34,23 @@ export const GATES = {
   // Spin the wheel: the site admin's `wheelspin` flag (hash has no wheel surface).
   wheel: { flag: 'wheelspin', capability: 'promotions' },
   quests: { feature: 'challenges', capability: 'promotions' },
+  // Casino challenges on /tournaments (casino `challenges`, owner feature of the same name).
+  challenges: { feature: 'challenges', capability: 'promotions' },
   rewards: { capability: 'promotions' },
+  // Weekly rakeback pages: the owner's 'Bonus and rakeback' feature (backend rakeback routes).
+  rakeback: { feature: 'bonus', capability: 'promotions' },
+  giftCards: { feature: 'gift_cards', capability: 'promotions' },
   casino: { flag: 'casino' },
   notifications: { feature: 'notifications' },
   kyc: { feature: 'kyc', notAgentPlayer: true },
   originals: { flag: 'originals' },
-  blog: { feature: 'blog', notAgentPlayer: true },
+  blog: { feature: 'blog' },
   // `/sports` (`pages/Sports.jsx`): the provider's sportsbook OR the native exchange. Each flag is public
   // only as owner `sports` AND it (the owner keeps them exclusive); `onlyIf` = any one explicitly true,
   // so it stays hidden until the flags answer (backend default off). The page picks the mode.
   sports: { onlyIf: ['sportsbook', 'sportsexchange'] },
+  // `/sports/book`: the provider's book beside the exchange (both on); with only the book, `/sports` is it.
+  sportsbook: { onlyIf: ['sportsbook'] },
 };
 
 /** Path prefix → gate, most specific first. History routes stay readable for everyone. */
@@ -52,8 +58,8 @@ export const ROUTES = [
   ['/promotions/league-of-bitcasino', 'contest'],
   ['/promotions/league', 'contest'],
   ['/promotions/spin-the-wheel', 'wheel'],
-  ['/promotions/weekly-rakeback', 'rewards'],
-  ['/promotions/weekly-rakeback-2026', 'rewards'],
+  ['/promotions/weekly-rakeback-2026', 'rakeback'],
+  ['/promotions/weekly-rakeback', 'rakeback'],
   ['/promotions', 'promotions'],
   ['/tournaments', 'contest'],
   ['/vip', 'vip'],
@@ -66,10 +72,19 @@ export const ROUTES = [
   ['/profile/notifications', 'notifications'],
   ['/blog', 'blog'],
   ['/categories/originals', 'originals'],
+  ['/play/originals', 'originals'],
+  // The provider casino (owner/admin 'casino' flag). Play history and favourites stay readable.
+  ['/games/recent', null],
+  ['/games/favourite', null],
+  ['/games', 'casino'],
+  ['/categories', 'casino'],
+  ['/providers', 'casino'],
+  ['/play', 'casino'],
   // hash-shaped paths the shared admin's banners link to; App.jsx redirects them.
   ['/vip-detail', 'vip'],
   ['/deposit-offer', 'bonus'],
   ['/affiliates', 'affiliate'],
+  ['/sports/book', 'sportsbook'],
   ['/sports', 'sports'],
 ];
 
@@ -81,7 +96,7 @@ export function gateOf(href) {
 
 /* On a B2B site (`business_model: b2b`, agents only) every promotion section is off for everyone,
    as the backend refuses them (PROMOTIONS_DISABLED_B2B). */
-const PROMO_GATES = new Set(['bonus', 'vip', 'affiliate', 'promotions', 'contest', 'wheel', 'quests', 'rewards']);
+const PROMO_GATES = new Set(['bonus', 'vip', 'affiliate', 'promotions', 'contest', 'wheel', 'quests', 'challenges', 'rewards', 'giftCards', 'rakeback']);
 
 /* The owner's policies when the site never chose one — backend sitePolicy.js POLICY_DEFAULTS. */
 const POLICY_DEFAULTS = { business_model: 'hybrid', deposit_mode: 'both', withdrawal_mode: 'both', theme_mode: 'dark_only' };
@@ -128,7 +143,9 @@ export function makeGates({ flags, features, capabilities, ready = true } = {}) 
     /** False only for a link into a switched-off section. */
     routeOn: (href) => {
       const gate = gateOf(href);
-      return !gate || on(gate);
+      // Every /promotions/* page sits inside the promotions section, whatever its own gate.
+      const promo = String(href ?? '').split(/[?#]/)[0].startsWith('/promotions');
+      return (!gate || on(gate)) && (!promo || on('promotions'));
     },
     policy,
     /** The owner's light/dark rule: `dark_only` (always dark, no toggle) or `switch`; null until the plan answers. */

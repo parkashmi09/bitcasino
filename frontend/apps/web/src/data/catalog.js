@@ -510,8 +510,18 @@ export const HOME_BANNERS = [
     id: 'banner-deposit-rewards',
     title: 'Welcome bonus on your first deposit',
     blurb: 'Make your first deposit and get a bonus on top — the more you deposit, the bigger it is.',
-    href: '/promotions/welcome',
+    href: '/deposit-offer',
     art: '/images/banners/deposit-rewards.webp',
     emblem: 'jackpots',
   },
 ];
+
+/** Takes the welcome-bonus card's slot while the first-deposit bonus is off. */
+export const TOURNAMENTS_BANNER = {
+  id: 'banner-tournaments',
+  title: 'Tournaments',
+  blurb: 'Daily, weekly and monthly races plus game challenges. Climb the board to win a share of the prizes.',
+  href: '/tournaments',
+  art: '/images/banners/game-of-the-week.webp',
+  emblem: 'game-shows',
+};

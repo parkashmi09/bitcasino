@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { cleanBranding, withBrand } from './branding';
+import { applyBranding, cleanBranding, pageNameFor, withBrand } from './branding';
 
 const ASSET = `/api/v1/admin/branding/asset/${'a'.repeat(64)}.png`;
 
@@ -37,5 +37,24 @@ describe('withBrand', () => {
       image: 'https://cdn.example.com/1A%20Bitcasino/a.jpg',
       count: 3,
     });
+  });
+});
+
+describe('title template', () => {
+  it('names pages by their most specific prefix, and not the home page', () => {
+    expect(pageNameFor('/promotions/weekly-rakeback')).toBe('Promotions');
+    expect(pageNameFor('/games/favourite')).toBe('Favourites');
+    expect(pageNameFor('/games/new')).toBe('Games');
+    expect(pageNameFor('/')).toBe(null);
+  });
+
+  it('fills the template with the page name, else uses the plain title', () => {
+    const branding = { siteName: 'Bitcasino', title: 'Bitcasino — Crypto Casino', titleTemplate: '%s · Bitcasino', keywords: [] };
+    applyBranding(branding, 'Promotions');
+    expect(document.title).toBe('Promotions · Bitcasino');
+    applyBranding(branding, null);
+    expect(document.title).toBe('Bitcasino — Crypto Casino');
+    applyBranding({ ...branding, titleTemplate: null }, 'Promotions');
+    expect(document.title).toBe('Bitcasino — Crypto Casino');
   });
 });

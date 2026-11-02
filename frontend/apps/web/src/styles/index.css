@@ -272,4 +272,5 @@
 .theme-dark .provider-mark { filter: brightness(0) invert(1); }
 /* The owner's uploaded logo is drawn for a dark theme (light ink), so the light theme sits it on a dark chip. */
 .theme-light .brand-logo { background: #1f2323; border-radius: 6px; padding: 2px 6px; box-sizing: content-box; }
+.theme-dark .owner-logo { background: #fff; border-radius: 6px; padding: 2px 6px; box-sizing: content-box; }
 a:hover .provider-mark { opacity: 1; }

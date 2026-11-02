@@ -48,6 +48,8 @@ const POLICY_DEFAULTS = Object.freeze({
   admin_theme: 'same',
   // Not a channel switch: Slotegrator INR games launched in PKR (casino gis.service.js).
   slotegrator_inr_as_pkr: 'off',
+  // Not a channel switch: JSGames v2 INR games launched in PKR (casino jsGames.service.js).
+  jsgames_inr_as_pkr: 'off',
   // Not a channel switch: the gateway encrypts the player site's API answers (gateway apiEncryption.js).
   api_encryption: 'off',
   // Not a channel switch: whether the rate limiters count (common middleware/rateLimit.js).

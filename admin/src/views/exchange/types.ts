@@ -87,6 +87,8 @@ export type AccountRow = {
   exposure: string
   betLocked: boolean
   userLocked: boolean
+  /** Inherited lock (upline suspended / General Lock): blocks sign-in; the row's toggle cannot lift it. */
+  systemLocked?: boolean
   hasChildren: boolean
 
   /** Owner ka direct user (koi parent nahi) — iska len-den owner ke Direct Users balance se hota hai */

@@ -1,4 +1,3 @@
-import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Icon } from '@/components/ui/Icon';
 import { isPlayable, useLaunchGame } from '@/queries';
@@ -31,25 +30,21 @@ export function GamePanel({ game, view, onExpand, onFullscreen }) {
   const [currency] = useDisplayCurrency();
   const navigate = useNavigate();
   const launch = useLaunchGame();
-  const [mode, setMode] = useState(null);
 
   const signedIn = status === 'authenticated';
   const playable = isPlayable(game);
   const fullscreen = view === 'fullscreen';
   const url = launch.data?.url ?? null;
 
-  /** Launch a mode — `POST /casino/games/launch` (real) or GIS `/launch-demo` (fun).
-   *  Neither is called on mount: a launch writes a `gis_sessions` row and logs
-   *  the play, so doing it on page load would record a round nobody played. */
-  const open = (next) => {
-    if (next === 'real' && !signedIn) {
+  /** Open a real-money session — `POST /casino/games/launch`. Never on mount: a launch writes a
+   *  `gis_sessions` row and logs the play, so page load would record a round nobody played. */
+  const open = () => {
+    if (!signedIn) {
       navigate('/login');
       return;
     }
-    setMode(next);
     launch.reset();
     launch.mutate({
-      mode: next,
       gameUuid: game.slug,
       currency,
       device: window.matchMedia('(max-width: 767px)').matches ? 'mobile' : 'desktop',
@@ -82,12 +77,12 @@ export function GamePanel({ game, view, onExpand, onFullscreen }) {
             />
           ) : launch.isPending ? (
             <p className="text-sm text-trunks">
-              Opening {mode === 'fun' ? 'fun mode' : game.title}…
+              Opening {game.title}…
             </p>
           ) : launch.isError ? (
-            <LaunchRefused error={launch.error} mode={mode} />
+            <LaunchRefused error={launch.error} />
           ) : (
-            <ChooseMode game={game} />
+            <ChooseMode game={game} onPlay={open} pending={launch.isPending} />
           )}
         </FrameBox>
       )}
@@ -103,16 +98,10 @@ export function GamePanel({ game, view, onExpand, onFullscreen }) {
           'group-data-[view=expanded]/shell:hidden group-data-[view=fullscreen]/shell:hidden',
         )}
       >
-        {!game.inHouse ? (
-          <ModeSwitch mode={mode} pending={launch.isPending} onChoose={open} />
-        ) : (
-          /* An in-house original has no aggregator mode to switch — Fun/Real
-             is a property of a provider launch. The row still needs its left
-             slot so the action cluster can sit at the end of it. */
-          <span />
-        )}
+        {/* Real money only: there is no fun (demo) mode. The span keeps the action cluster at the end. */}
+        <span />
 
-        <div className={cn('flex items-center gap-1 md:gap-2', game.inHouse && 'ms-auto')}>
+        <div className="ms-auto flex items-center gap-1 md:gap-2">
           <LikeButton game={game} />
           <GameStatsPopover game={game} />
           <span aria-hidden className="mx-1 h-4 w-px bg-trunks/30" />
@@ -179,36 +168,7 @@ function FrameBox({ children }) {
   );
 }
 
-/** The Fun/Real switch, read off the reference's own — two pills in a well,
- *  the active one filled. */
-function ModeSwitch({ mode, pending, onChoose }) {
-  const fun = mode !== 'real';
-  return (
-    <div role="group" aria-label="Play mode" className="flex w-fit items-center gap-1 rounded-lg border border-beerus bg-goku p-1">
-      <SwitchItem active={fun} icon="smile" label="Fun" onClick={() => !fun && onChoose('fun')} disabled={pending} />
-      <SwitchItem active={!fun} icon="video" label="Real" onClick={() => fun && onChoose('real')} disabled={pending} />
-    </div>
-  );
-}
 
-function SwitchItem({ active, icon, label, onClick, disabled }) {
-  return (
-    <button
-      type="button"
-      role="switch"
-      aria-checked={active}
-      onClick={onClick}
-      disabled={disabled}
-      className={cn(
-        'flex items-center gap-2 rounded-md px-3 py-1.5 text-sm font-medium transition-colors disabled:opacity-60',
-        active ? 'bg-gohan text-bulma shadow-sm' : 'text-trunks hover:text-bulma',
-      )}
-    >
-      <Icon name={icon} size={16} className={cn(!active && 'opacity-60')} />
-      {label}
-    </button>
-  );
-}
 
 function ToolbarButton({ label, onClick, children, ...props }) {
   return (
@@ -224,14 +184,21 @@ function ToolbarButton({ label, onClick, children, ...props }) {
   );
 }
 
-function ChooseMode({ game }) {
+/** The big play button: opens the game (signed out, the sign-in page). */
+function ChooseMode({ game, onPlay, pending }) {
   return (
     <div className="text-center">
-      <span className="mx-auto grid size-16 place-items-center rounded-full bg-piccolo text-on-piccolo">
+      <button
+        type="button"
+        onClick={onPlay}
+        disabled={pending}
+        aria-label={`Play ${game.title}`}
+        className="mx-auto grid size-16 cursor-pointer place-items-center rounded-full bg-piccolo text-on-piccolo transition-opacity hover:opacity-90 disabled:opacity-60"
+      >
         <Icon name="play" size={28} className="ms-1" />
-      </span>
+      </button>
       <p className="mt-4 font-secondary text-lg font-medium text-bulma">{game.title}</p>
-      <p className="mt-1 text-xs text-trunks">Choose fun or real mode to open the game.</p>
+      <p className="mt-1 text-xs text-trunks">Press play to open the game.</p>
     </div>
   );
 }
@@ -261,7 +228,7 @@ function NotBuilt({ game }) {
  * an operator sets the credentials, a player retries a provider blip, and
  * nobody can do anything about a locked account except contact support.
  */
-function LaunchRefused({ error, mode }) {
+function LaunchRefused({ error }) {
   const code = error?.code ?? 'UNKNOWN_ERROR';
 
   const message = NOT_CONFIGURED.has(code)
@@ -280,7 +247,7 @@ function LaunchRefused({ error, mode }) {
       <p className="mt-3 text-sm font-medium text-bulma">
         {NOT_CONFIGURED.has(code)
           ? 'Provider not configured'
-          : `${mode === 'fun' ? 'Fun mode' : 'Real mode'} could not start`}
+          : 'The game could not start'}
       </p>
       <p className="mt-2 text-xs leading-relaxed text-trunks">{message}</p>
       {/* The code, because it is what a support ticket or a deployment check

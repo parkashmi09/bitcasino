@@ -407,6 +407,24 @@ test('admin account controls', async (t) => {
     assert.equal(row.password2, null, 'password2 must stay NULL');
   });
 
+  await t.test("a Super Admin cannot reset a peer Super Admin's password (its tree covers every root)", async () => {
+    const top = await seedStaff(newStaffId());
+    const peer = await seedStaff(newStaffId(), { parentId: top });
+    const saRole = roleId + 1;
+    await connection.sequelize.query(
+      `INSERT INTO roles (id, name, level) VALUES (:saRole, :name, 1) ON CONFLICT (id) DO NOTHING`,
+      { replacements: { saRole, name: `lords-sa-role-${saRole}` } }
+    );
+    await connection.models.Staff.update({ role_id: saRole }, { where: { id: peer } });
+    await assert.rejects(
+      () => service.setPassword({
+        actor: actorFor(top, { level: 1 }), accountType: 'staff', accountId: peer,
+        newPassword: 'a brand new long password', transactionPassword: TXN_PASSWORD,
+      }),
+      (err) => err.code === 'ACCOUNTS_NOT_IN_YOUR_TREE'
+    );
+  });
+
   await t.test('a staff password reset forces a change at the next sign-in', async () => {
     const staff = await seedStaff(newStaffId());
     const child = await seedStaff(newStaffId(), { parentId: staff });

@@ -57,8 +57,7 @@ export function isPlayable(game) {
 /**
  * Open an aggregator game and get its launch URL.
  *
- * `mode` picks the route: `'real'` opens a wallet-backed session, `'fun'` the
- * provider's demo. Both answer `201 {url}`.
+ * A real-money, wallet-backed session (there is no fun / demo mode). Answers `201 {url}`.
  *
  * ## The refusal is the expected outcome here, and it is not an error state
  *
@@ -74,22 +73,17 @@ export function isPlayable(game) {
  */
 export function useLaunchGame() {
   return useMutation({
-    mutationFn: ({ mode, gameUuid, currency, device = 'desktop', language }) =>
-      mode === 'fun'
-        ? api(ENDPOINTS.gisLaunchDemo, {
-            method: 'POST',
-            body: compactBody({ gameUuid, device, language }),
-          })
-        : api(ENDPOINTS.gameLaunch, {
-            method: 'POST',
-            /**
-             * The validator is `.strict()` — an extra key is a 422, not a
-             * silent drop. The player ID is NOT sent: it comes from the token.
-             * The backend picks the aggregator from the game's row, so a
-             * JSGames lobby and a Slotegrator one both open here.
-             */
-            body: compactBody({ gameUuid, currencyCode: currency, device, language }),
-          }).then((answer) => ({ ...answer, url: answer?.gameLaunchUrl ?? answer?.url ?? null })),
+    mutationFn: ({ gameUuid, currency, device = 'desktop', language }) =>
+      api(ENDPOINTS.gameLaunch, {
+        method: 'POST',
+        /**
+         * The validator is `.strict()` — an extra key is a 422, not a
+         * silent drop. The player ID is NOT sent: it comes from the token.
+         * The backend picks the aggregator from the game's row, so a
+         * JSGames lobby and a Slotegrator one both open here.
+         */
+        body: compactBody({ gameUuid, currencyCode: currency, device, language }),
+      }).then((answer) => ({ ...answer, url: answer?.gameLaunchUrl ?? answer?.url ?? null })),
     retry: false,
   });
 }

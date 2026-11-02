@@ -1,7 +1,7 @@
 'use strict';
 
 const crypto = require('node:crypto');
-const { Op } = require('@ibitplay/db');
+const { Op, where, fn, col } = require('@ibitplay/db');
 const {
   TokenService,
   verifyPassword,
@@ -538,9 +538,16 @@ class AuthService {
     context = withClientIp(context);
     await this.region.assertAllowed(context.ip);
 
+    // Case-blind on the name (no lookalike 'Bob' beside 'bob'), and phone too: it is a login identifier.
     const clash = await this.models.Users.findOne({
-      where: { [Op.or]: [{ name: username }, ...(email ? [{ email }] : [])] },
-      attributes: ['id', 'name', 'email'],
+      where: {
+        [Op.or]: [
+          where(fn('lower', col('name')), String(username).toLowerCase()),
+          ...(email ? [{ email }] : []),
+          ...(phone ? [{ phone }] : []),
+        ],
+      },
+      attributes: ['id', 'name', 'email', 'phone'],
       raw: true,
     });
 
@@ -551,7 +558,9 @@ class AuthService {
        * taken" is unusable, and the address is one the caller just supplied.
        */
       throw errors.ALREADY_REGISTERED({
-        field: clash.name === username ? 'username' : 'email',
+        field: String(clash.name).toLowerCase() === String(username).toLowerCase()
+          ? 'username'
+          : email && clash.email === email ? 'email' : 'phone',
       });
     }
 

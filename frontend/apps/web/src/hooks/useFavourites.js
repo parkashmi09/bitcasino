@@ -1,7 +1,14 @@
-import { useCallback, useMemo, useSyncExternalStore } from 'react';
+import { useCallback, useEffect, useMemo, useSyncExternalStore } from 'react';
+import { api } from '@/lib/api';
+import { ENDPOINTS, path } from '@/lib/endpoints';
+import { useAuth } from '@/auth/AuthProvider';
+import { toGame } from '@/data/adapters/games';
+import { toast } from '@/lib/toast';
 
 /**
- * The player's favourite games, kept on this device.
+ * The player's favourite games: on the account (`/casino/games/favourites`) when
+ * signed in, on this device when signed out. Stars made signed out move to the
+ * account at sign-in. The notes below describe the device store.
  *
  * ## Why the whole game, and not just an id
  *
@@ -50,6 +57,8 @@ function read() {
 }
 
 let current = null;
+/** User id whose server list is in `current`, or null while the device list is. */
+let serverFor = null;
 const listeners = new Set();
 
 const store = {
@@ -67,10 +76,12 @@ const store = {
   },
   set(next) {
     current = next;
-    try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
-    } catch {
-      // The change still applies to this tab; it just will not outlive it.
+    if (!serverFor) {
+      try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+      } catch {
+        // The change still applies to this tab; it just will not outlive it.
+      }
     }
     for (const listener of listeners) listener();
   },
@@ -87,8 +98,48 @@ const EMPTY = Object.freeze({});
  * what opening the page shows. `toggle(game)` takes the whole `Game`, because
  * that is what gets stored.
  */
+/** Switch the store to `userId`'s server list (null = back to the device list). */
+async function loadFor(userId) {
+  if (serverFor === userId) return;
+  if (!userId) {
+    serverFor = null;
+    store.set(read());
+    return;
+  }
+  serverFor = userId;
+  // Stars made signed out go to the account first, then the device list is cleared.
+  const device = read();
+  const local = Object.keys(device);
+  const results = await Promise.allSettled(local.map((id) => star(id, true)));
+  // Only the stars the account took leave the device; failed ones retry at the next sign-in.
+  const failed = local.filter((_, i) => results[i].status === 'rejected');
+  try {
+    if (failed.length) localStorage.setItem(STORAGE_KEY, JSON.stringify(Object.fromEntries(failed.map((id) => [id, device[id]]))));
+    else localStorage.removeItem(STORAGE_KEY);
+  } catch {
+    // Nothing kept on this device to clear.
+  }
+  try {
+    const rows = await api(ENDPOINTS.favourites, { query: { limit: 500 } });
+    if (serverFor !== userId) return;
+    // Oldest first, so `games` (insertion order reversed) reads newest first like the server.
+    const games = (Array.isArray(rows) ? rows : []).map((r) => toGame(r?.game)).filter(isGame).reverse();
+    store.set(Object.fromEntries(games.map((g) => [g.id, g])));
+  } catch {
+    if (serverFor === userId) store.set({});
+  }
+}
+
+const star = (id, on) =>
+  api(path(ENDPOINTS.favourite, { gameRef: id }), on ? { method: 'PUT', body: {} } : { method: 'DELETE' });
+
 export function useFavourites() {
   const favourites = useSyncExternalStore(store.subscribe, store.get, () => EMPTY);
+  const { user, status } = useAuth();
+  const userId = status === 'authenticated' ? (user?.id ?? null) : null;
+  useEffect(() => {
+    if (status !== 'loading') loadFor(userId);
+  }, [status, userId]);
 
   const games = useMemo(() => Object.values(favourites).reverse(), [favourites]);
 
@@ -96,10 +147,21 @@ export function useFavourites() {
 
   const toggle = useCallback((game) => {
     if (!game?.id) return;
-    const next = { ...store.get() };
-    if (next[game.id]) delete next[game.id];
-    else next[game.id] = game;
+    const before = store.get();
+    const on = !before[game.id];
+    const next = { ...before };
+    if (on) next[game.id] = game;
+    else delete next[game.id];
     store.set(next);
+    if (!serverFor) return;
+    star(game.id, on).catch((error) => {
+      // Put the star back the way the server has it.
+      const undo = { ...store.get() };
+      if (on) delete undo[game.id];
+      else undo[game.id] = before[game.id];
+      store.set(undo);
+      toast.error(error?.message || 'Could not update your favourites.');
+    });
   }, []);
 
   return { games, count: games.length, isFavourite, toggle };

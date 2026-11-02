@@ -5,10 +5,13 @@ import App from './App';
 import { createQueryClient } from '@/queries';
 import { ErrorBoundary } from '@/components/layout/ErrorBoundary';
 import { applyTheme, readStoredTheme } from '@/lib/theme';
+import { startI18n } from '@/lib/i18n';
 import './styles/index.css';
 
 // Apply the stored theme before first paint to avoid a flash of the default.
 applyTheme(readStoredTheme());
+// A returning player's language, before the first render (`lib/i18n.js`).
+startI18n();
 
 /**
  * One client for the life of the page, created OUTSIDE the render.

@@ -852,7 +852,8 @@ const CASINO_AGGREGATOR_POLICY = {
 
 /**
  * Light / dark theme — a policy like the casino aggregator: always in force, the owner alone sets
- * it. `dark_only` (the default) keeps the player site dark with no theme toggle; `switch` brings
+ * it. `dark_only` (the default) keeps the player site on its own default theme (bitcasino: light) with no
+ * theme toggle; `switch` brings
  * the light theme and the toggles back (frontend services/gates.js `themeSwitch`).
  */
 const THEME_MODE_POLICY = {
@@ -863,7 +864,7 @@ const THEME_MODE_POLICY = {
   flag: null,
   defaultVariant: 'dark_only',
   variants: [
-    { key: 'dark_only', label: 'Dark only', description: 'The site is always dark; no theme toggle anywhere. The default.' },
+    { key: 'dark_only', label: 'Fixed (site default)', description: "Players see the site's default theme; no theme toggle anywhere. The default." },
     { key: 'switch', label: 'Dark and light', description: 'Players can switch between the dark and the light theme (sidebar, account page, Settings → Preferences).' },
   ],
 };
@@ -918,6 +919,25 @@ const SLOTEGRATOR_INR_AS_PKR_POLICY = {
   variants: [
     { key: 'off', label: 'Off', description: 'An INR bet launches the game in INR and settles in INR. The default.' },
     { key: 'on', label: 'On', description: 'An INR bet launches the Slotegrator game in PKR; every bet, win and refund is converted PKR → INR at the site rate and moves the INR wallet.' },
+  ],
+};
+
+/**
+ * JSGames INR games launched in PKR — a policy (owner-only), the JSGames v2 twin of
+ * `slotegrator_inr_as_pkr`. `on`: an INR-wallet game opens at JSGames in PKR with the balance
+ * converted at the site's rates; each PKR callback is converted to INR and moves the INR wallet.
+ * `off` (the default): INR launches and settles as INR. Read by casino-service jsGames.service.js.
+ */
+const JSGAMES_INR_AS_PKR_POLICY = {
+  key: 'jsgames_inr_as_pkr',
+  label: 'JSGames: INR games in PKR',
+  category: 'business',
+  kind: 'policy',
+  flag: null,
+  defaultVariant: 'off',
+  variants: [
+    { key: 'off', label: 'Off', description: 'An INR bet launches the game in INR and settles in INR. The default.' },
+    { key: 'on', label: 'On', description: 'An INR bet launches the JSGames game in PKR; every bet and win is converted PKR → INR at the site rate and moves the INR wallet.' },
   ],
 };
 
@@ -1031,7 +1051,7 @@ const GOOGLE_SIGNIN_POLICY = {
   ],
 };
 
-const FEATURES = Object.freeze([...POLICIES, REWARD_CURRENCY_POLICY, DEFAULT_CURRENCY_POLICY, REGION_RESTRICTION_POLICY, WITHDRAWAL_REQUIREMENTS_POLICY, CASINO_AGGREGATOR_POLICY, THEME_MODE_POLICY, ADMIN_THEME_POLICY, SLOTEGRATOR_INR_AS_PKR_POLICY, API_ENCRYPTION_POLICY, RATE_LIMIT_POLICY, BRANCH_MANAGEMENT_POLICY, WHITELABEL_POLICY, DEPOSIT_EMAIL_VERIFICATION_POLICY, GOOGLE_SIGNIN_POLICY, ...GENERATED, TIPS, P2P, PUSH_NOTIFICATIONS, ANALYTICS, LIVE_TV]);
+const FEATURES = Object.freeze([...POLICIES, REWARD_CURRENCY_POLICY, DEFAULT_CURRENCY_POLICY, REGION_RESTRICTION_POLICY, WITHDRAWAL_REQUIREMENTS_POLICY, CASINO_AGGREGATOR_POLICY, THEME_MODE_POLICY, ADMIN_THEME_POLICY, SLOTEGRATOR_INR_AS_PKR_POLICY, JSGAMES_INR_AS_PKR_POLICY, API_ENCRYPTION_POLICY, RATE_LIMIT_POLICY, BRANCH_MANAGEMENT_POLICY, WHITELABEL_POLICY, DEPOSIT_EMAIL_VERIFICATION_POLICY, GOOGLE_SIGNIN_POLICY, ...GENERATED, TIPS, P2P, PUSH_NOTIFICATIONS, ANALYTICS, LIVE_TV]);
 
 /**
  * Site templates — the bundles the OWNER picks for a site (docs/OWNER-PANEL.md

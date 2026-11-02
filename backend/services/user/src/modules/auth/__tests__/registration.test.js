@@ -219,6 +219,22 @@ test('registration and password reset', async (t) => {
     );
   });
 
+  await t.test('a username differing only in case is refused (no lookalike accounts)', async () => {
+    await assert.rejects(
+      () => service.register({ username: `${unique}A`.toUpperCase(), password: 'correct-horse-battery' }),
+      (err) => err.code === 'AUTH_ALREADY_REGISTERED' && err.details.field === 'username'
+    );
+  });
+
+  await t.test('a phone already on an account is refused: phone is a login identifier', async () => {
+    const phone = `+91${Date.now().toString().slice(-10)}`;
+    await signUp('ph1', { phone });
+    await assert.rejects(
+      () => service.register({ username: `${unique}ph2`, password: 'correct-horse-battery', phone }),
+      (err) => err.code === 'AUTH_ALREADY_REGISTERED' && err.details.field === 'phone'
+    );
+  });
+
   // ══════════════════════════════════════════════════════════════════════
   //  Password reset
   // ══════════════════════════════════════════════════════════════════════

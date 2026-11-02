@@ -17,12 +17,13 @@ export function readStoredTheme() {
   return DEFAULT_THEME;
 }
 
-/** @param {Theme} theme */
-export function applyTheme(theme) {
+/** @param {Theme} theme @param {boolean} [persist] false: show it without replacing the player's stored choice. */
+export function applyTheme(theme, persist = true) {
   const root = document.documentElement;
   root.classList.remove('theme-light', 'theme-dark');
   root.classList.add(`theme-${theme}`);
   root.style.colorScheme = theme;
+  if (!persist) return;
   try {
     localStorage.setItem(STORAGE_KEY, theme);
   } catch {

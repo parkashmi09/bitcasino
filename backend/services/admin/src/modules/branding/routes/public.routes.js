@@ -28,10 +28,15 @@ module.exports = function publicRoutes(deps) {
     '/public',
     limiter,
     validate({ query: v.emptyQuery }),
-    asyncHandler(async (_req, res) => {
+    asyncHandler(async (req, res) => {
       const current = deps.entitlementsStore?.current() ?? {};
-      res.set('Cache-Control', 'public, max-age=15');
-      return response.ok(res, store.view(current.branding ?? null, current.version ?? 0, await store.chatSettings()));
+      // Revalidate every read: a cached copy would swallow the owner's live push. The ETag is the owner
+      // document's version plus the admin's chat settings (createApp turns Express's own ETags off).
+      const settings = await store.chatSettings();
+      const etag = `"branding-${current.version ?? 0}-${require('crypto').createHash('sha1').update(JSON.stringify(settings)).digest('hex').slice(0, 8)}"`;
+      res.set({ 'Cache-Control': 'no-cache', ETag: etag });
+      if (req.headers['if-none-match'] === etag) return res.status(304).end();
+      return response.ok(res, store.view(current.branding ?? null, current.version ?? 0, settings));
     })
   );
 

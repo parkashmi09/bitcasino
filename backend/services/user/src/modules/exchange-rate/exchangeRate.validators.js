@@ -62,7 +62,8 @@ const addRate = {
 
 const updateRate = {
   params: z.object({ currency }),
-  body: z.object({ usdRate: rate }).strict(),
+  // followMarket: false (default) pins the value; true lets the hourly market refresh replace it again.
+  body: z.object({ usdRate: rate, followMarket: z.boolean().optional() }).strict(),
 };
 
 module.exports = { convert, convertParams, currencyParam, addRate, updateRate, rate, currency, supportedCurrency };

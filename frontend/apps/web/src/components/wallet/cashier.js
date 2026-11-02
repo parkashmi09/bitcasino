@@ -16,7 +16,6 @@ export function cashierTabs(gates, withdrawLocked = false) {
   const lockedOut = withdrawLocked && !gates.agentPlayer && gates.blocked('withdraw') === 'account';
   return [
     (gates.autoDeposit() || gates.manualDeposit()) && 'deposit',
-    gates.on('buy') && 'buy',
     (gates.on('withdraw') || lockedOut) && 'withdraw',
     gates.on('swap') && 'swap',
     gates.on('vault') && 'vault',

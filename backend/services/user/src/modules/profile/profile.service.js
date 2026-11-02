@@ -193,7 +193,8 @@ class ProfileService {
       /** The COMPUTED VIP level (lifetime wager on the ladder): what avatars unlock from. */
       vipLevel: vip.level,
       referralCode: user.referalcode,
-      referralLink: user.referral_link,
+      // Registration never writes referral_link; build it like /profile/referral does.
+      referralLink: referralLinkFor(this.config, user.referalcode),
       status: user.status,
       twoFactorEnabled: Boolean(user.two_fa_status),
       gamesPlayed: user.games_played,

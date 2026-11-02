@@ -212,9 +212,9 @@ const CATALOGUE: FeatureEntry[] = [
     flag: null,
     policy: true,
     defaultVariant: 'dark_only',
-    note: 'Dark only: the player site is always dark and shows no theme toggle. Dark and light: players can switch (sidebar, account page, Settings → Preferences).',
+    note: 'Fixed: the player site shows its own default theme (light on bitcasino) and no theme toggle. Dark and light: players can switch (sidebar, account page, Settings → Preferences).',
     variants: [
-      { key: 'dark_only', label: 'Dark only', description: 'The site is always dark; no theme toggle anywhere. The default.' },
+      { key: 'dark_only', label: 'Fixed (site default)', description: "Players see the site's default theme; no theme toggle anywhere. The default." },
       { key: 'switch', label: 'Dark and light', description: 'Players can switch between the dark and the light theme (sidebar, account page, Settings → Preferences).' }
     ]
   },
@@ -260,6 +260,20 @@ const CATALOGUE: FeatureEntry[] = [
     variants: [
       { key: 'off', label: 'Off', description: 'An INR bet launches the game in INR and settles in INR. The default.' },
       { key: 'on', label: 'On', description: 'An INR bet launches the Slotegrator game in PKR; every bet, win and refund is converted PKR → INR at the site rate and moves the INR wallet.' }
+    ]
+  },
+  {
+    // JSGames INR games in PKR: a policy (always on, owner-only). Mirrors backend featureCatalogue.js.
+    key: 'jsgames_inr_as_pkr',
+    label: 'JSGames: INR games in PKR',
+    category: 'business',
+    flag: null,
+    policy: true,
+    defaultVariant: 'off',
+    note: 'On: a player betting in INR gets the JSGames game in PKR (balance shown in PKR at the site rate); each bet and win is converted PKR → INR, and only the INR wallet moves. Off: INR in, INR out. Needs PKR enabled on the JSGames account.',
+    variants: [
+      { key: 'off', label: 'Off', description: 'An INR bet launches the game in INR and settles in INR. The default.' },
+      { key: 'on', label: 'On', description: 'An INR bet launches the JSGames game in PKR; every bet and win is converted PKR → INR at the site rate and moves the INR wallet.' }
     ]
   },
   {
@@ -700,12 +714,9 @@ export const FLAG_GROUPS: FlagGroup[] = [
 ]
 
 /* Flags that read OFF when the stored document has no value: switching one on changes what the
-   site IS (the sportsbook replaces the exchange, idle logout signs players out), so it never happens
+   site IS (the sportsbook adds a third-party book, idle logout signs players out), so it never happens
    by default or by "Allow all". Same set in backend/packages/common/src/entitlements.js. */
 export const DEFAULT_OFF_FLAGS = new Set(['sportsbook', 'idle_logout'])
-
-/* Sports runs one mode at a time: switching one of these on switches the other off. */
-export const EXCLUSIVE_FLAGS: Record<string, string> = { sportsbook: 'sportsexchange', sportsexchange: 'sportsbook' }
 
 export const FEATURE_KEYS = FEATURE_CATALOGUE.map(f => f.key)
 export const FLAG_KEYS = [...new Set(FLAG_GROUPS.flatMap(g => g.keys))]
@@ -714,7 +725,7 @@ export const FLAG_LABELS: Record<string, string> = {
   casino: 'Casino',
   sports: 'Sports (kill switch: off refuses every new bet, open bets still settle)',
   sportsexchange: 'Sports exchange (our own exchange: markets, back/lay, agent system)',
-  sportsbook: 'Sportsbook (third-party book in an iframe; on hides the whole exchange)',
+  sportsbook: 'Sportsbook (third-party book in an iframe; can run alongside the exchange)',
   lotto: 'Lottery',
   vipclub: 'VIP club',
   clubmembership: 'Club membership',

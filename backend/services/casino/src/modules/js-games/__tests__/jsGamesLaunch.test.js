@@ -161,6 +161,38 @@ test('jsGames launch', async (t) => {
     assert.strictEqual(calls[0].body.language, 'en', 'language defaults to en');
   });
 
+  await t.test("v2 with the owner's jsgames_inr_as_pkr on opens an INR game in PKR with the balance in PKR", async () => {
+    const q = (sql) => connection.sequelize.query(sql);
+    const added = [];
+    for (const [cur, rate] of [['INR', '0.012'], ['PKR', '0.004']]) {
+      const [rows] = await q(`SELECT 1 FROM exchangerate WHERE UPPER(currency) = '${cur}'`);
+      if (!rows.length) {
+        await q(`INSERT INTO exchangerate (currency, usd_rate) VALUES ('${cur}', ${rate})`);
+        added.push(cur);
+      }
+    }
+    await q("INSERT INTO site_features (feature, enabled, variant) VALUES ('jsgames_inr_as_pkr', true, 'on') ON CONFLICT (feature) DO UPDATE SET variant = 'on'");
+    try {
+      const [r] = await q("SELECT usd_rate FROM exchangerate WHERE UPPER(currency) = 'INR'");
+      const [p] = await q("SELECT usd_rate FROM exchangerate WHERE UPPER(currency) = 'PKR'");
+      const fx = Number(r[0].usd_rate) / Number(p[0].usd_rate);
+      const uid = await seedPlayer();
+      const { calls, impl } = mockFetch(() => ({ json: { success: true, data: { game_launch_url: 'https://p.test/pkr', session_token: `pkr-${uid}-${calls.length}` } } }));
+      const svc = service({ v2: v2Client(impl), balances: { [`${uid}:INR`]: '100' } });
+
+      await svc.launchV2({ userId: uid, gameUid: 'g-pkr', currencyCode: 'INR' });
+      assert.strictEqual(calls[0].body.currency_code, 'PKR');
+      assert.strictEqual(Number(calls[0].body.credit_amount).toFixed(2), (100 * fx).toFixed(2));
+
+      await q("UPDATE site_features SET variant = 'off' WHERE feature = 'jsgames_inr_as_pkr'");
+      await svc.launchV2({ userId: uid, gameUid: 'g-pkr', currencyCode: 'INR' });
+      assert.strictEqual(calls[1].body.currency_code, 'INR', 'switched off: INR opens in INR');
+    } finally {
+      await q("DELETE FROM site_features WHERE feature = 'jsgames_inr_as_pkr'");
+      for (const cur of added) await q(`DELETE FROM exchangerate WHERE UPPER(currency) = '${cur}'`);
+    }
+  });
+
   await t.test('v2 without keys refuses by name and calls nothing', async () => {
     const uid = await seedPlayer();
     const { calls, impl } = mockFetch(() => ({ json: {} }));

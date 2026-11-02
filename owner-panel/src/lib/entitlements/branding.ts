@@ -34,7 +34,23 @@ export type Branding = {
   /** The floating chat buttons the site admin may switch on (Site config → Branding sets the number or link). */
   whatsappEnabled: boolean
   telegramEnabled: boolean
+  whatsappLink: string
+
+  /** Pre-filled in the chat box; empty = none. */
+  whatsappMessage: string
+
+  /** The sidebar tab for the sportsbook when it runs beside the exchange; empty = 'Sportsbook'. */
+  sportsbookTabName: string
+
+  /** The catalogue game the sportsbook launches; empty = the player site's VITE_SPORTSBOOK_GAME_UID. */
+  sportsbookGameUid: string
 }
+
+export const SPORTSBOOK_TAB_MAX = 30
+export const SPORTSBOOK_UID_RE = /^[A-Za-z0-9_-]{1,64}$/
+
+/* Sports settings ride in the branding block but do not make the site "branded" (no site name needed). */
+export const NOT_BRANDING_KEYS = new Set(['sportsbookTabName', 'sportsbookGameUid'])
 
 export type BrandingSlot = 'logo' | 'mark' | 'ogImage'
 export const BRANDING_SLOTS: BrandingSlot[] = ['logo', 'mark', 'ogImage']
@@ -50,6 +66,35 @@ export const TEXT_LIMITS = {
 
 export type BrandingTextKey = keyof typeof TEXT_LIMITS
 export const TEXT_KEYS = Object.keys(TEXT_LIMITS) as BrandingTextKey[]
+
+/**
+ * The WhatsApp target as the site stores it, or '' when it is neither: a phone number in
+ * international form (spaces and dashes dropped, then an optional + and 6–15 digits), or an
+ * https link on WhatsApp's own hosts (wa.me, whatsapp.com and its subdomains: a chat, channel
+ * or group link). Mirrored by the backend's branding.rules.js.
+ */
+export function whatsappLinkValue(value: unknown): string {
+  const raw = typeof value === 'string' ? value.trim() : ''
+
+  if (/^\+?[\d\s-]+$/.test(raw)) {
+    const number = raw.replace(/[\s-]/g, '')
+
+    return /^\+?\d{6,15}$/.test(number) ? number : ''
+  }
+
+  if (raw.length > 300) return ''
+
+  try {
+    const url = new URL(raw)
+    const host = url.hostname.toLowerCase()
+
+    return url.protocol === 'https:' && (host === 'wa.me' || host === 'whatsapp.com' || host.endsWith('.whatsapp.com')) ? url.href : ''
+  } catch {
+    return ''
+  }
+}
+
+export const WHATSAPP_MESSAGE_MAX = 300
 
 export const MAX_KEYWORDS = 20
 export const MAX_KEYWORD_LENGTH = 40
@@ -72,7 +117,11 @@ export const BRANDING_LABELS: Record<keyof Branding, string> = {
   mark: 'Square mark / favicon',
   ogImage: 'Open Graph image',
   whatsappEnabled: 'WhatsApp button allowed',
-  telegramEnabled: 'Telegram button allowed'
+  telegramEnabled: 'Telegram button allowed',
+    whatsappLink: 'WhatsApp number or link',
+  whatsappMessage: 'WhatsApp opening message',
+  sportsbookTabName: 'Sportsbook tab name',
+  sportsbookGameUid: 'Sportsbook game UID'
 }
 
 export const EMPTY_BRANDING: Branding = {
@@ -88,7 +137,11 @@ export const EMPTY_BRANDING: Branding = {
   mark: null,
   ogImage: null,
   whatsappEnabled: false,
-  telegramEnabled: false
+  telegramEnabled: false,
+  whatsappLink: '',
+  whatsappMessage: '',
+  sportsbookTabName: '',
+  sportsbookGameUid: ''
 }
 
 export const ASSET_FILE_RE = /^[0-9a-f]{64}\.(png|webp|svg)$/
@@ -151,7 +204,7 @@ export function brandingProblem(input: unknown): string | null {
   }
 
   // A branded site has a name (it is the logo's alt text); all-empty = not branded, allowed.
-  const anythingElse = Object.entries(b).some(([k, v]) => k !== 'siteName' && (Array.isArray(v) ? v.length > 0 : typeof v === 'string' ? !!v.trim() : !!v))
+  const anythingElse = Object.entries(b).some(([k, v]) => k !== 'siteName' && !NOT_BRANDING_KEYS.has(k) && (Array.isArray(v) ? v.length > 0 : typeof v === 'string' ? !!v.trim() : !!v))
 
   if (anythingElse && !str(b.siteName)) return 'Site name is required once anything is branded'
 
@@ -184,6 +237,28 @@ export function brandingProblem(input: unknown): string | null {
     if (b[key] !== undefined && typeof b[key] !== 'boolean') return `${BRANDING_LABELS[key]} must be on or off`
   }
 
+  if (b.sportsbookTabName !== undefined) {
+    if (typeof b.sportsbookTabName !== 'string') return 'Sportsbook tab name must be text'
+    if (b.whatsappLink !== undefined) {
+    if (typeof b.whatsappLink !== 'string') return 'WhatsApp number must be text'
+    if (b.whatsappLink.trim() && !whatsappLinkValue(b.whatsappLink)) return 'WhatsApp: a number with country code (919876543210) or an https wa.me / whatsapp.com link'
+  }
+
+  if (b.whatsappMessage !== undefined) {
+    if (typeof b.whatsappMessage !== 'string') return 'WhatsApp opening message must be text'
+    if (b.whatsappMessage.trim().length > WHATSAPP_MESSAGE_MAX) return `WhatsApp opening message is at most ${WHATSAPP_MESSAGE_MAX} characters`
+    if (BAD_TEXT.test(b.whatsappMessage)) return 'WhatsApp opening message may not contain < > or control characters'
+  }
+
+  if (b.sportsbookTabName.trim().length > SPORTSBOOK_TAB_MAX) return `Sportsbook tab name is at most ${SPORTSBOOK_TAB_MAX} characters`
+    if (BAD_TEXT.test(b.sportsbookTabName)) return 'Sportsbook tab name may not contain < > or control characters'
+  }
+
+  if (b.sportsbookGameUid !== undefined) {
+    if (typeof b.sportsbookGameUid !== 'string') return 'Sportsbook game UID must be text'
+    if (b.sportsbookGameUid.trim() && !SPORTSBOOK_UID_RE.test(b.sportsbookGameUid.trim())) return 'Sportsbook game UID: letters, digits, - and _ only (up to 64)'
+  }
+
   return null
 }
 
@@ -213,6 +288,16 @@ export function cleanBranding(input: unknown): Branding {
   for (const slot of BRANDING_SLOTS) out[slot] = cleanAsset(b[slot], slot)
   out.whatsappEnabled = b.whatsappEnabled === true
   out.telegramEnabled = b.telegramEnabled === true
+  out.whatsappLink = whatsappLinkValue(b.whatsappLink)
+  const message = str(b.whatsappMessage)
+
+  out.whatsappMessage = message.length <= WHATSAPP_MESSAGE_MAX && !BAD_TEXT.test(message) ? message : ''
+  const tab = str(b.sportsbookTabName)
+
+  out.sportsbookTabName = tab.length <= SPORTSBOOK_TAB_MAX && !BAD_TEXT.test(tab) ? tab : ''
+  const uid = str(b.sportsbookGameUid)
+
+  out.sportsbookGameUid = SPORTSBOOK_UID_RE.test(uid) ? uid : ''
 
   return out
 }

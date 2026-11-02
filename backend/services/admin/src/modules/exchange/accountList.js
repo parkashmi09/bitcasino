@@ -32,7 +32,8 @@ const CHILDREN_SQL = `
          (EXISTS (SELECT 1 FROM staff k WHERE k.parent_id = s.id)
            OR EXISTS (SELECT 1 FROM users p WHERE p.parent_staff_id = s.id)) AS has_children,
          false AS is_direct_user,
-         s.phone, s.email, s.country AS city, s.created_at, c.sports_pts, c.upper_point, c.down_point, c.thirdparty_pts, c.original_game_pts
+         s.phone, s.email, s.country AS city, s.created_at, c.sports_pts, c.upper_point, c.down_point, c.thirdparty_pts, c.original_game_pts,
+         s.system_locked
     FROM staff s
     JOIN roles r ON r.id = s.role_id
     LEFT JOIN credits c ON c.staff_id = s.id
@@ -43,7 +44,8 @@ const CHILDREN_SQL = `
          c.id, c.inr, c.credit, c.all_point,
          COALESCE((SELECT ABS(SUM(e.total_exposure)) FROM mssports.total_exposures e WHERE e.user_id = u.id), 0),
          false, u.parent_staff_id IS NULL,
-         u.phone, u.email, u.last_city, u.created, c.sports_pts, c.upper_point, c.down_point, c.thirdparty_pts, c.original_game_pts
+         u.phone, u.email, COALESCE(u.country, u.last_city), u.created, c.sports_pts, c.upper_point, c.down_point, c.thirdparty_pts, c.original_game_pts,
+         u.system_locked
     FROM users u
     LEFT JOIN credits c ON c.uid = u.id
    WHERE u.parent_staff_id = :parentId OR (:withDirectUsers AND u.parent_staff_id IS NULL AND NOT u.is_demo)`;
@@ -66,6 +68,8 @@ function toRow(r) {
     exposure: show(r.exposure),
     betLocked: r.bet_status !== 'active' || r.sports_betlocked === true,
     userLocked: r.status !== 'active',
+    // Inherited (an upline suspended, or a General Lock): blocks sign-in, but the row's Lock toggle cannot lift it.
+    systemLocked: r.system_locked === true,
     hasChildren: r.has_children === true,
     isDirectUser: r.is_direct_user === true, // owner ka wallet iske len-den me nahi aata
 

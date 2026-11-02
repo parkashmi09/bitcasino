@@ -13,8 +13,8 @@ import { REALTIME_EVENTS, REALTIME_PREFIXES, isStale } from '@/lib/realtime-keys
 import { setRealtimeConnected } from '@/lib/realtime-status'
 
 /**
- * Live refresh of the config screens: when the owner or another operator saves flags, branding,
- * features, coins or the plan, every open admin tab refetches what that save changed.
+ * Live refresh: when the owner or another operator saves flags, branding, features, coins or the
+ * plan, or any staff write happens (contentUpdated), every open admin tab refetches what changed.
  *
  * It listens on the player site's socket (user-service `/socket.io`), ANONYMOUSLY: those pushes are
  * broadcast to every socket, so the httpOnly staff token never has to reach the browser. The
@@ -112,12 +112,30 @@ const RealtimeRefresh = () => {
 
     const tick = setInterval(sync, TICK_MS)
 
+    let everything = false
+
     const flush = () => {
       const prefixes = [...pending]
 
       pending.clear()
+
+      // Any staff save (contentUpdated): re-read every query on screen — cheap, only mounted
+      // queries refetch — so what another operator or the owner changed shows without a reload.
+      if (everything) {
+        everything = false
+        void qc.invalidateQueries({ refetchType: 'active' })
+
+        return
+      }
+
       void qc.invalidateQueries({ predicate: q => isStale(q.queryKey, prefixes) })
     }
+
+    socket.on('contentUpdated', () => {
+      everything = true
+      clearTimeout(timer)
+      timer = setTimeout(flush, DEBOUNCE_MS)
+    })
 
     for (const event of REALTIME_EVENTS) {
       socket.on(event, () => {

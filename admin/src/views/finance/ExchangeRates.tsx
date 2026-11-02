@@ -9,8 +9,9 @@ import ConfirmDialog from '@/components/shared/ConfirmDialog'
 import DataTable, { type Column } from '@/components/shared/DataTable'
 import DateTime from '@/components/shared/DateTime'
 import FormDialog from '@/components/shared/FormDialog'
-import { SelectField, TextField } from '@/components/shared/FormField'
+import { SelectField, SwitchField, TextField } from '@/components/shared/FormField'
 import PageHeader from '@/components/shared/PageHeader'
+import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { useApi, useApiMutation } from '@/hooks/use-api'
 import { api } from '@/lib/api/client'
@@ -35,9 +36,11 @@ const rateError = (v: string) => check.number(v, 'USD rate', { positive: true, d
 
 const EditRate = ({ row }: { row: ExchangeRateRow }) => {
   const [usdRate, setUsdRate] = useState(row.usdRate)
+  // Opens on the row's current state: a market-fed rate stays market-fed unless switched off.
+  const [followMarket, setFollowMarket] = useState(row.managedBy !== 'site')
 
   const update = useApiMutation({
-    fn: () => api.put(`${WRITE}/${row.currency}`, { usdRate }),
+    fn: () => api.put(`${WRITE}/${row.currency}`, { usdRate, followMarket }),
     invalidate: INVALIDATE,
     success: `${row.currency} rate updated`
   })
@@ -56,6 +59,13 @@ const EditRate = ({ row }: { row: ExchangeRateRow }) => {
       onSubmit={() => update.mutateAsync()}
     >
       <TextField id={`er-${row.currency}`} name='usdRate' inputMode='decimal' label={`1 ${row.currency} = ? USD`} required value={usdRate} onChange={e => setUsdRate(e.target.value)} hint={`Currently 1 USD = ${perUsd(usdRate)} ${row.currency}`} />
+      <SwitchField
+        id={`er-follow-${row.currency}`}
+        label='Follow the market'
+        hint={followMarket ? 'The hourly market refresh will replace this value.' : 'This value is kept: the hourly market refresh no longer changes it.'}
+        checked={followMarket}
+        onChange={setFollowMarket}
+      />
     </FormDialog>
   )
 }
@@ -127,15 +137,23 @@ const columns: Column<ExchangeRateRow>[] = [
   { key: 'inv', header: '1 USD in units', align: 'right', cell: r => <span className='font-mono tabular-nums'>{perUsd(r.usdRate)}</span> },
   { key: 'at', header: 'Updated', cell: r => <DateTime value={r.lastUpdated} relative /> },
   {
+    key: 'src',
+    header: 'Source',
+    cell: r => <Badge variant='outline'>{r.managedBy === 'site' ? 'Pinned' : r.managedBy === 'owner' ? 'Owner' : 'Market'}</Badge>
+  },
+  {
     key: 'actions',
     header: '',
     align: 'right',
     cell: r => (
       <Can permission='config:write'>
-        <div className='flex justify-end gap-1'>
-          <EditRate row={r} />
-          <DeleteRate row={r} />
-        </div>
+        {/* The owner's fixed rates are refused by the API (assertSiteManaged). */}
+        {r.managedBy !== 'owner' && (
+          <div className='flex justify-end gap-1'>
+            <EditRate row={r} />
+            <DeleteRate row={r} />
+          </div>
+        )}
       </Can>
     )
   }
