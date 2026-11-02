@@ -30,7 +30,9 @@ describe('gates', () => {
     const agent = makeGates({ capabilities: AGENT_CAPS });
     expect(agent.agentPlayer).toBe(true);
     expect(agent.on('deposit')).toBe(false);
-    expect(agent.routeOn('/blog')).toBe(false);
+    expect(agent.routeOn('/vip')).toBe(false);
+    // The blog is content, not refused to an agent's player by the backend.
+    expect(agent.routeOn('/blog')).toBe(true);
   });
 
   it('b2b drops promotions and sign-up for everyone', () => {

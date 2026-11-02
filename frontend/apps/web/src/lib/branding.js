@@ -94,12 +94,55 @@ function setMeta(attr, key, content) {
   meta.setAttribute('content', content);
 }
 
-/** Puts the branding on the document; leaves index.html's values where nothing is set. */
-export function applyBranding(input) {
+/** Path prefix → page name for the owner's title template (`%s · Bitcasino`), most specific first. */
+const PAGE_NAMES = [
+  ['/games/favourite', 'Favourites'],
+  ['/games/recent', 'Recently played'],
+  ['/categories/originals', 'Originals'],
+  ['/promotions/participations', 'My participations'],
+  ['/help-center', 'Help Center'],
+  ['/games', 'Games'],
+  ['/categories', 'Games'],
+  ['/providers', 'Providers'],
+  ['/play', 'Play'],
+  ['/promotions', 'Promotions'],
+  ['/tournaments', 'Tournaments'],
+  ['/vip', 'VIP Club'],
+  ['/loyalty', 'Loyalty'],
+  ['/sports', 'Sports'],
+  ['/blog', 'Blog'],
+  ['/rewards', 'Rewards'],
+  ['/boosts', 'Boosts'],
+  ['/refer-a-friend', 'Refer a friend'],
+  ['/notifications', 'Notifications'],
+  ['/transactions', 'Transactions'],
+  ['/security', 'Security'],
+  ['/settings', 'Settings'],
+  ['/account', 'Account'],
+  ['/profile', 'Account'],
+  ['/login', 'Sign in'],
+  ['/register', 'Sign up'],
+  ['/forgot-password', 'Reset password'],
+  ['/testimonials', 'Testimonials'],
+];
+
+/** The page name for `pathname`, or null (the home page and unnamed routes use the plain title). */
+export function pageNameFor(pathname) {
+  const path = String(pathname ?? '');
+  return PAGE_NAMES.find(([p]) => path === p || path.startsWith(`${p}/`))?.[1] ?? null;
+}
+
+/**
+ * Puts the branding on the document; leaves index.html's values where nothing is set. With a page
+ * name and the owner's title template, the tab reads e.g. `Promotions · Bitcasino`.
+ */
+export function applyBranding(input, pageName = null) {
   if (typeof document === 'undefined') return;
   const branding = input ?? { keywords: [] };
   const title = branding.title ?? branding.siteName;
-  document.title = title || DEFAULTS.title;
+  document.title = pageName && branding.titleTemplate
+    ? branding.titleTemplate.replace('%s', pageName)
+    : title || DEFAULTS.title;
   setMeta('name', 'description', branding.description);
   setMeta('name', 'keywords', (branding.keywords ?? []).join(', '));
   setMeta('name', 'theme-color', branding.themeColor);

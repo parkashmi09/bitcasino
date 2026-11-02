@@ -65,7 +65,7 @@ const STAFF_TYPES: { level: number; label: string }[] = [
 
 const REQUIRED_FIELDS: (keyof Form)[] = ['username', 'email', 'password', 'cpassword', 'mpassword', 'city', 'mono', 'point', 'camt']
 
-type CreateResult = { success: boolean; creditSkipped: boolean; message: string }
+type CreateResult = { creditSkipped: boolean; message: string; account: { accountType: 'user' | 'staff'; id: string; username: string } }
 
 /** Zip (vee-validate) ke texts. */
 const validateField = (name: keyof Form, value: string, all: Form) => {

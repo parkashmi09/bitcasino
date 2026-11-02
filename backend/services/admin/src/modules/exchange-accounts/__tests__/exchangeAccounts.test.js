@@ -158,7 +158,7 @@ test('exchange accounts screens', async (t) => {
     const username = `xply${tag}a`;
     const result = await accounts.create({ ...owner, username, password: 'Player1234', creditAmount: '200', userType: 'USER', transactionPassword: TXN });
 
-    assert.equal(result.data.accountType, 'user');
+    assert.equal(result.account.accountType, 'user');
     const user = await models.Users.findOne({ where: { name: username }, raw: true });
     assert.equal(Number(user.parent_staff_id), ownerId);
     const wallet = await models.Credits.findOne({ where: { uid: user.id }, raw: true });

@@ -44,7 +44,7 @@ export const GATES = {
   notifications: { feature: 'notifications' },
   kyc: { feature: 'kyc', notAgentPlayer: true },
   originals: { flag: 'originals' },
-  blog: { feature: 'blog', notAgentPlayer: true },
+  blog: { feature: 'blog' },
   // `/sports` (`pages/Sports.jsx`): the provider's sportsbook OR the native exchange. Each flag is public
   // only as owner `sports` AND it (the owner keeps them exclusive); `onlyIf` = any one explicitly true,
   // so it stays hidden until the flags answer (backend default off). The page picks the mode.
