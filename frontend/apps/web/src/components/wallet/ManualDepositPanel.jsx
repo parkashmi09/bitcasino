@@ -1,9 +1,11 @@
-import { useId, useState } from 'react';
+import { useEffect, useId, useState } from 'react';
 import { Icon } from '@/components/ui/Icon';
 import { useQueryClient } from '@tanstack/react-query';
 import { bankDetailsQuery, useBankDetails, useSubmitFiatDeposit } from '@/queries/wallet';
 import { manualDepositFields } from './withdrawRules';
 import { cn } from '@/lib/cn';
+import { ENDPOINTS, path } from '@/lib/endpoints';
+import { tokenStore } from '@/auth/tokenStore';
 
 const INPUT =
   'h-11 w-full rounded-i-sm border-[0.8px] border-beerus bg-goku px-3 text-sm text-bulma outline-none focus:border-piccolo';
@@ -20,8 +22,7 @@ const BUTTON =
  * (`gates.manualDeposit()`). `quiet`: another deposit rail is also showing, so a coin with no
  * house account renders nothing instead of a warning.
  *
- * shortcut: the house account's QR image (`bank-details/:coin/:id/qr`, authenticated) is not
- * shown; the UPI ID / account number are copyable. Add it if admins rely on QR-only accounts.
+ * The house account's QR (set in admin Bank details) shows above its details when it has one.
  */
 export function ManualDepositPanel({ currency, crypto = false, quiet = false }) {
   const coin = String(currency).toUpperCase();
@@ -154,6 +155,7 @@ export function ManualDepositPanel({ currency, crypto = false, quiet = false }) 
                   ))}
                 </div>
               )}
+              {account.hasQrImage && <AccountQr coin={coin} id={account.id} />}
               <CopyRow label="Network" value={account.network} />
               <CopyRow label="Deposit address" value={account.walletAddress} />
               {account.walletAddress && (
@@ -243,5 +245,50 @@ function Notice({ tone, children }) {
     >
       {children}
     </p>
+  );
+}
+
+/**
+ * The QR the site admin uploaded for this house account. The image route is behind the
+ * player's session, so an <img src> cannot load it: fetched with the token, shown as a blob URL.
+ */
+export function AccountQr({ coin, id, caption = true }) {
+  const [src, setSrc] = useState(null);
+  const [failed, setFailed] = useState(false);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    let url = null;
+    setSrc(null);
+    setFailed(false);
+    const token = tokenStore.getAccess();
+    fetch(path(ENDPOINTS.bankDetailsQr, { coin, id }), {
+      headers: token ? { authorization: `Bearer ${token}` } : {},
+      signal: controller.signal,
+    })
+      .then((response) => (response.ok ? response.blob() : Promise.reject(new Error(String(response.status)))))
+      .then((blob) => {
+        url = URL.createObjectURL(blob);
+        setSrc(url);
+      })
+      .catch((error) => {
+        if (error?.name !== 'AbortError') setFailed(true);
+      });
+    return () => {
+      controller.abort();
+      if (url) URL.revokeObjectURL(url);
+    };
+  }, [coin, id]);
+
+  if (failed) return null;
+  return (
+    <div className="grid justify-items-center gap-1.5">
+      {src ? (
+        <img src={src} alt={`${coin} deposit QR code`} className="size-44 rounded-i-sm bg-white object-contain p-1" />
+      ) : (
+        <div className="size-44 animate-pulse rounded-i-sm bg-beerus" />
+      )}
+      {caption && <span className="text-xs text-trunks">Scan to pay, or copy the details below.</span>}
+    </div>
   );
 }

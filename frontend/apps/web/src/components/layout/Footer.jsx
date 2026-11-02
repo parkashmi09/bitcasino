@@ -1,5 +1,7 @@
 import { useId, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
+import { LanguageSelect } from '@/components/ui/LanguageSelect';
+import { useLanguageLabel } from '@/lib/i18n';
 import { Icon } from '@/components/ui/Icon';
 import { cn } from '@/lib/cn';
 import { useMediaQuery } from '@/hooks/useMediaQuery';
@@ -76,7 +78,6 @@ const LINK_COLUMNS = [
   },
 ];
 
-const LANGUAGES = ['English', 'Deutsch', 'Español', 'Français', 'Português', '日本語'];
 
 /**
  * The payment marks, keyed by the platform's own currency ticker.
@@ -228,6 +229,30 @@ function MarkRow({ items }) {
   );
 }
 
+function FooterLanguage() {
+  const { show } = useLanguageLabel();
+  if (!show) return null;
+  return (
+    <div className="grid w-max gap-2 justify-self-center">
+      <span className="relative block w-full">
+        <label htmlFor="footer-language" className="sr-only">
+          Language
+        </label>
+        <LanguageSelect
+          id="footer-language"
+          className="relative z-2 m-0 block h-10 w-full max-w-full cursor-pointer appearance-none rounded-md bg-goku px-4 pe-10 text-base leading-10 text-trunks shadow-[inset_0_0_0_1px_var(--color-beerus)] transition-shadow focus:outline-none"
+        />
+        <Icon
+          name="chevron-down"
+          size={20}
+          strokeWidth={1.5}
+          className="pointer-events-none absolute top-1/2 end-3 z-3 -translate-y-1/2 text-bulma"
+        />
+      </span>
+    </div>
+  );
+}
+
 export function Footer() {
   const wide = useMediaQuery(UNFOLD_AT);
   const name = brandName(useBranding());
@@ -282,30 +307,7 @@ export function Footer() {
               ))}
             </div>
 
-            <div className="grid w-max gap-2 justify-self-center">
-              <span className="relative block w-full">
-                <label htmlFor="footer-language" className="sr-only">
-                  Language
-                </label>
-                <select
-                  id="footer-language"
-                  defaultValue="English"
-                  className="relative z-2 m-0 block h-10 w-full max-w-full cursor-pointer appearance-none rounded-md bg-goku px-4 text-base leading-10 text-trunks shadow-[inset_0_0_0_1px_var(--color-beerus)] transition-shadow focus:outline-none"
-                >
-                  {LANGUAGES.map((language) => (
-                    <option key={language} value={language}>
-                      {language}
-                    </option>
-                  ))}
-                </select>
-                <Icon
-                  name="chevron-down"
-                  size={20}
-                  strokeWidth={1.5}
-                  className="pointer-events-none absolute top-1/2 end-3 z-3 -translate-y-1/2 text-bulma"
-                />
-              </span>
-            </div>
+            <FooterLanguage />
           </div>
 
           <hr className="h-px border-0 bg-beerus" />

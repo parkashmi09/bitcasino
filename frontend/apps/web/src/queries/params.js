@@ -68,13 +68,15 @@ const page = (value) => Math.max(Number(value) || 1, 1);
  * `.strict()` rejects a declared key with an undefined value the same way it
  * rejects an unknown one.
  */
-export function gamesQuery({ category, provider, search, page: p = 1, limit = 24 } = {}) {
+export function gamesQuery({ category, provider, search, sort, page: p = 1, limit = 24 } = {}) {
   return {
     page: page(p),
     limit: clamp(limit, 24, MAX_LIMIT),
     ...(category ? categoryFilter(category) : {}),
     ...(provider ? { provider } : {}),
     ...(search ? { search } : {}),
+    // The browse validator's own enum (casino games.validators.js): anything else would 422.
+    ...(['popular', 'az', 'za'].includes(sort) ? { sort } : {}),
   };
 }
 

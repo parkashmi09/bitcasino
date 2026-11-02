@@ -2,7 +2,8 @@
 
 const crypto = require('crypto');
 const { Op } = require('sequelize');
-const { money } = require('@ibitplay/common');
+const { money, sitePolicy } = require('@ibitplay/common');
+const { pkrPerInr } = require('../games/pkrPerInr');
 
 const E = require('./jsGames.errors');
 const { addChildGamePoints } = require('./pointLedger');
@@ -554,14 +555,20 @@ class JsGamesService {
 
     const balance = (await this.#balanceOf(userId, settlement)) ?? '0';
 
+    // Owner's switch (jsgames_inr_as_pkr): an INR game opens at JSGames in PKR, with the INR balance
+    // shown in PKR at the site rate. Its callbacks come back in PKR and settle in INR (betCallbackV2).
+    const inPkr = settlement === 'INR' && (await sitePolicy.readPolicy(this.models, 'jsgames_inr_as_pkr')) === 'on';
+    const fx = inPkr ? await pkrPerInr(this.db) : null;
+    if (inPkr && !fx) throw E.UNSUPPORTED_CURRENCY({ currency: 'PKR' });
+
     const response = await this.#upstream(() =>
       this.v2.request('/launch', {
         method: 'POST',
         body: {
           game_uid: gameUid,
           user_id: String(userId),
-          credit_amount: String(balance),
-          currency_code: String(currencyCode).toUpperCase(),
+          credit_amount: inPkr ? money.toDecimalString(money.multiply(String(balance), fx)) : String(balance),
+          currency_code: inPkr ? 'PKR' : String(currencyCode).toUpperCase(),
           language: language || 'en',
           name: user.name,
         },
@@ -630,8 +637,15 @@ class JsGamesService {
       const userId = Number(body.user_id);
       if (!Number.isInteger(userId) || userId <= 0) return { success: false, error: 'Invalid payload' };
 
-      const settlement = V2_CURRENCIES[String(body.currency ?? '').toUpperCase()];
+      /* PKR is only ever an INR game the owner's jsgames_inr_as_pkr opened in PKR: its amounts are
+         converted PKR → INR at `fx` and the INR wallet moves; the balance answered goes back in PKR.
+         Not gated on the policy's current value, so rounds open when it is switched off still settle. */
+      const inPkr = String(body.currency ?? '').toUpperCase() === 'PKR';
+      const fx = inPkr ? await pkrPerInr(this.db) : null;
+      if (inPkr && !fx) return { success: false, error: 'Unsupported currency' };
+      const settlement = inPkr ? 'INR' : V2_CURRENCIES[String(body.currency ?? '').toUpperCase()];
       if (!settlement) return { success: false, error: 'Unsupported currency' };
+      const quote = (balance) => (fx ? money.toDecimalString(money.multiply(String(balance), fx)) : String(balance));
 
       /**
        * The idempotency key.
@@ -653,8 +667,8 @@ class JsGamesService {
       let bet;
       let win;
       try {
-        bet = money.toMinor(String(body.bet_amount ?? '0'));
-        win = money.toMinor(String(body.win_amount ?? '0'));
+        bet = fx ? money.divide(String(body.bet_amount ?? '0'), fx) : money.toMinor(String(body.bet_amount ?? '0'));
+        win = fx ? money.divide(String(body.win_amount ?? '0'), fx) : money.toMinor(String(body.win_amount ?? '0'));
       } catch {
         return { success: false, error: 'Invalid amounts' };
       }
@@ -715,12 +729,12 @@ class JsGamesService {
       if (outcome.duplicate) {
         this.logger?.info({ round, type }, 'Duplicate jsGames v2 callback ignored');
         const balance = (await this.#balanceOf(userId, settlement)) ?? '0';
-        return { success: true, duplicate: true, new_balance: String(balance) };
+        return { success: true, duplicate: true, new_balance: quote(balance) };
       }
 
       if (outcome.insufficient) {
         const balance = (await this.#balanceOf(userId, settlement)) ?? '0';
-        return { success: false, error: 'Insufficient balance', new_balance: String(balance) };
+        return { success: false, error: 'Insufficient balance', new_balance: quote(balance) };
       }
 
       if (outcome.error) return { success: false, error: 'Server error' };
@@ -781,7 +795,7 @@ class JsGamesService {
       }
 
       const balance = outcome.balance ?? (await this.#balanceOf(userId, settlement)) ?? '0';
-      return { success: true, new_balance: String(balance) };
+      return { success: true, new_balance: quote(balance) };
     } catch (error) {
       this.logger?.error({ err: error }, 'jsGames v2 callback failed');
       return { success: false, error: 'Server error' };

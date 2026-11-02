@@ -37,7 +37,19 @@ export type Branding = {
 
   /** Pre-filled in the chat box; empty = none. */
   whatsappMessage: string
+
+  /** The sidebar tab for the sportsbook when it runs beside the exchange; empty = 'Sportsbook'. */
+  sportsbookTabName: string
+
+  /** The catalogue game the sportsbook launches; empty = the player site's VITE_SPORTSBOOK_GAME_UID. */
+  sportsbookGameUid: string
 }
+
+export const SPORTSBOOK_TAB_MAX = 30
+export const SPORTSBOOK_UID_RE = /^[A-Za-z0-9_-]{1,64}$/
+
+/* Sports settings ride in the branding block but do not make the site "branded" (no site name needed). */
+export const NOT_BRANDING_KEYS = new Set(['sportsbookTabName', 'sportsbookGameUid'])
 
 export type BrandingSlot = 'logo' | 'mark' | 'ogImage'
 export const BRANDING_SLOTS: BrandingSlot[] = ['logo', 'mark', 'ogImage']
@@ -105,7 +117,9 @@ export const BRANDING_LABELS: Record<keyof Branding, string> = {
   ogImage: 'Open Graph image',
   whatsappEnabled: 'WhatsApp widget',
   whatsappLink: 'WhatsApp number or link',
-  whatsappMessage: 'WhatsApp opening message'
+  whatsappMessage: 'WhatsApp opening message',
+  sportsbookTabName: 'Sportsbook tab name',
+  sportsbookGameUid: 'Sportsbook game UID'
 }
 
 export const EMPTY_BRANDING: Branding = {
@@ -122,7 +136,9 @@ export const EMPTY_BRANDING: Branding = {
   ogImage: null,
   whatsappEnabled: false,
   whatsappLink: '',
-  whatsappMessage: ''
+  whatsappMessage: '',
+  sportsbookTabName: '',
+  sportsbookGameUid: ''
 }
 
 export const ASSET_FILE_RE = /^[0-9a-f]{64}\.(png|webp|svg)$/
@@ -185,7 +201,7 @@ export function brandingProblem(input: unknown): string | null {
   }
 
   // A branded site has a name (it is the logo's alt text); all-empty = not branded, allowed.
-  const anythingElse = Object.entries(b).some(([k, v]) => k !== 'siteName' && (Array.isArray(v) ? v.length > 0 : typeof v === 'string' ? !!v.trim() : !!v))
+  const anythingElse = Object.entries(b).some(([k, v]) => k !== 'siteName' && !NOT_BRANDING_KEYS.has(k) && (Array.isArray(v) ? v.length > 0 : typeof v === 'string' ? !!v.trim() : !!v))
 
   if (anythingElse && !str(b.siteName)) return 'Site name is required once anything is branded'
 
@@ -227,6 +243,17 @@ export function brandingProblem(input: unknown): string | null {
     if (BAD_TEXT.test(b.whatsappMessage)) return 'WhatsApp opening message may not contain < > or control characters'
   }
 
+  if (b.sportsbookTabName !== undefined) {
+    if (typeof b.sportsbookTabName !== 'string') return 'Sportsbook tab name must be text'
+    if (b.sportsbookTabName.trim().length > SPORTSBOOK_TAB_MAX) return `Sportsbook tab name is at most ${SPORTSBOOK_TAB_MAX} characters`
+    if (BAD_TEXT.test(b.sportsbookTabName)) return 'Sportsbook tab name may not contain < > or control characters'
+  }
+
+  if (b.sportsbookGameUid !== undefined) {
+    if (typeof b.sportsbookGameUid !== 'string') return 'Sportsbook game UID must be text'
+    if (b.sportsbookGameUid.trim() && !SPORTSBOOK_UID_RE.test(b.sportsbookGameUid.trim())) return 'Sportsbook game UID: letters, digits, - and _ only (up to 64)'
+  }
+
   return null
 }
 
@@ -259,6 +286,12 @@ export function cleanBranding(input: unknown): Branding {
   const message = str(b.whatsappMessage)
 
   out.whatsappMessage = message.length <= WHATSAPP_MESSAGE_MAX && !BAD_TEXT.test(message) ? message : ''
+  const tab = str(b.sportsbookTabName)
+
+  out.sportsbookTabName = tab.length <= SPORTSBOOK_TAB_MAX && !BAD_TEXT.test(tab) ? tab : ''
+  const uid = str(b.sportsbookGameUid)
+
+  out.sportsbookGameUid = SPORTSBOOK_UID_RE.test(uid) ? uid : ''
 
   return out
 }

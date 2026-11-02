@@ -560,7 +560,12 @@ export async function bindSession() {
    * way to be sure nothing is still addressed to them.
    */
   if (!token) {
+    // Already an anonymous connection: nothing of a player's to drop.
+    if (sockets.get('user') && ![...boundTokens.values()].some(Boolean)) return;
     closeSocket();
+    // A signed-out visitor still needs the public pushes (owner theme, flags, branding);
+    // getSocket re-attaches every registered handler to the fresh anonymous connection.
+    if (subscriptions.get('user')?.size) getSocket('user');
     return;
   }
 

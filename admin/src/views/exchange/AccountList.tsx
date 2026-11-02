@@ -163,7 +163,16 @@ const AccountListBody = ({ channel }: { channel?: Channel }) => {
 
   const tail: Column<AccountRow>[] = [
     { key: 'bst', header: 'B st', cell: r => lockSwitch(r.betLocked) },
-    { key: 'ust', header: 'U st', cell: r => lockSwitch(r.userLocked) },
+    {
+      key: 'ust',
+      header: 'U st',
+      cell: r => (
+        <span className='inline-flex items-center gap-1.5'>
+          {lockSwitch(r.userLocked || Boolean(r.systemLocked))}
+          {r.systemLocked && !r.userLocked && <span className='text-muted-foreground text-xs' title='Locked from above (an upline is suspended, or a General Lock)'>inherited</span>}
+        </span>
+      )
+    },
     { key: 'pname', header: 'PName', cell: r => `${r.percentage ?? 1} Pt` },
     { key: 'type', header: 'Account Type', cell: r => accountTypeLabel(r) },
     action

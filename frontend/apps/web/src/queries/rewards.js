@@ -119,6 +119,8 @@ export function toDepositOffer(terms) {
     })),
     wagerMultiplier: Number(terms.wagerMultiplier) || null,
     wageringLock: terms.wageringLock !== false,
+    // A gradual-unlock program locks the bonus even with no multiplier.
+    gradual: program?.unlockMode === 'gradual',
     expiryDays: Number(terms.expiryDays) || null,
   };
 }

@@ -160,7 +160,12 @@ class EmailService {
       // when we did not is what makes a player wait for an email that is not
       // coming.
       this.logger?.error({ purpose, error: result.error }, 'OTP generated but the email could not be sent');
-      throw E.SEND_FAILED({ reason: result.error });
+      // Nobody can read this code: drop it so a retry is not held behind the resend cooldown.
+      await this.models.UserOtps.destroy({ where: { email: address, purpose, is_verified: false } });
+      // Same reply as an unknown address for account-only purposes: no telling which addresses exist.
+      if (REQUIRES_ACCOUNT.has(purpose)) return { requested: true };
+      // The mailer's reason is server configuration; it stays in the log, not on a public route.
+      throw E.SEND_FAILED();
     }
 
     // NOTE the absence of `otp` in this object. That is the point.

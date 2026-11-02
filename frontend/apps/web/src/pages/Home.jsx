@@ -105,7 +105,9 @@ export function Home() {
   const fallback = HOME_RAILS.filter((rail) => rail.source.slug !== 'originals');
   const source = lobby.data?.length ? lobby.data.map(lobbyRail) : lobby.isPending ? [] : fallback;
 
-  const rails = source.filter((rail) => {
+  // The owner/admin 'casino' flag off: no provider rails (every launch would be refused).
+  const casinoOn = config.flag('casino');
+  const rails = !casinoOn ? [] : source.filter((rail) => {
     const flag = rail.source.kind === 'collection' || rail.source.kind === 'lobby' ? RAIL_FLAGS[rail.source.slug] : null;
     return flag ? config.flag(flag) : true;
   });
@@ -120,7 +122,7 @@ export function Home() {
       {signedOut && !hasSlides && slidesKnown && <Hero />}
       {status === 'loading' && <AboveTheFoldSkeleton />}
 
-      {signedOut && <ProviderRail />}
+      {signedOut && casinoOn && <ProviderRail />}
 
       {/* Renders nothing until a round settles — see `LatestWins`. It sits
           above the rails because that is where the reference puts it, and it
@@ -133,14 +135,14 @@ export function Home() {
         <CatalogueRail key={rail.title} {...rail} />
       ))}
 
-      <ThemeRail />
+      {casinoOn && <ThemeRail />}
 
       {rails.slice(themeAt).map((rail) => (
         <CatalogueRail key={rail.title} {...rail} />
       ))}
 
       <TrustSection />
-      {!signedOut && <ProviderRail />}
+      {!signedOut && casinoOn && <ProviderRail />}
     </>
   );
 }

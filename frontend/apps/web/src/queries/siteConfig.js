@@ -82,5 +82,40 @@ export function useBranding() {
   return query.data ?? null;
 }
 
+/**
+ * The owner's sportsbook settings (owner panel → Branding → Sportsbook): `{ tabName, gameUid }`, each
+ * null when unset. Read off the branding document but kept apart, since they apply unbranded too.
+ */
+export function useSportsbookSettings() {
+  const query = useQuery({
+    queryKey: queryKeys.site.sportsbook(),
+    queryFn: async ({ signal }) => {
+      const data = await api(ENDPOINTS.branding, { auth: false, signal });
+      const s = data?.sportsbook ?? {};
+      const tab = typeof s.tabName === 'string' ? s.tabName.trim() : '';
+      const uid = typeof s.gameUid === 'string' ? s.gameUid.trim() : '';
+      return {
+        tabName: tab && tab.length <= 30 && !/[<>]/.test(tab) ? tab : null,
+        gameUid: /^[A-Za-z0-9_-]{1,64}$/.test(uid) ? uid : null,
+      };
+    },
+    staleTime: 60 * 60 * 1000,
+    retry: 1,
+  });
+  return { ...(query.data ?? { tabName: null, gameUid: null }), isPending: query.isPending };
+}
+
 /** The site's name for copy: the owner panel's branded name, else this build's. */
 export const useSiteName = () => brandName(useBranding());
+
+/** The coins the site offers (owner + admin switches), in the admin's order. `[]` until it answers. */
+export function usePublicCurrencies() {
+  const query = useQuery({
+    queryKey: queryKeys.site.currencies(),
+    queryFn: ({ signal }) => api(ENDPOINTS.currenciesPublic, { auth: false, signal }),
+    select: (rows) => (Array.isArray(rows) ? [...rows].sort((a, b) => (a.sort ?? 0) - (b.sort ?? 0)) : []),
+    staleTime: 60 * 60 * 1000,
+    retry: 1,
+  });
+  return query.data ?? [];
+}

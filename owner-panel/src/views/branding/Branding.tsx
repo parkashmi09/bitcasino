@@ -34,6 +34,9 @@ import {
   MAX_KEYWORDS,
   TEXT_KEYS,
   TEXT_LIMITS,
+  NOT_BRANDING_KEYS,
+  SPORTSBOOK_TAB_MAX,
+  SPORTSBOOK_UID_RE,
   WHATSAPP_MESSAGE_MAX,
   whatsappLinkValue,
   type Branding as BrandingDoc,
@@ -94,7 +97,7 @@ function fieldProblems(b: BrandingDoc): Partial<Record<keyof BrandingDoc, string
   const anythingElse = (Object.keys(b) as (keyof BrandingDoc)[]).some(k => {
     const v = b[k]
 
-    return k !== 'siteName' && (Array.isArray(v) ? v.length > 0 : typeof v === 'string' ? !!v.trim() : !!v)
+    return k !== 'siteName' && !NOT_BRANDING_KEYS.has(k) && (Array.isArray(v) ? v.length > 0 : typeof v === 'string' ? !!v.trim() : !!v)
   })
 
   if (!out.siteName && anythingElse && !b.siteName.trim()) out.siteName = 'Required once anything is branded (it is also the logo alt text)'
@@ -115,6 +118,11 @@ function fieldProblems(b: BrandingDoc): Partial<Record<keyof BrandingDoc, string
     out.whatsappLink = 'A number with country code (919876543210) or an https wa.me / whatsapp.com link'
   if (b.whatsappMessage.trim().length > WHATSAPP_MESSAGE_MAX) out.whatsappMessage = `At most ${WHATSAPP_MESSAGE_MAX} characters`
   else if (BAD_TEXT.test(b.whatsappMessage)) out.whatsappMessage = 'No < > or control characters'
+
+  if (b.sportsbookTabName.trim().length > SPORTSBOOK_TAB_MAX) out.sportsbookTabName = `At most ${SPORTSBOOK_TAB_MAX} characters`
+  else if (BAD_TEXT.test(b.sportsbookTabName)) out.sportsbookTabName = 'No < > or control characters'
+  if (b.sportsbookGameUid.trim() && !SPORTSBOOK_UID_RE.test(b.sportsbookGameUid.trim()))
+    out.sportsbookGameUid = 'Letters, digits, - and _ only (up to 64)'
 
   return out
 }
@@ -501,6 +509,55 @@ const Branding = () => {
                   </p>
                 )}
                 <FieldDescription>Optional: already typed in the chat box when WhatsApp opens.</FieldDescription>
+              </Field>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Sportsbook</CardTitle>
+              <CardDescription>
+                When both the sportsbook and the exchange are on (Features &amp; plan → Site flags), the player site adds a
+                sidebar tab for the sportsbook. Name that tab, and choose the game it opens.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className='flex flex-col gap-4'>
+              <Field>
+                <FieldLabel htmlFor='branding-sportsbookTabName'>{BRANDING_LABELS.sportsbookTabName}</FieldLabel>
+                <Input
+                  id='branding-sportsbookTabName'
+                  name='sportsbookTabName'
+                  className='max-w-md'
+                  maxLength={SPORTSBOOK_TAB_MAX}
+                  placeholder='Sportsbook'
+                  aria-invalid={!!fields.sportsbookTabName}
+                  value={current.sportsbookTabName}
+                  onChange={e => set('sportsbookTabName', e.target.value)}
+                />
+                {fields.sportsbookTabName && (
+                  <p className='text-destructive text-xs' role='alert' data-error='branding-sportsbookTabName'>
+                    {fields.sportsbookTabName}
+                  </p>
+                )}
+                <FieldDescription>Empty: “Sportsbook”.</FieldDescription>
+              </Field>
+              <Field>
+                <FieldLabel htmlFor='branding-sportsbookGameUid'>{BRANDING_LABELS.sportsbookGameUid}</FieldLabel>
+                <Input
+                  id='branding-sportsbookGameUid'
+                  name='sportsbookGameUid'
+                  className='max-w-md font-mono'
+                  placeholder='8a704858d5deb4af1ddc722092ac7614'
+                  aria-invalid={!!fields.sportsbookGameUid}
+                  value={current.sportsbookGameUid}
+                  onChange={e => set('sportsbookGameUid', e.target.value)}
+                />
+                {fields.sportsbookGameUid && (
+                  <p className='text-destructive text-xs' role='alert' data-error='branding-sportsbookGameUid'>
+                    {fields.sportsbookGameUid}
+                  </p>
+                )}
+                <FieldDescription>The catalogue game UID of the sportsbook. Empty: the player site’s own default (VITE_SPORTSBOOK_GAME_UID).</FieldDescription>
               </Field>
             </CardContent>
           </Card>

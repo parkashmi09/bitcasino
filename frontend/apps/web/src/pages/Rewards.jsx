@@ -94,7 +94,8 @@ export function Rewards() {
   const [claimOpen, setClaimOpen] = useState(false);
   const [depositOpen, setDepositOpen] = useState(false);
 
-  const canRedeem = gates.on('bonus');
+  // The one Claim box takes bonus codes and gift card keys (hooks/useRewards.js).
+  const canRedeem = gates.on('bonus') || gates.on('giftCards');
   const active = balance.data?.active ?? [];
   const history = balance.data?.history ?? [];
   const loading = offer.isPending || balance.isPending;
@@ -218,7 +219,8 @@ function OfferCard({ offer, onDeposit }) {
   const { currency } = offer;
   const description = offer.wagerMultiplier
     ? `The bonus needs to be wagered ${offer.wagerMultiplier} times before you can withdraw it.`
-    : offer.wageringLock
+    // Only a gradual-unlock bonus locks with no multiplier; a rollover one with none is paid in cash.
+    : offer.wageringLock && offer.gradual
       ? 'The bonus stays locked until it has been wagered.'
       : 'The bonus is paid to your balance.';
 

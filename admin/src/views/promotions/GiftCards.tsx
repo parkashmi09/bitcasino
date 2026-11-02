@@ -28,6 +28,7 @@ import { formatNumber } from '@/lib/format'
 import { check } from '@/lib/validate'
 import type { GiftCard, GiftCardAnalytics, GiftCardRecord } from './types'
 import { useLocalList } from './useLocalList'
+import { useRewardCurrency } from '@/components/shared/RewardCurrency'
 
 const INVALIDATE = [
   ['paged', 'admin/user/gift-cards'],
@@ -50,6 +51,7 @@ const EMPTY = {
 }
 
 const CreateCard = () => {
+  const { code: cur } = useRewardCurrency()
   const [f, setF] = useState(EMPTY)
 
   const create = useApiMutation({
@@ -84,7 +86,7 @@ const CreateCard = () => {
         </Button>
       }
       title='Create a gift card'
-      description='A promise to pay every eligible user a fixed amount once they meet the conditions. Amounts are USDT.'
+      description={`A promise to pay every eligible user a fixed amount once they meet the conditions. Amounts are ${cur}.`}
       submitLabel='Create'
       onSubmit={() => create.mutateAsync()}
       validate={() => ({
@@ -138,7 +140,7 @@ const Cards = () => {
   const remove = useApiMutation<number>({
     fn: id => api.delete(`admin/user/gift-cards/${id}`),
     invalidate: INVALIDATE,
-    success: 'Gift card deleted'
+    success: 'Gift card removed'
   })
 
   const columns: Column<GiftCard>[] = [
@@ -155,7 +157,7 @@ const Cards = () => {
     { key: 'amount', header: 'Amount', align: 'right', cell: r => <Money value={r.amount} currency={r.currency} /> },
     { key: 'period', header: 'Window', cell: r => (r.periodDays ? `${r.periodDays} d` : '—') },
     { key: 'end', header: 'Ends', cell: r => <DateTime value={r.endDate} /> },
-    { key: 'dep', header: 'Deposit cond.', cell: r => (r.depositRequired ? <Money value={r.depositAmount} /> : <span className='text-muted-foreground'>none</span>) },
+    { key: 'dep', header: 'Deposit cond.', cell: r => (r.depositRequired ? <Money value={r.depositAmount} currency={r.currency} /> : <span className='text-muted-foreground'>none</span>) },
     { key: 'wag', header: 'Wager cond.', cell: r => (r.wagerRequired ? `${r.wagerTimes ?? 0}×` : <span className='text-muted-foreground'>none</span>) },
     { key: 'users', header: 'Audience', cell: r => <Badge variant='outline'>{r.allUsers ? 'All users' : 'Targeted'}</Badge> },
     { key: 'status', header: 'Status', cell: r => <StatusBadge value={r.isActive ? 'active' : 'inactive'} /> },
@@ -165,14 +167,14 @@ const Cards = () => {
       align: 'right',
       cell: r => (
         <Can permission='config:write'>
-          <ConfirmDialog
+          {r.isActive && <ConfirmDialog
             trigger={<Button variant='ghost' size='icon-sm' aria-label='Delete'><Trash2Icon /></Button>}
             title={`Delete ${r.uniqueKey}?`}
-            description='Refused by the platform once any user has activated it.'
+            description='A card users have already activated is switched off instead: it can no longer be activated or claimed.'
             confirmLabel='Delete'
             destructive
             onConfirm={() => remove.mutateAsync(r.id)}
-          />
+          />}
         </Can>
       )
     }
@@ -273,9 +275,10 @@ const Records = () => {
 }
 
 const Analytics = ({ q }: { q: ReturnType<typeof useApi<GiftCardAnalytics>> }) => {
+  const { code: cur } = useRewardCurrency()
   const columns: Column<GiftCardAnalytics['cards'][number]>[] = [
     { key: 'key', header: 'Gift code', cell: r => <span className='font-mono text-sm'>{r.uniqueKey}</span> },
-    { key: 'amount', header: 'Claim amount', align: 'right', cell: r => <Money value={r.amount} /> },
+    { key: 'amount', header: 'Claim amount', align: 'right', cell: r => <Money value={r.amount} currency={cur} /> },
     { key: 'act', header: 'Activations', align: 'right', cell: r => formatNumber(r.activations) },
     { key: 'claims', header: 'Claims', align: 'right', cell: r => formatNumber(r.claims) },
     { key: 'conv', header: 'Conversion', align: 'right', cell: r => (r.activations ? `${((r.claims / r.activations) * 100).toFixed(1)}%` : '—') },

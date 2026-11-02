@@ -38,19 +38,17 @@ const fail = (message, status = 400) => new AppError(message, status, 'EXCHANGE_
 async function findDirectChild(models, actor, { accountType, accountId }, transaction) {
   if (accountType === 'staff') {
     const staff = await models.Staff.findByPk(accountId, { attributes: ['id', 'name', 'parent_id'], transaction, raw: true });
-    if (!staff) throw fail(`Account ${accountId} not found`, 404);
-    if (Number(staff.parent_id) !== Number(actor.id)) {
-      throw fail(`${staff.name} is not your direct child, settlement not allowed`, 403);
-    }
+    // Missing and not-yours answer the same, with no name: otherwise any agent can map ids to usernames.
+    if (!staff || Number(staff.parent_id) !== Number(actor.id)) throw fail('Account not found', 404);
     return { type: 'staff', id: Number(staff.id), username: staff.name, isDirectUser: false };
   }
 
   const user = await models.Users.findByPk(accountId, { attributes: ['id', 'name', 'parent_staff_id'], transaction, raw: true });
-  if (!user) throw fail(`Account ${accountId} not found`, 404);
+  if (!user) throw fail('Account not found', 404);
 
   const isDirectUser = user.parent_staff_id == null;
   const mine = isDirectUser ? Boolean(actor.canIssueFunds) : Number(user.parent_staff_id) === Number(actor.id);
-  if (!mine) throw fail(`${user.name} is not your direct child, settlement not allowed`, 403);
+  if (!mine) throw fail('Account not found', 404);
 
   return { type: 'user', id: Number(user.id), username: user.name, isDirectUser };
 }

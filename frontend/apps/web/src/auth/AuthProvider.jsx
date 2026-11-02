@@ -20,6 +20,9 @@ import { brandName, readCachedBranding } from '@/lib/branding';
  *
  *   loading        — a stored refresh token is being exchanged
  *   authenticated  — `user` is populated
+ *   password-change — signed in on a temporary password (`user.mustChangePassword`): the backend
+ *                    refuses everything but /auth/me, change-password and logout, so nothing that
+ *                    checks `authenticated` fires; pages/Security.jsx ForcedPasswordChange shows
  *   anonymous      — no session, or the stored one is dead
  *
  * `login` and `register` do not catch. The forms need the `ApiError` to place
@@ -28,6 +31,8 @@ import { brandName, readCachedBranding } from '@/lib/branding';
  */
 
 const AuthContext = createContext(null);
+
+const sessionStatus = (user) => (user?.mustChangePassword ? 'password-change' : 'authenticated');
 
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
@@ -78,7 +83,7 @@ export function AuthProvider({ children }) {
       try {
         const me = await api(ENDPOINTS.me);
         setUser(me);
-        setStatus('authenticated');
+        setStatus(sessionStatus(me));
       } catch {
         // The token verified but the account cannot be read — locked, inactive
         // or deleted. Either way there is no session to show.
@@ -129,7 +134,7 @@ export function AuthProvider({ children }) {
     // which is enough for the header immediately. `/me` adds level, country,
     // avatar and the referral code, and is not worth blocking the redirect on.
     setUser(session.user);
-    setStatus('authenticated');
+    setStatus(sessionStatus(session.user));
 
     try {
       const me = await api(ENDPOINTS.me);
@@ -199,10 +204,22 @@ export function AuthProvider({ children }) {
     }
   }, []);
 
+  // `/me` carries capabilities folded from site state (a b2b policy hides promotions): an owner
+  // change re-reads it (hooks/useGates.jsx featuresUpdated) instead of keeping the sign-in copy.
+  const refreshUser = useCallback(async () => {
+    if (!tokenStore.getAccess()) return;
+    try {
+      const me = await api(ENDPOINTS.me);
+      setUser((current) => (current ? { ...current, ...me } : current));
+    } catch {
+      // The session copy stands until the next read.
+    }
+  }, []);
+
   const value = useMemo(
     // `acceptSession`: a session obtained elsewhere (Google's `/login/google` exchange).
-    () => ({ user, status, login, register, logout, acceptSession: adopt }),
-    [user, status, login, register, logout, adopt],
+    () => ({ user, status, login, register, logout, refreshUser, acceptSession: adopt }),
+    [user, status, login, register, logout, refreshUser, adopt],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

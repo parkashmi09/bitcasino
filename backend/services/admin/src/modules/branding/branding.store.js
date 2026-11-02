@@ -167,6 +167,7 @@ function createBrandingStore({ logger, models }) {
         markUrl: null,
         ogImageUrl: null,
         whatsapp: { enabled: false, link: null, message: null },
+        sportsbook: { tabName: null, gameUid: null },
       };
     }
     if (SLOTS.some((s) => branding[s] && !has(branding[s].file))) kick(ownerBranding);
@@ -189,6 +190,11 @@ function createBrandingStore({ logger, models }) {
         enabled: Boolean(branding.whatsappEnabled),
         link: orNull(branding.whatsappLink),
         message: orNull(branding.whatsappMessage),
+      },
+      // Not branding as such, and readable unbranded: the sportsbook tab name and game (owner panel).
+      sportsbook: {
+        tabName: orNull(branding.sportsbookTabName),
+        gameUid: orNull(branding.sportsbookGameUid),
       },
     };
   }

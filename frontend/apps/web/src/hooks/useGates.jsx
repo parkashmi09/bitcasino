@@ -7,8 +7,12 @@ import { ALL_ON, gateOf, makeGates } from '@/lib/gates';
 import { useAuth } from '@/auth/AuthProvider';
 import { useBranding, useSiteConfig } from '@/queries/siteConfig';
 import { applyBranding } from '@/lib/branding';
+import { applyCustomPalette } from '@/lib/customPalette';
+import { DEFAULT_THEME, applyTheme, readStoredTheme } from '@/lib/theme';
+import { useLanguageGuard } from '@/lib/i18n';
 import { subscribe } from '@/lib/socket';
 import { queryKeys } from '@/queries/keys';
+import { refreshBalances } from '@/hooks/useWallet';
 
 /**
  * The owner's plan, the site admin's switches and the player's capabilities,
@@ -20,13 +24,33 @@ import { queryKeys } from '@/queries/keys';
  */
 const GatesContext = createContext(ALL_ON);
 
+/** Backend content scope → first element of the query keys that show it (`queries/keys.js`). */
+const GAMES = ['games', 'providers', 'lobby-category', 'lobby-categories', 'in-house-games'];
+const CONTENT_KEYS = {
+  'admin:banners': ['content'],
+  'admin:blogs': ['content'],
+  'admin:promotions': ['promotions'],
+  'admin:branding': ['site'],
+  'admin:vip-branding': ['rewards'],
+  'admin:original-games': GAMES,
+  'casino:games': GAMES,
+  'casino:catalogue': GAMES,
+  'casino:gis': GAMES,
+  'casino:original-games': GAMES,
+  'casino:challenges': ['promotions'],
+  'user:race': ['promotions'],
+  'user:bonus': ['promotions', 'rewards'],
+  'user:spin-wheel': ['promotions'],
+  'user:reload-rewards': ['rewards'],
+};
+
 /** `{ ready, on(gate), routeOn(href), can(cap), policy(key), flag(key), agentPlayer, canSignUp() }` */
 export function useGates() {
   return useContext(GatesContext);
 }
 
 export function GatesProvider({ children }) {
-  const { user, status } = useAuth();
+  const { user, status, refreshUser } = useAuth();
   const { config, isPending: flagsPending } = useSiteConfig();
   const features = useQuery({
     queryKey: queryKeys.site.features(),
@@ -48,10 +72,24 @@ export function GatesProvider({ children }) {
   );
 
   // The owner's colour theme (styles/tokens.css [data-palette]); unset until the plan answers.
+  // An owner-made theme (`custom_*`) has no CSS block: its colours ride on the row and go inline.
+  const themeRow = Array.isArray(features.data) ? features.data.find((f) => f.feature === 'theme') : undefined;
   const palette = Array.isArray(features.data) ? value.policy('theme') : undefined;
+  const customColours = themeRow?.palette;
   useEffect(() => {
     if (palette) document.documentElement.dataset.palette = palette;
-  }, [palette]);
+    return applyCustomPalette(customColours);
+  }, [palette, customColours]);
+
+  // No toggle (theme_mode not 'switch'): everyone sees the site default, whatever was stored under 'switch'.
+  const themeMode = ready ? value.themeMode() : null;
+  useEffect(() => {
+    if (themeMode && themeMode !== 'switch') applyTheme(DEFAULT_THEME, false);
+    else if (themeMode === 'switch') applyTheme(readStoredTheme(), false);
+  }, [themeMode]);
+
+  // Off a language the owner switched off (owner panel → languages).
+  useLanguageGuard();
 
   // The owner's name, title, meta and favicon (owner panel → Branding).
   const branding = useBranding();
@@ -61,10 +99,23 @@ export function GatesProvider({ children }) {
   // now instead of waiting out the hour-long staleTime (hash `services/realtime.js` PUSHES).
   const queryClient = useQueryClient();
   useEffect(() => {
-    const refresh = () => queryClient.invalidateQueries({ queryKey: queryKeys.site.all });
-    const offs = ['siteConfigUpdated', 'featuresUpdated'].map((event) => subscribe(event, refresh));
+    const refresh = () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.site.all });
+      refreshUser?.();
+    };
+    // An admin content save pushes `contentUpdated {scopes}` (backend common/contentPush.js): re-read
+    // what is on screen for those modules. A coin switched on/off changes which balances answer.
+    const onContent = (payload) => {
+      const prefixes = new Set((payload?.scopes ?? []).flatMap((scope) => CONTENT_KEYS[scope] ?? []));
+      if (prefixes.size) queryClient.invalidateQueries({ predicate: (q) => prefixes.has(q.queryKey[0]) });
+    };
+    const offs = [
+      ...['siteConfigUpdated', 'featuresUpdated'].map((event) => subscribe(event, refresh)),
+      subscribe('contentUpdated', onContent),
+      subscribe('currenciesUpdated', () => { refresh(); refreshBalances(); }),
+    ];
     return () => offs.forEach((off) => off());
-  }, [queryClient]);
+  }, [queryClient, refreshUser]);
 
   const { pathname } = useLocation();
   const navigate = useNavigate();

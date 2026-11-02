@@ -49,6 +49,8 @@ const byStat = (field) => (a, b) => {
   return right - left;
 };
 
+const STATS = new Set(['volatility', 'hitRatio', 'rtp']);
+
 const COMPARE = {
   popular: null,
   name: (a, b) => a.title.localeCompare(b.title),
@@ -135,8 +137,13 @@ const AREA = {
  * 6.5rem → 7.75rem → 8.75rem, so the row count follows the viewport instead
  * of being pinned to a breakpoint.
  */
-export function GameList({ title, filters, games, breadcrumb, empty, pagination }) {
-  const [sort, setSort] = useState('popular');
+/** Sorts the API does across the whole list (`?sort=`), when the page passes `onSortChange`. */
+const SERVER_SORTS = new Set(['popular', 'name']);
+
+export function GameList({ title, filters, games, breadcrumb, empty, pagination, sort: sortProp, onSortChange }) {
+  const [localSort, setLocalSort] = useState('popular');
+  const sort = sortProp ?? localSort;
+  const setSort = onSortChange ?? setLocalSort;
   const [filtersOpen, setFiltersOpen] = useState(false);
 
   const hasFilters = Boolean(filters?.length);
@@ -145,9 +152,15 @@ export function GameList({ title, filters, games, breadcrumb, empty, pagination 
   // it arrived — which for a play history is the only order that is true, and
   // for a curated theme is the order the operator arranged.
   const sorted = useMemo(() => {
-    const compare = hasFilters ? COMPARE[sort] : null;
+    const compare = hasFilters && !(onSortChange && SERVER_SORTS.has(sort)) ? COMPARE[sort] : null;
     return compare ? [...games].sort(compare) : games;
-  }, [hasFilters, games, sort]);
+  }, [hasFilters, games, sort, onSortChange]);
+  // A stat sort is offered only when some game on screen carries that stat: the catalogue's
+  // providers send no RTP / volatility / hit ratio, so on a live catalogue only the first two show.
+  const sorts = useMemo(
+    () => SORTS.filter(({ value }) => !STATS.has(value) || (games ?? []).some((g) => sortValue(g, value) !== undefined)),
+    [games],
+  );
 
   return (
     <div className="flex flex-col gap-6">
@@ -243,7 +256,7 @@ export function GameList({ title, filters, games, breadcrumb, empty, pagination 
               <Select
                 variant="outline"
                 label="Sort by"
-                options={SORTS}
+                options={sorts}
                 value={sort}
                 onChange={setSort}
               />

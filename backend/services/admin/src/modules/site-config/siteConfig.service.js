@@ -820,10 +820,12 @@ class SiteConfigService {
     // switch (Sports Exchange → Sports switch). sports-service reads `sportsEnabled` from here.
     const doc = await entitlements.getEntitlements();
     const entitled = entitlements.flagOnIn(doc, 'sports');
-    // The exchange takes bets only in exchange mode: with the owner's sportsbook on, sports-service
-    // refuses new exchange bets (open ones still settle), as the kill switch does.
-    const mode = entitlements.flagOnIn(doc, 'sportsbook') ? 'sportsbook' : entitlements.flagOnIn(doc, 'sportsexchange') ? 'exchange' : 'off';
-    return { sportsEnabled: enabled && entitled && mode === 'exchange', enabled, entitled, mode, configured: Boolean(row) };
+    // The exchange takes bets whenever the owner's exchange flag is on, sportsbook or not; with it
+    // off, sports-service refuses new exchange bets (open ones still settle), as the kill switch does.
+    const book = entitlements.flagOnIn(doc, 'sportsbook');
+    const exchange = entitlements.flagOnIn(doc, 'sportsexchange');
+    const mode = book && exchange ? 'both' : book ? 'sportsbook' : exchange ? 'exchange' : 'off';
+    return { sportsEnabled: enabled && entitled && exchange, enabled, entitled, mode, configured: Boolean(row) };
   }
 
   /** The Super Admin's sports switch. Pushes the new flags so every open site hides/shows sports. */
@@ -1092,7 +1094,7 @@ class SiteConfigService {
     // AND the Super Admin's switch.
     flags.sports = plan.sports !== false && (row ? Boolean(row.sports) : true);
     // Which sports the site runs (owner panel → Products): the third-party book in an iframe, or
-    // our exchange. Never both; `flagOnIn` closes the exchange while the sportsbook is on.
+    // our exchange, or both side by side.
     flags.sportsbook = flags.sports && entitlements.flagOnIn(planDoc, 'sportsbook');
     flags.sportsexchange = flags.sports && entitlements.flagOnIn(planDoc, 'sportsexchange');
     // The owner's Demo login switch: the player site draws the Demo button only while it is on.

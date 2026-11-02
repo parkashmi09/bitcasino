@@ -182,7 +182,7 @@ test('points settlement and the account list', async (t) => {
     const agent = await seedStaff(newStaffId(), { parentId: owner, inr: '500' });
     const player = await seedPlayer(newUid(), agent, { inr: '1100', credit: '1000', pl: 100 });
 
-    await assert.rejects(() => settle(ownerActor(owner), player, -100), /not your direct child/);
+    await assert.rejects(() => settle(ownerActor(owner), player, -100), /Account not found/);
   });
 
   await t.test('owner and a DIRECT user: paid from the Direct User balance, the credits wallet does not move', async () => {

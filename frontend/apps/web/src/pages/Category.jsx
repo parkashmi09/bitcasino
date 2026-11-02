@@ -122,6 +122,16 @@ export function Category({ mode = 'category' }) {
     setParams(updated);
   };
 
+  // Popularity and A-Z are the API's (`?sort=`): a client sort would only order the page on screen.
+  const sort = params.get('sort') ?? 'popular';
+  const changeSort = (next) => {
+    const updated = new URLSearchParams(params);
+    updated.delete('page');
+    if (next === 'popular') updated.delete('sort');
+    else updated.set('sort', next);
+    setParams(updated);
+  };
+
   const changeProvider = (next) => {
     setProvider(next);
     resetPage();
@@ -162,6 +172,7 @@ export function Category({ mode = 'category' }) {
      */
     category: subcategory || (mode === 'all' ? undefined : slug),
     provider: provider || undefined,
+    sort: { popular: 'popular', name: 'az' }[sort],
     page,
     /**
      * 35, which is the reference's own page size — read off its pager, and
@@ -264,7 +275,8 @@ export function Category({ mode = 'category' }) {
       : collection.label;
 
   // A `/games/:slug` that is neither a collection, a cut, nor a category.
-  if (isCollectionRoute && collection.notFound) {
+  // ...or a `/categories/:slug` that is no category (its query never runs, so it would stay pending).
+  if ((isCollectionRoute && collection.notFound) || (mode !== 'all' && asCategory && slug && !isCategorySlug(slug))) {
     return (
       <div className="py-20 text-center">
         <h1 className="font-secondary text-2xl font-normal text-bulma">
@@ -298,6 +310,8 @@ export function Category({ mode = 'category' }) {
     <GameList
       title={title}
       games={games}
+      sort={asCategory ? sort : undefined}
+      onSortChange={asCategory ? changeSort : undefined}
       filters={[
         /* Only the aggregate page gets a Categories dropdown, and only because
            it is the only one with sub-categories to narrow to. `GameList`

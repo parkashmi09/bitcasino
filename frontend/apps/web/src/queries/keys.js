@@ -97,6 +97,7 @@ export const queryKeys = {
     list: () => ['promotions', 'list'],
     detail: (segment, slug) => ['promotions', 'detail', segment, slug],
     races: () => ['promotions', 'races'],
+    challenges: () => ['promotions', 'challenges'],
     /** `viewer` is in the key because a signed-in board carries the caller's own `me` row. */
     raceBoard: (type, viewer) => ['promotions', 'race', type, viewer],
     raceHistory: (limit, viewer) => ['promotions', 'race-history', limit, viewer],
@@ -135,6 +136,8 @@ export const queryKeys = {
     config: () => ['site', 'config'],
     features: () => ['site', 'features'],
     branding: () => ['site', 'branding'],
+    sportsbook: () => ['site', 'sportsbook'],
+    currencies: () => ['site', 'currencies'],
     googleLogin: () => ['site', 'google-login'],
   },
 

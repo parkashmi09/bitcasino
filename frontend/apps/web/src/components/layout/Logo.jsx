@@ -18,7 +18,14 @@ export function Logo({ className, markOnly = false }) {
       <img
         src={src}
         alt={brandName(branding)}
-        className={cn('brand-logo h-8 w-auto object-contain', markOnly ? 'max-w-8' : 'max-w-[150px]')}
+        className={cn(
+          'h-8 w-auto object-contain',
+          // The TestPlay art has light ink (dark chip in the light theme); an owner logo is drawn for a
+          // light page (white chip in the dark theme). A square mark needs neither.
+          markOnly ? 'max-w-8' : 'max-w-[150px]',
+          !markOnly && (branding?.logoUrl ? 'owner-logo' : 'brand-logo'),
+          markOnly && !branding?.markUrl && !branding?.logoUrl && 'brand-logo',
+        )}
       />
     </span>
   );

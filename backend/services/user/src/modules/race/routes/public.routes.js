@@ -1,7 +1,7 @@
 'use strict';
 
 const { Router } = require('express');
-const { validate } = require('@ibitplay/common');
+const { validate, entitlements } = require('@ibitplay/common');
 
 const v = require('../race.validators');
 const { RaceService } = require('../race.service');
@@ -17,6 +17,7 @@ const { createControllers } = require('../controllers');
 module.exports = function publicRoutes(deps) {
   const ctrl = createControllers({ service: new RaceService(deps) });
   const router = Router();
+  router.use(entitlements.requireFeature('races'));
 
   /**
    * Authentication, but not required.

@@ -14,8 +14,6 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Switch } from '@/components/ui/switch'
-import { Textarea } from '@/components/ui/textarea'
 import { useSession } from '@/contexts/SessionContext'
 import { api, errorMessage } from '@/lib/api/client'
 import { cn } from '@/lib/utils'
@@ -32,7 +30,6 @@ import { check } from '@/lib/validate'
 
 type Form = {
   username: string
-  fullname: string
   email: string
   password: string
   cpassword: string
@@ -41,14 +38,11 @@ type Form = {
   camt: string
   newlvlno: string
   point: string
-  remark: string
   mpassword: string
-  changePasswordLock: boolean
 }
 
 const EMPTY: Form = {
   username: '',
-  fullname: '',
   email: '',
   password: '',
   cpassword: '',
@@ -57,9 +51,7 @@ const EMPTY: Form = {
   camt: '',
   newlvlno: '0',
   point: '1',
-  remark: '',
   mpassword: '',
-  changePasswordLock: false
 }
 
 /** Hamare staff roles (roles table) — zip ke ROLES ki jagah. 'USER' = player. */
@@ -71,7 +63,7 @@ const STAFF_TYPES: { level: number; label: string }[] = [
   { level: 6, label: 'Agent' }
 ]
 
-const REQUIRED_FIELDS: (keyof Form)[] = ['username', 'fullname', 'email', 'password', 'cpassword', 'mpassword', 'city', 'mono', 'point', 'camt']
+const REQUIRED_FIELDS: (keyof Form)[] = ['username', 'email', 'password', 'cpassword', 'mpassword', 'city', 'mono', 'point', 'camt']
 
 type CreateResult = { success: boolean; creditSkipped: boolean; message: string }
 
@@ -83,12 +75,6 @@ const validateField = (name: keyof Form, value: string, all: Form) => {
       if (!/^[a-zA-Z0-9]+$/.test(value)) return 'The User Name field may only contain alpha-numeric characters'
       if (value.length < 4) return 'The User Name field must be at least 4 characters'
       if (value.length > 60) return 'The User Name field may not be greater than 60 characters'
-
-      return ''
-    case 'fullname':
-      if (!value.trim()) return 'The Full Name field is required'
-      if (value.trim().length < 4) return 'The Full Name field must be at least 4 characters'
-      if (value.trim().length > 120) return 'The Full Name field may not be greater than 120 characters'
 
       return ''
     case 'email':
@@ -173,8 +159,6 @@ const CreateAccount = () => {
   const setField = (name: keyof Form, value: string | boolean) => {
     const next = { ...form, [name]: value } as Form
 
-    // Lock toggle sirf User ke liye — type badla to band.
-    if (name === 'newlvlno' && value !== 'USER') next.changePasswordLock = false
     if (name === 'username') setNameCheck('idle')
     setForm(next)
 
@@ -245,7 +229,6 @@ const CreateAccount = () => {
       // User Type: 'USER' ya staff ka level — server us level ka role chunta hai.
       const res = await api.post<CreateResult>(`${ACCOUNTS_API}/create`, {
         username: form.username,
-        fullname: form.fullname,
         email: isUser ? undefined : form.email.trim().toLowerCase(),
         password: form.password,
         city: form.city || undefined,
@@ -253,7 +236,6 @@ const CreateAccount = () => {
         creditAmount: form.camt,
         userType: form.newlvlno === 'USER' ? 'USER' : Number(form.newlvlno),
         percentage: form.point,
-        remark: form.remark || undefined,
         transactionPassword: form.mpassword
       })
 
@@ -310,7 +292,6 @@ const CreateAccount = () => {
           </CardHeader>
           <CardContent className='space-y-4'>
             {field('username', 'User name', { required: true })}
-            {field('fullname', 'Full Name', { required: true })}
             {!isUser && field('email', 'Email', { required: true, type: 'email' })}
             {field('password', 'Password', { required: true, type: 'password' })}
             {field('cpassword', 'Confirm Password', { required: true, type: 'password' })}
@@ -350,21 +331,6 @@ const CreateAccount = () => {
             <h4 className='text-base font-semibold'>Partnership Information</h4>
 
             {field('point', 'User Rate')}
-
-            <div className='space-y-1.5'>
-              <Label htmlFor='remark'>Remark:</Label>
-              <Textarea id='remark' name='remark' placeholder='Remark' value={form.remark} onChange={onInput} />
-            </div>
-
-            {/* ON = naya account apna password khud nahi badal sakta. Sirf User ke liye. */}
-            {isUser && (
-              <div className='flex items-center gap-2'>
-                <Switch id='changePasswordLock' checked={form.changePasswordLock} onCheckedChange={v => setField('changePasswordLock', Boolean(v))} />
-                <Label htmlFor='changePasswordLock' className='font-bold'>
-                  Change Password Lock
-                </Label>
-              </div>
-            )}
 
             <div className='flex items-center justify-end gap-2'>
               <Input

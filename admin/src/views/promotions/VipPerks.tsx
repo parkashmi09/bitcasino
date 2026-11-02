@@ -65,7 +65,7 @@ const PerkRow = ({ perk, cards }: { perk: Perk; cards: string[] }) => {
           <ConfirmDialog
             trigger={<Button size='icon' variant='ghost' className='size-7' aria-label={`Remove ${perk.label}`}><Trash2Icon /></Button>}
             title={`Remove ${perk.label}?`}
-            description={perk.pays ? 'This perk controls real payouts: no rank gets it after this. It cannot be added back as a payout from this screen.' : 'It leaves the VIP page for every rank.'}
+            description={perk.pays ? 'This perk controls real payouts: no rank gets it after this. It cannot be added back as a payout from this screen.' : 'It is removed from every rank.'}
             confirmLabel='Remove perk'
             destructive
             onConfirm={() => remove.mutateAsync()}
@@ -90,7 +90,7 @@ const AddPerk = () => {
     <FormDialog
       trigger={<Button size='sm'><PlusIcon /> Add perk</Button>}
       title='Add perk'
-      description='It starts with no rank ticked. A new perk is shown on the VIP page only: nothing is paid automatically.'
+      description='It starts with no rank ticked. A new perk is a label only: nothing is paid automatically, and this player site does not list perks.'
       submitLabel='Add perk'
       onSubmit={() => add.mutateAsync()}
       validate={() => ({ 'vip-perk-label': label.trim() ? undefined : 'Enter a name' })}
@@ -100,7 +100,7 @@ const AddPerk = () => {
   )
 }
 
-/** Which perks each rank gets: the table on the player VIP page, and the payouts of the four marked perks. */
+/** Which perks each rank gets: the payouts of the four marked perks (the player site shows no perks table). */
 const VipPerks = ({ cards }: { cards: string[] }) => {
   const q = useApi<Perk[]>(`${PERKS}/manage`)
   const perks = Array.isArray(q.data) ? q.data : []
@@ -110,7 +110,7 @@ const VipPerks = ({ cards }: { cards: string[] }) => {
       <CardHeader className='flex flex-row items-start justify-between gap-3'>
         <div className='grid gap-1'>
           <CardTitle className='text-base'>Perks by rank</CardTitle>
-          <CardDescription>Tick what each rank gets. Perks marked “Controls payouts” also stop or start the real payout for that rank; the others only change the VIP page.</CardDescription>
+          <CardDescription>Tick what each rank gets. Perks marked “Controls payouts” stop or start the real payout for that rank; the others are labels only (this player site does not show a perks table).</CardDescription>
         </div>
         <Can permission='config:write'><AddPerk /></Can>
       </CardHeader>

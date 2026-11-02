@@ -25,7 +25,7 @@ import {
 } from '@/configs/navConfig'
 
 // Component Imports
-import BrandMark from '@/components/shared/BrandMark'
+import BrandMark, { BrandName } from '@/components/shared/BrandMark'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
 import {
   DropdownMenu,
@@ -58,7 +58,6 @@ import {
 } from '@/components/ui/sidebar'
 
 // Config Imports
-import themeConfig from '@/configs/themeConfig'
 import { useSession } from '@/contexts/SessionContext'
 import { useNavVisible } from '@/hooks/use-nav-visible'
 
@@ -644,7 +643,7 @@ const SidebarLayout = () => {
           <Link href={homeHref} className='flex min-w-0 flex-1 items-center gap-2.5 rounded-md'>
             <BrandMark className='size-9' />
             <span className='text-heading truncate text-[18px] leading-tight font-semibold group-data-[collapsible=icon]:hidden'>
-              {themeConfig.templateName}
+              <BrandName />
             </span>
           </Link>
         </div>

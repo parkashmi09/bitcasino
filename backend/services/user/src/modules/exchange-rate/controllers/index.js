@@ -27,7 +27,7 @@ function createControllers({ service }) {
 
     /** @legacy PUT /exchangeRate/rates/:currency */
     update: asyncHandler(async (req, res) =>
-      response.ok(res, await service.updateRate({ currency: req.params.currency, usdRate: req.body.usdRate }))
+      response.ok(res, await service.updateRate({ currency: req.params.currency, usdRate: req.body.usdRate, followMarket: req.body.followMarket }))
     ),
 
     /** @legacy DELETE /exchangeRate/rates/:currency */

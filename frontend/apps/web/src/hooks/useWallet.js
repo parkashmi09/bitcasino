@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from 'react';
 import { ApiError, api } from '@/lib/api';
 import { ENDPOINTS } from '@/lib/endpoints';
+import { subscribe } from '@/lib/socket';
+import { EVENTS } from '@/lib/socketEvents';
 import { useAuth } from '@/auth/AuthProvider';
 import { useGates } from '@/hooks/useGates';
 import { walletCoins } from '@/components/wallet/cashier';
@@ -296,6 +298,13 @@ export function useBalances() {
   }, [session, nonce]);
 
   const reload = useCallback(() => setLocal((value) => value + 1), []);
+
+  // The backend pushes CREDIT on every balance change (admin approves a deposit, adjusts, a win
+  // settles): re-read so the header follows without a reload.
+  useEffect(
+    () => (session === 'authenticated' ? subscribe(EVENTS.CREDIT, reload) : undefined),
+    [session, reload],
+  );
 
   return { ...state, reload };
 }

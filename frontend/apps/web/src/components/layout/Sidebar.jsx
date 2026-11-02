@@ -1,11 +1,14 @@
 import { useState } from 'react';
 import { Link, NavLink } from 'react-router-dom';
+import { LanguageSelect } from '@/components/ui/LanguageSelect';
+import { useLanguageLabel } from '@/lib/i18n';
 import { Icon } from '@/components/ui/Icon';
 import { NavIcon } from '@/components/ui/NavIcon';
 import { Logo } from './Logo';
 import { useAuth } from '@/auth/AuthProvider';
 import { cn } from '@/lib/cn';
 import { useGates } from '@/hooks/useGates';
+import { useSportsbookSettings } from '@/queries/siteConfig';
 
 /**
  * Navigation column.
@@ -35,6 +38,8 @@ const PRIMARY = [
   { label: 'Originals', to: '/categories/originals', icon: 'originals' },
   // Gated (lib/gates.js): only while the owner has the sportsbook on. shortcut: trophy art, no sports icon in the set yet.
   { label: 'Sports', to: '/sports', icon: 'tournaments' },
+  // Only with BOTH sports products on (then `/sports` is the exchange); alone, `/sports` is the book.
+  { label: 'Sportsbook', to: '/sports/book', icon: 'tournaments', withExchange: true },
   { label: 'New Releases', to: '/games/new', icon: 'new-releases' },
   { label: 'Promotions', to: '/promotions', icon: 'promotions' },
   { label: 'Tournaments', to: '/tournaments', icon: 'tournaments' },
@@ -272,6 +277,8 @@ function SidebarHeader({ collapsed, onToggle }) {
 
 export function SidebarNav({ onNavigate, recentsCount, favouritesCount }) {
   const gates = useGates();
+  // The owner names the sportsbook tab (owner panel → Branding → Sportsbook).
+  const { tabName: sportsbookTab } = useSportsbookSettings();
   const [liveOpen, setLiveOpen] = useState(true);
   const [gamesOpen, setGamesOpen] = useState(true);
   const [liveTip, liveHandlers] = useRailTip();
@@ -315,9 +322,9 @@ export function SidebarNav({ onNavigate, recentsCount, favouritesCount }) {
         <ul className="flex w-full flex-col gap-3 font-medium">
           <li>
             <ul className="flex flex-col gap-1">
-              {PRIMARY.filter((item) => gates.routeOn(item.to)).map((item) => (
+              {PRIMARY.filter((item) => gates.routeOn(item.to) && (!item.withExchange || gates.flag('sportsexchange'))).map((item) => (
                 <li key={item.to}>
-                  <NavItem item={item} onNavigate={onNavigate} />
+                  <NavItem item={item.withExchange && sportsbookTab ? { ...item, label: sportsbookTab } : item} onNavigate={onNavigate} />
                 </li>
               ))}
             </ul>
@@ -397,26 +404,24 @@ export function SidebarNav({ onNavigate, recentsCount, favouritesCount }) {
 /**
  * Locale and support, pinned below the scrolling link list.
  *
- * The site ships in English only, so the locale row is a label, not a menu.
- * Support opens the help centre: there is no live chat behind it.
+ * The locale row is the language picker (an invisible select over the row; hidden when the
+ * owner allows fewer than two). Support opens the help centre: there is no live chat behind it.
  */
 function SidebarFooter({ onNavigate }) {
   const [localeTip, localeHandlers] = useRailTip();
   const [supportTip, supportHandlers] = useRailTip();
+  const language = useLanguageLabel();
 
   return (
     <div className="flex flex-col gap-2 p-2 px-3">
-      <div {...localeHandlers} className={cn(ROW, 'rounded-xl bg-hit p-2 text-bulma')}>
-        <img
-          src="/images/ui/flag-en.svg"
-          alt=""
-          width={20}
-          height={20}
-          className="size-5 shrink-0 rounded-sm object-cover"
-        />
-        <span className={cn(ROW_LABEL, 'flex-1 text-start')}>English</span>
-        <RailTip tip={localeTip}>English</RailTip>
-      </div>
+      {language.show && (
+        <div {...localeHandlers} className={cn(ROW, 'relative rounded-xl bg-hit p-2 text-bulma hover:bg-beerus')}>
+          <Icon name="globe" size={16} className="mx-0.5 shrink-0 text-trunks" />
+          <span className={cn(ROW_LABEL, 'notranslate flex-1 text-start')}>{language.label}</span>
+          <RailTip tip={localeTip}>{language.label}</RailTip>
+          <LanguageSelect overlay />
+        </div>
+      )}
 
       <Link
         to="/help-center"

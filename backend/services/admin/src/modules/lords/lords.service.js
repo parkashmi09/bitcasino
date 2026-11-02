@@ -92,6 +92,11 @@ class LordsService {
     // Strictly BELOW the caller: your own password is changed through
     // `/admin/staff/password`, which asks for the old one.
     await this.#assertInTree(actor, accountType, accountId, { excludeSelf: 'use My account to change your own password' });
+    // A Super Admin's tree covers every root, peer Super Admins included: they need the level guard
+    // setStatus applies. Below that, #assertInTree already limits the caller to its own subtree.
+    if (accountType === ACCOUNT_TYPE.STAFF && Number(effectiveStaffLevel(actor)) === STAFF_LEVELS.SUPER_ADMIN) {
+      await this.#assertBelowActor(actor, accountId);
+    }
     await this.#assertTransactionPassword(actor, transactionPassword);
 
     const model = accountType === ACCOUNT_TYPE.STAFF ? this.models.Staff : this.models.Users;
@@ -190,6 +195,11 @@ class LordsService {
   async setExposureLimit({ actor, accountType, accountId, exposureLimit, transactionPassword }) {
     // Strictly BELOW the caller — a limit you can raise on yourself is not one.
     await this.#assertInTree(actor, accountType, accountId, { excludeSelf: 'you cannot change your own exposure limit' });
+    // A Super Admin's tree covers every root, peer Super Admins included: they need the level guard
+    // setStatus applies. Below that, #assertInTree already limits the caller to its own subtree.
+    if (accountType === ACCOUNT_TYPE.STAFF && Number(effectiveStaffLevel(actor)) === STAFF_LEVELS.SUPER_ADMIN) {
+      await this.#assertBelowActor(actor, accountId);
+    }
     await this.#assertTransactionPassword(actor, transactionPassword);
 
     if (accountType === ACCOUNT_TYPE.STAFF) {
@@ -227,6 +237,11 @@ class LordsService {
     if (accountType !== ACCOUNT_TYPE.STAFF) throw errors.PLAYER_CREDIT_NOT_SUPPORTED({ accountType, accountId });
 
     await this.#assertInTree(actor, accountType, accountId, { excludeSelf: 'you cannot set your own credit line' });
+    // A Super Admin's tree covers every root, peer Super Admins included: they need the level guard
+    // setStatus applies. Below that, #assertInTree already limits the caller to its own subtree.
+    if (accountType === ACCOUNT_TYPE.STAFF && Number(effectiveStaffLevel(actor)) === STAFF_LEVELS.SUPER_ADMIN) {
+      await this.#assertBelowActor(actor, accountId);
+    }
     await this.#assertTransactionPassword(actor, transactionPassword);
 
     const [row, created] = await this.models.StaffCredits.findOrCreate({
@@ -450,7 +465,10 @@ class LordsService {
           raw: true,
         });
         if (replay) {
-          if (money.abs(replay.amount) !== minor) {
+          // Same key, different player or direction: not a replay of this request.
+          const sameOp = String(replay.user_id) === String(userId)
+            && replay.reason === (isCredit ? 'TRANSFER_IN' : 'TRANSFER_OUT');
+          if (money.abs(replay.amount) !== minor || !sameOp) {
             throw errors.IDEMPOTENCY_CONFLICT({ idempotencyKey });
           }
           return {

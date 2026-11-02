@@ -72,7 +72,18 @@ export function withBrand(value, name) {
   return value;
 }
 
+// index.html's own values, so a branding the owner clears puts them back on an open page.
+const DEFAULTS = typeof document === 'undefined' ? null : {
+  title: document.title,
+  meta: new Map(),
+  icons: [...document.head.querySelectorAll('link[rel~="icon"], link[rel="apple-touch-icon"]')]
+    .map((link) => [link, link.getAttribute('href'), link.getAttribute('type')]),
+};
+
 function setMeta(attr, key, content) {
+  const id = `${attr}=${key}`;
+  if (!DEFAULTS.meta.has(id)) DEFAULTS.meta.set(id, document.head.querySelector(`meta[${attr}="${key}"]`)?.getAttribute('content') ?? null);
+  if (!content) content = DEFAULTS.meta.get(id);
   if (!content) return;
   let meta = document.head.querySelector(`meta[${attr}="${key}"]`);
   if (!meta) {
@@ -84,12 +95,13 @@ function setMeta(attr, key, content) {
 }
 
 /** Puts the branding on the document; leaves index.html's values where nothing is set. */
-export function applyBranding(branding) {
-  if (!branding || typeof document === 'undefined') return;
+export function applyBranding(input) {
+  if (typeof document === 'undefined') return;
+  const branding = input ?? { keywords: [] };
   const title = branding.title ?? branding.siteName;
-  if (title) document.title = title;
+  document.title = title || DEFAULTS.title;
   setMeta('name', 'description', branding.description);
-  setMeta('name', 'keywords', branding.keywords.join(', '));
+  setMeta('name', 'keywords', (branding.keywords ?? []).join(', '));
   setMeta('name', 'theme-color', branding.themeColor);
   setMeta('property', 'og:title', branding.ogTitle ?? title);
   setMeta('property', 'og:description', branding.ogDescription ?? branding.description);
@@ -99,6 +111,12 @@ export function applyBranding(branding) {
     for (const link of document.head.querySelectorAll('link[rel~="icon"], link[rel="apple-touch-icon"]')) {
       link.setAttribute('href', branding.markUrl);
       if (link.relList.contains('icon')) link.setAttribute('type', type);
+    }
+  }
+  else {
+    for (const [link, href, type] of DEFAULTS.icons) {
+      if (href != null) link.setAttribute('href', href);
+      if (type != null) link.setAttribute('type', type);
     }
   }
 }

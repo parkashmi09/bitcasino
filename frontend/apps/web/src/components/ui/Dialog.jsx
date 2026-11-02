@@ -70,6 +70,8 @@ export function Dialog({
   initialFocus,
   width = 'max-w-[448px]',
   maxHeight = 'max-h-[calc(100dvh-2rem)]',
+  // false: no close button, Escape and backdrop do nothing (a step the player must finish).
+  dismissible = true,
   children,
 }) {
   const [closing, setClosing] = useState(false);
@@ -103,7 +105,7 @@ export function Dialog({
   }, [onClose]);
 
   useEffect(() => {
-    if (!open) return undefined;
+    if (!open || !dismissible) return undefined;
     const onKey = (event) => {
       if (event.key === 'Escape') {
         event.stopPropagation();
@@ -112,7 +114,7 @@ export function Dialog({
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [open, close]);
+  }, [open, close, dismissible]);
 
   if (!open && !closing) return null;
 
@@ -122,7 +124,7 @@ export function Dialog({
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       <div
         role="presentation"
-        onClick={close}
+        onClick={dismissible ? close : undefined}
         className={cn(
           'absolute inset-0 bg-popo/50',
           leaving ? 'animate-overlay-out' : 'animate-overlay-in',
@@ -148,14 +150,16 @@ export function Dialog({
           >
             {title}
           </h2>
-          <button
-            type="button"
-            onClick={close}
-            aria-label="Close"
-            className="-me-1 -mt-1 grid size-8 shrink-0 cursor-pointer place-items-center rounded-i-sm text-bulma transition-colors hover:bg-heles"
-          >
-            <Icon name="close" size={18} />
-          </button>
+          {dismissible && (
+            <button
+              type="button"
+              onClick={close}
+              aria-label="Close"
+              className="-me-1 -mt-1 grid size-8 shrink-0 cursor-pointer place-items-center rounded-i-sm text-bulma transition-colors hover:bg-heles"
+            >
+              <Icon name="close" size={18} />
+            </button>
+          )}
         </div>
 
         {children}

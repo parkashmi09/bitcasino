@@ -284,6 +284,8 @@ export function toTournament(race, { finished = false } = {}) {
     leader: leader ?? '—',
     endsAt: race.endsAt,
     href: finished ? null : `/promotions/league-of-bitcasino?race=${race.type}`,
+    // A settled race's podium: `[{rank, name, amount, currency}]`.
+    winners: finished ? (race.winners ?? []) : [],
   };
 }
 
@@ -459,5 +461,17 @@ export function useHomeSlides({ enabled = true } = {}) {
     select: toSlides,
     enabled,
     staleTime: 10 * 60 * 1000,
+  });
+}
+
+/** Casino challenges: first players to hit a multiplier on one game win a prize. `{active, completed}`. */
+export function useChallenges({ enabled = true } = {}) {
+  return useQuery({
+    queryKey: queryKeys.promotions.challenges(),
+    queryFn: ({ signal }) => api(ENDPOINTS.challenges, { auth: false, signal }),
+    select: (data) => ({ active: data?.active ?? [], completed: data?.completed ?? [] }),
+    enabled,
+    staleTime: 30 * 1000,
+    retry: false,
   });
 }
