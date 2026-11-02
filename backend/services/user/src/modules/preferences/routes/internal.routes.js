@@ -66,7 +66,7 @@ module.exports = function internalRoutes(deps) {
         pushed.push(PLATFORM_EVENTS.CURRENCIES_UPDATED);
       }
 
-      // rainbet: content scopes (names only, allow-listed by the sender; see contentPush.js).
+      // Content scopes: every staff write's <service>:<module>, names only (contentPush.js).
       if (Array.isArray(content) && content.length) {
         const scopes = content.filter((s) => typeof s === 'string' && s.length <= 60).slice(0, 50);
         // This process caches the ladder names (10 s): drop it so the refetch the push triggers is fresh.
