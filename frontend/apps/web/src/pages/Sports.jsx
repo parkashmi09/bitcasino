@@ -101,8 +101,11 @@ function Book() {
     queryFn: () => launchSportsbook('INR', settings.gameUid),
     // Wait for the owner's game, or the default would open first.
     enabled: !settings.isPending,
+    // Kept while on the page (a refetch would reload the frame), dropped on leaving it: a launch URL is
+    // single-use and expires, so coming back must open a fresh one, as a casino game does.
     staleTime: Infinity,
-    gcTime: Infinity,
+    gcTime: 0,
+    refetchOnWindowFocus: false,
     retry: false,
   });
 
@@ -111,14 +114,18 @@ function Book() {
     return <QueryError error={book.error} onRetry={book.refetch} title="Could not open the sportsbook" />;
   }
   return (
+    // The book is another origin, so its scrollbar cannot be styled from here: the frame is 17px wider (a classic scrollbar)
+    // than this clip, which hides the bar off the right edge; wheel, touch and keys still scroll it.
+    <div className={`${FRAME} overflow-hidden bg-goku`}>
     <iframe
       src={book.data.url}
       title="Sportsbook"
-      className={`${FRAME} border-0 bg-goku`}
+      className="h-full w-[calc(100%+17px)] max-w-none border-0 bg-goku"
       allow="fullscreen; autoplay; clipboard-write"
       /* The book is another origin, so `allow-same-origin` only keeps ITS storage working (bet
          slip, login); it still cannot read this document. */
       sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox"
     />
+    </div>
   );
 }
