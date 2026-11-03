@@ -151,7 +151,7 @@ function createBrandingStore({ logger, models }) {
   /** The site admin's chat-button settings (`siteconfig.settings`, Site config → Branding); {} when unreadable. */
   async function chatSettings() {
     try {
-      const row = await models.Siteconfig?.findOne({ attributes: ['settings'], raw: true });
+      const row = await models.Siteconfig?.findOne({ attributes: ['settings'], order: [['id', 'ASC']], raw: true });
       return row?.settings ?? {};
     } catch (error) {
       logger?.warn({ err: error.message }, 'siteconfig not readable — no chat buttons');

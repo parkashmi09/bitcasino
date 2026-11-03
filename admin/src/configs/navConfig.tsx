@@ -561,6 +561,7 @@ export const navItems: NavItem[] = [
       { icon: 'Newspaper', label: 'Content', href: '/site-config/content', permission: 'config:read' },
       { icon: 'Flag', label: 'Feature flags', href: '/site-config/flags', permission: 'config:read' },
       { icon: 'Gauge', label: 'Limits and policy', href: '/site-config/limits', permission: 'config:read' },
+      { icon: 'Mail', label: 'Email', href: '/site-config/email', permission: 'config:read' },
     ]
   },
   {
