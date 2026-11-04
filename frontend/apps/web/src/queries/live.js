@@ -28,14 +28,10 @@ import { queryKeys } from '@/queries/keys';
  * names both.
  *
  * The socket rows carry the PLAYER — `{name, avatar, game, coin, amount,
- * profit, at}`. The HTTP rows do not: that route answers `{reference, game,
- * currency, amount, profit, outcome}` and deliberately exposes no identity,
- * because it is reachable by anyone with a URL and no connection to speak of.
- * A wins ticker without a name on it is a list of numbers, and the reference
- * site's own ticker is built around the name.
- *
- * So the two are not the same read in two transports. They are a public feed
- * and a more public one, and this is the surface that wants the first.
+ * profit, at}`. The HTTP rows answer `{reference, game, currency, amount,
+ * profit, outcome, at, player}`, where `player` is null for anyone whose
+ * Preferences hide their name — and no avatar. The ticker already works off
+ * the socket rows, so it stays there.
  *
  * The cost is honest and worth writing down: a signed-out visitor loading the
  * home page now opens a socket to user-service, which before Phase 8 they did

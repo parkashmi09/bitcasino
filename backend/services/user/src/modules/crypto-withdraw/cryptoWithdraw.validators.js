@@ -65,4 +65,7 @@ const decide = {
     .strict(),
 };
 
-module.exports = { listMine, listAll, userParam, decide };
+/** Send through CCPayment / check with it: the withdrawal only (the transaction code is taken off first). */
+const gateway = { params: z.object({ withdrawalId: id }), body: z.object({}).strict() };
+
+module.exports = { listMine, listAll, userParam, decide, gateway };

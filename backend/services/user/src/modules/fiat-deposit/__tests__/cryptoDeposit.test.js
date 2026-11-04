@@ -17,6 +17,7 @@ function service(created) {
   const models = {
     Users: { sequelize },
     SiteFeature: { findByPk: async () => null },
+    CurrencyPaymentDetails: { findAll: async () => [] },
     FiatDeposits: {
       findOne: async () => null,
       create: async (row) => (created.push(row), { get: () => ({ ...row, deposit_id: 9 }) }),

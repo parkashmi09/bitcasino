@@ -31,12 +31,9 @@ export type Branding = {
   mark: BrandingAsset | null
   ogImage: BrandingAsset | null
 
-  /** The floating WhatsApp button: shown when on; it opens wa.me/<number> (country code, digits only). */
+  /** The floating chat buttons the site admin may switch on (Site config → Branding sets the number or link). */
   whatsappEnabled: boolean
-  whatsappLink: string
-
-  /** Pre-filled in the chat box; empty = none. */
-  whatsappMessage: string
+  telegramEnabled: boolean
 
   /** The sidebar tab for the sportsbook when it runs beside the exchange; empty = 'Sportsbook'. */
   sportsbookTabName: string
@@ -66,35 +63,6 @@ export const TEXT_LIMITS = {
 export type BrandingTextKey = keyof typeof TEXT_LIMITS
 export const TEXT_KEYS = Object.keys(TEXT_LIMITS) as BrandingTextKey[]
 
-/**
- * The WhatsApp target as the site stores it, or '' when it is neither: a phone number in
- * international form (spaces and dashes dropped, then an optional + and 6–15 digits), or an
- * https link on WhatsApp's own hosts (wa.me, whatsapp.com and its subdomains: a chat, channel
- * or group link). Mirrored by the backend's branding.rules.js.
- */
-export function whatsappLinkValue(value: unknown): string {
-  const raw = typeof value === 'string' ? value.trim() : ''
-
-  if (/^\+?[\d\s-]+$/.test(raw)) {
-    const number = raw.replace(/[\s-]/g, '')
-
-    return /^\+?\d{6,15}$/.test(number) ? number : ''
-  }
-
-  if (raw.length > 300) return ''
-
-  try {
-    const url = new URL(raw)
-    const host = url.hostname.toLowerCase()
-
-    return url.protocol === 'https:' && (host === 'wa.me' || host === 'whatsapp.com' || host.endsWith('.whatsapp.com')) ? url.href : ''
-  } catch {
-    return ''
-  }
-}
-
-export const WHATSAPP_MESSAGE_MAX = 300
-
 export const MAX_KEYWORDS = 20
 export const MAX_KEYWORD_LENGTH = 40
 
@@ -115,9 +83,8 @@ export const BRANDING_LABELS: Record<keyof Branding, string> = {
   logo: 'Logo',
   mark: 'Square mark / favicon',
   ogImage: 'Open Graph image',
-  whatsappEnabled: 'WhatsApp widget',
-  whatsappLink: 'WhatsApp number or link',
-  whatsappMessage: 'WhatsApp opening message',
+  whatsappEnabled: 'WhatsApp button allowed',
+  telegramEnabled: 'Telegram button allowed',
   sportsbookTabName: 'Sportsbook tab name',
   sportsbookGameUid: 'Sportsbook game UID'
 }
@@ -135,8 +102,7 @@ export const EMPTY_BRANDING: Branding = {
   mark: null,
   ogImage: null,
   whatsappEnabled: false,
-  whatsappLink: '',
-  whatsappMessage: '',
+  telegramEnabled: false,
   sportsbookTabName: '',
   sportsbookGameUid: ''
 }
@@ -230,17 +196,8 @@ export function brandingProblem(input: unknown): string | null {
     if (problem) return problem
   }
 
-  if (b.whatsappEnabled !== undefined && typeof b.whatsappEnabled !== 'boolean') return 'WhatsApp widget must be on or off'
-
-  if (b.whatsappLink !== undefined) {
-    if (typeof b.whatsappLink !== 'string') return 'WhatsApp number must be text'
-    if (b.whatsappLink.trim() && !whatsappLinkValue(b.whatsappLink)) return 'WhatsApp: a number with country code (919876543210) or an https wa.me / whatsapp.com link'
-  }
-
-  if (b.whatsappMessage !== undefined) {
-    if (typeof b.whatsappMessage !== 'string') return 'WhatsApp opening message must be text'
-    if (b.whatsappMessage.trim().length > WHATSAPP_MESSAGE_MAX) return `WhatsApp opening message is at most ${WHATSAPP_MESSAGE_MAX} characters`
-    if (BAD_TEXT.test(b.whatsappMessage)) return 'WhatsApp opening message may not contain < > or control characters'
+  for (const key of ['whatsappEnabled', 'telegramEnabled'] as const) {
+    if (b[key] !== undefined && typeof b[key] !== 'boolean') return `${BRANDING_LABELS[key]} must be on or off`
   }
 
   if (b.sportsbookTabName !== undefined) {
@@ -282,10 +239,7 @@ export function cleanBranding(input: unknown): Branding {
   out.themeColor = /^#[0-9a-fA-F]{6}$/.test(color) ? color.toUpperCase() : ''
   for (const slot of BRANDING_SLOTS) out[slot] = cleanAsset(b[slot], slot)
   out.whatsappEnabled = b.whatsappEnabled === true
-  out.whatsappLink = whatsappLinkValue(b.whatsappLink)
-  const message = str(b.whatsappMessage)
-
-  out.whatsappMessage = message.length <= WHATSAPP_MESSAGE_MAX && !BAD_TEXT.test(message) ? message : ''
+  out.telegramEnabled = b.telegramEnabled === true
   const tab = str(b.sportsbookTabName)
 
   out.sportsbookTabName = tab.length <= SPORTSBOOK_TAB_MAX && !BAD_TEXT.test(tab) ? tab : ''

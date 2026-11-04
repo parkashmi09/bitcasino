@@ -368,9 +368,14 @@ test('crypto deposits', async (t) => {
     assert.equal(await balance(uid), '0.00123457');
   });
 
-  await t.test('a non-deposit event is acknowledged and ignored', async () => {
-    const result = await service.handleWebhook(signed({ type: 'ApiWithdrawal', msg: {} }));
+  await t.test('an event this site does not handle is acknowledged and ignored', async () => {
+    const result = await service.handleWebhook(signed({ type: 'ApiRefund', msg: {} }));
     assert.equal(result.handled, false);
-    assert.equal(result.type, 'ApiWithdrawal');
+    assert.equal(result.type, 'ApiRefund');
+  });
+
+  await t.test('a withdrawal event for no order of ours is acknowledged and ignored', async () => {
+    assert.equal((await service.handleWebhook(signed({ type: 'ApiWithdrawal', msg: {} }))).reason, 'no order id');
+    assert.equal((await service.handleWebhook(signed({ type: 'ApiWithdrawal', msg: { orderId: 'NOT-OURS-1' } }))).reason, 'unknown order');
   });
 });

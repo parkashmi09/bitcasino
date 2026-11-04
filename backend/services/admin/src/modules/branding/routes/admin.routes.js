@@ -33,7 +33,7 @@ module.exports = function adminRoutes(deps) {
     asyncHandler(async (_req, res) => {
       const current = deps.entitlementsStore?.current() ?? {};
       return response.ok(res, {
-        ...store.view(current.branding ?? null, current.version ?? 0),
+        ...store.view(current.branding ?? null, current.version ?? 0, await store.chatSettings()),
         managedBy: deps.config.OWNER_SHARED_SECRET ? 'owner' : null,
         metaBy: store.metaBySite(current.branding ?? null) ? 'site' : 'platform',
         source: current.source ?? 'default',

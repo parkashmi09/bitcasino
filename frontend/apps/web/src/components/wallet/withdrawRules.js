@@ -8,19 +8,41 @@ const fmt = (value, currency) => `${value} ${currency}`;
 /**
  * What still blocks a withdrawal, one line each, from `GET /user/withdrawals/requirements`.
  * `[]` when nothing does (or nothing was read: the backend still checks on submit).
+ * Wagering owed only on a bonus does not block: that bonus is forfeited with the withdrawal
+ * (`wager.remainingAfterForfeit` is what still blocks after it).
  */
 export function requirementLines(req) {
   if (!req || req.ok !== false || !Array.isArray(req.missing)) return [];
-  return req.missing.map((key) => {
+  const bonusOnly = req.bonusForfeitAllowed === true && !(Number(req.wager?.remainingAfterForfeit) > 0);
+  return req.missing.filter((key) => !(key === 'wager' && bonusOnly)).map((key) => {
     if (key === 'kyc') return 'Verify your identity (KYC) before withdrawing.';
     if (key === 'wager') {
-      const left = req.wager?.remaining;
-      return left ? `Wager ${fmt(left, req.wager.currency ?? 'USD')} more before withdrawing.` : 'Finish your wagering before withdrawing.';
+      const left = req.wager?.remainingAfterForfeit ?? req.wager?.remaining;
+      return Number(left) > 0 ? `Wager ${fmt(left, req.wager.currency ?? 'USD')} more before withdrawing.` : 'Finish your wagering before withdrawing.';
     }
     if (key === 'cap') return 'You have reached your withdrawal limit for this coin. Deposit or wager more to raise it.';
     if (key === 'daily') return 'You have reached today’s withdrawal limit. Try again later.';
     return `Withdrawal requirement not met: ${key}.`;
   });
+}
+
+/** Info lines: what is left of the withdrawal cap and of today's limit for this coin. */
+export function limitLines(req) {
+  const lines = [];
+  const cap = req?.cap;
+  const daily = req?.dailyLimit;
+  if (cap?.enabled && cap.remaining != null) lines.push(`Withdrawal cap: ${fmt(cap.remaining, cap.currency)} left to withdraw.`);
+  if (daily?.enabled && daily.remaining != null) lines.push(`Daily limit: ${daily.remaining} of ${fmt(daily.limit, daily.currency)} left today.`);
+  return lines;
+}
+
+/**
+ * The active bonuses a withdrawal forfeits (`"10 USDT, 5 INR"`) when the player must agree to it
+ * first (`forfeitBonus: true` on submit), else null.
+ */
+export function forfeitNotice(req) {
+  if (!req?.bonusForfeitRequired || !req.bonusForfeitAllowed) return null;
+  return (req.wager?.bonus?.bonuses ?? []).map((b) => fmt(b.amount, b.currency)).join(', ');
 }
 
 /** The saved addresses a withdrawal of `currency` (on `network`, when set) may go to. */

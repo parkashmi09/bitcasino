@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { fiatDestinationReady, isAddressShape, manualDepositFields, requirementLines, savedFor } from './withdrawRules';
+import { fiatDestinationReady, forfeitNotice, isAddressShape, limitLines, manualDepositFields, requirementLines, savedFor } from './withdrawRules';
 
 describe('requirementLines', () => {
   it('is empty when nothing blocks or nothing was read', () => {
@@ -13,6 +13,32 @@ describe('requirementLines', () => {
     expect(lines[0]).toMatch(/KYC/);
     expect(lines[1]).toBe('Wager 12.5 USD more before withdrawing.');
     expect(lines[2]).toMatch(/today/);
+  });
+
+  it('drops bonus-only wagering when a forfeit is allowed, and counts what is left after it', () => {
+    const wager = { remaining: '30', remainingAfterForfeit: '0', currency: 'USD' };
+    expect(requirementLines({ ok: false, missing: ['wager'], bonusForfeitAllowed: true, wager })).toEqual([]);
+    expect(requirementLines({ ok: false, missing: ['wager'], bonusForfeitAllowed: true, wager: { ...wager, remainingAfterForfeit: '20' } })).toEqual([
+      'Wager 20 USD more before withdrawing.',
+    ]);
+    expect(requirementLines({ ok: false, missing: ['wager'], bonusForfeitAllowed: false, wager: { ...wager, remainingAfterForfeit: '30' } })).toHaveLength(1);
+  });
+});
+
+describe('limitLines / forfeitNotice', () => {
+  it('shows what is left of the cap and the daily limit', () => {
+    expect(limitLines(null)).toEqual([]);
+    expect(
+      limitLines({ cap: { enabled: true, remaining: '40', currency: 'USDT' }, dailyLimit: { enabled: true, remaining: '5', limit: '10', currency: 'USDT' } }),
+    ).toEqual(['Withdrawal cap: 40 USDT left to withdraw.', 'Daily limit: 5 of 10 USDT left today.']);
+    expect(limitLines({ cap: { enabled: false }, dailyLimit: { enabled: true, remaining: null } })).toEqual([]);
+  });
+
+  it('lists the bonuses lost, only when a forfeit is required and allowed', () => {
+    const wager = { bonus: { bonuses: [{ amount: '10', currency: 'USDT' }, { amount: '5', currency: 'INR' }] } };
+    expect(forfeitNotice({ bonusForfeitRequired: true, bonusForfeitAllowed: true, wager })).toBe('10 USDT, 5 INR');
+    expect(forfeitNotice({ bonusForfeitRequired: false, bonusForfeitAllowed: true, wager })).toBeNull();
+    expect(forfeitNotice(null)).toBeNull();
   });
 });
 

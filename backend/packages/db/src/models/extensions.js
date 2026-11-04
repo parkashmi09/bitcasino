@@ -56,6 +56,8 @@ const EXTENSIONS = {
   // Legacy created these with an ALTER TABLE run on every request that touched
   // the targetX endpoints, so they never reached the baseline schema.
   Users: {
+    // ── migration 180-user-email-verified: when the player proved `email` (deposit_email_verification).
+    email_verified_at: { type: DataTypes.DATE, allowNull: true, field: 'email_verified_at' },
     // ── migration 178-player-must-change-password: a password an upline chose.
     must_change_password: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: false, field: 'must_change_password' },
     // ── migration 119-google-login: the Google account (`sub`) this player signs in with.
@@ -271,6 +273,10 @@ const EXTENSIONS = {
     decided_by: { type: DataTypes.BIGINT, allowNull: true, field: 'decided_by' },
     decided_at: { type: DataTypes.DATE, allowNull: true, field: 'decided_at' },
     note: { type: DataTypes.TEXT, allowNull: true, field: 'note' },
+    // migration 171: sent through CCPayment instead of by hand.
+    gateway: { type: DataTypes.STRING(20), allowNull: true, field: 'gateway' },
+    gateway_order_id: { type: DataTypes.STRING(64), allowNull: true, field: 'gateway_order_id' },
+    gateway_record_id: { type: DataTypes.STRING(64), allowNull: true, field: 'gateway_record_id' },
   },
 
   // ── migration 018-otp-integrity ──────────────────────────────────────

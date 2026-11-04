@@ -443,6 +443,8 @@ class GamesService {
     const order = [];
     if (isMobile !== undefined) order.push(['is_mobile', isMobile ? 'DESC' : 'ASC']);
     if (sort !== 'az' && sort !== 'za') order.push([literal(NO_ART_SQL), 'ASC'], [literal(LANDSCAPE_ART_SQL), 'ASC']);
+    // `newest`: the games most recently added to the catalogue (import time, not a release date).
+    if (sort === 'newest') order.push(['created_at', 'DESC']);
     order.push(byName, ['uuid', 'ASC']);
     return order;
   }
@@ -484,7 +486,8 @@ class GamesService {
 
     return {
       stats: this.#numeric(totals),
-      topProviders: await grouped('provider', 10),
+      // Every studio, biggest first: the lobby's provider filter shows a count on each row.
+      topProviders: await grouped('provider'),
       gameTypes: await grouped('type'),
     };
   }

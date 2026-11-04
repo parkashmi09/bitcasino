@@ -8,18 +8,22 @@ import { EyeIcon, KeyRoundIcon, PencilIcon, PlusIcon, PowerIcon } from 'lucide-r
 
 import ConfirmDialog from '@/components/shared/ConfirmDialog'
 import DataTable, { type Column } from '@/components/shared/DataTable'
+import ExportButtons, { fetchAllRows } from '@/components/shared/ExportButtons'
 import DateTime from '@/components/shared/DateTime'
 import FormDialog from '@/components/shared/FormDialog'
 import { TextField } from '@/components/shared/FormField'
 import PageHeader from '@/components/shared/PageHeader'
 import StatusBadge from '@/components/shared/StatusBadge'
 import { Button } from '@/components/ui/button'
+import { DateRangePicker } from '@/components/ui/date-picker'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { useApiMutation, useListState, usePagedApi } from '@/hooks/use-api'
 import { api } from '@/lib/api/client'
 import { check } from '@/lib/validate'
 
-import type { Branch } from './BranchView'
+import { defaultRange } from '@/views/exchange/reports/reportKit'
+
+import { windowOf, type Branch, type BranchTotals } from './BranchView'
 
 const BASE = 'admin/branches'
 const invalidate = [['paged', BASE]]
@@ -132,8 +136,13 @@ const RowActions = ({ row }: { row: Branch }) => {
   )
 }
 
+type BranchReport = { currency: string | null; rows: { branch: Branch; players: number; totals: BranchTotals }[] }
+
 const BranchesList = () => {
   const { state, set, query } = useListState(['status'])
+
+  // The export's period: each branch's figures over it (the Branch Report's numbers).
+  const [range, setRange] = useState(defaultRange())
   const list = usePagedApi<Branch>(BASE, { limit: query.limit, page: query.page, search: query.search, status: query.status })
 
   const columns: Column<Branch>[] = [
@@ -163,16 +172,39 @@ const BranchesList = () => {
         onSearchChange={search => set({ search })}
         searchPlaceholder='Name or username…'
         toolbar={
-          <Select value={String(state.status || 'all')} onValueChange={v => v && set({ status: v === 'all' ? '' : v })}>
-            <SelectTrigger className='w-40'>
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value='all'>Any status</SelectItem>
-              <SelectItem value='active'>active</SelectItem>
-              <SelectItem value='inactive'>inactive</SelectItem>
-            </SelectContent>
-          </Select>
+          <div className='flex flex-wrap items-center gap-2'>
+            <Select value={String(state.status || 'all')} onValueChange={v => v && set({ status: v === 'all' ? '' : v })}>
+              <SelectTrigger className='w-40'>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value='all'>Any status</SelectItem>
+                <SelectItem value='active'>active</SelectItem>
+                <SelectItem value='inactive'>inactive</SelectItem>
+              </SelectContent>
+            </Select>
+            <DateRangePicker from={range.from} to={range.to} max={defaultRange().to} clearable={false} onChange={r => setRange({ from: r.from, to: r.to })} />
+            <ExportButtons
+              fileName={`branches-${range.from}_to_${range.to}`}
+              title={`Branches ${range.from} to ${range.to}`}
+              head={['Branch', 'Login', 'Status', 'Players', 'New', 'Deposit', 'Withdraw', 'Net', 'Casino GGR', 'Sports GGR', 'Last login', 'Created']}
+              rows={async () => {
+                const [branches, report] = await Promise.all([
+                  fetchAllRows<Branch>(BASE, { search: query.search, status: query.status }, { paged: true }),
+                  api.get<BranchReport>(`${BASE}/report`, windowOf(range))
+                ])
+
+                const byId = new Map(report.rows.map(r => [r.branch.id, r]))
+                const when = (v?: string | null) => (v ? new Date(v).toLocaleString('en-IN') : '')
+
+                return branches.map(b => {
+                  const t = byId.get(b.id)?.totals
+
+                  return [b.name, b.username, b.status, b.players ?? 0, t?.registrations ?? 0, t?.deposits ?? 0, t?.withdrawals ?? 0, t?.net ?? 0, t?.casinoGgr ?? 0, t?.sportsGgr ?? 0, when(b.lastLoginAt), when(b.createdAt)]
+                })
+              }}
+            />
+          </div>
         }
       />
     </div>

@@ -117,6 +117,21 @@ class BetHistoryService {
     this.config = config;
     this.logger = logger;
     this.clients = clients;
+    this.memo = new Map();
+  }
+
+  /**
+   * rainbet: one shared answer for `ms` — the public ticker, top wins and contest board are the
+   * same for every caller, and every settled bet makes each open board re-read them. A failed
+   * read is not kept. Staff reads (scoped per staff tree) never go through here.
+   */
+  #shared(key, ms, compute) {
+    const hit = this.memo.get(key);
+    if (hit && Date.now() - hit.at < ms) return hit.promise;
+    const promise = compute();
+    this.memo.set(key, { at: Date.now(), promise });
+    promise.catch(() => this.memo.delete(key));
+    return promise;
   }
 
   // ══════════════════════════════════════════════════════════════════════
@@ -128,7 +143,7 @@ class BetHistoryService {
    *
    * Every casino movement the caller is allowed to see, newest first.
    */
-  async list({ page, limit, search, userId, from, to, source, staffId, channel, category, currency, casinoOnly = false }) {
+  async list({ page, limit, search, userId, from, to, source, staffId, channel, category, currency, game, casinoOnly = false }) {
     const visible = await this.#visibleUserIds({ staffId, userId, channel });
     if (visible.empty) return { rows: [], total: 0 };
 
@@ -139,7 +154,7 @@ class BetHistoryService {
     let collected = [];
 
     for (const key of wanted) {
-      collected.push(...(await this.#read(key, { visible, from, to, search, currency })));
+      collected.push(...(await this.#read(key, { visible, from, to, search, currency, game })));
     }
 
     // Merged in memory because the four tables have no common key and no
@@ -205,7 +220,7 @@ class BetHistoryService {
     return categoryOf({ sourceKey: row.source_key, vendor: game?.vendor, type: game?.type ?? row.gameType });
   }
 
-  async #read(key, { visible, from, to, search, currency }) {
+  async #read(key, { visible, from, to, search, currency, game }) {
     const source = SOURCES[key];
     const model = this.models[source.model];
 
@@ -230,6 +245,9 @@ class BetHistoryService {
     // One coin, case-insensitively: `bets.coin` is stored lower-case, every other source
     // upper-case. The validator allows letters and digits only, so there is nothing to escape.
     if (currency) where[source.currencyColumn] = { [Op.iLike]: currency };
+
+    // One game, by the same column `game_uid` is read from.
+    if (game && source.gameColumn) where[source.gameColumn] = game;
 
     const rows = await model.findAll({
       where,
@@ -922,7 +940,7 @@ class BetHistoryService {
        * ═══════════════════════════════════════════════════════════════════
        */
       where: literal(`"result" IS NOT NULL AND "result"::text <> '"refunded"' AND ${NOT_FAKE}`),
-      attributes: ['gid', 'amount', 'profit', 'coin', 'created', 'game'],
+      attributes: ['gid', 'uid', 'amount', 'profit', 'coin', 'created', 'game'],
       order: [['created', 'DESC']],
       limit,
       raw: true,
@@ -930,6 +948,7 @@ class BetHistoryService {
 
     const inHouse = rows.map((row) => ({
       reference: String(row.gid),
+      userId: row.uid,
       game: row.game ?? null,
       amount: String(row.amount ?? '0'),
       profit: String(row.profit ?? '0'),
@@ -941,9 +960,35 @@ class BetHistoryService {
 
     // Third-party rounds too: the ticker showed only in-house games (on live, only Limbo).
     const provider = (await this.#providerRounds()).map(({ win, ...round }) => round);
-    return [...inHouse, ...provider]
-      .sort((a, b) => new Date(b.at) - new Date(a.at))
-      .slice(0, limit);
+    return this.#withPublicNames(
+      [...inHouse, ...provider].sort((a, b) => new Date(b.at) - new Date(a.at)).slice(0, limit),
+    );
+  }
+
+  /**
+   * rainbet: the public feeds name a player only when their Preferences allow it
+   * (`userconfig.show_bets_publicly` on and `hide_username` off, migrations 169 / 177, the same
+   * switches the race boards follow). Everyone else stays `player: null` ("Hidden"). The user id
+   * itself never leaves this service.
+   */
+  async #withPublicNames(rows) {
+    const ids = [...new Set(rows.map((r) => r.userId).filter((id) => id != null).map(String))];
+    const names = new Map();
+    if (ids.length && this.models.Users) {
+      const [users, hidden] = await Promise.all([
+        this.models.Users.findAll({ where: { id: { [Op.in]: ids } }, attributes: ['id', 'name'], raw: true }),
+        this.models.Userconfig
+          ? this.models.Userconfig.findAll({
+              where: { uid: { [Op.in]: ids }, [Op.or]: [{ show_bets_publicly: false }, { hide_username: true }] },
+              attributes: ['uid'],
+              raw: true,
+            })
+          : [],
+      ]).catch(() => [[], []]);
+      const hide = new Set(hidden.map((h) => String(h.uid)));
+      for (const u of users) if (u.name && !hide.has(String(u.id))) names.set(String(u.id), u.name);
+    }
+    return rows.map(({ userId, ...row }) => ({ ...row, player: names.get(String(userId)) ?? null }));
   }
 
   /**
@@ -961,7 +1006,11 @@ class BetHistoryService {
    * shortcut: reads each table's newest MAX_ROWS_PER_SOURCE legs, so top wins ranks RECENT
    * provider rounds; an indexed rounds table is the upgrade if all-time tops are wanted.
    */
-  async #providerRounds() {
+  #providerRounds() {
+    return this.#shared('providerRounds', 3_000, () => this.#readProviderRounds());
+  }
+
+  async #readProviderRounds() {
     const rounds = new Map();
     const settledBefore = Date.now() - OPEN_ROUND_GRACE_MS;
 
@@ -986,6 +1035,7 @@ class BetHistoryService {
         const round = rounds.get(id) ?? {
           reference: String(roundId ?? leg[source.idColumn] ?? ''),
           sourceKey: key,
+          userId: source.userColumn ? (leg[source.userColumn] ?? null) : null,
           gameCatalog: source.catalog,
           gameId: leg[source.gameColumn] ?? null,
           gameName: source.gameNameColumn ? (leg[source.gameNameColumn] ?? null) : null,
@@ -1031,8 +1081,10 @@ class BetHistoryService {
       const label = names.get(`${r.gameCatalog}:${r.gameId}`);
       return {
         reference: r.reference,
+        userId: r.userId,
         game: r.gameId,
         title: label?.name ?? r.gameName ?? null,
+        provider: label?.vendor ?? null,
         // The lobby tile's art and its original | live | slots tab, for the home widgets.
         image: label?.image ?? null,
         category: categoryOf({ sourceKey: r.sourceKey, vendor: label?.vendor, type: label?.type }),
@@ -1071,7 +1123,7 @@ class BetHistoryService {
    */
   async leaderboard({ period, limit }) {
     const from = periodStart(period);
-    const { ranked, scope } = await this.#rankUsers({ all: true }, from);
+    const { ranked, scope } = await this.#shared(`rank:${period}`, 10_000, () => this.#rankUsers({ all: true }, from));
 
     return {
       period,
@@ -1098,6 +1150,7 @@ class BetHistoryService {
    */
   async myPosition({ userId, period }) {
     const from = periodStart(period);
+    // Fresh: the player expects their own last bet to count.
     const { ranked, scope } = await this.#rankUsers({ all: true }, from);
 
     const index = ranked.findIndex(([id]) => String(id) === String(userId));
@@ -1201,7 +1254,7 @@ class BetHistoryService {
         ...(game ? { game } : {}),
         [Op.and]: literal(NOT_FAKE),
       },
-      attributes: ['gid', 'game', 'amount', 'profit', 'coin', 'created'],
+      attributes: ['gid', 'uid', 'game', 'amount', 'profit', 'coin', 'created'],
       order: [['profit', 'DESC']],
       limit,
       raw: true,
@@ -1209,6 +1262,7 @@ class BetHistoryService {
 
     const inHouse = rows.map((row) => ({
       reference: row.gid == null ? null : String(row.gid),
+      userId: row.uid,
       game: row.game ?? null,
       amount: money.toDecimalString(money.toMinor(row.amount ?? '0')),
       profit: money.toDecimalString(money.toMinor(row.profit ?? '0')),
@@ -1220,9 +1274,9 @@ class BetHistoryService {
     const provider = (await this.#providerRounds())
       .filter((r) => r.win > 0 && (!game || r.game === game))
       .map(({ win, outcome, ...round }) => round);
-    return [...inHouse, ...provider]
-      .sort((a, b) => Number(b.profit) - Number(a.profit))
-      .slice(0, limit);
+    return this.#withPublicNames(
+      [...inHouse, ...provider].sort((a, b) => Number(b.profit) - Number(a.profit)).slice(0, limit),
+    );
   }
 
   /**

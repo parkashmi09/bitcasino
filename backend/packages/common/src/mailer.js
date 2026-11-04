@@ -81,6 +81,8 @@ class Mailer {
         const body = String(text || html || '').replace(/<style[\s\S]*?<\/style>/gi, ' ').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
         const links = [...String(html || '').matchAll(/href="([^"]+)"/g)].map((m) => m[1].replace(/&amp;/g, '&'));
         this.logger?.info({ mailPreview: { to, subject, body: body.slice(0, 2000), links } }, 'MAIL_DRY_RUN preview');
+        // `dryRun`: the message is in the log, so an OTP flow may carry on (email.service requestOtp).
+        return { sent: false, dryRun: true, error: 'SMTP is not configured' };
       }
       return { sent: false, error: 'SMTP is not configured' };
     }

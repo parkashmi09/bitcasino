@@ -26,11 +26,13 @@ export const LANGUAGES = [
 const ENGLISH = 'en';
 const KEY = 'bc.language';
 const FILES = import.meta.glob('../i18n/*.json');
-const ATTRS = ['placeholder', 'title', 'aria-label'];
+const ATTRS = ['placeholder', 'title', 'aria-label', 'alt'];
+const BRAND = /\bBit[cC]asino\b/g; // this UI's own name in its copy (lib/branding.js COPY_NAME)
 const SKIP = 'script,style,textarea,.notranslate';
 
 let current = ENGLISH;
 let dictionary = null;
+let siteName = null; // the owner's site name; replaces BRAND after translation, so dictionary keys still match
 let observer = null;
 const listeners = new Set();
 const texts = new WeakMap(); // text node → { source, shown }
@@ -39,9 +41,9 @@ const attrs = new WeakMap(); // element → { [attribute]: { source, shown } }
 const translated = (source) => {
   const key = source.replace(/\s+/g, ' ').trim();
   const hit = key && dictionary && Object.hasOwn(dictionary, key) ? dictionary[key] : null;
-  if (!hit) return source;
   // Keep the node's own leading/trailing whitespace: JSX text often relies on it.
-  return source.match(/^\s*/)[0] + hit + source.match(/\s*$/)[0];
+  const out = hit ? source.match(/^\s*/)[0] + hit + source.match(/\s*$/)[0] : source;
+  return siteName ? out.replace(BRAND, () => siteName) : out;
 };
 
 function doText(node) {
@@ -99,15 +101,27 @@ async function apply(code) {
   }
   if (code !== current) return; // a newer pick won while this one loaded
   dictionary = next;
-  // Back to English: put every swapped text back first.
-  if (!next) restore(document.body);
+  refresh();
+}
+
+function refresh() {
+  const needed = Boolean(dictionary || siteName);
+  // Nothing to swap: put every swapped text back.
+  if (!needed) restore(document.body);
   else doTree(document.body);
-  // English has nothing to swap, so it pays for no observer on the live feeds.
-  if (next && !observer) observe();
-  if (!next && observer) {
+  // Unbranded English has nothing to swap, so it pays for no observer on the live feeds.
+  if (needed && !observer) observe();
+  if (!needed && observer) {
     observer.disconnect();
     observer = null;
   }
+}
+
+/** The owner's site name (null = unbranded, the copy keeps "Bitcasino"); set by the branding effect in useGates. */
+export function setSiteName(name) {
+  if ((name || null) === siteName || typeof document === 'undefined') return;
+  siteName = name || null;
+  refresh();
 }
 
 function restore(root) {

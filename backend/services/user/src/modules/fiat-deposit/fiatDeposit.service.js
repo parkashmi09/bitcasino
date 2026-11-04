@@ -108,6 +108,8 @@ class FiatDepositService {
       throw errors.SCREENSHOT_REQUIRED();
     }
 
+    await this.#assertWithinMethodLimits(details);
+
     // A bank reference identifies one real transfer. Two deposits claiming the
     // same one is either a double submission or an attempt to be credited twice
     // for a single payment; legacy checked neither.
@@ -445,6 +447,42 @@ class FiatDepositService {
   }
 
   // ══════════════════════════════════════════════════════════════════════
+
+  /**
+   * The payment method's min / max (admin Transactions → Bank details), enforced here and not only by
+   * the list filter. The method is the active row the submitted destination (UPI id, account number,
+   * wallet address) names; with none named, the amount must fit at least one active method of the coin.
+   * No active method for the coin: nothing to enforce. Refused: 422 FIAT_DEPOSIT_AMOUNT_OUT_OF_RANGE.
+   */
+  async #assertWithinMethodLimits(details) {
+    const rows = await this.models.CurrencyPaymentDetails.findAll({
+      where: { coin_type: String(details.currency).toUpperCase(), is_active: true },
+      attributes: ['id', 'upi_id', 'account_number', 'wallet_address', 'min_amount', 'max_amount'],
+      raw: true,
+    });
+    if (!rows.length) return;
+    const same = (a, b) => String(a ?? '').trim().toLowerCase() === String(b ?? '').trim().toLowerCase();
+    const named = rows.filter(
+      (r) =>
+        (details.upiId || details.accountNumber || details.walletAddress) &&
+        (!details.upiId || same(r.upi_id, details.upiId)) &&
+        (!details.accountNumber || same(r.account_number, details.accountNumber)) &&
+        (!details.walletAddress || same(r.wallet_address, details.walletAddress))
+    );
+    const candidates = named.length ? named : rows;
+    const fits = (r) =>
+      (r.min_amount == null || !money.lt(details.amount, r.min_amount)) && (r.max_amount == null || !money.gt(details.amount, r.max_amount));
+    if (candidates.some(fits)) return;
+    const mins = candidates.map((r) => r.min_amount).filter((v) => v != null).map(Number);
+    const maxes = candidates.map((r) => r.max_amount);
+    throw errors.AMOUNT_OUT_OF_RANGE({
+      amount: String(details.amount),
+      currency: details.currency,
+      min: mins.length ? Math.min(...mins) : null,
+      // One open (NULL) max means no upper bound.
+      max: maxes.some((v) => v == null) ? null : Math.max(...maxes.map(Number)),
+    });
+  }
 
   async #storeScreenshot(userId, file) {
     if (file.size > MAX_SCREENSHOT_BYTES) throw errors.SCREENSHOT_TOO_LARGE({ size: file.size });

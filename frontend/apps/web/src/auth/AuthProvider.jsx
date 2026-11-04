@@ -182,7 +182,7 @@ export function AuthProvider({ children }) {
     [login],
   );
 
-  const logout = useCallback(async (allSessions = false) => {
+  const logout = useCallback(async (allSessions = false, message = 'You have been signed out.') => {
     const refreshToken = tokenStore.getRefresh();
     // While the token still works: the open sportsbook session is closed upstream too.
     await closeSportsbookSession();
@@ -200,9 +200,56 @@ export function AuthProvider({ children }) {
       tokenStore.clear();
       setUser(null);
       setStatus('anonymous');
-      toast.info('You have been signed out.');
+      toast.info(message);
     }
   }, []);
+
+  /**
+   * Idle logout (backend `POST /user/auth/activity` + `/idle-check`, window `idle_logout_minutes`).
+   *
+   * `/idle-check` doubles as the on/off probe: no `nextCheckAt` and not signed out means the
+   * feature is off, so no heartbeat is sent. While on, real input on a visible tab sends at most
+   * one heartbeat a minute (the route allows 6/min), and the check re-runs at each `nextCheckAt`.
+   */
+  useEffect(() => {
+    if (status !== 'authenticated') return undefined;
+    let stopped = false;
+    let on = false;
+    let lastBeat = 0;
+    let timer = null;
+    const check = async () => {
+      clearTimeout(timer);
+      try {
+        const r = await api(ENDPOINTS.idleCheck, { method: 'POST' });
+        if (stopped) return;
+        if (r?.signedOut) {
+          logout(false, 'You were signed out after a period of inactivity.');
+          return;
+        }
+        on = Boolean(r?.nextCheckAt);
+        // +1s so the window has passed on the server's clock too.
+        if (on) timer = setTimeout(check, Math.max(new Date(r.nextCheckAt) - Date.now(), 0) + 1000);
+      } catch {
+        /* a 401 is handled by the api layer; anything else waits for the next activity */
+      }
+    };
+    const beat = () => {
+      if (!on || document.visibilityState !== 'visible' || Date.now() - lastBeat < 60_000) return;
+      lastBeat = Date.now();
+      // A session the sweep already ended answers `recorded: false`: check now rather than at the timer.
+      api(ENDPOINTS.authActivity, { method: 'POST' }).then((r) => !stopped && r?.recorded === false && check(), () => {});
+    };
+    const events = ['pointerdown', 'keydown', 'scroll', 'wheel', 'touchstart'];
+    events.forEach((e) => window.addEventListener(e, beat, { passive: true, capture: true }));
+    document.addEventListener('visibilitychange', beat);
+    check();
+    return () => {
+      stopped = true;
+      clearTimeout(timer);
+      events.forEach((e) => window.removeEventListener(e, beat, { capture: true }));
+      document.removeEventListener('visibilitychange', beat);
+    };
+  }, [status, logout]);
 
   // `/me` carries capabilities folded from site state (a b2b policy hides promotions): an owner
   // change re-reads it (hooks/useGates.jsx featuresUpdated) instead of keeping the sign-in copy.

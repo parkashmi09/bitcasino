@@ -112,9 +112,8 @@ export function LatestWins() {
 /**
  * One row of the ticker.
  *
- * The player's name is the reason this reads the socket feed rather than
- * `GET /casino/bet-history/live`, which carries no identity — see the note at
- * the top of `queries/live.js`. It is a display name the player chose and the
+ * The player's name comes from the socket feed's `name` (not
+ * `GET /casino/bet-history/live`) — see the note at the top of `queries/live.js`. It is a display name the player chose and the
  * platform already shows on its own leaderboards; nothing else about them is
  * on the wire, and nothing else is rendered.
  */

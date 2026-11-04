@@ -12,6 +12,11 @@ import {
   cx,
 } from '../../../components/exchange';
 import { toast } from '@/lib/toast';
+import { api } from '@/lib/api';
+import { ENDPOINTS } from '@/lib/endpoints';
+import { Dialog } from '@/components/ui/Dialog';
+import { DepositDialog } from '@/components/layout/DepositDialog';
+import { useGates } from '@/hooks/useGates';
 import { useSession } from '../../../hooks/exchange/site';
 import { isSignedIn } from '../../../services/exchange/site';
 import {
@@ -126,6 +131,9 @@ export default function ExchangeMatchPage() {
   const [stakeError, setStakeError] = React.useState(null);
   const [score, setScore] = React.useState({ key: null, url: null });
   const [showTv, setShowTv] = React.useState(false);
+  const [tvRefusal, setTvRefusal] = React.useState(null);
+  const [depositOpen, setDepositOpen] = React.useState(false);
+  const { agentPlayer } = useGates();
   const [coveredFor, setCoveredFor] = React.useState(null);
   // Read once per mount; `iplay` flips a live match on its own, this covers a late iplay.
   const [mountedAt] = React.useState(() => Date.now());
@@ -162,6 +170,35 @@ export default function ExchangeMatchPage() {
   const scoreCovered = isCricket || gtvNow || coveredFor === gmid;
   const hasTv = signedIn && Number(match?.tv) > 0 && Boolean(SPORTS_STREAM_BASE);
   const tvOn = hasTv && showTv;
+
+  /* Live TV is the site's to give: asked on every switch-on, and every 5 minutes while it plays
+     (a balance spent or the hours passing turn it off, with the reason). No answer = no stream. */
+  const toggleTv = React.useCallback(async (next) => {
+    if (!next) {
+      setShowTv(false);
+      return;
+    }
+    try {
+      const access = await api(ENDPOINTS.liveTvAccess);
+      if (access?.allowed) setShowTv(true);
+      else setTvRefusal({ message: access?.message || 'Live TV is not available right now.', reason: access?.reason });
+    } catch {
+      setTvRefusal({ message: 'Live TV is not available right now. Please try again.', reason: null });
+    }
+  }, []);
+  React.useEffect(() => {
+    if (!tvOn) return undefined;
+    const timer = setInterval(async () => {
+      const access = await api(ENDPOINTS.liveTvAccess).catch(() => null);
+      if (access && !access.allowed) {
+        setShowTv(false);
+        setTvRefusal({ message: access.message || 'Live TV is not available right now.', reason: access.reason });
+      }
+    }, 5 * 60_000);
+    return () => clearInterval(timer);
+  }, [tvOn]);
+  // Deposit only when the balance is what is missing, and never for an agent's player (no wallet).
+  const tvDeposit = !agentPlayer && /LOW_BALANCE/.test(tvRefusal?.reason || '');
   const matchStarted = Boolean(match?.iplay) || (() => {
     const t = new Date(match?.stime || '').getTime();
     return !Number.isNaN(t) && t <= mountedAt;
@@ -351,7 +388,7 @@ export default function ExchangeMatchPage() {
       onBack={() => navigate('/sports')}
       tvAvailable={hasTv}
       showTv={tvOn}
-      onToggleTv={setShowTv}
+      onToggleTv={toggleTv}
       scoreSlot={
         isTournament ? null : cricketSocket || tvOn || scoreUrl ? (
           <>
@@ -382,9 +419,36 @@ export default function ExchangeMatchPage() {
     />
   );
 
+  const tvDialogs = (
+    <>
+      <Dialog open={Boolean(tvRefusal)} onClose={() => setTvRefusal(null)} title="Live TV">
+        <p className="text-sm text-trunks">{tvRefusal?.message}</p>
+        <div className="flex gap-3">
+          {tvDeposit && (
+            <button
+              type="button"
+              className="button button-m button-brand h-10 flex-1"
+              onClick={() => {
+                setTvRefusal(null);
+                setDepositOpen(true);
+              }}
+            >
+              Deposit
+            </button>
+          )}
+          <button type="button" className="button button-m button-second h-10 flex-1" onClick={() => setTvRefusal(null)}>
+            OK
+          </button>
+        </div>
+      </Dialog>
+      {depositOpen && <DepositDialog open onClose={() => setDepositOpen(false)} />}
+    </>
+  );
+
   if (gone) {
     return (
       <div className="px-4 sm:px-0">
+        {tvDialogs}
         <div className="mx-auto flex w-full max-w-[75rem] flex-col gap-3 py-4">
           {match && header}
           <Card>
@@ -521,6 +585,7 @@ export default function ExchangeMatchPage() {
           onSave={saveStakes}
         />
       )}
+      {tvDialogs}
     </div>
   );
 }

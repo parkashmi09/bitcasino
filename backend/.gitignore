@@ -1,2 +1,17 @@
 # Demo seed output (node scripts/seed-data.js --demo): per-account random passwords. Never commit.
 .demo-credentials.local.md
+
+# standalone repo: rules that came from the hash-game-exchange root .gitignore
+node_modules
+.env
+.env.*
+!.env.example
+*.log
+/logs/
+/storage/
+# player uploads (KYC documents, deposit proofs) each service keeps on disk
+services/*/storage/
+/uploads/
+/data/
+coverage/
+.DS_Store

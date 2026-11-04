@@ -33,7 +33,7 @@ function createPublicController({ service }) {
     /** Whether the player site should draw the Google button. */
     // rainbet: `enabled` is the owner's switch (the button shows even before keys are set); `configured` is the keys.
     googleStatus: asyncHandler(async (_req, res) =>
-      response.ok(res, { enabled: await service.googleAllowed(), configured: service.googleEnabled() })
+      response.ok(res, { enabled: await service.googleAllowed(), configured: service.googleConfigured() })
     ),
 
     /** 302 to Google, after setting the signed state cookie the callback needs. */
@@ -41,7 +41,7 @@ function createPublicController({ service }) {
       // A browser navigation, not a fetch: switched off or no keys goes back to the site with a message.
       const unavailable = await service.googleUnavailable();
       if (unavailable) return res.redirect(302, service.googleReturnUrl({ error: unavailable }));
-      const { url, cookie } = service.googleStart({ nonce: req.query.nonce });
+      const { url, cookie } = await service.googleStart({ nonce: req.query.nonce });
       res.cookie(google.COOKIE, cookie, {
         httpOnly: true,
         secure: req.secure || req.headers['x-forwarded-proto'] === 'https',

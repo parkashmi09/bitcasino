@@ -79,10 +79,12 @@ test('features', async (t) => {
         assert.equal(text.includes(banned), false, `"${banned}" is in the catalogue response`);
       }
       const { data } = JSON.parse(text);
-      // The five site templates plus the twelve colour-only palettes (bitcasino + smartbet).
+      // The five site templates, the twelve colour-only palettes (bitcasino + smartbet) and stake's nine.
       assert.deepEqual(data.templates.map((x) => x.key).sort(), [
-        'carbon_gold', 'cobalt_citrine', 'copper_harbour', 'emerald_dark', 'hash_game', 'indigo_mint', 'jade_night', 'lapis_ledger',
-        'magma', 'navy_coral', 'neon_navy', 'ocean_ruby', 'royal_dusk', 'seashell_teal', 'tangerine_field', 'violet_night', 'wisteria',
+        'carbon_gold', 'cobalt_citrine', 'copper_harbour', 'crimson_rush', 'ember_night', 'emerald_dark', 'emerald_vault', 'graphite',
+        'hash_game', 'high_roller_gold', 'indigo_mint', 'jade_night', 'lagoon_teal', 'lapis_ledger', 'magma', 'midnight_indigo',
+        'navy_coral', 'neon_navy', 'ocean_ruby', 'rose_noir', 'royal_dusk', 'seashell_teal', 'tangerine_field', 'ultraviolet',
+        'violet_night', 'wisteria',
       ]);
       const carbon = data.templates.find((x) => x.key === 'carbon_gold');
       assert.equal(carbon.label, 'carbon gold');

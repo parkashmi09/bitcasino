@@ -33,7 +33,9 @@ test('wager validators', async (t) => {
     // live there — per-player values are numeric and travel as strings.
     assert.equal(v.setForAll.body.safeParse({ multiplier: '2.5' }).success, true);
     assert.equal(v.setForAll.body.safeParse({ multiplier: 2.5 }).success, false);
-    assert.equal(v.setForAll.body.safeParse({ multiplier: '0' }).success, false);
+    assert.equal(v.setForAll.body.safeParse({ multiplier: '0' }).success, true, '0 = no rollover');
+    assert.equal(v.setForUser.body.safeParse({ multiplier: '0' }).success, true);
+    assert.equal(v.setForAll.body.safeParse({ multiplier: '-1' }).success, false);
     assert.equal(v.setForAll.body.safeParse({ multiplier: '101' }).success, false);
   });
 

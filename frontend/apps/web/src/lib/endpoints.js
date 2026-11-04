@@ -27,10 +27,15 @@ export const ENDPOINTS = {
   refresh: `${USER}/auth/refresh`,
   logout: `${USER}/auth/logout`,
   me: `${USER}/auth/me`,
+  // Idle logout: `{ signedOut, nextCheckAt? }` (no `nextCheckAt` = off); activity is the heartbeat, `{ recorded }`.
+  idleCheck: `${USER}/auth/idle-check`,
+  authActivity: `${USER}/auth/activity`,
+  // Live TV on a match: `{ allowed, reason, message, minBalance, inactiveHours }` (Site config → Features → Live TV).
+  liveTvAccess: `${USER}/live-tv/access`,
   sessions: `${USER}/auth/sessions`,
   changePassword: `${USER}/auth/change-password`,
   // Sign in with Google (`lib/googleAuth.js`). `googleStatus` is `{ enabled }` — the owner's
-  // `google_login` switch; `googleStart` is a browser navigation, not a fetch.
+  // `google_signin` policy; `googleStart` is a browser navigation, not a fetch.
   googleStatus: `${USER}/auth/google/status`,
   googleStart: `${USER}/auth/google/start`,
   googleExchange: `${USER}/auth/google/exchange`,
@@ -362,8 +367,8 @@ export const ENDPOINTS = {
   // `GET /casino/bet-history/live` is the live-wins feed over HTTP, and it
   // was registered here through Phase 7. Phase 8 moved the ticker to the
   // `LAST_BETS` socket event, which answers the same rounds WITH the player
-  // name attached — the HTTP route exposes no identity, and a wins strip
-  // without a name on it is a list of numbers. Nothing calls the route now,
+  // name attached (the HTTP route now carries `player` too, null when the
+  // player hides their name, but the ticker stays on the socket). Nothing calls the route now,
   // so it is not registered: a path in this file that no call site sends is
   // a contract check that verifies nothing. `queries/live.js` has the whole
   // argument.

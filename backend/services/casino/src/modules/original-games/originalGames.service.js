@@ -191,10 +191,20 @@ class OriginalGamesService {
 
   // ── Wallet callbacks: always return { status, body }, never throw ──────
 
-  async callback(action, { body, rawBody, headers, method, path, query }) {
+  /**
+   * `trusted`: a whitelabel copy settling a callback its parent verified and passed on (casino
+   * modules/wl-hub checks the parent's hub signature first). On the parent, a copy's player
+   * (`wl<id>_<player>`) is passed on to that copy.
+   */
+  async callback(action, { body, rawBody, headers, method, path, query, trusted = false }) {
     try {
-      const refusal = await this.#verify({ rawBody, headers, method, path, query });
+      const refusal = trusted && this.config.WHITELABEL_MODE ? null : await this.#verify({ rawBody, headers, method, path, query });
       if (refusal) return refusal;
+
+      const wlPlayer = this.config.WHITELABEL_MODE ? null : whitelabelPlayer(body?.player_id);
+      if (wlPlayer) {
+        return await forwardOg({ db: this.db, config: this.config, logger: this.logger }, { ...wlPlayer, action, body }, (code, opts) => this.#error(code, opts));
+      }
 
       const currency = String(body?.currency ?? '');
       if (!EXPONENT[currency]) return this.#error(ERROR_CODE.CURRENCY_MISMATCH, { currency });
@@ -581,3 +591,6 @@ function withoutEmpty(object) {
 }
 
 module.exports = { OriginalGamesService };
+
+// Last: the hub module requires nothing back from here, but keep the order cycle-free.
+const { whitelabelPlayer, forwardOg } = require('../wl-hub/forward');

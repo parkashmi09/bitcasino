@@ -649,6 +649,37 @@ const ANALYTICS = {
 };
 
 /**
+ * Live TV on sports matches — who may watch the stream (owner, 2026-11-01). Hand-written, like the
+ * integrations above. `gated`: only a player with at least `minBalance` (INR) AND a bet within
+ * `inactiveHours` may watch; otherwise the stream stays off and the message says what is missing
+ * (recharge / play). Both are editable here; blank = 200 and 10. Read by user-service modules/live-tv, which
+ * the match page asks before (and while) it shows the stream.
+ */
+const LIVE_TV = {
+  key: 'live_tv',
+  label: 'Live TV (sports)',
+  category: 'engagement',
+  flag: null,
+  // The gate is on until changed (200 / 10 when the fields are blank).
+  defaultVariant: 'gated',
+  variants: [
+    {
+      key: 'gated',
+      label: 'Minimum balance and activity',
+      description: 'Only players with at least the minimum balance AND a bet within the set hours; others are told to recharge or play.',
+      publicFields: ['minBalance', 'inactiveHours', 'message'],
+      configFields: [
+        { key: 'minBalance', label: 'Minimum balance (INR)', required: false, pattern: '^\\d{1,8}(\\.\\d{1,2})?$', placeholder: '200' },
+        { key: 'inactiveHours', label: 'Inactive for (hours)', required: false, pattern: '^\\d{1,4}$', placeholder: '10' },
+        { key: 'message', label: 'Message shown (optional)', required: false, placeholder: 'Shown before the reasons, e.g. Live TV is for active players.' },
+      ],
+    },
+    { key: 'open', label: 'Every signed-in player', description: 'The stream for every signed-in player, whatever the balance (as before).' },
+    { key: 'none', label: 'Off', description: 'No live TV on any match.' },
+  ],
+};
+
+/**
  * Business policies — hand-written, like the integration above.
  *
  * `kind: 'policy'` means always in force: there is no on/off switch, only the
@@ -982,7 +1013,45 @@ const WHITELABEL_POLICY = {
   ],
 };
 
-const FEATURES = Object.freeze([...POLICIES, REWARD_CURRENCY_POLICY, DEFAULT_CURRENCY_POLICY, REGION_RESTRICTION_POLICY, WITHDRAWAL_REQUIREMENTS_POLICY, CASINO_AGGREGATOR_POLICY, THEME_MODE_POLICY, ADMIN_THEME_POLICY, SLOTEGRATOR_INR_AS_PKR_POLICY, JSGAMES_INR_AS_PKR_POLICY, API_ENCRYPTION_POLICY, RATE_LIMIT_POLICY, BRANCH_MANAGEMENT_POLICY, WHITELABEL_POLICY, ...GENERATED, TIPS, P2P, PUSH_NOTIFICATIONS, ANALYTICS]);
+/**
+ * Deposit email verification — a policy (owner-only). `none` (the default): deposits open as
+ * before; `required`: every deposit entry point (fiat, payment orders, crypto address, P2P buy)
+ * answers 403 EMAIL_NOT_VERIFIED until the player confirms a `verify-email` code sent to the
+ * account's own address (user-service modules/email/depositGate.js, migration 180).
+ */
+const DEPOSIT_EMAIL_VERIFICATION_POLICY = {
+  key: 'deposit_email_verification',
+  label: 'Deposit: email must be verified first',
+  category: 'business',
+  kind: 'policy',
+  flag: null,
+  defaultVariant: 'none',
+  variants: [
+    { key: 'none', label: 'Off', description: 'Players deposit without verifying their email. The default.' },
+    { key: 'required', label: 'Required', description: 'A player must verify their email (a code sent to the account\'s address) before any deposit is accepted.' },
+  ],
+};
+
+/**
+ * Google sign-in — a policy (owner-only). `on` (the default, the behaviour before the switch): the
+ * Google button shows on login and sign-up while the server has its keys; `off`: the button hides
+ * and the Google routes refuse (user-service modules/auth google). Accounts made with Google keep
+ * signing in with their password.
+ */
+const GOOGLE_SIGNIN_POLICY = {
+  key: 'google_signin',
+  label: 'Google sign-in',
+  category: 'business',
+  kind: 'policy',
+  flag: null,
+  defaultVariant: 'on',
+  variants: [
+    { key: 'on', label: 'On', description: 'Players can sign in and sign up with Google (when the server has the Google keys). The default.' },
+    { key: 'off', label: 'Off', description: 'The Google button hides on login and sign-up, and Google sign-in is refused.' },
+  ],
+};
+
+const FEATURES = Object.freeze([...POLICIES, REWARD_CURRENCY_POLICY, DEFAULT_CURRENCY_POLICY, REGION_RESTRICTION_POLICY, WITHDRAWAL_REQUIREMENTS_POLICY, CASINO_AGGREGATOR_POLICY, THEME_MODE_POLICY, ADMIN_THEME_POLICY, SLOTEGRATOR_INR_AS_PKR_POLICY, JSGAMES_INR_AS_PKR_POLICY, API_ENCRYPTION_POLICY, RATE_LIMIT_POLICY, BRANCH_MANAGEMENT_POLICY, WHITELABEL_POLICY, DEPOSIT_EMAIL_VERIFICATION_POLICY, GOOGLE_SIGNIN_POLICY, ...GENERATED, TIPS, P2P, PUSH_NOTIFICATIONS, ANALYTICS, LIVE_TV]);
 
 /**
  * Site templates — the bundles the OWNER picks for a site (docs/OWNER-PANEL.md
@@ -1212,6 +1281,52 @@ const TEMPLATES = Object.freeze({
     "ocean_ruby": {
       "label": "Ocean Ruby",
       "description": "Ocean Ruby: colour theme only. Ocean-blue actions, emerald sidebar, ruby accents.",
+      "variants": HASH_GAME_VARIANTS
+    },
+    // stake: its own colour-only templates (stake/frontend/src/theme/palettes.js); other sites' UIs ignore them.
+    "midnight_indigo": {
+      "label": "Midnight Indigo",
+      "description": "Midnight Indigo: colour theme only. Ink-indigo surfaces, periwinkle actions, mint wins.",
+      "variants": HASH_GAME_VARIANTS
+    },
+    "graphite": {
+      "label": "Graphite",
+      "description": "Graphite: colour theme only. Neutral charcoal, white actions, green wins.",
+      "variants": HASH_GAME_VARIANTS
+    },
+    "emerald_vault": {
+      "label": "Emerald Vault",
+      "description": "Emerald Vault: colour theme only. Deep forest surfaces, emerald actions, gold highlights.",
+      "variants": HASH_GAME_VARIANTS
+    },
+    "crimson_rush": {
+      "label": "Crimson Rush",
+      "description": "Crimson Rush: colour theme only. Dark wine surfaces, crimson actions, amber wins.",
+      "variants": HASH_GAME_VARIANTS
+    },
+    "high_roller_gold": {
+      "label": "High Roller Gold",
+      "description": "High Roller Gold: colour theme only. VIP black-bronze surfaces with gold actions.",
+      "variants": HASH_GAME_VARIANTS
+    },
+    "lagoon_teal": {
+      "label": "Lagoon Teal",
+      "description": "Lagoon Teal: colour theme only. Deep sea-teal surfaces, aqua actions, lime wins.",
+      "variants": HASH_GAME_VARIANTS
+    },
+    "ultraviolet": {
+      "label": "Ultraviolet",
+      "description": "Ultraviolet: colour theme only. Night-purple surfaces, violet actions, mint wins.",
+      "variants": HASH_GAME_VARIANTS
+    },
+    "ember_night": {
+      "label": "Ember Night",
+      "description": "Ember Night: colour theme only. Smoky dark-brown surfaces, ember-orange actions, green wins.",
+      "variants": HASH_GAME_VARIANTS
+    },
+    "rose_noir": {
+      "label": "Rose Noir",
+      "description": "Rose Noir: colour theme only. Black-plum surfaces, hot-rose actions, sky-blue wins.",
       "variants": HASH_GAME_VARIANTS
     }
   });

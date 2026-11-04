@@ -24,7 +24,11 @@ module.exports = function publicRoutes(deps) {
   router.get(
     '/first-deposit',
     withOptionalSession,
-    asyncHandler(async (req, res) => response.ok(res, await service.overview({ userId: req.user?.id ?? null })))
+    asyncHandler(async (req, res) => {
+      const overview = await service.overview({ userId: req.user?.id ?? null });
+      // rainbet: `hasDeposited` for a signed-in caller (the push prompt's after-first-deposit trigger).
+      return response.ok(res, req.user ? { ...overview, hasDeposited: await service.hasDeposited(req.user.id) } : overview);
+    })
   );
 
   return router;

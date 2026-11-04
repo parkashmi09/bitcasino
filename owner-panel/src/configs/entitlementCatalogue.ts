@@ -333,6 +333,35 @@ const CATALOGUE: FeatureEntry[] = [
     ]
   },
   {
+    // Google sign-in: a policy (always on, owner-only). Mirrors backend featureCatalogue.js.
+    // The one Google switch: it replaced rainbet's `google_login` flag (a saved flag off reads as this off).
+    key: 'google_signin',
+    label: 'Google sign-in',
+    category: 'business',
+    flag: null,
+    policy: true,
+    defaultVariant: 'on',
+    note: 'On: the "Sign in with Google" button shows on the login and sign-up screens (until the Google keys are set, a click says it is not available yet). Off: the button hides and Google sign-in / sign-up is refused.',
+    variants: [
+      { key: 'on', label: 'On', description: 'Players can sign in and sign up with Google (when the server has the Google keys). The default.' },
+      { key: 'off', label: 'Off', description: 'The Google button hides on login and sign-up, and Google sign-in is refused.' }
+    ]
+  },
+  {
+    // Deposit email verification: a policy (always on, owner-only). Mirrors backend featureCatalogue.js.
+    key: 'deposit_email_verification',
+    label: 'Deposit: email must be verified first',
+    category: 'business',
+    flag: null,
+    policy: true,
+    defaultVariant: 'none',
+    note: 'Required: before any deposit (fiat, gateway, crypto address, P2P) the player confirms a code sent to the email on their account; until then deposits answer 403 EMAIL_NOT_VERIFIED and the deposit panel shows a "Verify your email" step. Google sign-ups count as verified. Off: deposits open as before.',
+    variants: [
+      { key: 'none', label: 'Off', description: 'Players deposit without verifying their email. The default.' },
+      { key: 'required', label: 'Required', description: "A player must verify their email (a code sent to the account's address) before any deposit is accepted." }
+    ]
+  },
+  {
     key: 'vip',
     label: 'VIP club',
     category: 'engagement',
@@ -573,6 +602,17 @@ const CATALOGUE: FeatureEntry[] = [
       { key: 'gtag', label: 'Google Analytics 4 (gtag.js)', description: 'Loads gtag.js directly with one GA4 measurement id — no container.' },
       { key: 'none', label: 'Off', description: 'No analytics tag is loaded.' }
     ]
+  },
+  {
+    key: 'live_tv',
+    label: 'Live TV (sports)',
+    category: 'engagement',
+    flag: null,
+    variants: [
+      { key: 'gated', label: 'Minimum balance and activity', description: 'Only players with at least the minimum balance AND a bet within the set hours; others are told to recharge or play.' },
+      { key: 'open', label: 'Every signed-in player', description: 'The stream for every signed-in player, whatever the balance (as before).' },
+      { key: 'none', label: 'Off', description: 'No live TV on any match.' }
+    ]
   }
 ]
 
@@ -639,7 +679,7 @@ export const FLAG_GROUPS: FlagGroup[] = [
   },
   {
     title: 'Player sessions',
-    description: 'ON: 5 minutes after a player signs in, the site checks once for a sports, Originals or casino bet in those 5 minutes; none signs the player out. The site admin can switch it off.',
+    description: 'ON: a signed-in player with no activity on the site (no interaction and no sports, Originals or casino bet) for N minutes is signed out. The site admin sets N (default 5) and can switch it off.',
     keys: ['idle_logout']
   },
   {
@@ -648,16 +688,14 @@ export const FLAG_GROUPS: FlagGroup[] = [
     keys: ['demo_login']
   },
   {
-    // rainbet: Google sign-in (user-service auth/google).
-    title: 'Sign-in',
-    description: 'ON: the player site shows "Sign in with Google" (until the Google keys are set, a click says it is not available yet). OFF: no button, and Google sign-in is refused.',
-    keys: ['google_login']
-  },
-  {
     // rainbet: the player site's language picker (frontend/src/lib/i18n.js).
     title: 'Languages',
     description: 'Languages players can pick on the site. OFF: the language leaves the picker, and a player using it moves to another allowed one. With all off the site stays in English with no picker.',
-    keys: ['lang_en', 'lang_ar', 'lang_es', 'lang_fr', 'lang_ja', 'lang_pt', 'lang_ru', 'lang_tr', 'lang_zh']
+    keys: [
+      'lang_en', 'lang_ar', 'lang_es', 'lang_fr', 'lang_ja', 'lang_pt', 'lang_ru', 'lang_tr', 'lang_zh',
+      // roobet: the rest of its picker. Off until switched on (DEFAULT_OFF_FLAGS).
+      'lang_en-IN', 'lang_hi', 'lang_sr', 'lang_cs', 'lang_fil', 'lang_fa', 'lang_id', 'lang_fi', 'lang_vi', 'lang_th', 'lang_ko'
+    ]
   },
   {
     title: 'Home page sections',
@@ -682,7 +720,9 @@ export const FLAG_GROUPS: FlagGroup[] = [
 /* Flags that read OFF when the stored document has no value: switching one on changes what the
    site IS (the sportsbook adds a third-party book, idle logout signs players out), so it never happens
    by default or by "Allow all". Same set in backend/packages/common/src/entitlements.js. */
-export const DEFAULT_OFF_FLAGS = new Set(['sportsbook', 'idle_logout'])
+/** roobet: the languages added after the first nine; same list as backend entitlements.js. */
+const LATER_LANGUAGE_FLAGS = ['en-IN', 'hi', 'sr', 'cs', 'fil', 'fa', 'id', 'fi', 'vi', 'th', 'ko'].map(c => `lang_${c}`)
+export const DEFAULT_OFF_FLAGS = new Set(['sportsbook', 'idle_logout', ...LATER_LANGUAGE_FLAGS])
 
 export const FEATURE_KEYS = FEATURE_CATALOGUE.map(f => f.key)
 export const FLAG_KEYS = [...new Set(FLAG_GROUPS.flatMap(g => g.keys))]
@@ -724,9 +764,8 @@ export const FLAG_LABELS: Record<string, string> = {
   gateway_f2pay: 'F2Pay (deposits)',
   f2pay_inr: 'INR (UPI)',
   f2pay_usdt: 'Crypto (USDT, TRC20)',
-  idle_logout: 'Idle logout (no bet in the first 5 minutes after sign-in)',
+  idle_logout: 'Idle logout (signed out after N minutes with no activity)',
   demo_login: 'Demo login (agent Sign In: ₹1500, sports only, 30 minutes)',
-  google_login: 'Sign in with Google',
   lang_en: 'English',
   lang_ar: 'Arabic (العربية)',
   lang_es: 'Spanish (Español)',
@@ -736,6 +775,17 @@ export const FLAG_LABELS: Record<string, string> = {
   lang_ru: 'Russian (Русский)',
   lang_tr: 'Turkish (Türkçe)',
   lang_zh: 'Chinese (中文)',
+  'lang_en-IN': 'English (Indian)',
+  lang_hi: 'Hindi (हिंदी)',
+  lang_sr: 'Serbian (Srpski)',
+  lang_cs: 'Czech (Čeština)',
+  lang_fil: 'Filipino',
+  lang_fa: 'Persian (فارسی)',
+  lang_id: 'Indonesian (Bahasa Indonesia)',
+  lang_fi: 'Finnish (Suomi)',
+  lang_vi: 'Vietnamese (Tiếng Việt)',
+  lang_th: 'Thai (ภาษาไทย)',
+  lang_ko: 'Korean (한국어)',
   idr: 'IDR',
   home_heroSection: 'Hero carousel',
   home_welcomebanner: 'Welcome banner',

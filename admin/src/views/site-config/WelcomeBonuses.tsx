@@ -16,6 +16,7 @@ import { useSession } from '@/contexts/SessionContext'
 import { useApi, useApiMutation } from '@/hooks/use-api'
 import { api } from '@/lib/api/client'
 import { check } from '@/lib/validate'
+import { TxnPasswordLabel } from '@/views/finance/StaffFloat'
 
 type RegisterBonus = { enabled: boolean; amount: string; currency: string }
 type Tier = { minDeposit: string; percent: string; maxBonus: string }
@@ -102,6 +103,9 @@ const WelcomeForm = ({ saved }: { saved?: Welcome }) => {
   const setTier = (i: number, patch: Partial<Tier>) =>
     setTiers(ts => ts.map((t, j) => (j === i ? { ...t, ...patch } : t)))
 
+  // These terms decide what the site pays: the save asks for the transaction password (backend 403 without it).
+  const [password, setPassword] = useState('')
+
   const f = useFormErrors()
 
   /** Every check the platform's `updateWelcomeBonusSettings` makes, keyed per field (tiers per row). */
@@ -111,7 +115,8 @@ const WelcomeForm = ({ saved }: { saved?: Welcome }) => {
     const errors: Record<string, string | undefined> = {
       registerAmount: rate(regAmount, 'Registration amount'),
       fdWager: check.number(wager, 'Wagering multiplier', { min: 0, max: 100, optional: true }),
-      fdExpiry: check.number(expiry, 'Days to wager it', { min: 0, max: 3650, integer: true, optional: true })
+      fdExpiry: check.number(expiry, 'Days to wager it', { min: 0, max: 3650, integer: true, optional: true }),
+      transactionPassword: password ? undefined : 'Transaction password is required'
     }
 
     const filled = tiers.filter(t => t.minDeposit.trim() || t.percent.trim() || t.maxBonus.trim())
@@ -162,7 +167,8 @@ const WelcomeForm = ({ saved }: { saved?: Welcome }) => {
           unlockMode: gradual ? 'gradual' : 'rollover',
           unlockRate: unlockRate.trim() || '1',
           schedule: schedule.map(t => ({ percent: t.percent.trim() || '0', minDeposit: t.minDeposit.trim() || '0', maxBonus: t.maxBonus.trim() || '0' }))
-        }
+        },
+        transactionPassword: password
       }),
     invalidate: [
       ['api', PATH],
@@ -396,6 +402,17 @@ const WelcomeForm = ({ saved }: { saved?: Welcome }) => {
         </CardContent>
       </Card>
 
+      <div className='max-w-xs'>
+        <TextField
+          id='transactionPassword'
+          name='transactionPassword'
+          label={<TxnPasswordLabel />}
+          type='password'
+          autoComplete='new-password'
+          value={password}
+          onChange={e => setPassword(e.target.value)}
+        />
+      </div>
       </FormErrorsProvider>
       <Button type='submit' disabled={save.isPending || !writable || !saved} className='justify-self-start'>
         {save.isPending && <Loader2Icon className='animate-spin' />}

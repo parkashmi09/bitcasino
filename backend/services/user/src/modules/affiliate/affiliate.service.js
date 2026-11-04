@@ -3,7 +3,7 @@
 /* The referrer lookup (which needs `where(fn(...), value)`) now lives in
    `referrerResolver.js`, shared with signup and the public code check. */
 const { Op, fn, col, QueryTypes } = require('sequelize');
-const { money, creditableCurrency, wagerCategory } = require('@ibitplay/common');
+const { money, creditableCurrency, wagerCategory, defaultCurrencyOf } = require('@ibitplay/common');
 const { promotionsBlocked, assertPlayerCapability } = require('@ibitplay/auth');
 
 const errors = require('./affiliate.errors');
@@ -12,7 +12,7 @@ const { affiliateSettings } = require('./affiliateSettings');
 const { WalletService } = require('../wallet/wallet.service');
 const { REASON } = require('../wallet/wallet.constants');
 const { resolveReferrerOwner, referralLinkFor } = require('./referrerResolver');
-const { createRewardMoney } = require('../../lib/rewardMoney');
+const { createRewardMoney, USD_CODES } = require('../../lib/rewardMoney');
 const { notifyPlayer, notifyBonus, afterBonus } = require('../notifications/notifyPlayer');
 const { settleItem } = require('../wager/stakeShare');
 
@@ -774,9 +774,10 @@ class AffiliateService {
     await assertPlayerCapability(member.id, 'promotions');
 
     const wagerRow = await this.models.Userwager.findOne({ where: { uid: member.id }, raw: true });
-    const wager = this.#wagerAmount(wagerRow);
-
-    const tiers = await this.unlockTiers();
+    const { currency, tiers } = await this.#tiersInDefault();
+    // `userwager` is USD; the steps are the admin's figures in the owner's default currency (INR).
+    const wager = await this.rewardMoney.convert(this.#wagerAmount(wagerRow), 'USD', currency);
+    if (wager == null) return { unlocked: false, reason: `No exchange rate for ${currency}` };
     if (!tiers.some((t) => money.gte(wager, t.wager))) {
       return { unlocked: false, reason: 'The member has not reached the first tier', wager };
     }
@@ -805,8 +806,11 @@ class AffiliateService {
 
       const granted = [];
       for (const tier of due) {
-        // Tier rewards are USD; priced in the site's reward currency.
-        const quote = await this.rewardMoney.fromUsd(tier.reward);
+        // The admin's figure in the default currency, paid in the reward currency (as is when they match).
+        const payCoin = await this.rewardMoney.currency();
+        const paid = await this.rewardMoney.convert(tier.reward, currency, payCoin);
+        if (paid == null) throw new Error(`No exchange rate from ${currency} to ${payCoin}`);
+        const quote = { currency: payCoin, amount: money.toDecimalString(money.toMinor(paid)) };
         const created = await this.models.UnlockedRewards.create(
           {
             uid: owner.id,
@@ -824,7 +828,7 @@ class AffiliateService {
           },
           { transaction }
         );
-        granted.push({ rewardId: created.id, level: tier.level, tier: tier.wager, amount: quote.amount, amountUsd: tier.reward, currency: quote.currency });
+        granted.push({ rewardId: created.id, level: tier.level, tier: tier.wager, amount: quote.amount, amountUsd: await this.rewardMoney.toUsd(tier.reward, currency), currency: quote.currency });
       }
 
       this.logger?.info({ owner: owner.name, member: memberName, steps: granted.length, staffId }, 'Affiliate reward unlocked');
@@ -859,7 +863,8 @@ class AffiliateService {
    * The referral unlock table that PAYS: the site admin's (`siteconfig.referral_unlock_tiers`,
    * read through affiliate settings), else `UNLOCK_TIERS`. Each row pays at its OWN total wager,
    * the figure the admin saves and /referral/rules prints; the level name is only a label (taking
-   * the VIP ladder's threshold for it silently ignored the admin's edit). USD both sides.
+   * the VIP ladder's threshold for it silently ignored the admin's edit). The admin's figures are
+   * in the owner's default currency (owner panel `default_currency`); the built-in defaults are USD.
    */
   async unlockTiers() {
     const settings = await this.settings.read();
@@ -867,15 +872,39 @@ class AffiliateService {
     return [...table].sort((a, b) => Number(a.wager) - Number(b.wager));
   }
 
+  /** The owner's default currency (owner panel `default_currency`). */
+  async #defaultCurrency() {
+    try {
+      const row = await this.models.SiteFeature?.findByPk?.('default_currency', { attributes: ['variant'], raw: true });
+      return defaultCurrencyOf(row?.variant);
+    } catch {
+      return defaultCurrencyOf(null);
+    }
+  }
+
+  /** `{ currency, tiers }`: the steps with wager and reward in the owner's default currency. */
+  async #tiersInDefault() {
+    const settings = await this.settings.read();
+    const currency = await this.#defaultCurrency();
+    const tiers = await this.unlockTiers();
+    if (settings.unlockTiers || USD_CODES.includes(currency)) return { currency, tiers };
+    const inDefault = async (usd) => (await this.rewardMoney.convert(usd, 'USD', currency)) ?? usd;
+    return {
+      currency,
+      tiers: await Promise.all(tiers.map(async (t) => ({ ...t, wager: await inDefault(t.wager), reward: await inDefault(t.reward) }))),
+    };
+  }
+
   /**
    * hash.game's "Locked Rewards": what this referrer's friends have not unlocked yet — per friend,
-   * the table's total less the steps already granted — in USD and in the reward currency.
+   * the table's total less the steps already granted — in USD and in the owner's default currency.
    */
   async lockedRewards({ ownerName }) {
-    const tiers = await this.unlockTiers();
+    const { currency, tiers } = await this.#tiersInDefault();
     const perFriend = tiers.reduce((acc, t) => money.toDecimalString(money.add(acc, t.reward)), '0');
+    const usd = async (amount) => money.toDecimalString(money.toMinor((await this.rewardMoney.toUsd(amount, currency)) ?? '0'));
     const members = await this.models.Team.findAll({ where: { ownername: ownerName }, attributes: ['membername'], raw: true });
-    if (!members.length) return { friends: 0, perFriendUsd: perFriend, lockedUsd: '0.00000000', locked: '0.00000000', currency: (await this.rewardMoney.fromUsd('0')).currency };
+    if (!members.length) return { friends: 0, perFriend, perFriendUsd: await usd(perFriend), lockedUsd: '0.00000000', locked: '0.00000000', currency };
     const highest = await this.models.UnlockedRewards.findAll({
       where: { ownername: ownerName },
       attributes: ['membername', [fn('MAX', col('wager_amount')), 'top']],
@@ -888,8 +917,7 @@ class AffiliateService {
       const floor = topOf.get(membername) ?? '0';
       for (const t of tiers) if (money.gt(t.wager, floor)) locked = money.toDecimalString(money.add(locked, t.reward));
     }
-    const quote = await this.rewardMoney.fromUsd(locked);
-    return { friends: members.length, perFriendUsd: perFriend, lockedUsd: money.toDecimalString(money.toMinor(locked)), locked: quote.amount, currency: quote.currency };
+    return { friends: members.length, perFriend, perFriendUsd: await usd(perFriend), lockedUsd: await usd(locked), locked: money.toDecimalString(money.toMinor(locked)), currency };
   }
 
   // ══════════════════════════════════════════════════════════════════════

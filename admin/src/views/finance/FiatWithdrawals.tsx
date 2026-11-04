@@ -90,13 +90,14 @@ const Detail = ({ row }: { row: FiatWithdrawalRow }) => (
   >
     <Details
       items={[
-        ['User', <Link key='p' href={`/users/${row.userId}`} className='underline'>#{row.userId}</Link>],
+        ['User', <Link key='p' href={`/users/${row.userId}`} className='underline'>{row.username ?? `#${row.userId}`}</Link>],
         ['Amount', <Money key='a' value={row.amount} currency={row.currency} />],
         ['Account holder', row.accountHolderName],
         ['Bank', row.bankName],
         ['Account number', <span key='n' className='font-mono'>{row.accountNumber}</span>],
         ['IFSC', <span key='i' className='font-mono'>{row.ifscCode}</span>],
-        ['UPI id', row.upiId]
+        ['UPI id', row.upiId],
+        ['Reason', row.comment]
       ]}
     />
   </ViewDialog>
@@ -104,7 +105,7 @@ const Detail = ({ row }: { row: FiatWithdrawalRow }) => (
 
 const columns: Column<FiatWithdrawalRow>[] = [
   { key: 'id', header: 'ID', cell: r => <span className='font-mono text-xs'>{r.withdrawalId}</span> },
-  { key: 'user', header: 'User', cell: r => <Link href={`/users/${r.userId}`} className='font-mono text-xs hover:underline'>#{r.userId}</Link> },
+  { key: 'user', header: 'User', cell: r => <Link href={`/users/${r.userId}`} className='text-sm hover:underline' title={`#${r.userId}`}>{r.username ?? `#${r.userId}`}</Link> },
   { key: 'amount', header: 'Amount', align: 'right', cell: r => <Money value={r.amount} currency={r.currency} /> },
   { key: 'holder', header: 'Account holder', cell: r => <span className='text-sm'>{r.accountHolderName ?? '—'}</span> },
   { key: 'bank', header: 'Bank / UPI', cell: r => <span className='text-sm'>{r.bankName ?? r.upiId ?? '—'}</span> },
@@ -118,7 +119,7 @@ const columns: Column<FiatWithdrawalRow>[] = [
     cell: r => (
       <div className='flex justify-end gap-1' onClick={stop}>
         <Detail row={r} />
-        {r.status !== 'Paid' && r.status !== 'Rejected' && (
+        {r.status !== 'Paid' && r.status !== 'Rejected' && r.status !== 'Cancelled' && (
           <Can permission='withdrawals:approve'>
             <Decide row={r} />
           </Can>
@@ -161,7 +162,7 @@ const FiatWithdrawals = () => {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value='all'>All statuses</SelectItem>
-                  {FIAT_WITHDRAW_STATUSES.map(s => (
+                  {[...FIAT_WITHDRAW_STATUSES, 'Cancelled'].map(s => (
                     <SelectItem key={s} value={s}>
                       {s}
                     </SelectItem>

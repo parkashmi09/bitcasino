@@ -24,6 +24,10 @@ module.exports = defineErrors('EMAIL', {
 
   TWOFA_NOT_ENABLED: { status: 409, message: 'Two-factor authentication is not enabled on this account' },
 
+  /** The owner's `deposit_email_verification` is `required` and this player has not verified. */
+  NOT_VERIFIED: { status: 403, message: 'Verify your email address before you deposit' },
+  /** `verify-email` asked of an account with no address on it. */
+  NO_ADDRESS: { status: 409, message: 'Add an email address to your account first' },
   SEND_FAILED: { status: 502, message: 'The message could not be sent' },
   NOT_CONFIGURED: { status: 503, message: 'Outbound email is not configured' },
 

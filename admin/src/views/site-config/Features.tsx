@@ -90,7 +90,7 @@ const OriginalGames = ({ canWrite }: { canWrite: boolean }) => {
 /** How often the features read is refreshed so what the platform changes shows up live. */
 
 /** Not shown to the site admin: the owner's commercial setup (incl. which games provider), and features this backend does not have. */
-const OWNER_ONLY_FEATURES = new Set(['business_model', 'raffles', 'casino_aggregator', 'slotegrator_inr_as_pkr', 'jsgames_inr_as_pkr', 'api_encryption', 'rate_limit', 'branch_management', 'whitelabel'])
+const OWNER_ONLY_FEATURES = new Set(['business_model', 'raffles', 'casino_aggregator', 'slotegrator_inr_as_pkr', 'jsgames_inr_as_pkr', 'api_encryption', 'rate_limit', 'branch_management', 'whitelabel', 'deposit_email_verification', 'google_signin'])
 const FEATURES_POLL_MS = 15_000
 
 /** The variant's label as staff see it (read-only: the platform picks the variant). */
@@ -276,8 +276,9 @@ const Features = () => {
                   const ui = policy ? null : uiSupport(spec.key)
                   const on = policy ? cur.variant !== 'none' : cur.enabled && cur.variant !== 'none'
 
-                  const configurable =
-                    spec.category === 'integration' && canWrite && entitled && cur.enabled && cur.variant !== 'none'
+                  // An integration's keys, or any feature whose current variant has settings (e.g. Live TV's minimum balance and hours).
+                  const hasFields = spec.category === 'integration' || Boolean(spec.variants.find(v => v.key === cur.variant)?.configFields?.length)
+                  const configurable = hasFields && canWrite && entitled && cur.enabled && cur.variant !== 'none'
 
                   return (
                     <TableRow key={spec.key} className={entitled ? undefined : 'opacity-60'}>

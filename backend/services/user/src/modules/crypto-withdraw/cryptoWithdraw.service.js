@@ -7,7 +7,7 @@ const { assertPlayerCapability } = require('@ibitplay/auth');
 
 const errors = require('./cryptoWithdraw.errors');
 const {
-  STATUS, TRANSITIONS, REFUNDING_STATUSES, COIN_COLUMNS, BLOCKED_COINS, normaliseCoin,
+  STATUS, TRANSITIONS, SENDABLE, REFUNDING_STATUSES, COIN_COLUMNS, BLOCKED_COINS, normaliseCoin,
 } = require('./cryptoWithdraw.constants');
 const { WalletService } = require('../wallet/wallet.service');
 const { REASON } = require('../wallet/wallet.constants');
@@ -17,6 +17,12 @@ const { networksFor } = require('../crypto/crypto.networks');
 const { PlayerBonusService } = require('../player-bonuses/playerBonus.service');
 const { createWithdrawRequirements } = require('../withdraw-requirements/withdrawRequirements');
 const { withChannel } = require('../directory/playerScope');
+const { ccpaymentCall, plainAmount, withdrawalOutcome } = require('../crypto/ccpaymentApi');
+const { ccpaymentCoinId, ccpaymentChain, refreshCcpaymentCoinIds } = require('../payment-orders/gateways');
+const { createHttpClient } = require('../psp/providers/http');
+const { callParent } = require('../wl-hub/hubCredentials');
+const { withdrawalChargePct } = require('../wl-hub/hubGateway');
+const companyWallet = require('../wl-hub/companyWallet');
 
 /** Thrown inside the request transaction to roll back a double submit's row. */
 class ReplayedRequest extends Error {}
@@ -43,6 +49,8 @@ class CryptoWithdrawService {
     this.minimum = config?.WITHDRAW_MINIMUM ?? '1';
     // The owner's `withdrawal_requirements` policy (KYC / wagering), with WITHDRAW_REQUIRE_KYC.
     this.requirements = deps.withdrawRequirements ?? createWithdrawRequirements({ ...deps, playerBonuses: this.playerBonuses });
+    this.deps = deps;
+    this.http = deps.http ?? createHttpClient({ logger, timeoutMs: Number(config?.PSP_TIMEOUT_MS ?? 10_000) });
   }
 
   // ══════════════════════════════════════════════════════════════════════
@@ -457,6 +465,184 @@ class CryptoWithdrawService {
     });
     void notifyPlayer(player.userId, withdrawalNotice('crypto-withdraw', withdrawalId, status, player, comment));
     return result;
+  }
+
+  // ══════════════════════════════════════════════════════════════════════
+  //  Sending through CCPayment (owner, 2026-11-01)
+  // ══════════════════════════════════════════════════════════════════════
+
+  /**
+   * Staff send a queued withdrawal through CCPayment instead of by hand. The row moves to
+   * `Sending` with OUR orderId first (CCPayment refuses a repeated orderId, so it can never pay one
+   * request twice), then CCPayment is asked (`applyAppWithdrawToNetwork`). Its `ApiWithdrawal`
+   * webhook — or "Check with CCPayment" — finishes it: Sent with the txid, or Rejected with the
+   * player's refund.
+   *
+   *   CCPayment refused it        back to where it was, nothing sent (the error is shown)
+   *   no answer                   stays Sending; the webhook or a check settles it
+   *
+   * On a whitelabel copy the parent sends it on ITS CCPayment account (modules/wl-hub) and the
+   * company pays the amount (in INR) plus the parent's withdrawal charge now — refused with
+   * COMPANY_BALANCE_LOW if it cannot.
+   */
+  async sendViaGateway({ withdrawalId }, staff) {
+    const copy = Boolean(this.config.WHITELABEL_MODE);
+    const chargePct = copy ? await withdrawalChargePct(this.deps, 'ccpayment') : null;
+    const orderId = `CW${withdrawalId}_${crypto.randomBytes(6).toString('hex')}`;
+
+    const claimed = await this.db.transaction(async (transaction) => {
+      const row = await this.models.Withdrawals.findOne({ where: { id: withdrawalId }, transaction, lock: transaction.LOCK.UPDATE });
+      if (!row) throw errors.NOT_FOUND({ withdrawalId });
+      const current = row.status ?? STATUS.IN_QUEUE;
+      if (!SENDABLE.includes(current)) throw errors.INVALID_TRANSITION({ withdrawalId, from: current, to: STATUS.SENDING, allowed: [] });
+      if (!row.chain) throw errors.NEEDS_NETWORK({ withdrawalId });
+      const coin = normaliseCoin(row.coin);
+      const amount = money.toDecimalString(money.toMinorQuantised(row.amount ?? '0'));
+      if (copy) {
+        await companyWallet.onWithdrawal(this.db, { provider: 'ccpayment', reference: orderId, currency: coin, amount, chargePct }, transaction);
+      }
+      await row.update(
+        { status: STATUS.SENDING, gateway: 'ccpayment', gateway_order_id: orderId, decided_by: staff?.id ?? null, decided_at: new Date() },
+        { transaction }
+      );
+      return { previous: current, userId: row.uid, coin, amount, chain: row.chain, address: row.wallet };
+    });
+
+    let recordId = null;
+    try {
+      if (copy) {
+        const sent = await callParent(this.deps, 'POST', '/payments/payout', {
+          provider: 'ccpayment',
+          copyReference: orderId,
+          userId: String(claimed.userId),
+          currency: claimed.coin,
+          amount: claimed.amount,
+          method: 'crypto',
+          details: { address: claimed.address, chain: claimed.chain },
+          chargePct,
+        });
+        if (!sent?.ok) {
+          const refused = new Error(sent?.message ?? 'The parent site could not send it');
+          refused.refused = true;
+          throw refused;
+        }
+        recordId = sent.providerReference ?? null;
+      } else {
+        await refreshCcpaymentCoinIds(this.config, this.http);
+        const coinId = ccpaymentCoinId(claimed.coin, this.config);
+        if (!coinId) {
+          const refused = new Error(`CCPayment does not offer ${claimed.coin} on this account`);
+          refused.refused = true;
+          throw refused;
+        }
+        const data = await ccpaymentCall(this, '/ccpayment/v2/applyAppWithdrawToNetwork', {
+          coinId,
+          chain: ccpaymentChain(claimed.chain),
+          address: claimed.address,
+          orderId,
+          amount: plainAmount(claimed.amount),
+          // Default: the player's amount pays the network fee (CCPayment's default).
+          merchantPayNetworkFee: this.config.CCPAYMENT_MERCHANT_PAYS_NETWORK_FEE === true,
+        });
+        recordId = data?.recordId ?? null;
+      }
+    } catch (error) {
+      if (error.refused || error.status === 503 || error.code === 'HUB_NOT_LINKED') {
+        await this.#unsend(withdrawalId, orderId, claimed.previous);
+        this.logger?.warn({ withdrawalId, orderId, err: error.message }, 'CCPayment refused the withdrawal — back in the queue');
+        throw error;
+      }
+      this.logger?.error({ withdrawalId, orderId, err: error.message }, 'No answer from CCPayment — left Sending until its webhook or a check');
+      return { withdrawalId, status: STATUS.SENDING, orderId, uncertain: true };
+    }
+
+    if (recordId) await this.models.Withdrawals.update({ gateway_record_id: String(recordId).slice(0, 64) }, { where: { id: withdrawalId } });
+    this.logger?.warn({ withdrawalId, orderId, recordId, staffId: staff?.id ?? null }, 'Crypto withdrawal sent through CCPayment');
+    return { withdrawalId, status: STATUS.SENDING, orderId, uncertain: false };
+  }
+
+  /** CCPayment refused: back to the queue as it was; a copy's company gets its money back. */
+  async #unsend(withdrawalId, orderId, previous) {
+    await this.db.transaction(async (transaction) => {
+      const [count] = await this.models.Withdrawals.update(
+        { status: previous, gateway: null, gateway_order_id: null, gateway_record_id: null },
+        { where: { id: withdrawalId, status: STATUS.SENDING, gateway_order_id: orderId }, transaction }
+      );
+      if (count && this.config.WHITELABEL_MODE) {
+        await companyWallet.onWithdrawalFailed(this.db, { provider: 'ccpayment', reference: orderId }, transaction);
+      }
+    });
+  }
+
+  /**
+   * CCPayment's verified outcome for one of our orders (webhook after `getAppWithdrawRecord`, a
+   * check, or — on a copy — the parent). Once: a row no longer Sending is a repeat.
+   * `outcome` 'success' → Sent (txid); 'failed' → Rejected, player refunded (and the company).
+   */
+  async applyGatewayOutcome({ orderId, outcome, txId = null }) {
+    let player = null;
+    const result = await this.db.transaction(async (transaction) => {
+      const row = await this.models.Withdrawals.findOne({ where: { gateway_order_id: String(orderId) }, transaction, lock: transaction.LOCK.UPDATE });
+      if (!row) return null;
+      if (row.status !== STATUS.SENDING) return { withdrawalId: row.id, status: row.status, duplicate: true };
+      const withdrawalId = row.id;
+      if (outcome === 'success') {
+        await row.update({ status: STATUS.SENT, ...(txId ? { txid: String(txId).slice(0, 120) } : {}), note: row.note ?? 'Sent through CCPayment' }, { transaction });
+      } else {
+        await this.wallet.credit(
+          {
+            userId: row.uid,
+            currency: normaliseCoin(row.coin),
+            amount: money.toDecimalString(money.toMinorQuantised(row.amount ?? '0')),
+            reason: REASON.WITHDRAWAL_REVERSAL,
+            // The same key a staff rejection uses: one refund per withdrawal, whichever path.
+            idempotencyKey: `crypto-withdraw-refund:${withdrawalId}`,
+            refType: 'CRYPTO_WITHDRAWAL',
+            refId: String(withdrawalId),
+            description: `Withdrawal #${withdrawalId} failed at CCPayment — funds returned`,
+          },
+          { sourceService: 'user-service', transaction }
+        );
+        await row.update({ status: STATUS.REJECTED, note: 'CCPayment could not send it — funds returned' }, { transaction });
+        if (this.config.WHITELABEL_MODE) {
+          await companyWallet.onWithdrawalFailed(this.db, { provider: 'ccpayment', reference: String(orderId) }, transaction);
+        }
+      }
+      player = { userId: row.uid, amount: row.amount, currency: normaliseCoin(row.coin) };
+      return { withdrawalId, status: outcome === 'success' ? STATUS.SENT : STATUS.REJECTED, refunded: outcome !== 'success' };
+    });
+    if (player) {
+      this.logger?.warn({ orderId, ...result }, 'CCPayment withdrawal settled');
+      void notifyPlayer(player.userId, withdrawalNotice('crypto-withdraw', result.withdrawalId, result.status, player));
+    }
+    return result;
+  }
+
+  /** "Check with CCPayment" for a withdrawal still Sending (a webhook that never came). */
+  async checkGateway({ withdrawalId }) {
+    const row = await this.models.Withdrawals.findOne({ where: { id: withdrawalId }, raw: true });
+    if (!row) throw errors.NOT_FOUND({ withdrawalId });
+    if (row.status !== STATUS.SENDING || !row.gateway_order_id) throw errors.NOT_SENDING({ withdrawalId, status: row.status });
+    const orderId = row.gateway_order_id;
+
+    let outcome = null;
+    let txId = null;
+    if (this.config.WHITELABEL_MODE) {
+      try {
+        const order = await callParent(this.deps, 'GET', `/payments/order?flow=payout&copyReference=${encodeURIComponent(orderId)}`);
+        outcome = order?.status === 'pending' ? null : order?.status ?? null;
+      } catch (error) {
+        // The parent never opened it: nothing was sent.
+        if (error.refused && error.status === 404) outcome = 'failed';
+        else throw error;
+      }
+    } else {
+      const data = await ccpaymentCall(this, '/ccpayment/v2/getAppWithdrawRecord', { orderId });
+      outcome = withdrawalOutcome(data?.record?.status);
+      txId = data?.record?.txId ?? null;
+    }
+    if (!outcome) return { withdrawalId, status: STATUS.SENDING, pending: true };
+    return this.applyGatewayOutcome({ orderId, outcome, txId });
   }
 
   // ══════════════════════════════════════════════════════════════════════

@@ -400,20 +400,39 @@ test('site-config', async (t) => {
 
   await t.test('welcome bonuses round-trip, and the public view advertises only what is on', async () => {
     await seedConfig({ registerbonus: '7' });
+    // The save is a money setting: the transaction password, like the payment gateways below.
+    const TXN = 'welcome bonus txn';
+    const roleId = 8340 + (process.pid % 40);
+    await connection.sequelize.query(
+      'INSERT INTO roles (id, name, level) VALUES (:id, :name, 1) ON CONFLICT (id) DO UPDATE SET level = 1',
+      { replacements: { id: roleId, name: `wb-sa-${roleId}` } }
+    );
+    const staffId = 976_000 + (process.pid % 1000);
+    await connection.models.Staff.destroy({ where: { id: staffId } });
+    await connection.models.Staff.create({
+      id: staffId, name: `wb-sa-${staffId}`, email: `wb-sa-${staffId}@test.invalid`,
+      password: await hashPassword(TXN, 4), transaction_password: await hashPassword(TXN, 4), role_id: roleId, status: 'active',
+    });
+    const save = (body, transactionPassword = TXN) => service.updateWelcomeBonusSettings({ ...body, staffId, transactionPassword });
+
     const before = await service.welcomeBonusSettings();
     assert.equal(before.registerBonus.amount, '7.00000000');
     assert.equal(before.firstDepositBonus.enabled, false);
     assert.deepEqual(before.firstDepositBonus.tiers, []);
 
+    await assert.rejects(() => save({ registerBonus: { enabled: false } }, ''), (err) => err.code === 'TXN_PASSWORD_REQUIRED');
+    await assert.rejects(() => save({ registerBonus: { enabled: false } }, 'wrong'), (err) => err.code === 'TXN_PASSWORD_INVALID');
+    assert.equal((await service.welcomeBonusSettings()).registerBonus.enabled, before.registerBonus.enabled, 'a refused save changes nothing');
+
     // Switched off: the amount stays stored, but nobody is promised it.
-    await service.updateWelcomeBonusSettings({ registerBonus: { enabled: false } });
+    await save({ registerBonus: { enabled: false } });
     let pub = await service.publicSettings();
     assert.equal(pub.registerBonusEnabled, false);
     assert.equal(pub.registerbonus, '0.00000000');
     assert.deepEqual(pub.firstDepositBonus, { enabled: false });
     assert.equal((await service.affiliateSettings()).registerBonusEnabled, false);
 
-    const after = await service.updateWelcomeBonusSettings({
+    const after = await save({
       registerBonus: { enabled: true },
       firstDepositBonus: {
         enabled: true,
@@ -432,6 +451,7 @@ test('site-config', async (t) => {
     assert.equal(pub.registerbonus, '7.00000000');
     assert.equal(pub.firstDepositBonus.tiers.length, 2);
     assert.equal((await service.affiliateSettings()).registerBonusEnabled, true);
+    await connection.models.Staff.destroy({ where: { id: staffId } });
   });
 
   await t.test('the public view carries the commission rate and game rates (migration 134)', async () => {
@@ -454,6 +474,8 @@ test('site-config', async (t) => {
     assert.equal(parseWelcome({ firstDepositBonus: { wagerMultiplier: null } }).success, true);
     assert.equal(parseWelcome({}).success, false);
     assert.equal(parseWelcome({ firstDepositBonus: {} }).success, false);
+    assert.equal(parseWelcome({ transactionPassword: 'x' }).success, false, 'the password alone changes nothing');
+    assert.equal(parseWelcome({ registerBonus: { enabled: true }, transactionPassword: 'x' }).success, true);
   });
 
   await t.test('a stored retired, test or unknown coin reads as USDT', async () => {
