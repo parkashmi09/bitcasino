@@ -1,6 +1,9 @@
 import { useEffect, useState } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api';
 import { ENDPOINTS } from '@/lib/endpoints';
+import { subscribe } from '@/lib/socket';
+import { queryKeys } from '@/queries/keys';
 import { useAuth } from '@/auth/AuthProvider';
 import { formatBalance } from '@/lib/format';
 
@@ -45,6 +48,9 @@ import { formatBalance } from '@/lib/format';
  */
 export function useReferral() {
   const { user } = useAuth();
+  const client = useQueryClient();
+  // Bumped by a push, a return to the tab or the poll: re-reads without the loading state.
+  const [tick, setTick] = useState(0);
   const [state, setState] = useState({
     code: null,
     referrals: 0,
@@ -57,7 +63,7 @@ export function useReferral() {
     if (!user) return undefined;
 
     const controller = new AbortController();
-    setState((current) => ({ ...current, status: 'loading' }));
+    if (!tick) setState((current) => ({ ...current, status: 'loading' }));
 
     const get = (path) => api(path, { signal: controller.signal });
 
@@ -89,7 +95,31 @@ export function useReferral() {
       });
 
     return () => controller.abort();
-  }, [user]);
+  }, [user, tick]);
+
+  // Live: an `affiliate_*` push, the tab becoming visible again, and a 30s poll while visible.
+  useEffect(() => {
+    if (!user) return undefined;
+    const refresh = () => {
+      setTick((current) => current + 1);
+      client.invalidateQueries({ queryKey: queryKeys.account.affiliateUnclaimed() });
+    };
+    const onVisibility = () => {
+      if (document.visibilityState === 'visible') refresh();
+    };
+    const unsubscribe = subscribe('notificationsUnread', (frame) => {
+      if (String(frame?.notification?.kind ?? '').startsWith('affiliate_')) refresh();
+    });
+    const poll = setInterval(() => {
+      if (document.visibilityState === 'visible') refresh();
+    }, 30 * 1000);
+    document.addEventListener('visibilitychange', onVisibility);
+    return () => {
+      unsubscribe();
+      clearInterval(poll);
+      document.removeEventListener('visibilitychange', onVisibility);
+    };
+  }, [client, user]);
 
   return {
     ...state,
