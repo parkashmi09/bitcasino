@@ -1775,6 +1775,8 @@ async function processFanBet({ job_id, bet, eventName, marketId, marketName }) {
     }
     const resultStatus = winner ? "won" : "loss";
     let alreadySettled = false;
+    // What this settlement moved on the wallet (released exposure + result); the ledger row says this.
+    let fanWalletMove = 0;
     await db_default.transaction(async (transaction) => {
       const [claimed] = await SportsBet_default.update(
         { status: "closed", result_status: resultStatus, fixed: 1, updated_at: /* @__PURE__ */ new Date() },
@@ -1842,6 +1844,7 @@ async function processFanBet({ job_id, bet, eventName, marketId, marketName }) {
             { transaction }
           );
           console.log("newBal after exposure release", newBal);
+          fanWalletMove += addAmt;
         }
       }
       console.log("step after credit or reffund ");
@@ -1903,6 +1906,7 @@ async function processFanBet({ job_id, bet, eventName, marketId, marketName }) {
             { inr: newCash },
             { transaction }
           );
+          fanWalletMove += amt;
           console.log("[Settlement wallet]");
           console.log("currentCash:", currentCash, "newCash:", newCash);
           console.log("currentInr:", currentInr, "newInr:", newInr);
@@ -1943,8 +1947,9 @@ async function processFanBet({ job_id, bet, eventName, marketId, marketName }) {
     const fanSettlementLedgerRow = await CreditsLedger_default.create({
       user_id,
       currency: "INR",
-      amount: credit,
-      // REQUIRED (raw +win / -loss)
+      // The wallet move, as the MO/BM path writes it: a won Yes @100 for 100 released the 100
+      // held at placement AND paid 100, so +200 (it said `credit` = +100 while the balance moved +200).
+      amount: Math.round(fanWalletMove * 100) / 100,
       reason: "settlement",
       // REQUIRED (ex: BET_WIN, BET_LOSS)
       description: desc || null,

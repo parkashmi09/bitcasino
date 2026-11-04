@@ -58,6 +58,10 @@ const POLICY_DEFAULTS = Object.freeze({
   branch_management: 'off',
   // Not a channel switch: whether the Super Admin manages whitelabel copies (admin modules/whitelabels).
   whitelabel: 'on',
+  // Not a channel switch: `required` = no deposit until the player's email is verified (user modules/email/depositGate.js).
+  deposit_email_verification: 'none',
+  // Not a channel switch: whether players may sign in / sign up with Google (user auth google.js).
+  google_signin: 'on',
 });
 
 /** For each policy, which stored variants allow each channel. */

@@ -5,6 +5,7 @@ import { useState } from 'react'
 import Link from 'next/link'
 
 import DataTable, { type Column } from '@/components/shared/DataTable'
+import ExportButtons from '@/components/shared/ExportButtons'
 import Money from '@/components/shared/Money'
 import PageHeader from '@/components/shared/PageHeader'
 import StatusBadge from '@/components/shared/StatusBadge'
@@ -59,7 +60,32 @@ const BranchReport = () => {
         fetching={q.isFetching}
         error={q.error}
         emptyMessage='No branches yet.'
-        toolbar={<DateRangePicker from={range.from} to={range.to} max={defaultRange().to} clearable={false} onChange={r => setRange({ from: r.from, to: r.to })} />}
+        toolbar={
+          <div className='flex flex-wrap items-center gap-2'>
+            <DateRangePicker from={range.from} to={range.to} max={defaultRange().to} clearable={false} onChange={r => setRange({ from: r.from, to: r.to })} />
+            <ExportButtons
+              fileName={`branch-report-${range.from}_to_${range.to}`}
+              title={`Branch report ${range.from} to ${range.to}${cur ? ` (${cur})` : ''}`}
+              head={['Branch', 'Status', 'Players', 'New', 'Deposit', 'Withdraw', 'Net', 'Casino bets', 'Casino GGR', 'Sports bets', 'Sports GGR']}
+              disabled={!rows}
+              rows={() =>
+                (rows ?? []).map(r => [
+                  r.branch.id === TOTAL ? 'All branches' : r.branch.name,
+                  r.branch.id === TOTAL ? '' : r.branch.status,
+                  r.players,
+                  r.totals.registrations,
+                  r.totals.deposits,
+                  r.totals.withdrawals,
+                  r.totals.net,
+                  r.totals.casinoWagered,
+                  r.totals.casinoGgr,
+                  r.totals.sportsStaked,
+                  r.totals.sportsGgr
+                ])
+              }
+            />
+          </div>
+        }
       />
     </div>
   )

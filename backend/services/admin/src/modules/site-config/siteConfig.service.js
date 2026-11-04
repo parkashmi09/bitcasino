@@ -14,6 +14,7 @@ const REWARD_CURRENCY_FEATURE = 'reward_currency';
 const DEFAULT_CURRENCY_FEATURE = 'default_currency';
 const { visibleStaffIds } = require('../staff-directory/staffDirectory.service');
 const { assertTransactionPassword } = require('../staff-auth/transactionPassword');
+const { chatLink } = require('../branding/branding.rules');
 
 /**
  * user-service's payment gateways, as the owner panel names them (its flag is `gateway_<name>`).
@@ -146,10 +147,11 @@ const OPERATOR_SETTINGS = Object.freeze({
   login_max_attempts: { env: 'LOGIN_MAX_ATTEMPTS', kind: 'number', min: 1, max: 50, label: 'Failed logins before a lock' },
   login_lock_minutes: { env: 'LOGIN_LOCK_MINUTES', kind: 'number', min: 1, max: 1440, label: 'Lock lasts (minutes)' },
   max_active_sessions: { env: 'MAX_ACTIVE_SESSIONS', kind: 'number', min: 1, max: 100, label: 'Sessions per player' },
-  // Read by user-service's AuthService, with the owner's `idle_logout` flag (both on = in force): 5
-  // minutes after sign-in a player with no sports / Originals / casino bet in them is signed out.
-  idle_logout: { env: 'IDLE_LOGOUT', kind: 'boolean', default: true, label: 'Sign a player out who places no bet in the first 5 minutes' },
-  require_email_verification: { env: 'REQUIRE_EMAIL_VERIFICATION', kind: 'boolean', label: 'Verify email before transacting' },
+  // Read by user-service's AuthService, with the owner's `idle_logout` flag (both on = in force): a
+  // session with no activity (the player site's heartbeat) and no sports / Originals / casino bet
+  // for `idle_logout_minutes` is signed out.
+  idle_logout: { env: 'IDLE_LOGOUT', kind: 'boolean', default: true, label: 'Sign a player out after N minutes with no activity' },
+  idle_logout_minutes: { env: 'IDLE_LOGOUT_MINUTES', kind: 'number', min: 1, max: 120, default: 5, label: 'Minutes with no activity before the sign-out (N)' },
 
   // Read by user-service's PlayerBonusService (user, 2026-10-28). The lock is in force only while
   // the owner's `bonus.wagering_lock` is on too; the forfeit pair is the withdraw popup's copy.
@@ -181,6 +183,13 @@ const OPERATOR_SETTINGS = Object.freeze({
   loss_bonus_max_bet: { env: 'LOSS_BONUS_MAX_BET', kind: 'decimal', min: 0, default: '0', label: 'Max bet per bet (a bigger bet\'s loss does not count; 0 = no limit)' },
   loss_bonus_claim_hours: { env: 'LOSS_BONUS_CLAIM_HOURS', kind: 'number', min: 0, max: 720, default: 48, label: 'Hours to claim after settlement (0 = no expiry)' },
   loss_bonus_wager_multiplier: { env: 'LOSS_BONUS_WAGER_MULTIPLIER', kind: 'decimal', min: 0, max: 100, default: '0', label: 'Wager before the bonus becomes cash (× bonus; 0 = cash at once)' },
+
+  // The floating chat buttons (Site config → Branding), shown only where the owner allows them
+  // (owner panel → Branding). A link is a number with country code or the app's own https link.
+  whatsapp_enabled: { env: 'CHAT_WHATSAPP_ENABLED', kind: 'boolean', default: false, label: 'WhatsApp button' },
+  whatsapp_link: { env: 'CHAT_WHATSAPP_LINK', kind: 'text', maxLength: 300, chat: 'whatsapp', label: 'WhatsApp number or link' },
+  telegram_enabled: { env: 'CHAT_TELEGRAM_ENABLED', kind: 'boolean', default: false, label: 'Telegram button' },
+  telegram_link: { env: 'CHAT_TELEGRAM_LINK', kind: 'text', maxLength: 300, chat: 'telegram', label: 'Telegram number, @username or link' },
 });
 
 /** A pair whose maximum may not sit under its minimum. */
@@ -203,7 +212,11 @@ const SETTING_PAIRS = Object.freeze([
  * browser reads to decide whether to draw a tab.
  */
 /** The owner's Languages switches (`lang_<code>`), in the player site's picker order. */
-const SITE_LANGUAGES = Object.freeze(['ar', 'en', 'es', 'fr', 'ja', 'pt', 'ru', 'tr', 'zh']);
+const SITE_LANGUAGES = Object.freeze([
+  'ar', 'en', 'es', 'fr', 'ja', 'pt', 'ru', 'tr', 'zh',
+  // roobet: the rest of its picker; off until the owner switches them on (entitlements DEFAULT_OFF_FLAGS).
+  'en-IN', 'hi', 'sr', 'cs', 'fil', 'fa', 'id', 'fi', 'vi', 'th', 'ko',
+]);
 
 const PUBLIC_FLAGS = Object.freeze([
   // top-level features
@@ -506,8 +519,12 @@ class SiteConfigService {
     };
   }
 
-  /** A patch: any field left out keeps its stored value. `tiers` replaces the list. */
-  async updateWelcomeBonusSettings({ registerBonus, firstDepositBonus, depositProgram, staffId = null }) {
+  /**
+   * A patch: any field left out keeps its stored value. `tiers` replaces the list. These terms decide
+   * what the site pays out, so the save asks for the transaction password like the other money settings.
+   */
+  async updateWelcomeBonusSettings({ registerBonus, firstDepositBonus, depositProgram, staffId = null, executiveId = null, transactionPassword }) {
+    await assertTransactionPassword(this.models, staffId, transactionPassword, { required: true, executiveId });
     const row = await this.#configRow(['id']);
     if (!row) throw errors.NOT_CONFIGURED();
 
@@ -748,13 +765,14 @@ class SiteConfigService {
 
   /**
    * The referral unlock table, as the Affiliate rates screen reads it.
-   * `totalWager` and `unlockAmount` are denominated in the site's reward
-   * currency (`currency`), like every other operator-entered reward amount.
+   * `totalWager` and `unlockAmount` are denominated in the owner's default
+   * currency (`currency`, owner panel `default_currency`); user-service pays
+   * them in the reward currency at the site rate when the two differ.
    * `stored: false` = the column is missing and these are the defaults.
    */
   async referralUnlockSettings() {
-    const [stored, rewardCurrency] = await Promise.all([this.#storedReferralUnlocks(), this.rewardCurrency()]);
-    return { ...stored, currency: rewardCurrency, rewardCurrency, maxTiers: REFERRAL_UNLOCK_MAX };
+    const [stored, rewardCurrency, currency] = await Promise.all([this.#storedReferralUnlocks(), this.rewardCurrency(), this.defaultCurrency()]);
+    return { ...stored, currency, rewardCurrency, maxTiers: REFERRAL_UNLOCK_MAX };
   }
 
   /** Replaces the whole list (the validator has already checked each row). */
@@ -1101,6 +1119,13 @@ class SiteConfigService {
     flags.demo_login = entitlements.flagOnIn(planDoc, 'demo_login');
     // The owner's Languages switches: the player site offers only these.
     const languages = SITE_LANGUAGES.filter((code) => entitlements.flagOnIn(planDoc, `lang_${code}`));
+    // Idle logout in force (owner flag AND Super Admin switch): its minutes, for the player site's
+    // activity tracker; null = off, so the site sends no heartbeat.
+    const ops = Object.fromEntries((await this.operatorSettings()).map((s) => [s.key, s.value]));
+    const idleMinutes = Number(ops.idle_logout_minutes);
+    const idleLogoutMinutes = entitlements.flagOnIn(planDoc, 'idle_logout') && String(ops.idle_logout) !== 'false'
+      ? (Number.isInteger(idleMinutes) && idleMinutes >= 1 && idleMinutes <= 120 ? idleMinutes : 5)
+      : null;
 
     const amounts = Object.fromEntries(
       PUBLIC_AMOUNTS.map((name) => [name, this.#amount(row?.[name])])
@@ -1112,11 +1137,12 @@ class SiteConfigService {
 
     // What the site may promise a new player. Only the terms when it is on.
     const tiers = this.#tiers(row?.first_deposit_bonus_tiers);
-    const [rewardCurrency, defaultCurrency, referralUnlocks, rates] = await Promise.all([
+    const [rewardCurrency, defaultCurrency, referralUnlocks, rates, unlockCurrency] = await Promise.all([
       this.rewardCurrency(),
       this.#publicDefaultCurrency(),
       this.#storedReferralUnlocks(),
       this.#storedCommissionRates(),
+      this.defaultCurrency(),
     ]);
     const firstDepositBonus = row?.first_deposit_bonus_enabled && tiers.length
       ? { enabled: true, currency: rewardCurrency, payoutCurrency: rewardCurrency, tiers }
@@ -1128,14 +1154,15 @@ class SiteConfigService {
       ...flags,
       ...amounts,
       languages,
+      idleLogoutMinutes,
       registerBonusEnabled,
       // A browser can say "your friend must deposit" next to the joining bonus.
       affiliateBonusRequiresDeposit: row ? row.affiliate_bonus_requires_deposit !== false : true,
       firstDepositBonus,
       // The /referral/rules table (migration 106): friend's VIP level, the
       // total wager that reaches it, and what the referrer unlocks there —
-      // amounts in the reward currency. Display terms only.
-      referralUnlocks: { currency: rewardCurrency, tiers: referralUnlocks.tiers },
+      // amounts in the owner's default currency (what user-service pays on).
+      referralUnlocks: { currency: unlockCurrency, tiers: referralUnlocks.tiers },
       // The /referral/rules rate boxes and calculator (migration 134): percent
       // strings, the defaults until it runs. Display terms only.
       commissionRate: rates.commissionRate,
@@ -1604,6 +1631,7 @@ function coerceSetting(key, spec, raw) {
     if (text.length > spec.maxLength) throw errors.INVALID_SETTING({ setting: key, reason: `longer than ${spec.maxLength} characters` });
     // eslint-disable-next-line no-control-regex
     if (/[<>\u0000-\u0008\u000b-\u001f]/.test(text)) throw errors.INVALID_SETTING({ setting: key, reason: 'no angle brackets or control characters' });
+    if (spec.chat && !chatLink(spec.chat, text)) throw errors.INVALID_SETTING({ setting: key, reason: spec.chat === 'telegram' ? 'a number with country code, @username or a t.me link' : 'a number with country code or a wa.me / whatsapp.com link' });
     return text;
   }
 

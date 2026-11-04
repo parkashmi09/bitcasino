@@ -19,6 +19,11 @@ const { WalletService } = require('../wallet/wallet.service');
 const { REASON } = require('../wallet/wallet.constants');
 const { PlayerBonusService } = require('../player-bonuses/playerBonus.service');
 const { createWithdrawRequirements } = require('../withdraw-requirements/withdrawRequirements');
+const { hubGateway, withdrawalChargePct } = require('../wl-hub/hubGateway');
+const companyWallet = require('../wl-hub/companyWallet');
+const hubOrders = require('../wl-hub/hubOrders');
+const { ccpaymentCall, plainAmount } = require('../crypto/ccpaymentApi');
+const { ccpaymentChain } = require('./gateways');
 
 /**
  * Starting a payment — asking a provider to collect money from a player, or to
@@ -259,6 +264,8 @@ class PaymentOrdersService {
 
     const reference = this.#reference('WD');
     const idempotencyKey = `payout:${providerName}:${reference}`;
+    // A copy: the company pays the amount + the parent's charge for this gateway, with the hold.
+    const chargePct = this.config.WHITELABEL_MODE ? await withdrawalChargePct(this.deps, providerName) : null;
 
     // ── 2. Hold the balance ───────────────────────────────────────────
     // One transaction: the deposit cap re-checked under a per-player lock, the hold, and the
@@ -283,6 +290,9 @@ class PaymentOrdersService {
         await this.#recordPendingWithdrawal(providerName, {
           reference, userId, currency, amount, paymentSystem, details: validation.value,
         }, { transaction });
+        if (chargePct !== null) {
+          await companyWallet.onWithdrawal(this.db, { provider: providerName, reference, currency, amount, chargePct }, transaction);
+        }
         return held;
       });
     } catch (error) {
@@ -311,6 +321,7 @@ class PaymentOrdersService {
           amount,
           method: paymentSystem,
           details: validation.value,
+          chargePct,
           notifyUrl: this.#notifyUrl(providerName, FLOW.PAY_OUT),
           // F2Pay's payout wants the payee's phone and email.
           customer: gateway.needsCustomer ? await this.#customer(userId) : null,
@@ -346,6 +357,191 @@ class PaymentOrdersService {
       providerReference: result.providerReference ?? null,
       newBalance: movement.newBalance,
     };
+  }
+
+  // ══════════════════════════════════════════════════════════════════════
+  //  Whitelabel copies (parent only) — modules/wl-hub
+  // ══════════════════════════════════════════════════════════════════════
+
+  /**
+   * A copy's player deposits by gateway: the order runs on THIS site's gateway account. The copy
+   * already checked its own player, limits and method; here: the copy's plan must include the
+   * gateway, and this site must have it on and configured. The order is recorded (with the
+   * copy's charge rate) before the gateway is asked, so its callback always finds it; psp settles
+   * it like any other and modules/wl-hub tells the copy.
+   */
+  async hubDeposit({ whitelabel, provider: providerName, copyReference, userId, currency, amount, method, chain, returnUrl, customer, ip }) {
+    if (!whitelabel.plan?.payments.gateways[providerName]) throw errors.PROVIDER_DISABLED({ provider: providerName });
+    const gateway = this.#gateway(providerName);
+    await this.#assertOwnerAllows(providerName);
+    if (providerName === 'ccpayment') await refreshCcpaymentCoinIds(this.config, this.http);
+    if (!gateway.supports(currency, FLOW.PAY_IN, this.config)) throw errors.CURRENCY_NOT_SUPPORTED({ provider: providerName, currency });
+
+    let payIn = null;
+    if (gateway.methodsInDb) {
+      payIn = gateway.payIn(currency, method, await this.#methods(providerName, gateway));
+      if (!payIn) throw errors.METHOD_NOT_SUPPORTED({ provider: providerName, method });
+    }
+
+    const reference = this.#reference('DEP');
+    const order = await hubOrders.open(this.db, {
+      whitelabelId: whitelabel.id,
+      provider: providerName,
+      flow: 'deposit',
+      reference,
+      copyReference,
+      currency,
+      amount,
+      chargePct: whitelabel.terms.fees[providerName]?.deposit ?? '0',
+    });
+
+    let result;
+    try {
+      result = await gateway.createDeposit(
+        {
+          reference,
+          userId: `wl${whitelabel.id}-${userId}`,
+          currency,
+          amount,
+          method,
+          chain,
+          returnUrl,
+          phone: customer?.phone,
+          userName: customer?.name,
+          customerName: customer?.name,
+          customerMobile: customer?.phone,
+          notifyUrl: this.#notifyUrl(providerName, FLOW.PAY_IN),
+          customer: gateway.needsCustomer ? customer ?? {} : null,
+          ip,
+          payIn,
+        },
+        this.config,
+        { http: this.http }
+      );
+    } catch (error) {
+      await hubOrders.failNow(this.db, order.id, error.message);
+      this.logger?.error({ err: error, provider: providerName, reference, whitelabelId: whitelabel.id }, 'Whitelabel deposit request failed');
+      throw error;
+    }
+    if (!result.ok) {
+      await hubOrders.failNow(this.db, order.id, result.message);
+      return { ok: false, message: result.message };
+    }
+    await hubOrders.attach(this.db, order.id, result.providerReference);
+    this.logger?.info({ provider: providerName, reference, copyReference, whitelabelId: whitelabel.id, currency, amount }, 'Whitelabel deposit order created');
+    return { ok: true, reference, providerReference: result.providerReference ?? null, redirectUrl: result.redirectUrl ?? null, details: result.details ?? null };
+  }
+
+  /**
+   * A copy's player withdraws by gateway: paid from THIS site's gateway account. The copy has
+   * already held the player's balance and taken amount + charge from its company at `chargePct`,
+   * which must still be the rate here (else 409 HUB_CHARGE_CHANGED and the copy gives both back).
+   */
+  async hubPayout({ whitelabel, provider: providerName, copyReference, userId, currency, amount, method, details, customer, chargePct }) {
+    if (!whitelabel.plan?.payments.gateways[providerName]) throw errors.PROVIDER_DISABLED({ provider: providerName });
+    if (providerName === 'ccpayment') return this.#hubCcpaymentPayout({ whitelabel, copyReference, currency, amount, details, chargePct });
+    if (!this.config.AUTO_WITHDRAWALS_ENABLED) throw errors.WITHDRAWALS_DISABLED();
+    const gateway = this.#gateway(providerName);
+    await this.#assertOwnerAllows(providerName);
+    if (!gateway.supports(currency, FLOW.PAY_OUT, this.config) || !(await this.#currencyOn(gateway, currency))) {
+      throw errors.CURRENCY_NOT_SUPPORTED({ provider: providerName, currency });
+    }
+    if (money.compare(String(whitelabel.terms.fees[providerName]?.withdraw ?? '0'), String(chargePct)) !== 0) throw hubOrders.chargeChanged();
+    const validation = validatePayoutDetails(method, details);
+    if (!validation.ok) throw errors.INVALID_PAYOUT_DETAILS({ fields: validation.fields, paymentSystem: method });
+
+    const reference = this.#reference('WD');
+    const order = await hubOrders.open(this.db, {
+      whitelabelId: whitelabel.id,
+      provider: providerName,
+      flow: 'payout',
+      reference,
+      copyReference,
+      currency,
+      amount,
+      chargePct,
+    });
+
+    let result;
+    try {
+      result = await gateway.createWithdrawal(
+        {
+          reference,
+          userId: `wl${whitelabel.id}-${userId}`,
+          currency,
+          amount,
+          method,
+          details: validation.value,
+          notifyUrl: this.#notifyUrl(providerName, FLOW.PAY_OUT),
+          customer: gateway.needsCustomer ? customer ?? {} : null,
+        },
+        this.config,
+        { http: this.http }
+      );
+    } catch (error) {
+      // The same rule as this site's own payouts: a request that threw is treated as not sent.
+      await hubOrders.failNow(this.db, order.id, error.message);
+      this.logger?.error({ err: error, provider: providerName, reference, whitelabelId: whitelabel.id }, 'Whitelabel payout request failed');
+      return { ok: false, message: error.message };
+    }
+    if (!result.ok) {
+      await hubOrders.failNow(this.db, order.id, result.message);
+      return { ok: false, message: result.message };
+    }
+    await hubOrders.attach(this.db, order.id, result.providerReference);
+    this.logger?.info({ provider: providerName, reference, copyReference, whitelabelId: whitelabel.id, currency, amount }, 'Whitelabel payout sent to the provider');
+    return { ok: true, reference, providerReference: result.providerReference ?? null };
+  }
+
+  /**
+   * A copy's crypto withdrawal, which its staff sent through CCPayment: paid from THIS site's
+   * CCPayment account (`applyAppWithdrawToNetwork`, the order recorded first under our own orderId).
+   * The `ApiWithdrawal` webhook settles it (crypto module) and the copy is told.
+   */
+  async #hubCcpaymentPayout({ whitelabel, copyReference, currency, amount, details, chargePct }) {
+    if (money.compare(String(whitelabel.terms.fees.ccpayment?.withdraw ?? '0'), String(chargePct)) !== 0) throw hubOrders.chargeChanged();
+    const address = String(details?.address ?? '').trim();
+    const chain = String(details?.chain ?? '').trim();
+    if (!address || !chain || address.length > 200 || chain.length > 40) {
+      throw errors.INVALID_PAYOUT_DETAILS({ fields: ['address', 'chain'], paymentSystem: 'crypto' });
+    }
+    await this.#assertOwnerAllows('ccpayment');
+    await refreshCcpaymentCoinIds(this.config, this.http);
+    const coinId = ccpaymentCoinId(currency, this.config);
+    if (!coinId) throw errors.CURRENCY_NOT_SUPPORTED({ provider: 'ccpayment', currency });
+
+    const reference = this.#reference('CWD');
+    const order = await hubOrders.open(this.db, {
+      whitelabelId: whitelabel.id,
+      provider: 'ccpayment',
+      flow: 'payout',
+      reference,
+      copyReference,
+      currency,
+      amount,
+      chargePct,
+    });
+    try {
+      const data = await ccpaymentCall(this, '/ccpayment/v2/applyAppWithdrawToNetwork', {
+        coinId,
+        chain: ccpaymentChain(chain),
+        address,
+        orderId: reference,
+        amount: plainAmount(money.toDecimalString(money.toMinorQuantised(amount))),
+        merchantPayNetworkFee: this.config.CCPAYMENT_MERCHANT_PAYS_NETWORK_FEE === true,
+      });
+      await hubOrders.attach(this.db, order.id, data?.recordId);
+      this.logger?.info({ reference, copyReference, whitelabelId: whitelabel.id, currency, amount }, 'Whitelabel crypto withdrawal sent through CCPayment');
+      return { ok: true, reference, providerReference: data?.recordId ?? null };
+    } catch (error) {
+      if (error.refused) {
+        await hubOrders.failNow(this.db, order.id, error.message);
+        return { ok: false, message: error.message };
+      }
+      // No answer: the order stays pending here; CCPayment's webhook settles it and the copy is told.
+      this.logger?.error({ err: error, reference, whitelabelId: whitelabel.id }, 'No answer from CCPayment for a whitelabel withdrawal — left pending');
+      return { ok: true, reference, providerReference: null };
+    }
   }
 
   // ══════════════════════════════════════════════════════════════════════
@@ -543,6 +739,8 @@ class PaymentOrdersService {
   #gateway(name, { requireConfig = true } = {}) {
     const gateway = getGateway(name);
     if (!gateway) throw errors.UNKNOWN_PROVIDER({ provider: name });
+    // A whitelabel copy has no gateway keys: every order runs on the parent's account (modules/wl-hub).
+    if (this.config.WHITELABEL_MODE) return hubGateway(gateway, name, this.deps);
 
     if (requireConfig) {
       const missing = (gateway.requiredConfig || []).filter((key) => !this.config[key]);
@@ -688,6 +886,9 @@ class PaymentOrdersService {
       );
 
       await this.#markWithdrawalFailed(providerName, reference, reason, { refunded: true });
+      if (this.config.WHITELABEL_MODE) {
+        await this.db.transaction((transaction) => companyWallet.onWithdrawalFailed(this.db, { provider: providerName, reference }, transaction));
+      }
       this.logger?.info({ provider: providerName, reference, userId, amount }, 'Held balance refunded');
     } catch (error) {
       this.logger?.fatal(

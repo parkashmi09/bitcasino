@@ -14,7 +14,7 @@ import ScrollToTop from '@/components/layout/ScrollToTop'
 import WhitelabelTheme from '@/components/shared/WhitelabelTheme'
 
 // Config Imports
-import { siteConfig } from '@/configs/site'
+import { serverConfig, siteConfig } from '@/configs/site'
 
 // Util Imports
 import { cn } from '@/lib/utils'
@@ -26,13 +26,33 @@ import './globals.css'
 const poppins = Poppins({ variable: '--font-poppins', subsets: ['latin'], weight: ['400', '500', '600', '700'] })
 const geistMono = Geist_Mono({ variable: '--font-geist-mono', subsets: ['latin'] })
 
-export const metadata: Metadata = {
-  title: { default: siteConfig.name, template: `%s · ${siteConfig.name}` },
-  description: siteConfig.name,
-  robots: { index: false, follow: false },
+/** The owner's site name (owner panel → Branding) for the tab title; this panel's env name if the gateway is slow or down. */
+async function ownerSiteName() {
+  try {
+    const res = await fetch(`${serverConfig.apiUrl}/api/v1/admin/branding/public`, {
+      next: { revalidate: 60 },
+      signal: AbortSignal.timeout(1500)
+    })
 
-  // The owner's mark (app/api/brand/favicon), else the TestPlay one.
-  icons: { icon: '/api/brand/favicon', apple: '/api/brand/favicon' }
+    const name: unknown = (await res.json())?.data?.siteName
+
+    return typeof name === 'string' && name.trim() ? name.trim() : siteConfig.name
+  } catch {
+    return siteConfig.name
+  }
+}
+
+export async function generateMetadata(): Promise<Metadata> {
+  const name = await ownerSiteName()
+
+  return {
+    title: { default: name, template: `%s · ${name}` },
+    description: name,
+    robots: { index: false, follow: false },
+
+    // The owner's mark (app/api/brand/favicon), else the TestPlay one.
+    icons: { icon: '/api/brand/favicon', apple: '/api/brand/favicon' }
+  }
 }
 
 const RootLayout = ({ children }: Readonly<{ children: ReactNode }>) => {

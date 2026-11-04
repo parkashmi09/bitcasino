@@ -1,7 +1,8 @@
+import { useEffect } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api';
 import { ENDPOINTS, path } from '@/lib/endpoints';
-import { EVENTS, request } from '@/lib/socket';
+import { EVENTS, request, subscribe } from '@/lib/socket';
 import { refreshBalances } from '@/hooks/useWallet';
 import { useAuth } from '@/auth/AuthProvider';
 
@@ -254,8 +255,11 @@ export function useSubmitFiatWithdrawal() {
 
   return useMutation({
     meta: { success: 'Withdrawal requested. You will be notified once it is processed.' },
-    mutationFn: ({ currency, amount, details }) =>
-      api(ENDPOINTS.withdrawFiat, { method: 'POST', body: { amount: String(amount), currency, ...details } }),
+    mutationFn: ({ currency, amount, details, forfeitBonus }) =>
+      api(ENDPOINTS.withdrawFiat, {
+        method: 'POST',
+        body: { amount: String(amount), currency, ...details, ...(forfeitBonus ? { forfeitBonus: true } : {}) },
+      }),
     onSuccess: () => {
       client.invalidateQueries({ queryKey: walletKeys.all });
       refreshBalances();
@@ -276,13 +280,14 @@ export function useSubmitWithdrawal() {
 
   return useMutation({
     meta: { success: 'Withdrawal requested. You will be notified once it is processed.' },
-    mutationFn: ({ coin, chain, amount, wallet, password }) =>
+    mutationFn: ({ coin, chain, amount, wallet, password, forfeitBonus }) =>
       request(EVENTS.SUBMIT_NEW_WITHDRAWL, {
         coin,
         amount: String(amount),
         wallet: String(wallet).trim(),
         password,
         ...(chain ? { chain: registryNetwork(chain) } : {}),
+        ...(forfeitBonus ? { forfeitBonus: true } : {}),
       }),
     onSuccess: () => {
       // The balance moved and a pending row appeared. Neither is on a timer.
@@ -387,6 +392,18 @@ export function useVaultTransfer() {
  * Read fresh each time the form opens; the backend enforces the same rules on submit.
  */
 export function useWithdrawalRequirements(currency, { enabled = true } = {}) {
+  const client = useQueryClient();
+
+  // An admin's KYC review (`notificationsUnread`, kind `kyc_*`) changes the gate: re-read it live.
+  useEffect(() => {
+    if (!enabled) return undefined;
+    return subscribe('notificationsUnread', (frame) => {
+      if (String(frame?.notification?.kind ?? '').startsWith('kyc_')) {
+        client.invalidateQueries({ queryKey: ['wallet', 'withdraw-requirements'] });
+      }
+    });
+  }, [client, enabled]);
+
   return useQuery({
     queryKey: ['wallet', 'withdraw-requirements', currency],
     queryFn: ({ signal }) => api(ENDPOINTS.withdrawalRequirements, { query: { currency }, signal }),

@@ -3,6 +3,7 @@
 const { Router } = require('express');
 const { validate, createRateLimiter, refuseCustomCurrencies, noQuery, entitlements } = require('@ibitplay/common');
 const { denyAgentPlayer } = require('@ibitplay/auth');
+const { requireDepositEmail } = require('../../email/depositGate');
 
 const v = require('../p2p.validators');
 const errors = require('../p2p.errors');
@@ -76,7 +77,7 @@ module.exports = function userRoutes(deps) {
 
   // ── Writes ──────────────────────────────────────────────────────────
   /** @legacy POST /p2p/create-order */
-  router.post('/orders', denyAgentPlayer('deposit'), writeLimiter, validate(v.createOrder), ctrl.createOrder);
+  router.post('/orders', denyAgentPlayer('deposit'), requireDepositEmail(deps.models), writeLimiter, validate(v.createOrder), ctrl.createOrder);
 
   /**
    * @legacy POST /p2p/create-sell-order

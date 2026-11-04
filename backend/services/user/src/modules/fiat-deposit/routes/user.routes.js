@@ -4,6 +4,7 @@ const { Router } = require('express');
 const multer = require('multer');
 const { validate, refuseCustomCurrencies, noQuery } = require('@ibitplay/common');
 const { denyAgentPlayer } = require('@ibitplay/auth');
+const { requireDepositEmail } = require('../../email/depositGate');
 
 const v = require('../fiatDeposit.validators');
 const { MAX_SCREENSHOT_BYTES } = require('../fiatDeposit.constants');
@@ -29,7 +30,7 @@ module.exports = function userRoutes(deps) {
 
   router.use(refuseCustomCurrencies('DEPOSIT'));
 
-  router.post('/', denyAgentPlayer('deposit'), upload.single('screenshot'), validate(v.create), ctrl.create);
+  router.post('/', denyAgentPlayer('deposit'), requireDepositEmail(deps.models), upload.single('screenshot'), validate(v.create), ctrl.create);
   router.get('/', validate(v.listMine), ctrl.listMine);
   router.get('/:depositId', noQuery(), validate(v.depositParam), ctrl.getMine);
   router.get('/:depositId/screenshot', noQuery(), validate(v.depositParam), ctrl.myScreenshot);

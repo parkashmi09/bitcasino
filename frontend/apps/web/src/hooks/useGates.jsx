@@ -9,7 +9,7 @@ import { useBranding, useSiteConfig } from '@/queries/siteConfig';
 import { applyBranding, pageNameFor } from '@/lib/branding';
 import { applyCustomPalette } from '@/lib/customPalette';
 import { DEFAULT_THEME, applyTheme, readStoredTheme } from '@/lib/theme';
-import { useLanguageGuard } from '@/lib/i18n';
+import { setSiteName, useLanguageGuard } from '@/lib/i18n';
 import { subscribe } from '@/lib/socket';
 import { queryKeys } from '@/queries/keys';
 import { refreshBalances } from '@/hooks/useWallet';
@@ -127,6 +127,8 @@ export function GatesProvider({ children }) {
   const { pathname } = useLocation();
   const pageName = pageNameFor(pathname);
   useEffect(() => applyBranding(branding, pageName), [branding, pageName]);
+  // Every "Bitcasino" left in the page (text, alt/title/aria-label/placeholder) reads the owner's name: lib/i18n.js.
+  useEffect(() => setSiteName(branding?.siteName), [branding]);
 
   // An admin or owner save pushes these to every player socket: re-read flags, plan and branding
   // now instead of waiting out the hour-long staleTime (hash `services/realtime.js` PUSHES).

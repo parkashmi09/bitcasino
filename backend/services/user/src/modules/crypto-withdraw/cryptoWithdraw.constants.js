@@ -16,6 +16,8 @@ const STATUS = Object.freeze({
   APPROVED: 'Approved',
   SENT: 'Sent',
   REJECTED: 'Rejected',
+  // Handed to CCPayment (sendViaGateway); only its outcome moves it on — Sent, or Rejected with refund.
+  SENDING: 'Sending',
 });
 
 const STATUSES = Object.freeze(Object.values(STATUS));
@@ -34,7 +36,12 @@ const TRANSITIONS = Object.freeze({
   [STATUS.APPROVED]: [STATUS.SENT, STATUS.REJECTED],
   [STATUS.SENT]: [],
   [STATUS.REJECTED]: [],
+  // Not by staff: CCPayment's outcome decides (applyGatewayOutcome), or "Check with CCPayment".
+  [STATUS.SENDING]: [],
 });
+
+/** Where "Send through CCPayment" may start from: before anyone sent it by hand. */
+const SENDABLE = Object.freeze([STATUS.IN_QUEUE, STATUS.APPROVED]);
 
 /**
  * Statuses that return the held funds.
@@ -64,4 +71,4 @@ const BLOCKED_COINS = Object.freeze(['NC']);
  */
 const normaliseCoin = (coin) => String(coin ?? '').trim().toUpperCase();
 
-module.exports = { STATUS, STATUSES, TRANSITIONS, REFUNDING_STATUSES, COIN_COLUMNS, BLOCKED_COINS, normaliseCoin };
+module.exports = { STATUS, STATUSES, TRANSITIONS, SENDABLE, REFUNDING_STATUSES, COIN_COLUMNS, BLOCKED_COINS, normaliseCoin };

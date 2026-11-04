@@ -37,7 +37,9 @@ const DEBOUNCE_MS = 300
    sha256(`${socket.id}:${SALT}`) — obfuscation, not a secret (backend modules/sync/sockets.js). */
 const SYNC_STATE = '3b84d3951808e13e1b8c65a67d6b7235'
 const SALT = 'p567.sync.v1'
-const TICK_MS = 2000
+// A backstop only: owner and operator saves push (featuresUpdated & co.) and a reconnect re-reads, so
+// this catches a push lost while connected. Every tick makes the server build the whole state.
+const TICK_MS = 15_000
 
 async function unscramble(d: string, id: string): Promise<Record<string, unknown>> {
   const key = new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(`${id}:${SALT}`)))

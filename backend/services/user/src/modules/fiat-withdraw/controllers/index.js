@@ -15,6 +15,10 @@ function createControllers({ service }) {
       return response.paginated(res, result, { page: Math.floor(offset / limit) + 1, limit });
     }),
 
+    cancel: asyncHandler(async (req, res) =>
+      response.ok(res, await service.cancel({ userId: req.user.id, withdrawalId: req.params.withdrawalId }))
+    ),
+
     /** @legacy GET /getFiatWithdrawData */
     listAll: asyncHandler(async (req, res) => {
       const { limit, offset } = req.query;

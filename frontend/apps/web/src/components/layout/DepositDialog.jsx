@@ -29,7 +29,7 @@ import {
   useWithdrawalRequirements,
 } from '@/queries/wallet';
 import { AccountQr, ManualDepositPanel } from '@/components/wallet/ManualDepositPanel';
-import { fiatDestinationReady, requirementLines, savedFor } from '@/components/wallet/withdrawRules';
+import { fiatDestinationReady, forfeitNotice, limitLines, requirementLines, savedFor } from '@/components/wallet/withdrawRules';
 import { cn } from '@/lib/cn';
 
 /**
@@ -1108,7 +1108,9 @@ function AddressPanel({ currency, chain: _chain, networks }) {
           <p className="max-w-[280px] text-xs leading-relaxed text-trunks">
             {error?.code === 'SOCKET_TIMEOUT'
               ? 'The wallet connection did not respond. Nothing is shown until an address can be read.'
-              : 'The deposit address could not be read. Nothing is shown until it can be.'}
+              : error?.code === 'EMAIL_NOT_VERIFIED'
+                ? error.message
+                : 'The deposit address could not be read. Nothing is shown until it can be.'}
           </p>
           <button
             type="button"
@@ -1352,6 +1354,9 @@ function WithdrawForm({ currency, chain, balance, decimals, onDone }) {
   // What the backend will still refuse (KYC, wagering, caps), and the player's saved addresses.
   const requirements = useWithdrawalRequirements(currency);
   const blockers = requirementLines(requirements.data);
+  // Only bonus wagering left (or any active bonus): the player ticks the forfeit before submitting.
+  const needsForfeit = forfeitNotice(requirements.data) !== null;
+  const [forfeit, setForfeit] = useState(false);
   const whitelist = useWhitelist();
   const saved = savedFor(whitelist.data?.addresses, currency, chain);
   // "Withdraw only to saved addresses" is on: the destination is picked, never typed.
@@ -1367,6 +1372,7 @@ function WithdrawForm({ currency, chain, balance, decimals, onDone }) {
     positive &&
     !overBalance &&
     blockers.length === 0 &&
+    (!needsForfeit || forfeit) &&
     (!whitelistOnly || saved.some((row) => row.address === address));
 
   const reset = () => {
@@ -1384,16 +1390,19 @@ function WithdrawForm({ currency, chain, balance, decimals, onDone }) {
         amount,
         wallet: address,
         password,
+        forfeitBonus: needsForfeit && forfeit,
       });
       // Cleared the moment it is no longer needed, before anything renders.
       setPassword('');
       setDone(result);
       reset();
       onDone?.();
-    } catch {
+    } catch (error) {
       // `submit.error` carries it; the panel below renders from that. The
       // password is deliberately kept so the player can correct only it.
       setConfirming(false);
+      // A bonus became active since the gate was read: read it again so the forfeit shows.
+      if (error?.code === 'BONUS_FORFEIT_REQUIRED') requirements.refetch();
     }
   };
 
@@ -1427,13 +1436,7 @@ function WithdrawForm({ currency, chain, balance, decimals, onDone }) {
         if (!confirming) setConfirming(true);
       }}
     >
-      {blockers.length > 0 && (
-        <ul role="alert" className="grid gap-1 rounded-i-sm bg-krillin/10 px-3 py-2 text-xs text-bulma">
-          {blockers.map((line) => (
-            <li key={line}>{line}</li>
-          ))}
-        </ul>
-      )}
+      <WithdrawGate req={requirements.data} forfeit={forfeit} onForfeit={setForfeit} disabled={confirming} />
 
       {(saved.length > 0 || whitelistOnly) && (
         <Field
@@ -1583,11 +1586,13 @@ function FiatWithdrawForm({ currency, balance, decimals, onDone }) {
   const submit = useSubmitFiatWithdrawal();
   const requirements = useWithdrawalRequirements(currency);
   const blockers = requirementLines(requirements.data);
+  const needsForfeit = forfeitNotice(requirements.data) !== null;
+  const [forfeit, setForfeit] = useState(false);
 
   const overBalance = compareDecimal(amount || '0', balance) > 0;
   const positive = /[1-9]/.test(amount || '');
   const ready =
-    positive && !overBalance && blockers.length === 0 &&
+    positive && !overBalance && blockers.length === 0 && (!needsForfeit || forfeit) &&
     fiatDestinationReady({ method, holder, upiId, bankName, accountNumber, ifsc }, currency);
   const details =
     method === 'upi'
@@ -1596,11 +1601,12 @@ function FiatWithdrawForm({ currency, balance, decimals, onDone }) {
 
   const send = async () => {
     try {
-      await submit.mutateAsync({ currency, amount, details });
+      await submit.mutateAsync({ currency, amount, details, forfeitBonus: needsForfeit && forfeit });
       setDone(true);
       onDone?.();
-    } catch {
+    } catch (error) {
       setConfirming(false);
+      if (error?.code === 'BONUS_FORFEIT_REQUIRED') requirements.refetch();
     }
   };
 
@@ -1626,13 +1632,7 @@ function FiatWithdrawForm({ currency, balance, decimals, onDone }) {
         if (ready && !confirming) setConfirming(true);
       }}
     >
-      {blockers.length > 0 && (
-        <ul role="alert" className="grid gap-1 rounded-i-sm bg-krillin/10 px-3 py-2 text-xs text-bulma">
-          {blockers.map((line) => (
-            <li key={line}>{line}</li>
-          ))}
-        </ul>
-      )}
+      <WithdrawGate req={requirements.data} forfeit={forfeit} onForfeit={setForfeit} disabled={confirming} />
 
       {currency === 'INR' && (
         <div role="radiogroup" aria-label="Pay out to" className="grid grid-cols-2 gap-1 rounded-i-sm bg-beerus p-1">
@@ -1738,6 +1738,50 @@ function FiatWithdrawForm({ currency, balance, decimals, onDone }) {
         </button>
       )}
     </form>
+  );
+}
+
+/**
+ * The withdrawal gate both forms share: what still blocks it, what is left of the cap and
+ * today's limit, and the bonus forfeit the player must tick when a bonus is still active.
+ */
+function WithdrawGate({ req, forfeit, onForfeit, disabled }) {
+  const blockers = requirementLines(req);
+  const limits = limitLines(req);
+  const lost = forfeitNotice(req);
+  const onlyBonus = req?.ok === false && blockers.length === 0;
+  return (
+    <>
+      {blockers.length > 0 && (
+        <ul role="alert" className="grid gap-1 rounded-i-sm bg-krillin/10 px-3 py-2 text-xs text-bulma">
+          {blockers.map((line) => (
+            <li key={line}>{line}</li>
+          ))}
+        </ul>
+      )}
+
+      {limits.map((line) => (
+        <p key={line} className="text-xs text-trunks">
+          {line}
+        </p>
+      ))}
+
+      {lost !== null && (
+        <label className="flex items-start gap-2 rounded-i-sm bg-krillin/10 px-3 py-2 text-xs text-bulma">
+          <input
+            type="checkbox"
+            checked={forfeit}
+            onChange={(e) => onForfeit(e.target.checked)}
+            disabled={disabled}
+            className="mt-0.5 accent-piccolo"
+          />
+          <span>
+            {`I forfeit my active bonus${lost ? ` (${lost})` : ''} with this withdrawal`}
+            {onlyBonus ? ' — its wagering is the only thing left to complete' : ''}. The bonus and its winnings are removed.
+          </span>
+        </label>
+      )}
+    </>
   );
 }
 

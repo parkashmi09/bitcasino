@@ -131,6 +131,8 @@ const myHistory = {
       category: z.enum(BET_CATEGORIES).optional(),
       /** One coin, any case (`bets.coin` is stored lower-case). */
       currency: z.string().trim().regex(/^[A-Za-z][A-Za-z0-9]{1,9}$/).transform((c) => c.toUpperCase()).optional(),
+      /** One game: the `game_uid` a row carries (the game page's Live Stats). */
+      game: z.string().trim().min(1).max(120).optional(),
     })
     .strict(),
 };

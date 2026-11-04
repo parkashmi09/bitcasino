@@ -6,13 +6,13 @@ import { Loader2Icon } from 'lucide-react'
 
 import { toast } from 'sonner'
 
+import { BrandName } from '@/components/shared/BrandMark'
 import Logo from '@/components/shared/Logo'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Field, FieldError, FieldGroup, FieldLabel } from '@/components/ui/field'
 import { Input } from '@/components/ui/input'
-import { siteConfig } from '@/configs/site'
 import { errorMessage, request } from '@/lib/api/client'
 import { check, cleanErrors } from '@/lib/validate'
 
@@ -61,7 +61,7 @@ const BranchLogin = () => {
           <Logo className='justify-center gap-3 [&>*:first-child]:size-10' />
           <div>
             <CardTitle className='text-heading mb-1 text-3xl font-normal'>Branch sign in</CardTitle>
-            <CardDescription>Branch panel of {siteConfig.name}</CardDescription>
+            <CardDescription>Branch panel of <BrandName /></CardDescription>
           </div>
         </CardHeader>
         <CardContent>

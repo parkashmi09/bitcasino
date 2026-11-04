@@ -1,6 +1,8 @@
+import { useEffect } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api';
 import { ENDPOINTS } from '@/lib/endpoints';
+import { subscribe } from '@/lib/socket';
 import { queryKeys } from '@/queries/keys';
 import { useAuth } from '@/auth/AuthProvider';
 
@@ -175,6 +177,17 @@ export const KYC_MAX_BYTES = 5 * 1024 * 1024;
  */
 export function useKycStatus() {
   const { status } = useAuth();
+  const client = useQueryClient();
+
+  // An admin's KYC review arrives as a `notificationsUnread` push ({ notification: { kind } }): re-read then.
+  useEffect(() => {
+    if (status !== 'authenticated') return undefined;
+    return subscribe('notificationsUnread', (frame) => {
+      if (String(frame?.notification?.kind ?? '').startsWith('kyc_')) {
+        client.invalidateQueries({ queryKey: queryKeys.account.kyc() });
+      }
+    });
+  }, [client, status]);
 
   return useQuery({
     queryKey: queryKeys.account.kyc(),

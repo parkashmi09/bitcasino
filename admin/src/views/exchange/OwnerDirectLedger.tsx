@@ -19,7 +19,11 @@ const TYPE_LABEL: Record<string, string> = {
   whitelabel_topup: 'From parent site',
   to_agent_system: 'Moved to Agent System',
   to_whitelabel: 'Sent to whitelabel',
-  whitelabel_refund: 'Whitelabel refund'
+  whitelabel_refund: 'Whitelabel refund',
+  gateway_deposit: 'Gateway deposit',
+  gateway_withdrawal: 'Gateway withdrawal',
+  gateway_charge: 'Gateway charges',
+  gateway_refund: 'Gateway withdrawal failed — returned'
 }
 
 const columns: Column<DirectLedgerRow>[] = [

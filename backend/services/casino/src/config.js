@@ -8,6 +8,7 @@ const {
   dbEnvShape,
   jwtEnvShape,
   adminJwtEnvShape,
+  secretEncryptionEnvShape,
   internalKeysEnvShape,
   serviceDiscoveryEnvShape,
 } = require('@ibitplay/common');
@@ -19,6 +20,9 @@ const config = loadEnv(
     ...dbEnvShape,
     ...jwtEnvShape,
     ...adminJwtEnvShape,
+    // The site's secret box key: the whitelabel hub link's secrets are sealed with it (wl-hub).
+    // Undeclared, `loadEnv` drops it and the box falls back to another key — every hub call 401s.
+    ...secretEncryptionEnvShape,
     // Identify this service to the others — see `internalAcl.js`.
     ...internalKeysEnvShape,
     ...serviceDiscoveryEnvShape,

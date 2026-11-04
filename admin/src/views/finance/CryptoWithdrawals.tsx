@@ -4,7 +4,7 @@ import { useState } from 'react'
 
 import Link from 'next/link'
 
-import { EyeIcon, GavelIcon } from 'lucide-react'
+import { EyeIcon, GavelIcon, RefreshCwIcon, SendIcon } from 'lucide-react'
 
 import Can from '@/components/shared/Can'
 import DataTable, { type Column } from '@/components/shared/DataTable'
@@ -93,6 +93,62 @@ const Decide = ({ row }: { row: CryptoWithdrawalRow }) => {
   )
 }
 
+/** Where "Send via CCPayment" may start (`cryptoWithdraw.constants.SENDABLE`); it needs the network. */
+const SENDABLE = ['In Queue', 'Approved']
+
+const INVALIDATE = [['paged', LIST], ['api', SUMMARY], ['api', 'admin/reports/finance-stats']]
+
+/** `POST …/:id/send-ccpayment { transactionPassword }` — CCPayment sends the coin; its webhook finishes it. */
+const SendCcpayment = ({ row }: { row: CryptoWithdrawalRow }) => {
+  const [transactionPassword, setTransactionPassword] = useState('')
+
+  const send = useApiMutation({
+    fn: () => api.post<{ uncertain: boolean }>(`${LIST}/${row.id}/send-ccpayment`, { transactionPassword }),
+    invalidate: INVALIDATE,
+    success: r =>
+      r.uncertain
+        ? `Withdrawal #${row.id}: no answer from CCPayment yet — it stays Sending; use Check with CCPayment`
+        : `Withdrawal #${row.id} sent to CCPayment — it turns Sent when the coin is on-chain`
+  })
+
+  return (
+    <FormDialog
+      trigger={
+        <Button size='sm' variant='outline'>
+          <SendIcon /> CCPayment
+        </Button>
+      }
+      title={`Send withdrawal #${row.id} via CCPayment`}
+      description={
+        <>
+          CCPayment sends <Money value={row.amount} currency={row.coin} /> on {row.chain} to <span className='font-mono'>{row.wallet}</span> from your CCPayment balance. The
+          network fee comes out of the amount. If CCPayment fails it, the request is rejected and the user refunded automatically.
+        </>
+      }
+      submitLabel='Send'
+      validate={() => ({ transactionPassword: transactionPassword ? undefined : 'Transaction password is required' })}
+      onSubmit={() => send.mutateAsync()}
+    >
+      <TextField id={`cw-cc-${row.id}`} name='transactionPassword' label={<TxnPasswordLabel />} type='password' autoComplete='new-password' required value={transactionPassword} onChange={e => setTransactionPassword(e.target.value)} />
+    </FormDialog>
+  )
+}
+
+/** A withdrawal still Sending (its webhook never came): ask CCPayment now. */
+const CheckCcpayment = ({ row }: { row: CryptoWithdrawalRow }) => {
+  const check = useApiMutation({
+    fn: () => api.post<{ pending?: boolean; status?: string }>(`${LIST}/${row.id}/check-ccpayment`),
+    invalidate: INVALIDATE,
+    success: r => (r.pending ? `Withdrawal #${row.id} is still being processed by CCPayment` : `Withdrawal #${row.id}: ${r.status}`)
+  })
+
+  return (
+    <Button size='sm' variant='outline' disabled={check.isPending} onClick={() => check.mutate()}>
+      <RefreshCwIcon /> Check
+    </Button>
+  )
+}
+
 const Detail = ({ row }: { row: CryptoWithdrawalRow }) => (
   <ViewDialog
     trigger={
@@ -138,6 +194,16 @@ const columns: Column<CryptoWithdrawalRow>[] = [
     cell: r => (
       <div className='flex justify-end gap-1' onClick={stop}>
         <Detail row={r} />
+        {SENDABLE.includes(r.status) && r.chain ? (
+          <Can permission='withdrawals:approve'>
+            <SendCcpayment row={r} />
+          </Can>
+        ) : null}
+        {r.status === 'Sending' ? (
+          <Can permission='withdrawals:approve'>
+            <CheckCcpayment row={r} />
+          </Can>
+        ) : null}
         {NEXT[r.status]?.length ? (
           <Can permission='withdrawals:approve'>
             <Decide row={r} />
@@ -176,7 +242,7 @@ const CryptoWithdrawals = () => {
 
   return (
     <div>
-      <PageHeader title='Crypto withdrawals' description='On-chain payout requests. Approve → send coin → mark Sent with the hash. Rejecting returns the held balance.' />
+      <PageHeader title='Crypto withdrawals' description='On-chain payout requests. Send via CCPayment (it marks Sent itself), or approve → send coin by hand → mark Sent with the hash. Rejecting returns the held balance.' />
       <FilterBar filters={filters} className='mb-4' />
       <ListStatsTabs stats={<>
           {can('reports:read') && (

@@ -140,6 +140,14 @@ test('preferences', async (t) => {
     assert.strictEqual(after.hideBalance, true, 'untouched');
   });
 
+  await t.test('every language of the player site picker can be saved', async () => {
+    const userId = await seed();
+    for (const language of ['en-IN', 'fr', 'fil', 'ja', 'ru']) {
+      const saved = await service.update({ userId, language });
+      assert.strictEqual(saved.language, language);
+    }
+  });
+
   await t.test('an unknown theme or language is refused', async () => {
     const userId = await seed();
 

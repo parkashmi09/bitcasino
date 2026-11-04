@@ -56,7 +56,7 @@ export function googleErrorMessage(code, fallback = 'Google sign-in did not comp
   return MESSAGES[code] || fallback;
 }
 
-/** True while the owner's `google_login` switch is on. A failed status read hides the button. */
+/** True while the owner's `google_signin` policy is on (Features & plan). A failed status read hides the button. */
 export function useGoogleLoginEnabled() {
   const { data } = useQuery({
     queryKey: queryKeys.site.googleLogin(),

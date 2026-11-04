@@ -3,6 +3,7 @@
 const { GamesService } = require('../games/games.service');
 const { GisService } = require('./gis.service');
 const { SlotegratorClient } = require('./provider/slotegrator');
+const { HubProvider } = require('../wl-hub/hubProvider');
 
 /**
  * Assemble the GIS service.
@@ -21,7 +22,8 @@ const CLIENTS = new WeakMap();
 function providerFor(deps) {
   if (CLIENTS.has(deps)) return CLIENTS.get(deps);
 
-  const client = new SlotegratorClient({
+  // A whitelabel copy: Slotegrator runs on the parent's account (modules/wl-hub).
+  const client = deps.config.WHITELABEL_MODE ? new HubProvider(deps) : new SlotegratorClient({
     baseUrl: deps.config.GIS_BASE_URL,
     merchantId: deps.config.GIS_MERCHANT_ID,
     merchantKey: deps.config.GIS_MERCHANT_KEY,

@@ -302,7 +302,8 @@ class FiatWithdrawService {
         );
       }
 
-      await row.update({ status }, { transaction });
+      // The reason is kept: the player's history shows why a request was rejected.
+      await row.update({ status, ...(comment ? { admin_comment: comment } : {}) }, { transaction });
       player = { userId: row.uid, amount: row.amount, currency: row.currency };
 
       this.logger?.info(
@@ -320,6 +321,44 @@ class FiatWithdrawService {
     });
     void notifyPlayer(player.userId, withdrawalNotice('fiat-withdraw', withdrawalId, status, player, comment));
     return result;
+  }
+
+  /**
+   * The player cancels their own request while it is still In Queue: the held amount goes back to
+   * the balance and the row becomes Cancelled (final). Once staff have decided it (Approved, Paid,
+   * Rejected) it is theirs: NOT_CANCELLABLE. The row lock serialises a cancel against a staff
+   * decision, and the refund shares the rejection's idempotency key, so one withdrawal is refunded
+   * at most once whichever path returns it. The ledger row is the audit trail (meta.refType
+   * FIAT_WITHDRAWAL, refId, "cancelled by the player").
+   */
+  async cancel({ userId, withdrawalId }) {
+    return this.db.transaction(async (transaction) => {
+      const row = await this.models.FiatWithdrawals.findOne({
+        where: { id: withdrawalId, uid: userId },
+        transaction,
+        lock: transaction.LOCK.UPDATE,
+      });
+      if (!row) throw errors.NOT_FOUND({ withdrawalId });
+      if (row.status !== WITHDRAW_STATUS.IN_QUEUE) throw errors.NOT_CANCELLABLE({ withdrawalId, status: row.status });
+
+      const refund = await this.wallet.credit(
+        {
+          userId: row.uid,
+          currency: row.currency,
+          amount: money.toDecimalString(money.toMinor(row.amount)),
+          reason: REASON.WITHDRAWAL_REVERSAL,
+          idempotencyKey: `fiat-withdraw-refund:${withdrawalId}`,
+          refType: 'FIAT_WITHDRAWAL',
+          refId: String(withdrawalId),
+          description: `Withdrawal #${withdrawalId} cancelled by the player — funds returned`,
+        },
+        { sourceService: 'user-service', transaction }
+      );
+      await row.update({ status: WITHDRAW_STATUS.CANCELLED }, { transaction });
+
+      this.logger?.info({ withdrawalId, userId, refundLedgerId: refund?.ledgerId ?? null }, 'Fiat withdrawal cancelled by the player');
+      return { ...this.#present(row.get({ plain: true })), newBalance: refund?.newBalance ?? null };
+    });
   }
 
   /**
@@ -376,6 +415,8 @@ class FiatWithdrawService {
       bankName: row.bank_name,
       upiId: row.upi_id,
       status: row.status,
+      // Staff's reason for the decision (a rejection's reason), or null.
+      comment: row.admin_comment ?? null,
       requestedAt: row.date,
       ...(forStaff ? { accountNumber: row.account_number, ifscCode: row.ifsc_code } : {}),
     };

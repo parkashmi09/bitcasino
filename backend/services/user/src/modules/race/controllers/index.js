@@ -43,13 +43,13 @@ function createControllers({ service }) {
 
     myRewards: asyncHandler(async (req, res) => {
       const result = await service.myRewards({ ...req.query, userId: req.user.id });
-      return response.paginated(res, result.rows, {
-        ...page(req.query),
-        total: result.total,
-        unclaimedTotal: result.unclaimedTotal,
-        unclaimedCount: result.unclaimedCount,
-        currency: result.currency,
-      });
+      // The unclaimed totals are extra meta: `paginated`'s pagination object keeps only page/limit/total.
+      return response.paginated(
+        res,
+        result.rows,
+        { ...page(req.query), total: result.total },
+        { unclaimedTotal: result.unclaimedTotal, unclaimedCount: result.unclaimedCount, currency: result.currency }
+      );
     }),
 
     claim: asyncHandler(async (req, res) =>

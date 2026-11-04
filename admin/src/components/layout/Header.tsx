@@ -13,14 +13,13 @@ import { MaximizeIcon, MinimizeIcon, SearchIcon } from 'lucide-react'
 import ModeToggle from '@/components/layout/ModeToggle'
 import OwnerBalance from '@/components/layout/OwnerBalance'
 import PaletteSync from '@/components/layout/PaletteSync'
-import BrandMark from '@/components/shared/BrandMark'
+import BrandMark, { BrandName } from '@/components/shared/BrandMark'
 import ProfileDropdown from '@/components/shared/ProfileDropdown'
 import { Button } from '@/components/ui/button'
 import { SidebarTrigger } from '@/components/ui/sidebar'
 
 // Config Imports
 import { navItems, type MenuSubItem } from '@/configs/navConfig'
-import { siteConfig } from '@/configs/site'
 import { useNavVisible } from '@/hooks/use-nav-visible'
 
 /**
@@ -113,7 +112,9 @@ const Header = () => {
           {/* On a phone the sidebar is a sheet, so the header carries the brand as Luno does. */}
           <span className='flex min-w-0 items-center gap-2 md:hidden'>
             <BrandMark className='size-7' />
-            <span className='text-heading truncate text-base font-semibold'>{siteConfig.name}</span>
+            <span className='text-heading truncate text-base font-semibold'>
+              <BrandName />
+            </span>
           </span>
           <MenuSearch />
         </div>

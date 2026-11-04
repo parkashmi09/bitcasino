@@ -3,6 +3,7 @@
 const { Router } = require('express');
 const { validate, refuseCustomCurrencies, noBody, noQuery } = require('@ibitplay/common');
 const { denyAgentPlayer } = require('@ibitplay/auth');
+const { requireDepositEmail } = require('../../email/depositGate');
 
 const v = require('../paymentOrders.validators');
 const { PaymentOrdersService } = require('../paymentOrders.service');
@@ -21,7 +22,7 @@ module.exports = function userRoutes(deps) {
 
   router.get('/methods/:provider', noQuery(), validate(v.providerParam), ctrl.availableMethods);
 
-  router.post('/deposits', denyAgentPlayer('deposit'), validate(v.createDeposit), ctrl.createDeposit);
+  router.post('/deposits', denyAgentPlayer('deposit'), requireDepositEmail(deps.models), validate(v.createDeposit), ctrl.createDeposit);
   router.post('/withdrawals', denyAgentPlayer('withdraw'), validate(v.createWithdrawal), ctrl.createWithdrawal);
 
   router.get('/orders', validate(v.listOrders), ctrl.listOrders);

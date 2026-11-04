@@ -229,6 +229,13 @@ export async function readForEdit(): Promise<EditableDoc> {
 
   for (const f of FEATURE_CATALOGUE) {
     if (f.key in stored) continue
+
+    // The one Google switch replaced the `google_login` flag: a saved flag off stays off.
+    if (f.key === 'google_signin' && doc.flags?.google_login === false) {
+      variants[f.key] = 'off'
+      continue
+    }
+
     const fromTemplate = template?.variants[f.key]
     const fallback = f.policy ? (f.defaultVariant ?? f.variants[0].key) : 'none'
 
@@ -366,7 +373,9 @@ export function saveEntitlements(
     let branding = current.branding
 
     if (input.branding !== undefined) {
-      const problem = brandingProblem(input.branding)
+      // Judge the merged result, so a save that sends only `{ mark }` is not refused for a site name it didn't touch.
+      const partial = input.branding && typeof input.branding === 'object' && !Array.isArray(input.branding)
+      const problem = brandingProblem(partial ? { ...current.branding, ...input.branding } : input.branding)
 
       if (problem) throw new HttpError(422, 'VALIDATION_ERROR', problem)
       branding = cleanBranding({ ...current.branding, ...input.branding })

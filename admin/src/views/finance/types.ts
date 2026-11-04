@@ -96,8 +96,12 @@ export type FiatWithdrawalRow = {
   requestedAt?: string | null
   accountNumber?: string | null
   ifscCode?: string | null
+  username?: string | null
+  /** Staff's reason for the decision (a rejection's reason). */
+  comment?: string | null
 }
 
+/** What staff can set. A player can also cancel a request still In Queue ('Cancelled', final). */
 export const FIAT_WITHDRAW_STATUSES = ['In Queue', 'Approved', 'Rejected', 'Paid'] as const
 
 export type CryptoWithdrawalRow = {
@@ -115,7 +119,8 @@ export type CryptoWithdrawalRow = {
   decidedAt?: string | null
 }
 
-export const CRYPTO_WITHDRAW_STATUSES = ['In Queue', 'Approved', 'Sent', 'Rejected'] as const
+// `Sending` = handed to CCPayment; its webhook moves it to Sent or Rejected (refunded).
+export const CRYPTO_WITHDRAW_STATUSES = ['In Queue', 'Approved', 'Sending', 'Sent', 'Rejected'] as const
 
 export type CryptoWithdrawSummary = { status: string; coin: string; count: number; total: string }
 

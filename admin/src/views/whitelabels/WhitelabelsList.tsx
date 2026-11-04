@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 
-import { EyeIcon, PlusIcon } from 'lucide-react'
+import { ChartColumnIcon, EyeIcon, PlusIcon } from 'lucide-react'
 
 import DataTable, { type Column } from '@/components/shared/DataTable'
 import DateTime from '@/components/shared/DateTime'
@@ -52,9 +52,16 @@ const WhitelabelsList = () => {
       header: '',
       align: 'right',
       cell: r => (
-        <Button variant='ghost' size='icon-sm' aria-label='Open' title='Open' nativeButton={false} render={<Link href={`/whitelabels/${r.id}`} />}>
-          <EyeIcon />
-        </Button>
+        <div className='flex justify-end gap-1'>
+          {!['queued', 'creating'].includes(r.status) && (
+            <Button variant='ghost' size='sm' nativeButton={false} render={<Link href={`/whitelabels/report?id=${r.id}`} />}>
+              <ChartColumnIcon /> Report
+            </Button>
+          )}
+          <Button variant='ghost' size='icon-sm' aria-label='Open' title='Open' nativeButton={false} render={<Link href={`/whitelabels/${r.id}`} />}>
+            <EyeIcon />
+          </Button>
+        </div>
       )
     }
   ]
@@ -65,9 +72,14 @@ const WhitelabelsList = () => {
         title='Whitelabels'
         description='Full copies of this site on their own domains. Each is run by its company, whose balance comes only from your transfers.'
         actions={
-          <Button nativeButton={false} render={<Link href='/whitelabels/new' />}>
-            <PlusIcon /> New whitelabel
-          </Button>
+          <div className='flex gap-2'>
+            <Button variant='outline' nativeButton={false} render={<Link href='/whitelabels/report' />}>
+              Revenue share report
+            </Button>
+            <Button nativeButton={false} render={<Link href='/whitelabels/new' />}>
+              <PlusIcon /> New whitelabel
+            </Button>
+          </div>
         }
       />
       <DataTable

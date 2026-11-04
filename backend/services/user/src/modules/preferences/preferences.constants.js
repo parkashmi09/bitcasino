@@ -46,6 +46,11 @@ const THEMES = Object.freeze(['dark', 'light']);
  * Legacy stored whatever string arrived, so `userconfig.language` holds values
  * no client has a translation for and silently falls back for.
  */
-const LANGUAGES = Object.freeze(['en', 'hi', 'pt', 'es', 'bn', 'ne', 'ur']);
+const LANGUAGES = Object.freeze([
+  'en', 'hi', 'pt', 'es', 'bn', 'ne', 'ur',
+  // roobet: the rest of the player site's picker (`frontend/src/lib/i18n.js` LANGUAGES), so a
+  // signed-in player's choice can be saved to the account.
+  'en-IN', 'fr', 'sr', 'tr', 'ar', 'cs', 'ja', 'fil', 'fa', 'id', 'fi', 'zh', 'vi', 'th', 'ko', 'ru',
+]);
 
 module.exports = { DEFAULTS, THEMES, LANGUAGES };

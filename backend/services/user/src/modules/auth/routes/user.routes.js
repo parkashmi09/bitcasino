@@ -1,7 +1,7 @@
 'use strict';
 
 const { Router } = require('express');
-const { validate, noBody, noQuery } = require('@ibitplay/common');
+const { validate, noBody, noQuery, createRateLimiter } = require('@ibitplay/common');
 
 const v = require('../auth.validators');
 const refreshCookie = require('../refreshCookie');
@@ -18,7 +18,15 @@ module.exports = function userRoutes(deps) {
   router.get('/me', noQuery(), ctrl.me);
   router.get('/sessions', noQuery(), ctrl.sessions);
   router.post('/logout', refreshCookie.fromCookie, validate(v.logout), ctrl.logout);
-  // Idle logout's one check, 5 minutes after sign-in (the player site calls it at login's `idleCheckAt`).
+  // Idle logout: the player site's heartbeat while the player interacts (it sends ≤ 1 a minute;
+  // background polling never calls it), and the check it makes once its own idle timer runs out.
+  const activityLimiter = createRateLimiter({
+    name: 'auth:activity',
+    windowMs: 60_000,
+    max: 6,
+    enabled: deps.config.RATE_LIMIT_ENABLED !== false,
+  });
+  router.post('/activity', noBody(), activityLimiter, ctrl.activity);
   router.post('/idle-check', noBody(), ctrl.idleCheck);
   router.post('/change-password', validate(v.changePassword), ctrl.changePassword);
   /**

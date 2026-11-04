@@ -127,6 +127,8 @@ const updateWelcomeBonusSettings = {
         })
         .strict()
         .optional(),
+      // Checked by the service (403 TXN_PASSWORD_REQUIRED / _INVALID), as the other money settings are.
+      transactionPassword: z.string().min(1).max(200).optional(),
       // hash.game's deposit bonus program (migration 136).
       depositProgram: z
         .object({
@@ -327,6 +329,16 @@ const updateOperatorSettings = {
 const userParam = { params: z.object({ userId: z.coerce.number().int().positive() }) };
 
 /**
+ * Languages a player's preferences may hold. Mirrors `preferences.constants.js` `LANGUAGES` in
+ * user-service (not imported across services, as with the currencies above): free text here let
+ * staff save a code the player's own route refuses and no client has strings for.
+ */
+const PLAYER_LANGUAGES = [
+  'en', 'hi', 'pt', 'es', 'bn', 'ne', 'ur',
+  'en-IN', 'fr', 'sr', 'tr', 'ar', 'cs', 'ja', 'fil', 'fa', 'id', 'fi', 'zh', 'vi', 'th', 'ko', 'ru',
+];
+
+/**
  * A player's own preferences. UI state only — nothing here can lock an account
  * or change a limit, which is why it is not behind the transaction password
  * that guards `/lords/user-setting/*`.
@@ -339,7 +351,7 @@ const updateUserSettings = {
       push_notifications: z.boolean().optional(),
       hide_balance: z.boolean().optional(),
       theme: z.enum(['dark', 'light']).optional(),
-      language: z.string().trim().min(2).max(8).optional(),
+      language: z.enum(PLAYER_LANGUAGES).optional(),
     })
     .strict()
     .refine((v) => Object.keys(v).length > 0, { message: 'give at least one setting to change' }),

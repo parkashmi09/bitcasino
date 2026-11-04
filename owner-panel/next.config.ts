@@ -9,6 +9,9 @@ const nextConfig: NextConfig = {
   env: { NEXT_PUBLIC_BASE_PATH: basePath },
   reactStrictMode: true,
 
+  // Dev only: opened at 127.0.0.1 instead of localhost, Next blocked its dev resources and the panel never hydrated.
+  allowedDevOrigins: ['127.0.0.1'],
+
   // Staff screens are never framed by another site (clickjacking), and the browser never guesses a
   // file's type. CSP carries only `frame-ancestors`: scripts, games and embeds are not restricted
   // here (docs/SECURITY-CHECKLIST.md #18).

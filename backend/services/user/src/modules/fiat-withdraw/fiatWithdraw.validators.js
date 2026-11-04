@@ -3,7 +3,7 @@
 const { z } = require('@ibitplay/common');
 const { currency } = require('../exchange-rate/exchangeRate.validators');
 const { moneyAmount } = require('../wallet/wallet.validators');
-const { WITHDRAW_STATUSES } = require('./fiatWithdraw.constants');
+const { WITHDRAW_STATUSES, STAFF_STATUSES } = require('./fiatWithdraw.constants');
 
 /** Where-the-money-goes fields that a `bankAccountId` replaces. */
 const DESTINATION_FIELDS = ['accountHolderName', 'bankName', 'accountNumber', 'ifscCode', 'upiId'];
@@ -102,7 +102,7 @@ const updateStatus = {
   body: z
     .object({
       withdrawalId: z.coerce.number().int().positive(),
-      status: z.enum(WITHDRAW_STATUSES),
+      status: z.enum(STAFF_STATUSES),
       comment: z.string().trim().max(500).optional(),
       // Checked by admin-service (required): paying out or refunding moves money.
       transactionPassword: z.string().max(200).optional(),
@@ -110,4 +110,6 @@ const updateStatus = {
     .strict(),
 };
 
-module.exports = { create, listMine, listAll, updateStatus };
+const withdrawalParam = { params: z.object({ withdrawalId: z.coerce.number().int().positive() }) };
+
+module.exports = { create, listMine, listAll, updateStatus, withdrawalParam };

@@ -346,14 +346,25 @@ export const navItems: NavItem[] = [
   },
 
   // Whitelabel copies of this site (admin modules/whitelabels), Super Admin only — never on a copy itself.
+  // On a copy: the company's own revenue-share statement (admin modules/whitelabel-statement).
   ...(siteConfig.whitelabel
-    ? []
+    ? [
+        {
+          groupLabel: 'Whitelabel',
+          groupIcon: 'Globe',
+          collapsible: true,
+          items: [{ icon: 'ChartColumn', label: 'Revenue share', href: '/revenue-share', permission: 'reports:read', direct: true } as MenuItem]
+        } as NavItem
+      ]
     : [
         {
           groupLabel: 'Whitelabel',
           groupIcon: 'Globe',
           collapsible: true,
-          items: [{ icon: 'Globe', label: 'Whitelabels', href: '/whitelabels', activePath: '/whitelabels', permission: 'reports:read', direct: true, policy: 'whitelabel' } as MenuItem]
+          items: [
+            { icon: 'Globe', label: 'Whitelabels', href: '/whitelabels', activePath: '/whitelabels', permission: 'reports:read', direct: true, policy: 'whitelabel' } as MenuItem,
+            { icon: 'ChartColumn', label: 'Revenue share report', href: '/whitelabels/report', permission: 'reports:read', direct: true, policy: 'whitelabel' } as MenuItem
+          ]
         } as NavItem
       ]),
   {
@@ -368,7 +379,7 @@ export const navItems: NavItem[] = [
     groupIcon: 'Trophy',
     collapsible: true,
     items: [
-      { icon: 'ChartColumn', label: 'Market Analysis', href: '/exchange/market-analysis', ownerFlag: 'sportsexchange', permission: 'sports:read' },
+      { icon: 'ChartColumn', label: 'Market Analysis', href: '/exchange/market-analysis', ownerFlag: 'sportsexchange', permission: 'reports:read' },
       { icon: 'Radio', label: 'Current Bets', href: '/exchange/reports/current-bets', ownerFlag: 'sportsexchange', permission: 'reports:read' },
       { icon: 'RotateCw', label: 'Turn Over', href: '/exchange/reports/turnover', ownerFlag: 'sportsexchange', permission: 'reports:read' },
 
@@ -547,8 +558,10 @@ export const navItems: NavItem[] = [
     items: [
       { icon: 'ToggleRight', label: 'Features', href: '/site-config/features', permission: 'config:read' },
       { icon: 'Palette', label: 'Branding', href: '/site-config/branding', permission: 'config:read' },
+      { icon: 'Newspaper', label: 'Content', href: '/site-config/content', permission: 'config:read' },
       { icon: 'Flag', label: 'Feature flags', href: '/site-config/flags', permission: 'config:read' },
       { icon: 'Gauge', label: 'Limits and policy', href: '/site-config/limits', permission: 'config:read' },
+      { icon: 'Mail', label: 'Email', href: '/site-config/email', permission: 'config:read' },
     ]
   },
   {

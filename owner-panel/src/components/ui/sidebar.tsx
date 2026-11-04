@@ -14,7 +14,7 @@ import { Separator } from '@/components/ui/separator'
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@/components/ui/sheet'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
-import { useIsMobile } from '@/hooks/use-mobile'
+import { useHydrated, useIsMobile } from '@/hooks/use-mobile'
 import { cn } from '@/lib/utils'
 
 const SIDEBAR_COOKIE_NAME = 'sidebar_state'
@@ -39,11 +39,19 @@ const SidebarContext = React.createContext<SidebarContextProps | null>(null)
 function useSidebar() {
   const context = React.useContext(SidebarContext)
 
+  // `isMobile` comes from the provider, which may already have hydrated and flipped to the
+  // real viewport by the time a consumer behind a <Suspense> boundary hydrates. Gate it per
+  // consumer so every component renders the server (desktop) markup during its own hydration.
+  const hydrated = useHydrated()
+
   if (!context) {
     throw new Error('useSidebar must be used within a SidebarProvider.')
   }
 
-  return context
+  return React.useMemo(
+    () => (hydrated || !context.isMobile ? context : { ...context, isMobile: false }),
+    [hydrated, context]
+  )
 }
 
 function SidebarProvider({

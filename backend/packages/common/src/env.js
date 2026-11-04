@@ -194,6 +194,17 @@ const httpEnvShape = {
    */
   WHITELABEL_MODE: coercers.bool(false),
   WHITELABEL_LINK_KEY: coercers.optionalStr(),
+
+  /**
+   * A copy's hub link to its parent (common/hubAuth): the parent's user-service URL on this
+   * machine, the copy's API key and secret. Gateway payments (and later casino) run through the
+   * parent. A value the parent pushed over the link (whitelabel_settings.hub) wins over these.
+   */
+  PARENT_HUB_URL: coercers.optionalStr(),
+  PARENT_HUB_KEY: coercers.optionalStr(),
+  PARENT_HUB_SECRET: coercers.optionalStr(),
+  // The parent's casino-service on this machine (Slotegrator and original games run through it).
+  PARENT_HUB_CASINO_URL: coercers.optionalStr(),
 };
 
 /**

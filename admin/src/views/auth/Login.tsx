@@ -12,7 +12,7 @@ import { EyeIcon, EyeOffIcon, Loader2Icon } from 'lucide-react'
 import { toast } from 'sonner'
 
 // Component Imports
-import { BrandLogo } from '@/components/shared/BrandMark'
+import { BrandLogo, BrandName } from '@/components/shared/BrandMark'
 import Logo from '@/components/shared/Logo'
 import OutlinedField from '@/components/shared/OutlinedField'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
@@ -179,7 +179,9 @@ const Login = () => {
       <div className='hidden flex-1 flex-col justify-between p-[100px] pt-16 text-white lg:flex'>
         <BrandLogo fallback={<Logo className='gap-3 [&_span]:text-[28px] [&_span]:font-semibold [&_span]:text-white [&>*:first-child]:size-11' />} />
         <div>
-          <h1 className='text-(--brand-lime) text-[72px] leading-[1.15] font-bold uppercase'>{siteConfig.name}</h1>
+          <h1 className='text-(--brand-lime) text-[72px] leading-[1.15] font-bold uppercase'>
+            <BrandName />
+          </h1>
           <p className='mt-4 max-w-xl text-[36px] leading-tight font-semibold uppercase'>{siteConfig.tagline}</p>
         </div>
       </div>
@@ -190,7 +192,13 @@ const Login = () => {
             <div>
               <CardTitle className='text-primary mb-2 text-[36px] leading-[54px] font-bold'>{issuedTxn ? 'Welcome' : 'Sign in'}</CardTitle>
               <CardDescription className='text-muted-foreground text-base font-medium'>
-                {issuedTxn ? 'Note your transaction password, then sign in with your new password.' : `Staff sign-in to ${siteConfig.name}`}
+                {issuedTxn ? (
+                  'Note your transaction password, then sign in with your new password.'
+                ) : (
+                  <>
+                    Staff sign-in to <BrandName />
+                  </>
+                )}
               </CardDescription>
             </div>
           </CardHeader>
