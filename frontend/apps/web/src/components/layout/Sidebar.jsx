@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Link, NavLink } from 'react-router-dom';
+import { Link, NavLink, useLocation } from 'react-router-dom';
 import { LanguageSelect } from '@/components/ui/LanguageSelect';
 import { useLanguageLabel } from '@/lib/i18n';
 import { Icon } from '@/components/ui/Icon';
@@ -227,6 +227,9 @@ function PlayerShortcuts({ recentsCount, favouritesCount, onNavigate }) {
 
 function NavItem({ item, onNavigate }) {
   const [tip, handlers] = useRailTip();
+  const { pathname } = useLocation();
+  // `/sports/book` sits under `/sports`: the Sportsbook row owns it, not Sports.
+  const ownedElsewhere = item.to === '/sports' && pathname.startsWith('/sports/book');
 
   return (
     <NavLink
@@ -234,7 +237,7 @@ function NavItem({ item, onNavigate }) {
       onClick={onNavigate}
       {...handlers}
       className={({ isActive }) =>
-        cn(ROW, isActive ? 'bg-jiren text-piccolo' : 'text-bulma hover:bg-heles')
+        cn(ROW, isActive && !ownedElsewhere ? 'bg-jiren text-piccolo' : 'text-bulma hover:bg-heles')
       }
     >
       <NavIcon name={item.icon} />

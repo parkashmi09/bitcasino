@@ -561,19 +561,34 @@ class JsGamesService {
     const fx = inPkr ? await pkrPerInr(this.db) : null;
     if (inPkr && !fx) throw E.UNSUPPORTED_CURRENCY({ currency: 'PKR' });
 
-    const response = await this.#upstream(() =>
-      this.v2.request('/launch', {
-        method: 'POST',
-        body: {
-          game_uid: gameUid,
-          user_id: String(userId),
-          credit_amount: inPkr ? money.toDecimalString(money.multiply(String(balance), fx)) : String(balance),
-          currency_code: inPkr ? 'PKR' : String(currencyCode).toUpperCase(),
-          language: language || 'en',
-          name: user.name,
-        },
-      })
-    );
+    const launch = (providerUserId) =>
+      this.#upstream(() =>
+        this.v2.request('/launch', {
+          method: 'POST',
+          body: {
+            game_uid: gameUid,
+            user_id: String(providerUserId),
+            credit_amount: inPkr ? money.toDecimalString(money.multiply(String(balance), fx)) : String(balance),
+            currency_code: inPkr ? 'PKR' : String(currencyCode).toUpperCase(),
+            language: language || 'en',
+            name: user.name,
+          },
+        })
+      );
+
+    let response;
+    try {
+      response = await launch(userId);
+    } catch (error) {
+      /*
+       * The provider fixes a player's currency at their first launch and refuses any other with
+       * 10004. A player who first played in USDT could then never open an INR game (the sportsbook
+       * is INR only), so INR retries under the player's INR-only provider id (see v2InrAccount).
+       */
+      const lockedToOtherCurrency = error?.code === 'JSGAMES_UPSTREAM_REJECTED' && error.details?.upstreamCode === 10004;
+      if (!lockedToOtherCurrency || settlement !== 'INR') throw error;
+      response = await launch(v2InrAccount(userId));
+    }
 
     const launchUrl = response?.data?.game_launch_url;
     const sessionToken = response?.data?.session_token;
@@ -634,8 +649,9 @@ class JsGamesService {
         return { success: false, error: 'Unauthorised' };
       }
 
-      const userId = Number(body.user_id);
-      if (!Number.isInteger(userId) || userId <= 0) return { success: false, error: 'Invalid payload' };
+      const providerUserId = Number(body.user_id);
+      if (!Number.isSafeInteger(providerUserId) || providerUserId <= 0) return { success: false, error: 'Invalid payload' };
+      const userId = v2PlayerOf(providerUserId);
 
       /* PKR is only ever an INR game the owner's jsgames_inr_as_pkr opened in PKR: its amounts are
          converted PKR → INR at `fx` and the INR wallet moves; the balance answered goes back in PKR.
@@ -645,6 +661,8 @@ class JsGamesService {
       if (inPkr && !fx) return { success: false, error: 'Unsupported currency' };
       const settlement = inPkr ? 'INR' : V2_CURRENCIES[String(body.currency ?? '').toUpperCase()];
       if (!settlement) return { success: false, error: 'Unsupported currency' };
+      // An INR-only provider id only ever settles INR.
+      if (providerUserId !== userId && settlement !== 'INR') return { success: false, error: 'Unsupported currency' };
       const quote = (balance) => (fx ? money.toDecimalString(money.multiply(String(balance), fx)) : String(balance));
 
       /**
@@ -1031,4 +1049,17 @@ class JsGamesService {
   }
 }
 
-module.exports = { JsGamesService, RAKEBACK_RATE };
+/**
+ * A player's INR-only account at JSGames v2: the provider wants a numeric user id and locks each id
+ * to the currency of its first launch, so a player whose own id is locked to another currency plays
+ * INR under `V2_INR_ACCOUNT_OFFSET + id`. Player ids are 10 digits (auth #allocateUserId), far below
+ * the offset, and both forms stay safe integers.
+ * shortcut: bet history (`/user/history`) is still asked for the player's own id only — rounds played
+ * under the INR account are missing from it; ask for both ids if that history is ever shown.
+ */
+const V2_INR_ACCOUNT_OFFSET = 100_000_000_000_000;
+const v2InrAccount = (userId) => V2_INR_ACCOUNT_OFFSET + Number(userId);
+const v2PlayerOf = (providerUserId) =>
+  providerUserId > V2_INR_ACCOUNT_OFFSET ? providerUserId - V2_INR_ACCOUNT_OFFSET : providerUserId;
+
+module.exports = { JsGamesService, RAKEBACK_RATE, v2InrAccount, v2PlayerOf };
