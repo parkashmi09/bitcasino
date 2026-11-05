@@ -1,7 +1,7 @@
 'use strict';
 
 const { Router } = require('express');
-const { validate, response, asyncHandler, createRateLimiter, noQuery } = require('@ibitplay/common');
+const { validate, response, asyncHandler, createRateLimiter, noQuery, noBody } = require('@ibitplay/common');
 
 const v = require('../email.validators');
 const { EmailService } = require('../email.service');
@@ -21,7 +21,7 @@ module.exports = function userRoutes(deps) {
   const issuing = createRateLimiter({ name: 'otp-issue', windowMs: 60_000, max: 5, enabled });
   const verifying = createRateLimiter({ name: 'otp-verify', windowMs: 60_000, max: 20, enabled });
 
-  router.post('/verify/request', issuing, noQuery(), asyncHandler(async (req, res) =>
+  router.post('/verify/request', issuing, noQuery(), noBody(), asyncHandler(async (req, res) =>
     response.ok(res, await service.requestEmailVerification({ userId: req.user.id, ip: req.ip }))
   ));
 

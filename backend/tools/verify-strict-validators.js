@@ -56,6 +56,18 @@ const MSSPORTS =
  * prefix) narrows the exemption; without it the whole router is exempt.
  */
 const LENIENT = {
+  'casino/original-games:public': {
+    paths: ['/wallet/'],
+    reason: 'Original Games wallet callbacks, HMAC-checked: the aggregator defines the payload',
+  },
+  'admin/site-content:admin': {
+    paths: ['/:key'],
+    reason: 'the body schema is picked per key at request time (siteContent.validators SECTIONS, every one strict)',
+  },
+  'admin/withdrawal-control:admin': {
+    paths: ['/global'],
+    reason: 'retired: always answers MANAGED (the switch is the owner\'s) and reads nothing',
+  },
   'casino/aggregators:public': {
     reason: 'aggregator seamless-wallet callbacks (asia/nexus/evo): the provider defines the payload',
   },

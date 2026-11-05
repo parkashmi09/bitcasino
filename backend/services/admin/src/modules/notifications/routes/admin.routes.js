@@ -1,7 +1,7 @@
 'use strict';
 
 const { Router } = require('express');
-const { validate, createActivityRecorder } = require('@ibitplay/common');
+const { validate, createActivityRecorder, noBody } = require('@ibitplay/common');
 const { PERMISSIONS } = require('@ibitplay/auth');
 
 const v = require('../notifications.validators');
@@ -78,6 +78,7 @@ module.exports = function adminRoutes(deps) {
     '/sends/:sendId',
     canSend,
     validate(v.deleteSend),
+    noBody(),
     withActivity({ action: 'notification.delete', describe: (req) => ({ targetType: 'NOTIFICATION', targetId: req.params.sendId }) }),
     ctrl.deleteSend
   );

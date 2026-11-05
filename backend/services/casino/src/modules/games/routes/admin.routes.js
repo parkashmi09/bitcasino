@@ -68,7 +68,7 @@ module.exports = function adminRoutes(deps) {
   router.put('/categories/order', canManage, validate(v.reorderCategories), ctrl.reorderCategories);
   router.get('/categories/:slug', canRead, validate(v.readCategory), ctrl.categoryGames);
   router.patch('/categories/:slug', canManage, validate(v.updateCategory), ctrl.updateCategory);
-  router.delete('/categories/:slug', canManage, validate(v.categoryParam), ctrl.deleteCategory);
+  router.delete('/categories/:slug', canManage, validate(v.categoryParam), noBody(), ctrl.deleteCategory);
 
   // ── Per-vendor priority ─────────────────────────────────────────────
   /** @legacy GET /api/gis/admin/gis/vendors */
