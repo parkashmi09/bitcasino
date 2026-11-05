@@ -33,9 +33,6 @@ export const ENDPOINTS = {
   // Live TV on a match: `{ allowed, reason, message, minBalance, inactiveHours }` (Site config → Features → Live TV).
   liveTvAccess: `${USER}/live-tv/access`,
   sessions: `${USER}/auth/sessions`,
-  // Idle logout (lib/idleTracker.js): the interaction heartbeat, and the check after N idle minutes.
-  authActivity: `${USER}/auth/activity`,
-  idleCheck: `${USER}/auth/idle-check`,
   changePassword: `${USER}/auth/change-password`,
   // Sign in with Google (`lib/googleAuth.js`). `googleStatus` is `{ enabled }` — the owner's
   // `google_signin` policy; `googleStart` is a browser navigation, not a fetch.
