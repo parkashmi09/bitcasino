@@ -107,7 +107,12 @@ export async function request<T>(path: string, opts: RequestOptions = {}): Promi
     const onBranch = typeof window !== 'undefined' && (location.pathname === '/branch' || location.pathname.startsWith('/branch/'))
 
     if (onBranch) {
-      if (res.status === 401 && error.code === 'BRANCH_UNAUTHENTICATED' && location.pathname !== '/branch/login') location.assign('/branch/login')
+      if (res.status === 401 && error.code === 'BRANCH_UNAUTHENTICATED' && location.pathname !== '/branch/login') {
+        // proxy.ts only checks that the cookie looks valid and would bounce /branch/login straight back here: clear it first.
+        void fetch('/api/branch/logout', { method: 'POST' })
+          .catch(() => undefined)
+          .then(() => location.assign('/branch/login'))
+      }
     } else if (res.status === 401 && typeof window !== 'undefined' && !location.pathname.startsWith('/login') && error.code === 'UNAUTHENTICATED') {
       location.assign(`/login?next=${encodeURIComponent(location.pathname)}`)
     }
