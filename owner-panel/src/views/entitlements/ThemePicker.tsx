@@ -76,6 +76,7 @@ export const SitePreview = ({ colours: p }: { colours: PaletteColours }) => (
 
     <div className='flex min-w-0 flex-1 flex-col'>
       <header className='flex h-12 shrink-0 items-center gap-2 border-b px-4' style={{ backgroundColor: c(p.card), borderColor: c(p.border) }}>
+        {/* The mock site's name is this site's own (configs/site.ts tagline), not the reference template's. */}
         <span className='text-sm font-bold italic'>{siteConfig.tagline}</span>
         <span className='ml-auto rounded-md px-3 py-1.5' style={{ backgroundColor: c(p.border) }}>
           Login

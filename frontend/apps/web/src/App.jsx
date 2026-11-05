@@ -55,6 +55,8 @@ import { AuthProvider } from '@/auth/AuthProvider';
 import { RedirectIfAuthenticated, RequireAuth } from '@/auth/guards';
 import { GatesProvider } from '@/hooks/useGates';
 import { Toaster } from '@/components/ui/Toaster';
+import { IdleLogout } from '@/components/layout/IdleLogout';
+import CookieConsent from '@/components/cookieConsent/CookieConsent';
 
 /**
  * `AuthProvider` sits inside the router rather than around it, for one reason:
@@ -337,6 +339,8 @@ export default function App() {
     <BrowserRouter>
       <AuthProvider>
         <Toaster />
+        <CookieConsent />
+        <IdleLogout />
         <GatesProvider>
           <AppRoutes />
         </GatesProvider>

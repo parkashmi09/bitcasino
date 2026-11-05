@@ -1,0 +1,38 @@
+/* Bottom-left card; above the mobile bottom nav on phones. Colours are the site's theme tokens, so the
+   owner's template recolours it too; the left edge clears the desktop sidebar. */
+.cookie-consent {
+  position: fixed;
+  left: 16px;
+  bottom: 16px;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  max-width: min(420px, calc(100vw - 32px));
+  padding: 12px 14px;
+  border-radius: 10px;
+  background: rgb(var(--gohan));
+  border: 1px solid rgb(var(--beerus));
+  color: rgb(var(--bulma));
+  font-size: 13px;
+  line-height: 1.4;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+}
+.cookie-consent a { color: inherit; text-decoration: underline; }
+.cookie-consent button {
+  flex-shrink: 0;
+  padding: 8px 16px;
+  border: 0;
+  border-radius: 6px;
+  background: rgb(var(--piccolo));
+  color: rgb(var(--goten));
+  font-weight: 600;
+  cursor: pointer;
+}
+.cookie-consent button:hover { opacity: 0.9; }
+@media (min-width: 768px) {
+  .cookie-consent { left: calc(16rem + 16px); }
+}
+@media (max-width: 768px) {
+  .cookie-consent { left: 16px; bottom: calc(76px + env(safe-area-inset-bottom)); }
+}
