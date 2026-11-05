@@ -1,7 +1,7 @@
 'use strict';
 
 const { Router } = require('express');
-const { validate, createRateLimiter } = require('@ibitplay/common');
+const { validate, createRateLimiter, noBody } = require('@ibitplay/common');
 
 const v = require('../auth.validators');
 const refreshCookie = require('../refreshCookie');
@@ -66,7 +66,7 @@ module.exports = function publicRoutes(deps) {
 
   router.post('/login', loginLimiter, validate(v.login), ctrl.login);
   // Each press makes an account, so it is metered like registration.
-  router.post('/demo-login', registerLimiter, ctrl.demoLogin);
+  router.post('/demo-login', registerLimiter, noBody(), ctrl.demoLogin);
   router.post('/refresh', refreshCookie.fromCookie, validate(v.refresh), ctrl.refresh);
 
   // Google sign-in (../google.js). Metered with login: every path ends in a session.

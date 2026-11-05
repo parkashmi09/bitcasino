@@ -1,7 +1,7 @@
 'use strict';
 
 const { Router } = require('express');
-const { validate, refuseCustomCurrencies } = require('@ibitplay/common');
+const { validate, refuseCustomCurrencies, noBody } = require('@ibitplay/common');
 const { denyAgentPlayer } = require('@ibitplay/auth');
 
 const v = require('../fiatWithdraw.validators');
@@ -23,7 +23,7 @@ module.exports = function userRoutes(deps) {
   router.get('/', validate(v.listMine), ctrl.listMine);
   // A request still In Queue (no staff decision yet) back to the balance. Not agent-gated: it only
   // ever returns the player's own held funds.
-  router.post('/:withdrawalId/cancel', validate(v.withdrawalParam), ctrl.cancel);
+  router.post('/:withdrawalId/cancel', validate(v.withdrawalParam), noBody(), ctrl.cancel);
 
   return router;
 };

@@ -1,7 +1,7 @@
 'use strict';
 
 const { Router } = require('express');
-const { validate, response, asyncHandler, createActivityRecorder, imageUpload } = require('@ibitplay/common');
+const { validate, response, asyncHandler, createActivityRecorder, imageUpload, noBody } = require('@ibitplay/common');
 const { PERMISSIONS, denyAgentTree } = require('@ibitplay/auth');
 
 const v = require('../avatars.validators');
@@ -79,6 +79,7 @@ module.exports = function adminRoutes(deps) {
     houseOnly,
     canWrite,
     validate(v.byId),
+    noBody(),
     withActivity({
       action: 'avatar.delete',
       describe: (req) => ({ targetType: 'AVATAR', targetId: String(req.params.id) }),

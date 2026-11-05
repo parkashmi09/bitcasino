@@ -5,6 +5,7 @@ import assert from 'node:assert/strict'
 import { createRequire } from 'node:module'
 import { existsSync } from 'node:fs'
 import test from 'node:test'
+import { fileURLToPath } from 'node:url'
 
 import { buildDraft } from '../src/lib/entitlements/draft.ts'
 import {
@@ -91,7 +92,7 @@ test('the draft carries the edited block, else the loaded one', () => {
 const backendPath = new URL('../../backend/packages/common/src/paymentMethods.js', import.meta.url)
 
 test('the backend reads a block the same way', { skip: !existsSync(backendPath) && 'backend paymentMethods.js not there yet' }, () => {
-  const backend = createRequire(import.meta.url)(backendPath.pathname)
+  const backend = createRequire(import.meta.url)(fileURLToPath(backendPath))
   const clean = backend.cleanPaymentMethods
 
   for (const sample of [undefined, GOOD, { f2pay: { IDR: [{ code: 'QRIS', active: true }, { code: 'QRIS', active: false }] } }]) {

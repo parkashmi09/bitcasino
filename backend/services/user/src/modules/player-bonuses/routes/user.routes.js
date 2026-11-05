@@ -1,7 +1,7 @@
 'use strict';
 
 const { Router } = require('express');
-const { response, asyncHandler, noQuery } = require('@ibitplay/common');
+const { response, asyncHandler, noQuery, noBody } = require('@ibitplay/common');
 
 const { PlayerBonusService } = require('../playerBonus.service');
 
@@ -17,7 +17,7 @@ module.exports = function userRoutes(deps) {
 
   router.get('/', noQuery(), asyncHandler(async (req, res) => response.ok(res, await service.summary(req.user.id))));
   /** hash.game: claim what the locked bonus has unlocked so far — any time, no expiry. */
-  router.post('/claim', noQuery(), asyncHandler(async (req, res) => response.ok(res, await service.claimUnlocked(req.user.id))));
+  router.post('/claim', noQuery(), noBody(), asyncHandler(async (req, res) => response.ok(res, await service.claimUnlocked(req.user.id))));
 
   return router;
 };

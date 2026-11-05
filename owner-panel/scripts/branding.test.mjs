@@ -1,7 +1,7 @@
 // Branding rules (contract §8) — what PUT /api/owner/entitlements and the upload route accept.
 //   node --test scripts/branding.test.mjs        (Node 22.18+ strips the .ts types itself)
 import assert from 'node:assert/strict'
-import { readFileSync } from 'node:fs'
+import { existsSync, readFileSync } from 'node:fs'
 import test from 'node:test'
 
 import { brandingProblem, cleanBranding, diffBranding, EMPTY_BRANDING, inspectBrandingImage, keywordList, sanitiseSvg } from '../src/lib/entitlements/branding.ts'
@@ -140,7 +140,9 @@ test('SVG: scripts, event attributes and external references are refused', () =>
   assert.equal(inspectBrandingImage(svg('<image href="data:image/png;base64,iVBORw0KGgo="/>'), 'logo').ok, true)
 })
 
-test('the committed parker567 files pass as they are', () => {
+const parker567 = new URL('../../branding/parker567-logo.svg', import.meta.url)
+
+test('the committed parker567 files pass as they are', { skip: !existsSync(parker567) && 'no branding/ folder in this repo' }, () => {
   for (const [file, slot] of [['parker567-logo.svg', 'logo'], ['parker567-mark.svg', 'mark'], ['parker567-logo@2x.png', 'logo'], ['parker567-mark@2x.png', 'mark']]) {
     const r = inspectBrandingImage(new Uint8Array(readFileSync(new URL(`../../branding/${file}`, import.meta.url))), slot)
     assert.equal(r.ok, true, `${file}: ${r.reason}`)

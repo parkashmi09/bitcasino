@@ -154,7 +154,8 @@ const Rewards = () => {
     <DataTable
       columns={columns}
       rows={list.data?.rows}
-      rowKey={r => r.id}
+      // Tier rewards and commissions come from two tables whose ids overlap.
+      rowKey={r => `${r.kind ?? 'tier'}-${r.id}`}
       loading={list.isLoading}
       fetching={list.isFetching}
       error={list.error}

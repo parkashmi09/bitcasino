@@ -44,7 +44,7 @@ test('creates a complete document, then a re-run is a no-op', async () => {
 
     assert.equal(doc.version, 1)
     assert.equal(doc.site, site)
-    assert.equal(statSync(path.join(dir, 'entitlements.json')).mode & 0o777, 0o600)
+    if (process.platform !== 'win32') assert.equal(statSync(path.join(dir, 'entitlements.json')).mode & 0o777, 0o600)
     for (const key of FEATURE_KEYS) assert.equal(doc.features[key], key !== 'club_membership', key)
     for (const key of FLAG_KEYS) assert.equal(doc.flags[key], !DEFAULT_OFF_FLAGS.has(key), key) // the sportsbook starts off
     assert.equal(doc.options.bonus.wagering_lock, true)

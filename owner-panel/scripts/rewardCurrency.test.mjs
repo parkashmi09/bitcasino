@@ -48,7 +48,7 @@ test('every backend policy is in the owner catalogue', () => {
   const backendPolicies = backendCatalogue.FEATURES.filter(f => f.kind === 'policy').map(f => f.key)
   const ownerPolicies = FEATURE_CATALOGUE.filter(f => f.policy).map(f => f.key)
 
-  assert.deepEqual(ownerPolicies, backendPolicies)
+  assert.deepEqual([...ownerPolicies].sort(), [...backendPolicies].sort())
 })
 
 test('default_currency: a policy separate from the reward currency, default USDT, mirrors the backend', () => {

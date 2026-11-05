@@ -291,19 +291,20 @@ test('payment orders', async (t) => {
     assert.equal(calls.length, 0);
   });
 
-  await t.test("the operator's stored maximum is the limit, not the deployment's", async () => {
+  // Cashier limits were dropped by the owner's decision (hash-game-exchange 7224a2da): a stored
+  // operator value is no longer read, only the deployment's WITHDRAW_MAXIMUM (50000 here) applies.
+  await t.test("the deployment's maximum is the limit; a stored operator value is ignored", async () => {
     const uid = newUid();
     await seed(uid, '10000000');
 
     const { service, calls } = build(ok);
-    // What `operatorSettings` answers once the site admin has saved a value.
     const stored = (key, fallback) => (key === 'withdraw_maximum' ? '100' : fallback);
     service.settings = { value: stored, read: async (key, fallback) => stored(key, fallback) };
     await assert.rejects(
       () => service.createWithdrawal({
-        userId: uid, provider: 'apay', currency: 'INR', amount: '500', details: BANK,
+        userId: uid, provider: 'apay', currency: 'INR', amount: '60000', details: BANK,
       }),
-      (err) => err.code === 'PAYORDER_ABOVE_MAXIMUM' && err.details?.maximum === '100'
+      (err) => err.code === 'PAYORDER_ABOVE_MAXIMUM' && err.details?.maximum === '50000'
     );
     assert.equal(calls.length, 0);
   });

@@ -1,5 +1,5 @@
 // This client's UI profile (src/configs/siteUi.ts): every catalogue feature classified, every pinned
-// variant real, the hash_game template equal to the pins, and pinToUi enforcing the three classes.
+// variant real, the hash_game template naming real variants, and pinToUi enforcing the three classes.
 import assert from 'node:assert/strict'
 import test from 'node:test'
 
@@ -14,18 +14,27 @@ test('every non-policy feature is classified, with a real variant', () => {
   for (const key of features) assert.ok(isVariantOf(key, pinnedVariant(key)), key)
 })
 
-test('hash_game is the default template and matches the pins', () => {
+// The template's variants mirror the backend's hash_game; what this site draws is its own pins.
+test('hash_game is the default template and names only real variants', () => {
   assert.equal(DEFAULT_TEMPLATE, 'hash_game')
-  for (const key of features) assert.equal(templateByKey('hash_game').variants[key], pinnedVariant(key), key)
+  for (const key of features) {
+    const v = templateByKey('hash_game').variants[key]
+
+    if (v !== undefined) assert.ok(isVariantOf(key, v), `${key}: ${v}`)
+  }
 })
 
 test('pinToUi: toggle keeps on/off, fixed stays on, absent stays off', () => {
-  const { features: f, variants: v } = pinToUi({ vip: false, swap: true, casino_lobby: false, spin_wheel: true }, { vip: 'program_page', spin_wheel: 'inline_wheel', business_model: 'b2b' })
-  assert.equal(f.vip, false)
-  assert.equal(v.vip, 'ring_panel')
-  assert.equal(f.swap, true)
-  assert.equal(f.casino_lobby, true)
-  assert.equal(f.spin_wheel, false)
-  assert.equal(v.spin_wheel, 'none')
-  assert.equal(v.business_model, 'b2b')
+  for (const asked of [true, false]) {
+    const input = Object.fromEntries(features.map(k => [k, asked]))
+    const { features: f, variants: v } = pinToUi(input, { vip: 'some_other_variant', business_model: 'b2b' })
+
+    for (const [key, s] of Object.entries(SITE_UI)) {
+      const on = s.status === 'absent' ? false : s.status === 'fixed' ? true : asked
+
+      assert.equal(f[key], on, `${key} (${s.status}, asked ${asked})`)
+      assert.equal(v[key], pinnedVariant(key), key)
+    }
+    assert.equal(v.business_model, 'b2b') // a policy is never pinned
+  }
 })

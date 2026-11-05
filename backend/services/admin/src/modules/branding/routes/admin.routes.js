@@ -1,7 +1,7 @@
 'use strict';
 
 const { Router } = require('express');
-const { validate, response, asyncHandler, imageUpload, createActivityRecorder } = require('@ibitplay/common');
+const { validate, response, asyncHandler, imageUpload, createActivityRecorder, noBody } = require('@ibitplay/common');
 const { PERMISSIONS, denyAgentTree } = require('@ibitplay/auth');
 
 const v = require('../branding.validators');
@@ -55,6 +55,7 @@ module.exports = function adminRoutes(deps) {
     '/meta',
     houseOnly,
     canWrite,
+    noBody(),
     withActivity({ action: 'branding.meta.reset', describe: () => ({ targetType: 'BRANDING', targetId: 'meta' }) }),
     asyncHandler(async (_req, res) => {
       await store.clearMeta();
@@ -69,6 +70,7 @@ module.exports = function adminRoutes(deps) {
     validate({ params: v.siteSlot }),
     imageUpload.createUploader({ maxBytes }).single('image'),
     imageUpload.createUploadErrorHandler(errors, maxBytes),
+    noBody(),
     withActivity({ action: 'branding.set', describe: (req) => ({ targetType: 'BRANDING', targetId: req.params.slot, details: { bytes: req.file?.size ?? null } }) }),
     asyncHandler(async (req, res) => {
       if (!req.file?.buffer?.length) throw errors.NO_FILE();
@@ -81,6 +83,7 @@ module.exports = function adminRoutes(deps) {
     houseOnly,
     canWrite,
     validate({ params: v.siteSlot }),
+    noBody(),
     withActivity({ action: 'branding.reset', describe: (req) => ({ targetType: 'BRANDING', targetId: req.params.slot }) }),
     asyncHandler(async (req, res) => response.ok(res, await store.clearSite(req.params.slot, { ownerBranding: ownerBranding() })))
   );
