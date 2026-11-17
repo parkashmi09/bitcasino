@@ -10,7 +10,7 @@ const { createWithdrawRequirements } = require('../withdrawRequirements');
 function requirementsWith(features) {
   entitlements.configureEntitlements({ read: async () => ({ features, flags: {}, version: 1, source: 'owner' }) });
   return createWithdrawRequirements({
-    models: { SiteFeature: { findByPk: async () => ({ variant: 'kyc' }) }, UserKyc: { findOne: async () => ({ status: 'Pending' }) } },
+    models: { Users: { findByPk: async () => ({ is_demo: false }) }, SiteFeature: { findByPk: async () => ({ variant: 'kyc' }) }, UserKyc: { findOne: async () => ({ status: 'Pending' }) } },
     db: { sequelize: { query: async () => [] } },
     config: { WITHDRAW_REQUIRE_KYC: true },
     logger: null,

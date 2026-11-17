@@ -73,6 +73,7 @@ const ZERO = '0.00000000';
 const UNIT = 'USD';
 
 const errors = defineErrors('WITHDRAW', {
+  DEMO_NOT_ALLOWED: { status: 403, message: 'Demo accounts cannot withdraw, tip or transfer funds' },
   /** Details `{ remaining, currency, deposit, bonus, forfeitable }` — see the module note. */
   WAGER_REQUIRED: {
     status: 403,
@@ -404,6 +405,11 @@ function createWithdrawRequirements(deps) {
    * the rail's own `*_KYC_REQUIRED`. Returns the rules applied.
    */
   async function assertMet(userId, { forfeitBonus = false, kycError, amount, currency }) {
+    // Security (A3): a demo account holds play-money in the real balance column. It must not be able to
+    // move it OUT — this guard covers every withdrawal rail, tips and p2p (all go through assertMet).
+    const account = await models.Users.findByPk(userId, { attributes: ['is_demo'], raw: true });
+    if (account?.is_demo) throw errors.DEMO_NOT_ALLOWED();
+
     const r = await rules();
     if (r.kyc) {
       const kyc = await kycStatus(userId);

@@ -19,7 +19,7 @@ function harness({ daily, cap = { enabled: false }, used = '0' }) {
   const queries = [];
   const usage = { value: used, calls: [] };
   const deps = {
-    models: { SiteFeature: { findByPk: async () => ({ variant: 'none' }) }, UserKyc: { findOne: async () => ({ status: 'Verified' }) } },
+    models: { Users: { findByPk: async () => ({ is_demo: false }) }, SiteFeature: { findByPk: async () => ({ variant: 'none' }) }, UserKyc: { findOne: async () => ({ status: 'Verified' }) } },
     db: { sequelize: { query: async (sql) => (queries.push(sql), []) } },
     config: { WITHDRAW_REQUIRE_KYC: true },
     logger: null,
