@@ -30,6 +30,9 @@ const login = {
       // Present only when the account has 2FA enabled.
       twoFactorCode: z.string().trim().regex(/^\d{6}$/, 'the code is 6 digits').optional(),
       deviceLabel: z.string().trim().max(100).optional(),
+      // Which player site the form is on: `agent` (/agent, an agent's players) or `direct`.
+      // Absent (sockets, older clients) = no side check.
+      site: z.enum(['agent', 'direct']).optional(),
     })
     .strict(),
 };

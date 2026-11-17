@@ -77,16 +77,20 @@ const LANDSCAPE_ART_SQL = `(coalesce("image", '') ILIKE '%gis-static.com%')`;
 const noArt = (row) => (!row.image ? 2 : /gis-static\.com/i.test(row.image) ? 1 : 0);
 
 /**
- * Two catalogue rows that would draw the same tile — same name, provider, type and art —
- * are one game listed twice by the provider (2j lists five such pairs). The lobby lists
- * show the earlier uuid only; the other is still readable by its uuid, so a favourite or a
- * history row that names it keeps working.
+ * Two catalogue rows with the same name, provider and type are one game listed twice by the
+ * provider (2j lists five such pairs, MAC88 fifty-one). The lobby lists show the earlier uuid
+ * only; the other is still readable by its uuid, so a favourite or a history row that names it
+ * keeps working.
+ *
+ * The art is deliberately NOT part of the test any more. It used to be ("… and art"), which
+ * held while twins shared the feed's image or had none; but an admin upload gives each row its
+ * own `/api/v1/casino/games/image/<uuid>.webp?v=…`, so the moment both twins got a tile
+ * (2026-11-17, the MAC88 artwork run) every pair came back as two cards.
  */
 const NOT_A_LATER_TWIN = literal(
   'NOT EXISTS (SELECT 1 FROM gisgamesnew twin WHERE twin.name = "Gisgamesnew".name' +
     ' AND twin.provider = "Gisgamesnew".provider' +
     ' AND twin.type IS NOT DISTINCT FROM "Gisgamesnew".type' +
-    ' AND twin.image IS NOT DISTINCT FROM "Gisgamesnew".image' +
     ' AND twin.uuid < "Gisgamesnew".uuid)'
 );
 
@@ -141,6 +145,9 @@ const withoutTwins = (where) => ({ ...where, [Op.and]: [...(where[Op.and] ?? [])
  * `gis_games` truncates it first. The numbers described a table nothing served
  * from, and were zero for the length of a sync.
  */
+/** `launchCurrencies` of a game that only launches in INR (see `#inrOnlyUuids`). */
+const INR_ONLY = Object.freeze(['INR']);
+
 class GamesService {
   /** `{ at, ids }` — the popularity ranking, reused for `LIST_CACHE_MS`. */
   #popular = null;
@@ -257,8 +264,31 @@ class GamesService {
    */
   async #withSlugs(rows) {
     if (!rows.length) return rows;
-    const suffixed = await this.#suffixedSlugs();
-    return rows.map((row) => ({ ...row, slug: gameSlug(row, suffixed.has(row.uuid)) }));
+    const [suffixed, inrOnly] = await Promise.all([this.#suffixedSlugs(), this.#inrOnlyUuids(rows)]);
+    return rows.map((row) => ({
+      ...row,
+      slug: gameSlug(row, suffixed.has(row.uuid)),
+      ...(inrOnly.has(row.uuid) ? { launchCurrencies: INR_ONLY } : {}),
+    }));
+  }
+
+  /**
+   * The rows of these that open through JSGames V2, whose operator launches INR only (a USDT
+   * launch is refused upstream, 10004). The game page offers just INR for them; a Slotegrator
+   * row takes the full set. Published as plain `launchCurrencies`, never as the aggregator's name.
+   */
+  async #inrOnlyUuids(rows) {
+    const uuids = rows.map((row) => row.uuid).filter(Boolean);
+    if (!uuids.length) return new Set();
+    try {
+      const found = await this.models.Gisgamesnew.sequelize.query(
+        `SELECT uuid FROM gisgamesnew WHERE uuid IN (:uuids) AND aggregator = 'js_games'`,
+        { replacements: { uuids }, type: QueryTypes.SELECT }
+      );
+      return new Set(found.map((r) => r.uuid));
+    } catch {
+      return new Set(); // before migration 097 there is no column
+    }
   }
 
   /** The uuids whose plain slug an earlier uuid already holds. One window query, reused for a minute. */
@@ -916,6 +946,9 @@ class GamesService {
         ...row,
         displayName: s?.display_name ?? null,
         logoUrl: s?.logo_updated_at ? logoUrl(row.name, s.logo_updated_at) : null,
+        /* The admin's position, or null. The home page's Providers row keeps ordered providers
+           first, in this order, rather than re-sorting them by which ones have a logo. */
+        sortOrder: s?.sort_order ?? null,
       }));
 
     return { rows: listed, total: listed.length };

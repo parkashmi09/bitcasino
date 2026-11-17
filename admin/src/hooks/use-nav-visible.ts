@@ -11,7 +11,7 @@ import { useSession } from '@/contexts/SessionContext'
  * (or is not readable) hides nothing. The sidebar and the landing route share it.
  */
 export function useNavVisible() {
-  const { actor, can, flags, featureEntitled, flagEntitled, policyOn } = useSession()
+  const { actor, can, flags, featureEntitled, flagEntitled, policyOn, modelAllows } = useSession()
   const isMarketing = actor?.marketing === true
 
   // Agent-tree logins (levels 4–6 and their executives) see no promotions anywhere.
@@ -32,8 +32,9 @@ export function useNavVisible() {
       (!entry.flag || (flags[entry.flag] !== false && flagEntitled(entry.flag))) &&
       (!entry.ownerFlag || flagEntitled(entry.ownerFlag)) &&
       featureEntitled(entry.feature) &&
-      policyOn(entry.policy),
-    [can, flags, featureEntitled, flagEntitled, policyOn, isMarketing, promotionsAllowed, directAllowed, actor?.executiveId]
+      policyOn(entry.policy) &&
+      modelAllows(entry.model),
+    [can, flags, featureEntitled, flagEntitled, policyOn, modelAllows, isMarketing, promotionsAllowed, directAllowed, actor?.executiveId]
   )
 }
 

@@ -138,6 +138,21 @@ const AccountListBody = ({ channel }: { channel?: Channel }) => {
   const points: Column<AccountRow>[] = [
     num('bal', 'Balance', r => r.available),
     num('exp', 'Exposure', r => r.exposure, 'text-danger'),
+
+    // Client user ki max exposure (More → Exposure Limit). 0 = koi limit nahi; staff pe lagti nahi.
+    {
+      key: 'expLimit',
+      header: 'Exposure Limit',
+      align: 'right' as const,
+      cell: (r: AccountRow) =>
+        r.accountType !== 'user' ? (
+          <span className='text-muted-foreground block text-right'>-</span>
+        ) : Number(r.exposureLimit) > 0 ? (
+          <span className='block text-right tabular-nums'>{fmt(r.exposureLimit)}</span>
+        ) : (
+          <span className='text-muted-foreground block text-right'>No limit</span>
+        )
+    },
     num('spts', 'Sports Pts', r => r.sportsPts),
     num('cpts', 'Casino Pts', r => r.casinoPts),
     num('opts', 'Original Pts', r => r.originalPts),
@@ -181,13 +196,13 @@ const AccountListBody = ({ channel }: { channel?: Channel }) => {
   const columns: Column<AccountRow>[] = [userName, userTools, cr, ...points, ...tail]
 
   // Export — zip jaisa: wahi columns, raw numbers.
-  const exportHead = ['User Name', 'CR', 'Balance', 'Exposure', 'Sports Pts', 'Casino Pts', 'Original Pts', 'P/L', 'B st', 'U st', 'PName', 'Account Type']
+  const exportHead = ['User Name', 'CR', 'Balance', 'Exposure', 'Exposure Limit', 'Sports Pts', 'Casino Pts', 'Original Pts', 'P/L', 'B st', 'U st', 'PName', 'Account Type']
 
   const exportRows = () =>
     rows.map(r => {
       const locks = [r.betLocked ? 'Locked' : 'Open', r.userLocked ? 'Locked' : 'Open', `${r.percentage ?? 1} Pt`, accountTypeLabel(r)]
 
-      return [r.username, r.credit, r.available, r.exposure, r.sportsPts, r.casinoPts, r.originalPts, r.settlementPoints, ...locks]
+      return [r.username, r.credit, r.available, r.exposure, r.accountType === 'user' ? (Number(r.exposureLimit) > 0 ? r.exposureLimit : 'No limit') : '-', r.sportsPts, r.casinoPts, r.originalPts, r.settlementPoints, ...locks]
     })
 
   const fileName = 'userlist'

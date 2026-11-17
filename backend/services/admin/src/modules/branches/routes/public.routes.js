@@ -21,7 +21,7 @@ const { BranchesService } = require('../branches.service');
  *   POST /admin/branches/portal/logout
  *   GET  /admin/branches/portal/summary     ?from&to
  *   GET  /admin/branches/portal/players     ?search&limit&offset
- *   POST /admin/branches/portal/players     { username, password, email?, phone? }
+ *   POST /admin/branches/portal/players     { username, password, email?, phone }
  *   GET  /admin/branches/portal/statement   ?fromDate&toDate&category&userId&page&limit
  *   GET  /admin/branches/portal/players/:userId
  *   GET  /admin/branches/portal/deposits    ?fromDate&toDate&status&userId&page&limit  (every rail, method + details)

@@ -22,18 +22,26 @@ const amount = z
   .regex(/^\d+(\.\d{1,2})?$/, 'must be a positive amount with at most 2 decimal places')
   .refine((v) => Number.parseFloat(v) > 0, 'amount must be greater than zero');
 
-/** Every plan key a boolean; at least one product, and manual payments or a gateway. Shared with the parent's validators. */
+/**
+ * Every plan key a boolean; at least one product, and manual payments or a gateway (not on B2B:
+ * agents fund their players). `model` absent = hybrid, so a parent from before it still works.
+ * Shared with the parent's validators.
+ */
 function planSchema() {
   const bools = (keys) => z.object(Object.fromEntries(keys.map((k) => [k, z.boolean()]))).strict();
   return z
     .object({
+      model: z.enum(whitelabelPlan.MODELS).optional(),
       products: bools(whitelabelPlan.PRODUCTS),
       features: bools(whitelabelPlan.FEATURES),
       payments: z.object({ manual: z.boolean(), gateways: bools(whitelabelPlan.GATEWAYS) }).strict(),
     })
     .strict()
     .refine((p) => Object.values(p.products).some(Boolean), 'choose at least one product: casino, sports or original games')
-    .refine((p) => p.payments.manual || Object.values(p.payments.gateways).some(Boolean), 'choose manual payments, a payment gateway or both');
+    .refine(
+      (p) => p.model === 'b2b' || p.payments.manual || Object.values(p.payments.gateways).some(Boolean),
+      'choose manual payments, a payment gateway or both'
+    );
 }
 
 const schemas = {

@@ -43,10 +43,13 @@ const userShort = (details) =>
  * `credits_ledger` + `wallet_history`.
  */
 class DirectWalletService {
-  constructor({ models, db, logger }) {
+  constructor({ models, db, logger, config, playerNotifications }) {
     this.models = models;
     this.db = db;
     this.logger = logger;
+    this.config = config;
+    // The player's bell + push for a credit. A test passes its own (or none: no notification).
+    this.notifications = playerNotifications;
     this.sequelize = models.StaffBalances.sequelize;
   }
 
@@ -171,7 +174,8 @@ class DirectWalletService {
     const amountMinor = money.toMinor(amount);
     const decimal = money.toDecimalString(amountMinor);
 
-    return this.db.transaction(async (transaction) => {
+    let ledgerId = null;
+    const result = await this.db.transaction(async (transaction) => {
       const rates = await this.#rates({ transaction });
       if (!rates.has(code) || !rates.has('INR')) throw unknownCurrency(code);
       const { inrMinor, rateMinor } = DirectWalletService.toInr(amountMinor, rates.get(code), rates.get('INR'));
@@ -234,7 +238,7 @@ class DirectWalletService {
       const description = `${entry.note} (₹${Number(inrValue).toFixed(2)} ${isCredit ? 'from' : 'back to'} Super Admin wallet)`.slice(0, 255);
 
       // User ki taraf ka record — statement aur history isi se.
-      await this.models.CreditsLedger.create(
+      const ledger = await this.models.CreditsLedger.create(
         {
           user_id: String(userId),
           currency: code,
@@ -252,6 +256,7 @@ class DirectWalletService {
         },
         { transaction }
       );
+      ledgerId = ledger?.id ?? null;
       await this.models.WalletHistory.create(
         {
           uid: userId,
@@ -285,6 +290,41 @@ class DirectWalletService {
         directBalance,
       };
     });
+
+    // After COMMIT, not awaited: the money is the truth, the notification a courtesy.
+    if (isCredit) void this.#notifyCredit({ userId, code, decimal, ledgerId });
+    return result;
+  }
+
+  /** The player's bell row + push for an admin credit — the same `deposit_credited` event a PSP deposit sends. */
+  async #notifyCredit({ userId, code, decimal, ledgerId }) {
+    try {
+      if (this.notifications === undefined) {
+        const { NotificationsService } = require('../notifications/notifications.service');
+        this.notifications = new NotificationsService({ models: this.models, db: this.db, logger: this.logger, config: this.config });
+      }
+      if (!this.notifications || ledgerId == null) return;
+      const n = Number.parseFloat(decimal);
+      const amount = n.toFixed(Math.abs(n) >= 1 ? 2 : 8).replace(/(\.\d{2}\d*?)0+$/, '$1');
+      const template = '{amount} has been credited to your wallet.';
+      const title = 'Deposit received';
+      const sent = await this.notifications.notifyPlayer({
+        userId: Number(userId),
+        type: 'deposit_credited',
+        title,
+        body: template.replace('{amount}', `${amount} ${code}`),
+        dedupeKey: `direct-wallet:credit:${ledgerId}`,
+        data: { kind: 'deposit_credited', link: '#transactions', meta: { amount, currency: code, reference: `direct-wallet:${ledgerId}` }, template },
+      });
+      // The player's open page: user-service owns the sockets and listens for this (realtime/dbChanges.js),
+      // then sends `notificationsUnread` — the bell moves, the title is toasted and the chime plays.
+      if (sent?.created) {
+        const payload = JSON.stringify({ userId: String(userId), id: sent.id, kind: 'deposit_credited', title, link: '#transactions', unread: Number(sent.unread ?? 0) });
+        await this.sequelize.query("SELECT pg_notify('player_notice', :payload)", { replacements: { payload } });
+      }
+    } catch (error) {
+      this.logger?.warn({ err: error.message, userId: String(userId) }, 'Direct User Wallet credit: notification not sent');
+    }
   }
 
   /** Ek direct user ki wallet history (zip `/wallethistory/:uid`), currency filter optional. */

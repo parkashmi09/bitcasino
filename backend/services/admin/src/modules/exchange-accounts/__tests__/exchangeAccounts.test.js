@@ -156,7 +156,7 @@ test('exchange accounts screens', async (t) => {
 
   await t.test('owner creates a player with Credit Amount: opening balance through PlayersService', async () => {
     const username = `xply${tag}a`;
-    const result = await accounts.create({ ...owner, username, password: 'Player1234', creditAmount: '200', userType: 'USER', transactionPassword: TXN });
+    const result = await accounts.create({ ...owner, username, password: 'Player1234', phone: '9876543210', creditAmount: '200', userType: 'USER', transactionPassword: TXN });
 
     assert.equal(result.account.accountType, 'user');
     const user = await models.Users.findOne({ where: { name: username }, raw: true });
@@ -184,7 +184,7 @@ test('exchange accounts screens', async (t) => {
     const agentId = await seedStaff({ roleId: 6, parentId: ownerId, inr: '300' });
     await sequelize.query('UPDATE credits SET upper_point = 250 WHERE staff_id = :id', { replacements: { id: agentId } });
     const username = `xply${tag}s`;
-    const result = await accounts.create({ ...actors(agentId, 6), username, password: 'Player1234', creditAmount: '100', userType: 'USER', transactionPassword: TXN });
+    const result = await accounts.create({ ...actors(agentId, 6), username, password: 'Player1234', phone: '9876543210', creditAmount: '100', userType: 'USER', transactionPassword: TXN });
     assert.equal(result.creditSkipped, true, '300 − 250 settlement points = 50 < 100');
     assert.match(result.message, /Client Credit is : 50.00/);
     assert.equal(dec((await models.StaffCredits.findOne({ where: { staff_id: agentId }, raw: true })).inr), 300);
@@ -195,7 +195,7 @@ test('exchange accounts screens', async (t) => {
     const agent = actors(agentId, 6);
     const username = `xply${tag}b`;
 
-    const result = await accounts.create({ ...agent, username, password: 'Player1234', creditAmount: '100', userType: 'USER', transactionPassword: TXN });
+    const result = await accounts.create({ ...agent, username, password: 'Player1234', phone: '9876543210', creditAmount: '100', userType: 'USER', transactionPassword: TXN });
 
     assert.equal(result.creditSkipped, true);
     assert.match(result.message, /Client Credit is : 50\.00/);
@@ -208,7 +208,7 @@ test('exchange accounts screens', async (t) => {
   await t.test('agent funds its own player from its float', async () => {
     const agentId = await seedStaff({ roleId: 6, parentId: ownerId, inr: '300' });
     const username = `xply${tag}c`;
-    await accounts.create({ ...actors(agentId, 6), username, password: 'Player1234', creditAmount: '120.50', userType: 'USER', transactionPassword: TXN });
+    await accounts.create({ ...actors(agentId, 6), username, password: 'Player1234', phone: '9876543210', creditAmount: '120.50', userType: 'USER', transactionPassword: TXN });
 
     const user = await models.Users.findOne({ where: { name: username }, raw: true });
     assert.equal(dec((await models.Credits.findOne({ where: { uid: user.id }, raw: true })).inr), 120.5);
@@ -225,7 +225,7 @@ test('exchange accounts screens', async (t) => {
       /User Name Already Exists/
     );
     await assert.rejects(
-      () => accounts.create({ ...owner, username: `xbad${tag}a`, password: 'Player1234', creditAmount: '-37', userType: 'USER', transactionPassword: TXN }),
+      () => accounts.create({ ...owner, username: `xbad${tag}a`, password: 'Player1234', phone: '9876543210', creditAmount: '-37', userType: 'USER', transactionPassword: TXN }),
       /creditamount is invalid\./
     );
     await assert.rejects(
@@ -233,10 +233,17 @@ test('exchange accounts screens', async (t) => {
       /Select Proper User type/
     );
     await assert.rejects(
-      () => accounts.create({ ...owner, username: `xbad${tag}c`, password: 'Player1234', userType: 'USER', transactionPassword: 'wrong' }),
+      () => accounts.create({ ...owner, username: `xbad${tag}c`, password: 'Player1234', phone: '9876543210', userType: 'USER', transactionPassword: 'wrong' }),
       (err) => err.status === 401 || err.status === 403 || err.status === 400 || err.status === 422
     );
     assert.equal(await models.Users.count({ where: { name: `xbad${tag}c` } }), 0, 'nothing created on a wrong code');
+  });
+
+  await t.test('a player needs a Mobile Number (10–15 digits)', async () => {
+    const base = { ...owner, password: 'Player1234', userType: 'USER', transactionPassword: TXN };
+    await assert.rejects(() => accounts.create({ ...base, username: `xph${tag}a` }), { code: 'EXCHANGE_ACCOUNTS_PHONE_REQUIRED' });
+    await assert.rejects(() => accounts.create({ ...base, username: `xph${tag}b`, phone: '12345' }), { code: 'EXCHANGE_ACCOUNTS_PHONE_INVALID' });
+    assert.equal(await models.Users.count({ where: { name: [`xph${tag}a`, `xph${tag}b`] } }), 0);
   });
 
 });

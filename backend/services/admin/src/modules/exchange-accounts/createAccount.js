@@ -1,7 +1,7 @@
 'use strict';
 
 const { Op } = require('sequelize');
-const { AppError, money } = require('@ibitplay/common');
+const { AppError, money, sitePolicy } = require('@ibitplay/common');
 const { PERMISSIONS, hasPermission } = require('@ibitplay/auth');
 
 const { StaffService } = require('../staff/staff.service');
@@ -109,9 +109,19 @@ class CreateAccountService {
     }
 
     const credit = parseCreditAmount(creditAmount);
+    // B2C site (owner policy / whitelabel plan): no agent network, so no agents or agent players.
+    // `allows`, not `assertAllowed`: the policy's plan entitlement must not close account creation.
+    const { allowed } = await sitePolicy.allows(this.models, 'business_model', 'agent_accounts');
+    if (!allowed) throw new AppError(sitePolicy.REASONS['business_model:agent_accounts'], 403, 'EXCHANGE_ACCOUNTS_B2C');
     const isPlayer = userType === 'USER';
     const rate = isPlayer ? undefined : parsePercentage(percentage);
     const roleId = isPlayer ? null : await staffRoleIdFor(this.models, userType);
+    // Player (client user) ka Mobile Number zaroori (user, 2026-11-15): sirf ank, 10–15.
+    if (isPlayer) {
+      const mobile = String(phone ?? '').trim();
+      if (!mobile) throw badRequest('The Mobile Number field is required', 'EXCHANGE_ACCOUNTS_PHONE_REQUIRED');
+      if (!/^\d{10,15}$/.test(mobile)) throw badRequest('The Mobile Number field must be 10 to 15 digits', 'EXCHANGE_ACCOUNTS_PHONE_INVALID');
+    }
     // Hamare platform pe staff password kam se kam 8 ka (staff module ka rule).
     if (!isPlayer && String(password).length < 8) throw badRequest('The Password field must be at least 8 characters');
     // Staff ki email form se aati hai (pehle username se banti thi). Zaroori aur unique.

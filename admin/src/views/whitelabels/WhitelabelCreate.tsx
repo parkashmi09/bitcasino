@@ -42,7 +42,7 @@ const Section = ({ title, description, children }: { title: string; description?
 )
 
 /**
- * New whitelabel: brand, domains, plan (products, features, payments), charges, colours and the company's login. Saving queues it for the setup
+ * New whitelabel: brand, domains, plan (business model, products, features, payments), charges, colours and the company's login. Saving queues it for the setup
  * script, which builds the copy on this server (its own folder, database and processes); the
  * detail page shows the setup's progress.
  */
@@ -243,6 +243,20 @@ const WhitelabelCreate = () => {
         </div>
       </Section>
 
+      <Section
+        title='Business model'
+        description='Who plays on the whitelabel. Its company panel shows only the screens for this model: B2C has no agent screens, B2B has no promotions or player cashier.'
+      >
+        <PlanPicker
+          groups={['model']}
+          value={plan}
+          onChange={next => {
+            setPlan(next)
+            setErrors(e => ({ ...e, plan: '' }))
+          }}
+        />
+      </Section>
+
       <Section title='Products & features' description='What the whitelabel runs. Choose at least one product; anything left out stays off and hidden on its site. You can change it later.'>
         <PlanPicker
           groups={['products', 'features']}
@@ -267,6 +281,7 @@ const WhitelabelCreate = () => {
             setErrors(e => ({ ...e, plan: '' }))
           }}
         />
+        {plan.model !== 'b2b' && (
         <TermsEditor
           parts={['fees']}
           value={terms}
@@ -276,6 +291,7 @@ const WhitelabelCreate = () => {
             setErrors(e => ({ ...e, terms: '' }))
           }}
         />
+        )}
       </Section>
 
       <Section title='GGR revenue share' description='Your share of each product’s GGR. Yours only: the whitelabel sees it on its revenue-share statement.'>

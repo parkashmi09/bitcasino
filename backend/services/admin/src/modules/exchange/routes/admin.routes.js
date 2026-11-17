@@ -26,6 +26,7 @@ const actorFrom = (req) => ({
  *   GET  /admin/exchange/owner/direct-ledger       us Direct User wallet ka ledger (har badlav, pehle / baad ka balance)
  *   GET  /admin/exchange/accounts           direct children (Account List / Active Users / Bank)
  *   POST /admin/exchange/points/settle      points settlement (D / W, Bank submit)
+ *   POST /admin/exchange/accounts/exposure-limit  client user ki exposure limit (sirf seedha parent)
  */
 module.exports = function adminRoutes(deps) {
   const { auth, clients, logger, config } = deps;
@@ -135,6 +136,18 @@ module.exports = function adminRoutes(deps) {
       }),
     }),
     asyncHandler(async (req, res) => response.ok(res, await service.settle({ ...req.body, actor: { ...actorFrom(req), permissions: req.staff.permissions } })))
+  );
+
+  // More → Exposure Limit: sirf seedha parent, sirf client user (sports placeBet check karta hai).
+  router.post(
+    '/accounts/exposure-limit',
+    auth.requirePermission(PERMISSIONS.USERS_WRITE),
+    validate(v.exposureLimit),
+    withActivity({
+      action: 'exchange.accounts.exposure-limit',
+      describe: (req) => ({ targetType: 'USER', targetId: req.body.userId, details: { exposureLimit: req.body.exposureLimit } }),
+    }),
+    asyncHandler(async (req, res) => response.ok(res, await service.setExposureLimit({ ...req.body, actor: actorFrom(req) })))
   );
 
   // Zip ka ledger/user/history — Credit Activity / More modal ka "Credit History".

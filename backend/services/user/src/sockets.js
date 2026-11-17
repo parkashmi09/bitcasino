@@ -169,6 +169,19 @@ function attachSockets({ server, container }) {
    */
   container.io = io;
 
+  /* Idle logout: `user:<id>` is the room every socket of a signed-in player joins. The room going
+     away = the player's last socket closed: the time is stored on the user. The room appearing =
+     the player is back: the time is cleared. The user-worker signs out a time 10 minutes old. */
+  const stamp = (room, value) => {
+    const id = /^user:(\d+)$/.exec(room)?.[1];
+    if (!id) return;
+    container.db.sequelize
+      .query(`UPDATE users SET socket_disconnected_at = ${value} WHERE id = :id`, { replacements: { id } })
+      .catch((err) => logger.warn({ err: err.message, userId: id }, 'socket_disconnected_at not stored'));
+  };
+  io.of('/').adapter.on('delete-room', (room) => stamp(room, 'NOW()'));
+  io.of('/').adapter.on('create-room', (room) => stamp(room, 'NULL'));
+
   for (const module of SOCKET_MODULES) {
     module.register({ on: socketServer.on, deps: container });
   }

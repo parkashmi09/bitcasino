@@ -5,8 +5,14 @@ export const PALETTE_KEYS = ['bg', 's1', 's2', 's3', 'border', 'text', 'muted', 
 export type PaletteKey = (typeof PALETTE_KEYS)[number]
 export type Palette = Record<PaletteKey, string>
 
+/** B2C = direct players only, B2B = agent network only, hybrid = both (plans from before the choice). */
+export type BusinessModel = 'b2c' | 'b2b' | 'hybrid'
+
 /** The products and features a whitelabel runs (backend common/whitelabelPlan). */
 export type Plan = {
+
+  /** Absent only on the create form before a choice is made. */
+  model?: BusinessModel
   products: { casino: boolean; sports: boolean; originals: boolean }
   features: { branch_management: boolean; bonus: boolean; affiliate: boolean; vip: boolean; promotions: boolean }
   payments: { manual: boolean; gateways: Record<Gateway, boolean> }
@@ -63,7 +69,7 @@ export type WhitelabelSummary = {
 
 export type WhitelabelJob = {
   id: number
-  kind: 'create' | 'delete'
+  kind: 'create' | 'delete' | 'update'
   status: 'queued' | 'running' | 'done' | 'failed'
   step: string | null
   log: string

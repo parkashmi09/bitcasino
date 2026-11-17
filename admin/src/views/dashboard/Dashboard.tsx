@@ -645,14 +645,15 @@ type Tab = 'direct' | 'agent'
  * refresh / link pe wahi tab khule. Jis tab ki permission nahi, wo tab nahi dikhta.
  */
 const Dashboard = () => {
-  const { actor, can } = useSession()
+  const { actor, can, flagEntitled, modelAllows } = useSession()
 
+  // Direct Users is B2C's, Agent System B2B's (both on a hybrid site).
   const tabs = (
     [
-      { value: 'direct', label: 'Direct Users', allowed: actor?.direct === true && can('reports:read') },
+      { value: 'direct', label: 'Direct Users', allowed: actor?.direct === true && can('reports:read') && modelAllows('b2c') },
 
-      // In both sports modes: sportsbook bets of agents' players land in the same point ledger.
-      { value: 'agent', label: 'Agent System', allowed: can(WALLET_ANY) }
+      // The agent system runs on the exchange's ledger: gone while the owner runs the sportsbook.
+      { value: 'agent', label: 'Agent System', allowed: can(WALLET_ANY) && flagEntitled('sportsexchange') && modelAllows('b2b') }
     ] as const
   ).filter(t => t.allowed)
 

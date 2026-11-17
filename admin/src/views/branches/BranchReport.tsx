@@ -13,9 +13,10 @@ import { DateRangePicker } from '@/components/ui/date-picker'
 import { useApi } from '@/hooks/use-api'
 import { defaultRange } from '@/views/exchange/reports/reportKit'
 
-import { windowOf, type Branch, type BranchTotals } from './BranchView'
+import { allBranchesReportPdf, branchReportPdf, type BranchDay } from './branchPdf'
+import { ReportPdfButton, windowOf, type Branch, type BranchTotals } from './BranchView'
 
-type Row = { branch: Branch; players: number; currency: string; totals: BranchTotals }
+type Row = { branch: Branch; players: number; currency: string; totals: BranchTotals; buckets?: BranchDay[] }
 
 /** The last row: every branch summed. */
 const TOTAL = 0
@@ -43,7 +44,16 @@ const BranchReport = () => {
     { key: 'casino', header: 'Casino bets', align: 'right', cell: r => <Money value={r.totals.casinoWagered} currency={cur} /> },
     { key: 'casinoGgr', header: 'Casino GGR', align: 'right', cell: r => <Money value={r.totals.casinoGgr} currency={cur} signed /> },
     { key: 'sports', header: 'Sports bets', align: 'right', cell: r => <Money value={r.totals.sportsStaked} currency={cur} /> },
-    { key: 'sportsGgr', header: 'Sports GGR', align: 'right', cell: r => <Money value={r.totals.sportsGgr} currency={cur} signed /> }
+    { key: 'sportsGgr', header: 'Sports GGR', align: 'right', cell: r => <Money value={r.totals.sportsGgr} currency={cur} signed /> },
+    {
+      key: 'pdf',
+      header: '',
+      align: 'right',
+      cell: r =>
+        r.branch.id === TOTAL ? null : (
+          <ReportPdfButton size='xs' label='PDF' build={() => branchReportPdf(`branch-report-${r.branch.name}-${range.from}_to_${range.to}`, { ...r, currency: cur ?? null }, range)} />
+        )
+    }
   ]
 
   const total = q.data?.total
@@ -63,6 +73,11 @@ const BranchReport = () => {
         toolbar={
           <div className='flex flex-wrap items-center gap-2'>
             <DateRangePicker from={range.from} to={range.to} max={defaultRange().to} clearable={false} onChange={r => setRange({ from: r.from, to: r.to })} />
+            <ReportPdfButton
+              label='Detailed PDF'
+              disabled={!q.data || !total}
+              build={async () => q.data && total && allBranchesReportPdf(`branch-report-detailed-${range.from}_to_${range.to}`, q.data.rows, total, cur ?? null, range)}
+            />
             <ExportButtons
               fileName={`branch-report-${range.from}_to_${range.to}`}
               title={`Branch report ${range.from} to ${range.to}${cur ? ` (${cur})` : ''}`}

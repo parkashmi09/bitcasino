@@ -27,6 +27,7 @@ import { OWNER_UPLINE_NO, uplineNo } from "../../../lib/helper/uplineLevelNo.mjs
 import { isCricketTestFormat } from "../../../lib/helper/cricketFormat.mjs";
 import { leagueNameForBet } from "../../../lib/services/SportsLeagueResolver.mjs";
 import { TOTAL_EXPOSURE_SQL } from "../../../lib/helper/totalExposure.mjs";
+import { EXPOSURE_LIMIT_EXCEEDED, exposureLimitExceeded } from "../../../lib/helper/exposureLimit.mjs";
 import { pushBalance } from "../../../lib/helper/pushBalance.mjs";
 import { checkBetLive } from "../buffer/betBuffer.mjs";
 import { StaffMarketLocks_default } from "../../../models/admin/StaffMarketLocks.mjs";
@@ -2117,6 +2118,14 @@ var placeBet = async (req, res, opts) => {
     });
     const totalUserExposure = parseFloat(exposureResults[0]?.total_exposure) || 0;
     console.log("Calculated Total User Exposure (Net):", totalUserExposure);
+    // Parent ki set ki hui exposure limit (credits.exposure_limit). Throw = poora bet rollback.
+    if (exposureLimitExceeded({
+      limit: wallet.exposure_limit,
+      totalExposure: totalUserExposure,
+      addsLiability: balanceChange > 0
+    })) {
+      throw new Error(EXPOSURE_LIMIT_EXCEEDED);
+    }
     await TotalExposure_default.upsert(
       {
         user_id,

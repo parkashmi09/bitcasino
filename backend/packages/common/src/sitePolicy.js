@@ -69,6 +69,8 @@ const ALLOWS = Object.freeze({
   business_model: {
     // Public self-registration. Staff-created players are never refused here.
     public_signup: ['b2c', 'hybrid'],
+    // Agents and their players (Sports Exchange → Create Account): no agent network on B2C.
+    agent_accounts: ['b2b', 'hybrid'],
   },
   deposit_mode: {
     manual: ['manual', 'both'],
@@ -96,6 +98,7 @@ const errors = defineErrors('SITE_POLICY', {
 /** Human wording for the refusal, so a player sees why rather than a code. */
 const REASONS = Object.freeze({
   'business_model:public_signup': 'Sign-up is by invitation on this site. Ask your agent for an account.',
+  'business_model:agent_accounts': 'This site is B2C (direct players only): it has no agent network.',
   'deposit_mode:manual': 'This site takes deposits through the payment gateway only.',
   'deposit_mode:automatic': 'This site takes manual deposits only. Submit your transfer reference instead.',
   'withdrawal_mode:manual': 'Withdrawals on this site are paid through the payment gateway.',
@@ -132,4 +135,4 @@ async function assertAllowed(models, policy, channel, logger) {
   throw error;
 }
 
-module.exports = { POLICY_DEFAULTS, ALLOWS, readPolicy, allows, assertAllowed, sitePolicyErrors: errors };
+module.exports = { POLICY_DEFAULTS, ALLOWS, REASONS, readPolicy, allows, assertAllowed, sitePolicyErrors: errors };

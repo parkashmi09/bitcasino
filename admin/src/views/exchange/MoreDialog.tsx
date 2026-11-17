@@ -175,12 +175,72 @@ const LockTab = ({ row, onDone }: { row: AccountRow; onDone: () => void }) => {
   )
 }
 
+/**
+ * Exposure Limit — sirf client user (agent tree ka player), sirf seedha parent
+ * (hamara admin/exchange/accounts/exposure-limit). 0 = koi limit nahi; sports placeBet check karta hai.
+ */
+const ExposureLimitTab = ({ row, onDone }: { row: AccountRow; onDone: () => void }) => {
+  const [limit, setLimit] = useState('')
+  const [txn, setTxn] = useState('')
+  const [error, setError] = useState('')
+
+  const save = useApiMutation({
+    fn: () =>
+      api.post('admin/exchange/accounts/exposure-limit', {
+        userId: Number(row.accountId),
+        exposureLimit: limit.trim(),
+        transactionPassword: txn
+      }),
+    invalidate: SETTLE_INVALIDATE,
+    success: () => (Number(limit) > 0 ? `${row.username}: exposure limit set to ${fmt(limit)}` : `${row.username}: exposure limit removed`),
+    onSuccess: onDone
+  })
+
+  const submit = (e: React.FormEvent) => {
+    e.preventDefault()
+    setError('')
+
+    // Server (`exchange.validators.js exposureLimit`): number >= 0, 2 decimal tak.
+    if (!/^\d+(\.\d{1,2})?$/.test(limit.trim())) return setError('Enter an amount of 0 or more (up to 2 decimals)')
+    if (!txn) return setError('The Transaction Code field is required')
+    void save.mutateAsync().catch(() => {})
+  }
+
+  return (
+    <form onSubmit={submit} className='grid gap-3'>
+      <div className='grid grid-cols-3 items-center gap-2'>
+        <Label>Current Limit</Label>
+        <div className='col-span-2 text-sm'>{Number(row.exposureLimit) > 0 ? fmt(row.exposureLimit) : 'No limit'}</div>
+      </div>
+      <div className='grid grid-cols-3 items-center gap-2'>
+        <Label>New Limit</Label>
+        <Input className='col-span-2' inputMode='decimal' placeholder='0 = no limit' value={limit} onChange={e => setLimit(e.target.value)} />
+      </div>
+      <div className='grid grid-cols-3 items-center gap-2'>
+        <Label>Transaction Code</Label>
+        <Input className='col-span-2' type='password' placeholder='Transaction Code' value={txn} onChange={e => setTxn(e.target.value)} />
+      </div>
+      {error && <div className='text-destructive text-right text-sm'>{error}</div>}
+      <div className='text-right'>
+        <Button type='submit' disabled={save.isPending}>
+          {save.isPending && <Loader2Icon className='animate-spin' />}
+          submit
+        </Button>
+      </div>
+    </form>
+  )
+}
+
 const TABS = [
   { key: 'profile', label: 'Profile' },
   { key: 'password', label: 'Change Password' },
   { key: 'lock', label: 'User Lock' },
+  { key: 'exposure', label: 'Exposure Limit' },
   { key: 'history', label: 'Credit History' }
 ] as const
+
+/** Exposure Limit sirf client user ko (direct user / staff ko nahi). */
+const showsExposureLimit = (row: AccountRow) => row.accountType === 'user' && !row.isDirectUser
 
 /**
  * More — zip ka `components/MoreModal.jsx`: account ki poori jaankari, password, lock, credit history.
@@ -188,14 +248,16 @@ const TABS = [
  */
 type MoreDialogProps = {
   row: AccountRow
+  profileOnly?: boolean
 
   /** Button jo popup kholta hai (drill-down ka "P", list ka More icon). */
   trigger: ReactNode
 }
 
-const MoreDialog = ({ row, trigger }: MoreDialogProps) => {
+const MoreDialog = ({ row, trigger, profileOnly = false }: MoreDialogProps) => {
   const [open, setOpen] = useState(false)
   const [tab, setTab] = useState<(typeof TABS)[number]['key']>('profile')
+  const tabs = profileOnly ? TABS.slice(0, 1) : TABS.filter(t => t.key !== 'exposure' || showsExposureLimit(row))
   const close = () => setOpen(false)
 
   return (
@@ -230,6 +292,7 @@ const MoreDialog = ({ row, trigger }: MoreDialogProps) => {
           {tab === 'profile' && <ProfileTab row={row} />}
           {tab === 'password' && <PasswordTab row={row} onDone={close} />}
           {tab === 'lock' && <LockTab row={row} onDone={close} />}
+          {tab === 'exposure' && showsExposureLimit(row) && <ExposureLimitTab row={row} onDone={close} />}
           {tab === 'history' && <CreditHistory row={row} />}
         </DialogContent>
       </Dialog>

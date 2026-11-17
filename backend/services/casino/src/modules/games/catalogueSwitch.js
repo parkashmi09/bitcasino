@@ -15,6 +15,13 @@ const { sitePolicy } = require('@ibitplay/common');
  * by the next run. One transaction under an advisory lock, so two instances never interleave.
  *
  * Run at boot and every `INTERVAL_MS` by casino-service (`index.js`), and before a sync writes.
+ *
+ * THE EXCEPTION: `JS_ALWAYS_LIVE`. Studios Slotegrator does not carry for us (Evolution, Jili,
+ * Pragmatic Live, Mac88, AE Sexy…) keep their JSGames rows in the lobby under the Slotegrator
+ * policy too, so the lobby is Slotegrator's games PLUS these. Each row still says whose it is
+ * (`aggregator`), so `gameLauncher` opens these through JSGames V2 and their money settles in
+ * `game_transactions` + the point ledger like any JSGames game. Under the JSGames policy the
+ * list changes nothing (every JSGames row is live then anyway).
  */
 
 const POLICY = 'casino_aggregator';
@@ -24,6 +31,27 @@ const PARKED = 'gisgamesnew_parked';
 /** pg_advisory_xact_lock key — "casino_aggregator" in short. */
 const LOCK_KEY = 940_094;
 const INTERVAL_MS = 15_000;
+
+/**
+ * JSGames `provider` keys (lowercase, as the JSGames rows spell them) that stay in the lobby
+ * whatever aggregator the owner chose — the studios the Slotegrator catalogue has no games of.
+ * NetEnt, BGaming, Hacksaw, PGSoft, Ezugi and Spribe are NOT here: Slotegrator serves those.
+ * `lobby`, `sports`, `esports` are not here either: they are entry points, not studios, and the
+ * books launch by uid whether or not their row is live.
+ */
+const JS_ALWAYS_LIVE = Object.freeze([
+  'evolution',
+  'jili',
+  'mac88',
+  'sexy',
+  'aura',
+  'aggaming',
+  'rsg',
+  'playtechlive',
+]);
+
+/** SQL: "this row stays in the lobby under any policy". Uses the `:keep` replacement. */
+const KEPT = `(aggregator = 'js_games' AND LOWER(BTRIM(provider)) = ANY(ARRAY[:keep]::text[]))`;
 
 /** The aggregator the owner chose; the default for an unknown or unset value. */
 async function chosenAggregator(models) {
@@ -43,26 +71,26 @@ async function applyAggregator({ db, models, logger }) {
   if (!ready?.ok) return { aggregator, skipped: true };
 
   const [[pending]] = await sequelize.query(
-    `SELECT EXISTS (SELECT 1 FROM ${LIVE} WHERE aggregator <> :aggregator)
-         OR EXISTS (SELECT 1 FROM ${PARKED} WHERE aggregator = :aggregator) AS due`,
-    { replacements: { aggregator } }
+    `SELECT EXISTS (SELECT 1 FROM ${LIVE} WHERE aggregator <> :aggregator AND NOT ${KEPT})
+         OR EXISTS (SELECT 1 FROM ${PARKED} WHERE aggregator = :aggregator OR ${KEPT}) AS due`,
+    { replacements: { aggregator, keep: JS_ALWAYS_LIVE } }
   );
   if (!pending?.due) return { aggregator, parked: 0, restored: 0 };
 
   const result = await sequelize.transaction(async (transaction) => {
     await sequelize.query(`SELECT pg_advisory_xact_lock(${LOCK_KEY})`, { transaction });
-    const opts = { replacements: { aggregator }, transaction };
+    const opts = { replacements: { aggregator, keep: JS_ALWAYS_LIVE }, transaction };
 
-    // Out of the lobby: every row not of the chosen aggregator.
+    // Out of the lobby: every row not of the chosen aggregator, except the always-live studios.
     const [, parkedResult] = await sequelize.query(
-      `WITH moved AS (DELETE FROM ${LIVE} WHERE aggregator <> :aggregator RETURNING *)
+      `WITH moved AS (DELETE FROM ${LIVE} WHERE aggregator <> :aggregator AND NOT ${KEPT} RETURNING *)
        INSERT INTO ${PARKED} SELECT * FROM moved
        ON CONFLICT (uuid) DO NOTHING`,
       opts
     );
-    // Back in: the chosen aggregator's parked rows.
+    // Back in: the chosen aggregator's parked rows, and the always-live studios'.
     const [, restoredResult] = await sequelize.query(
-      `WITH moved AS (DELETE FROM ${PARKED} WHERE aggregator = :aggregator RETURNING *)
+      `WITH moved AS (DELETE FROM ${PARKED} WHERE aggregator = :aggregator OR ${KEPT} RETURNING *)
        INSERT INTO ${LIVE} SELECT * FROM moved
        ON CONFLICT (uuid) DO NOTHING`,
       opts
@@ -86,4 +114,4 @@ function startAggregatorSwitch(deps) {
   return () => clearInterval(handle);
 }
 
-module.exports = { POLICY, AGGREGATORS, LIVE, PARKED, chosenAggregator, applyAggregator, startAggregatorSwitch };
+module.exports = { POLICY, AGGREGATORS, JS_ALWAYS_LIVE, LIVE, PARKED, chosenAggregator, applyAggregator, startAggregatorSwitch };

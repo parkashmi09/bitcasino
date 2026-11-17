@@ -104,7 +104,6 @@ test('demo accounts', async (t) => {
 
     const row = await models.AuthSession.findOne({ where: { user_id: user.id }, raw: true });
     assert.equal(new Date(row.expires_at).getTime(), new Date(user.demo_expires_at).getTime(), 'the session ends with the demo');
-    assert.equal(session.idleCheckAt, null, 'no idle logout');
   });
 
   await t.test('/me says demo and every player capability is off, like an agent player', async () => {

@@ -5,6 +5,7 @@
  * (docs/plans/2026-11-01-whitelabel-plan-and-casino-hub.md).
  *
  *   {
+ *     model: 'b2c' | 'b2b' | 'hybrid',
  *     products: { casino, sports, originals },
  *     features: { branch_management, bonus, affiliate, vip, promotions },
  *     payments: { manual, gateways: { ccpayment, f2pay, upi } },
@@ -13,8 +14,15 @@
  * Stored on the parent (`whitelabels.plan`) and on the copy (`whitelabel_settings.plan`). On the
  * copy it is a ceiling over the owner's document: whatever the plan leaves out reads as not
  * entitled, whatever the owner document says. A copy with no stored plan is not limited.
+ *
+ * `model` is the copy's business model (owner policy `business_model`, common/sitePolicy):
+ *   b2c     direct players only — public sign-up and the player cashier; no agent network.
+ *   b2b     agent network only — no public sign-up, no promotions (agentPlayers.js), no player
+ *           cashier: agents fund and pay out their players. Promotions and payments are forced off.
+ *   hybrid  both (what a plan stored before the model existed reads as).
  */
 
+const MODELS = Object.freeze(['b2c', 'b2b', 'hybrid']);
 const PRODUCTS = Object.freeze(['casino', 'sports', 'originals']);
 const FEATURES = Object.freeze(['branch_management', 'bonus', 'affiliate', 'vip', 'promotions']);
 /** The payment gateways (owner flags `gateway_<key>`). A copy's gateway runs on the parent's account. */
@@ -32,6 +40,8 @@ const PRODUCT_FLAGS = Object.freeze({
 /** Plan feature → the catalogue features (and flags) it covers. Policies are not here. */
 const FEATURE_KEYS = Object.freeze({ bonus: ['bonus'], affiliate: ['affiliate'], vip: ['vip'], promotions: ['promotions'] });
 const FEATURE_FLAGS = Object.freeze({ bonus: ['bonus'], affiliate: ['affiliate'], vip: ['vipclub'] });
+/** Off on a B2B copy, whatever was ticked: a B2B site has no promotions for anybody. */
+const PROMOTION_FEATURES = Object.freeze(['bonus', 'affiliate', 'vip', 'promotions']);
 
 /** Gateway deposits / payouts (`automatic`), manual ones, or both. */
 function cashierMode(payments) {
@@ -41,8 +51,10 @@ function cashierMode(payments) {
 
 /** Policy variants the plan decides (written to the copy's site_features). */
 function policiesOf(plan) {
-  const mode = cashierMode(plan.payments);
+  // A B2B copy has no player cashier: agents fund and pay out their players.
+  const mode = plan.model === 'b2b' ? 'none' : cashierMode(plan.payments);
   return {
+    business_model: plan.model,
     branch_management: plan.features.branch_management ? 'on' : 'off',
     whitelabel: 'off',
     deposit_mode: mode,
@@ -54,11 +66,18 @@ function policiesOf(plan) {
 function cleanPlan(value) {
   if (!value || typeof value !== 'object') return null;
   const pick = (keys, from) => Object.fromEntries(keys.map((k) => [k, from?.[k] === true]));
-  return {
+  const model = MODELS.includes(value.model) ? value.model : 'hybrid';
+  const plan = {
+    model,
     products: pick(PRODUCTS, value.products),
     features: pick(FEATURES, value.features),
     payments: { manual: value.payments?.manual === true, gateways: pick(GATEWAYS, value.payments?.gateways) },
   };
+  if (model === 'b2b') {
+    for (const f of PROMOTION_FEATURES) plan.features[f] = false;
+    plan.payments = { manual: false, gateways: pick(GATEWAYS, {}) };
+  }
+  return plan;
 }
 
 /**
@@ -103,4 +122,4 @@ function cleanTerms(value) {
   };
 }
 
-module.exports = { cleanTerms, PRODUCTS, FEATURES, GATEWAYS, PRODUCT_FLAGS, cleanPlan, applyPlan, policiesOf, cashierMode };
+module.exports = { cleanTerms, MODELS, PROMOTION_FEATURES, PRODUCTS, FEATURES, GATEWAYS, PRODUCT_FLAGS, cleanPlan, applyPlan, policiesOf, cashierMode };

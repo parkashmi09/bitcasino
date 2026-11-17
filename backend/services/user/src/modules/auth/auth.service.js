@@ -136,7 +136,7 @@ class AuthService {
    * verified, so a locked-out attacker cannot use response timing to tell a
    * valid password from an invalid one.
    */
-  async login({ identifier, password, twoFactorCode, deviceLabel }, context = {}) {
+  async login({ identifier, password, twoFactorCode, deviceLabel, site }, context = {}) {
     const { ip, userAgent } = withClientIp(context);
 
     // Before anything about the account: a restricted region learns nothing about it.
@@ -164,6 +164,19 @@ class AuthService {
     // Only AFTER the password is proven — a locked account should not be
     // discoverable without the password.
     await this.#assertUsable(user);
+
+    /* B2B and B2C sign in on their own side only (user, 2026-11-15): an agent's player (any
+       `parent_staff_id`, the agentPlayers.js rule) on /agent, a direct player on the main site.
+       Answered as a plain failed login (user, 2026-11-15): nothing says which side the account is on. */
+    if (site) {
+      const agentPlayer = user.parent_staff_id !== null && user.parent_staff_id !== undefined && user.parent_staff_id !== '';
+      if (site === 'agent' && !agentPlayer) {
+        throw errors.INVALID_CREDENTIALS();
+      }
+      if (site === 'direct' && agentPlayer) {
+        throw errors.INVALID_CREDENTIALS();
+      }
+    }
 
     if (user.two_fa_status && user.two_fa) {
       if (!twoFactorCode) throw errors.TWO_FACTOR_REQUIRED({ userId: user.id });

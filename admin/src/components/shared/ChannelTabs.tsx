@@ -18,11 +18,14 @@ export type Channel = 'direct' | 'agent'
  *   <ChannelTabs>{channel => <BetList channel={channel} />}</ChannelTabs>
  */
 const ChannelTabs = ({ children, className }: { children: (channel: Channel) => ReactNode; className?: string }) => {
-  const direct = useSession().actor?.direct === true
+  const { actor, businessModel } = useSession()
+  const direct = actor?.direct === true
   const [channel, setChannel] = useState<Channel>('direct')
 
   // Direct users are the Super Admin's (and its executives') only: everyone else gets the agent list, no tabs.
-  if (!direct) return <div className={className}>{children('agent')}</div>
+  // A B2B site has no direct users and a B2C site no agent users: one side only, no tabs.
+  if (!direct || businessModel === 'b2b') return <div className={className}>{children('agent')}</div>
+  if (businessModel === 'b2c') return <div className={className}>{children('direct')}</div>
 
   return (
     <div className={className}>

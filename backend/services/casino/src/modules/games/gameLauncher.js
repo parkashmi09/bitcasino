@@ -2,8 +2,28 @@
 
 const { buildGisService } = require('../gis/gis.factory');
 const { buildJsGamesService } = require('../js-games/jsGames.factory');
-const { LIVE } = require('./catalogueSwitch');
+const { LIVE, JS_ALWAYS_LIVE } = require('./catalogueSwitch');
 const { MOBILE_SUFFIX } = require('./games.service');
+const { KNOWN_BOOK_UIDS } = require('./gameEntitlement');
+const E = require('./games.errors');
+
+/**
+ * The only providers JSGames V2 is allowed to open — the studios the owner runs through JSGames
+ * because Slotegrator does not carry them (`catalogueSwitch.js` keeps the same set in the lobby).
+ * A JSGames catalogue game of any other provider — a parked studio reached by an old link or a
+ * stale favourite — is refused here, so turning a provider off in the lobby also closes its launch.
+ * The sports/esports books are exempt: they are JSGames uids that are not catalogue tiles.
+ */
+const JS_ALLOWED_PROVIDERS = new Set(JS_ALWAYS_LIVE);
+
+/** The sports/esports book uids, which launch through JSGames V2 whatever the lobby serves. */
+function bookUids({ config } = {}) {
+  return new Set(
+    [...KNOWN_BOOK_UIDS, ...String(config?.SPORTS_BOOK_GAME_UIDS ?? '').split(',')]
+      .map((uid) => uid.trim().toLowerCase())
+      .filter(Boolean)
+  );
+}
 
 /**
  * One launch for any lobby game — `POST /casino/games/launch`.
@@ -17,17 +37,24 @@ const { MOBILE_SUFFIX } = require('./games.service');
  * Answers `{ gameLaunchUrl, via, sessionId? }`, the JSGames shape the front end already reads.
  */
 
-/** Whose game a uuid is: `'slotegrator'` or `'js_games'` (also for a uid not in the lobby). */
-async function aggregatorOf({ db }, gameUuid) {
+/** The live lobby row for a uuid, or null — its aggregator and provider. */
+async function lobbyRow({ db }, gameUuid) {
   try {
-    const [[row]] = await db.sequelize.query(`SELECT aggregator FROM ${LIVE} WHERE uuid = :uuid LIMIT 1`, {
-      replacements: { uuid: gameUuid },
-    });
-    return row?.aggregator === 'slotegrator' ? 'slotegrator' : 'js_games';
+    const [[row]] = await db.sequelize.query(
+      `SELECT aggregator, provider FROM ${LIVE} WHERE uuid = :uuid LIMIT 1`,
+      { replacements: { uuid: gameUuid } }
+    );
+    return row ?? null;
   } catch {
-    // Before migration 097 there is no column: every lobby game is a JSGames one.
-    return 'js_games';
+    // Before migration 097 there is no aggregator column.
+    return null;
   }
+}
+
+/** Whose game a uuid is: `'slotegrator'` or `'js_games'` (also for a uid not in the lobby). */
+async function aggregatorOf(deps, gameUuid) {
+  const row = await lobbyRow(deps, gameUuid);
+  return row?.aggregator === 'slotegrator' ? 'slotegrator' : 'js_games';
 }
 
 /**
@@ -54,7 +81,9 @@ async function deviceVariant({ db }, gameUuid, device) {
 }
 
 async function launchGame(deps, { userId, gameUuid: requested, currencyCode, device, language }) {
-  if ((await aggregatorOf(deps, requested)) === 'slotegrator') {
+  const row = await lobbyRow(deps, requested);
+
+  if (row?.aggregator === 'slotegrator') {
     const gameUuid = await deviceVariant(deps, requested, device);
     const user = await deps.models.Users.findByPk(userId, { attributes: ['id', 'name'], raw: true });
     const { url, sessionId } = await buildGisService(deps).launch({
@@ -67,6 +96,21 @@ async function launchGame(deps, { userId, gameUuid: requested, currencyCode, dev
     });
     return { gameLaunchUrl: url, via: 'slotegrator', sessionId };
   }
+
+  /**
+   * JSGames V2 — but only for the allowed studios, or a sports/esports book.
+   *
+   * A catalogue tile (`row` is set) must be one of `JS_ALLOWED_PROVIDERS`: a parked provider's
+   * game, reached by an old link or a stale favourite, is refused here even though its row
+   * would otherwise fall through to JSGames. A uid that is NOT a lobby tile is allowed only
+   * when it is a configured book; anything else is not in the lobby and cannot be launched.
+   */
+  const provider = String(row?.provider ?? '').trim().toLowerCase();
+  const isBook = bookUids(deps).has(String(requested).toLowerCase());
+  if (row ? !JS_ALLOWED_PROVIDERS.has(provider) : !isBook) {
+    throw E.NOT_FOUND({ uuid: requested });
+  }
+
   const result = await buildJsGamesService(deps).launchV2({ userId, gameUid: requested, currencyCode, language });
   return { ...result, via: 'jsgames-v2' };
 }

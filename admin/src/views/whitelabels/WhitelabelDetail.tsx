@@ -286,7 +286,7 @@ const PlanCard = ({ wl, invalidate }: { wl: Detail; invalidate: string[][] }) =>
     <Card>
       <CardHeader className='flex flex-row items-start justify-between gap-4'>
         <div>
-          <CardTitle>Products & features</CardTitle>
+          <CardTitle>Business model, products & features</CardTitle>
           <CardDescription>
             {wl.plan
               ? 'What this whitelabel runs. Anything left out is off and hidden on its site; open casino rounds still settle.'
@@ -559,11 +559,12 @@ const WhitelabelDetail = ({ id }: { id: string }) => {
         }
       />
 
-      {!live && job && (
+      {/* Setup / delete while not live; a code update (scripts/whitelabel auto-update) on a live copy too. */}
+      {job && (!live || job.kind === 'update') && (
         <Card>
           <CardHeader className='flex flex-row items-start justify-between gap-4'>
             <div>
-              <CardTitle>{job.kind === 'create' ? 'Setup' : 'Delete'}: {job.status}</CardTitle>
+              <CardTitle>{job.kind === 'create' ? 'Setup' : job.kind === 'update' ? 'Code update' : 'Delete'}: {job.status}</CardTitle>
               <CardDescription>
                 {job.step ?? (job.status === 'queued' ? 'Waiting for the setup script to pick it up.' : '')} {job.startedAt && <>· started <DateTime value={job.startedAt} relative /></>}
               </CardDescription>

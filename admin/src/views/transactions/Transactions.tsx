@@ -97,24 +97,28 @@ const WITHDRAW_PARTS: Part[] = [
  * Tab URL me `?tab=direct|agent`.
  */
 const Transactions = ({ direction }: { direction: 'deposit' | 'withdraw' }) => {
-  const { can } = useSession()
+  const { can, flagEntitled, modelAllows } = useSession()
   const router = useRouter()
   const pathname = usePathname()
   const params = useSearchParams()
   const deposit = direction === 'deposit'
 
   const tabs = [
-    can(deposit ? 'deposits:read' : 'withdrawals:read')
+    // Direct Users is B2C's, Agent System B2B's (both on a hybrid site).
+    can(deposit ? 'deposits:read' : 'withdrawals:read') && modelAllows('b2c')
       ? { id: 'direct', label: 'Direct Users', icon: <WalletIcon className='size-4' />, view: () => <DirectUsers parts={deposit ? DEPOSIT_PARTS : WITHDRAW_PARTS} /> }
       : null,
 
-    // The agents' point ledger, in both sports modes (sportsbook bets are booked there too).
-    can('users:read') ? { id: 'agent', label: 'Agent System', icon: <ArrowLeftRightIcon className='size-4' />, view: () => <AgentLedger direction={direction} /> } : null
+    // The exchange's point ledger: gone while the owner runs the sportsbook.
+    can('users:read') && flagEntitled('sportsexchange') && modelAllows('b2b') ? { id: 'agent', label: 'Agent System', icon: <ArrowLeftRightIcon className='size-4' />, view: () => <AgentLedger direction={direction} /> } : null
   ].filter(t => t !== null)
 
   if (!tabs.length) return <p className='p-6 text-sm text-muted-foreground'>You do not have access to this page.</p>
 
   const active = tabs.find(t => t.id === params.get('tab')) ?? tabs[0]
+
+  // One side only (a B2B or B2C site, or one grant): the page itself, no tab box around a lone tab.
+  if (tabs.length === 1) return <div className='min-h-[80vh]'>{active.view()}</div>
 
   return (
     <div className='overflow-hidden rounded-xl border border-border'>

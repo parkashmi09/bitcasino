@@ -2,9 +2,11 @@
 
 import { useState, type ReactNode } from 'react'
 
+import { toast } from 'sonner'
+
 import Link from 'next/link'
 
-import { ArrowDownToLineIcon, ArrowUpFromLineIcon, DicesIcon, ReceiptTextIcon, ScaleIcon, TrophyIcon, UserPlusIcon, UsersIcon } from 'lucide-react'
+import { ArrowDownToLineIcon, ArrowUpFromLineIcon, ChartColumnIcon, DicesIcon, Loader2Icon, ReceiptTextIcon, ScaleIcon, TrophyIcon, UserPlusIcon, UsersIcon } from 'lucide-react'
 
 import DataTable, { type Column } from '@/components/shared/DataTable'
 import ExportButtons, { fetchAllRows } from '@/components/shared/ExportButtons'
@@ -26,6 +28,8 @@ import { api } from '@/lib/api/client'
 import { casinoSourceLabel } from '@/lib/casinoSource'
 import { check } from '@/lib/validate'
 import { defaultRange } from '@/views/exchange/reports/reportKit'
+
+import { branchReportPdf, type BranchDay } from './branchPdf'
 
 /**
  * One branch's screens, shared by the Super Admin (`base` = `admin/branches/<id>`) and the branch's
@@ -60,7 +64,7 @@ export type BranchTotals = {
   sportsBets: number
 }
 
-type Summary = { branch: Branch; players: number; currency: string; totals: BranchTotals; unconverted: unknown[] }
+type Summary = { branch: Branch; players: number; currency: string; totals: BranchTotals; buckets?: BranchDay[]; unconverted: unknown[] }
 
 type Player = {
   id: string
@@ -175,6 +179,29 @@ const PlayerCell = ({ id, name }: { id: string; name: string | null }) => (
   </span>
 )
 
+/** A PDF report with charts, built on click. */
+export const ReportPdfButton = ({ build, disabled, label = 'PDF report', size = 'sm' }: { build: () => Promise<void>; disabled?: boolean; label?: string; size?: 'sm' | 'xs' }) => {
+  const [busy, setBusy] = useState(false)
+
+  const run = async () => {
+    setBusy(true)
+
+    try {
+      await build()
+    } catch (error) {
+      toast.error((error as Error).message)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <Button size={size} variant='outline' disabled={disabled || busy} onClick={run}>
+      {busy ? <Loader2Icon className='animate-spin' /> : <ChartColumnIcon />} {label}
+    </Button>
+  )
+}
+
 // ══ Dashboard ════════════════════════════════════════════════════════════
 
 const BranchSummary = ({ data, loading }: { data?: Summary; loading: boolean }) => {
@@ -212,6 +239,7 @@ export const BranchDashboard = ({ base, actions }: { base: string; actions?: Rea
         <p className='text-muted-foreground text-sm'>Totals for the period. Amounts in other coins are converted at today&apos;s rate.</p>
         <div className='flex flex-wrap items-center gap-2'>
           <DateRangePicker from={range.from} to={range.to} max={defaultRange().to} clearable={false} onChange={r => setRange({ from: r.from, to: r.to })} />
+          <ReportPdfButton disabled={!q.data} build={async () => q.data && branchReportPdf(fileOf(`report-${q.data.branch.name}`, range.from, range.to), q.data, range)} />
           <ExportButtons
             fileName={fileOf('summary', range.from, range.to)}
             title={`${branch?.name ?? 'Branch'} — totals ${range.from} to ${range.to}`}
@@ -255,7 +283,7 @@ export const CreatePlayer = ({ base }: { base: string }) => {
         username: form.username.trim(),
         password: form.password,
         ...(form.email.trim() ? { email: form.email.trim() } : {}),
-        ...(form.phone.trim() ? { phone: form.phone.trim() } : {})
+        phone: form.phone.trim()
       }),
     invalidate: [['paged', `${base}/players`], ['api', `${base}/summary`]],
     success: 'Player ID created',
@@ -278,7 +306,8 @@ export const CreatePlayer = ({ base }: { base: string }) => {
           check.length(form.username, 'Username', { min: 3, max: 30 }) ||
           (!/^[A-Za-z0-9._-]+$/.test(form.username.trim()) && 'Username may contain letters, digits and . _ - only'),
         password: !form.password ? 'Password is required' : check.length(form.password, 'Password', { min: 8, max: 72 }),
-        confirm: !form.confirm ? 'Confirm the password' : check.match(form.password, form.confirm, 'Passwords do not match')
+        confirm: !form.confirm ? 'Confirm the password' : check.match(form.password, form.confirm, 'Passwords do not match'),
+        phone: !form.phone.trim() ? 'Mobile number is required' : !/^\d{10,15}$/.test(form.phone.trim()) && 'Mobile number must be 10 to 15 digits'
       })}
       onSubmit={() => create.mutateAsync()}
     >
@@ -289,7 +318,7 @@ export const CreatePlayer = ({ base }: { base: string }) => {
       </div>
       <div className='grid grid-cols-2 gap-4'>
         <TextField id='bp-email' name='email' label='Email (optional)' type='email' value={form.email} onChange={e => setForm({ ...form, email: e.target.value })} />
-        <TextField id='bp-phone' name='phone' label='Phone (optional)' value={form.phone} onChange={e => setForm({ ...form, phone: e.target.value })} />
+        <TextField id='bp-phone' name='phone' label='Mobile number' required inputMode='numeric' value={form.phone} onChange={e => setForm({ ...form, phone: e.target.value })} />
       </div>
     </FormDialog>
   )

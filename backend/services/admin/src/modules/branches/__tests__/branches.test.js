@@ -31,6 +31,11 @@ test('branch validators', () => {
   assert.equal(v.report.query.safeParse({ from: '2026-01-01', to: '2026-02-01', branchId: '1' }).success, false);
   assert.equal(v.portalStatement.query.safeParse({ fromDate: '2026-01-01', toDate: '2026-01-31', category: 'NOPE' }).success, false);
   assert.equal(v.portalCreatePlayer.body.safeParse({ username: 'ok_name', password: 'longenough', parentStaffId: 1 }).success, false);
+  // The player's mobile number is mandatory: digits only, 10–15.
+  assert.equal(v.portalCreatePlayer.body.safeParse({ username: 'ok_name', password: 'longenough' }).success, false);
+  assert.equal(v.portalCreatePlayer.body.safeParse({ username: 'ok_name', password: 'longenough', phone: '12345' }).success, false);
+  assert.equal(v.portalCreatePlayer.body.safeParse({ username: 'ok_name', password: 'longenough', phone: '+91 98765' }).success, false);
+  assert.equal(v.portalCreatePlayer.body.safeParse({ username: 'ok_name', password: 'longenough', phone: '9876543210' }).success, true);
 });
 
 test('branches against a database', async (t) => {

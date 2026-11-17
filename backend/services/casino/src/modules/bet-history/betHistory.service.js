@@ -149,7 +149,10 @@ class BetHistoryService {
 
     // An in-house round is always `original`, so a live / slots filter never reads `bets`.
     const keys = casinoOnly ? CASINO_SOURCE_KEYS : SOURCE_KEYS;
-    const sources = source ? [source].filter((k) => keys.includes(k)) : keys;
+    // `jsgames` is one feed to the admin ("Casino feed 2"): its V1 and V2 tables together. Lobby
+    // studios Slotegrator lacks (Evolution, Jili, Mac88…) settle in V2's `game_transactions`.
+    const asked = source === 'jsgames' ? ['jsgames', 'jsgamesv2'] : source ? [source] : null;
+    const sources = asked ? asked.filter((k) => keys.includes(k)) : keys;
     const wanted = category === 'live' || category === 'slots' ? sources.filter((k) => k !== 'inhouse') : sources;
     let collected = [];
 

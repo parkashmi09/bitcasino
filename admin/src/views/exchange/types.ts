@@ -103,10 +103,14 @@ export type AccountRow = {
 
   /** Third-party (casino) game points (`credits.thirdparty_pts`). */
   casinoPts: string
+
   /** Original games points (`credits.original_game_pts`). */
   originalPts: string
   upperPoint: string
   downPoint: string
+
+  /** Client user ki max exposure (`credits.exposure_limit`); "0" = koi limit nahi. */
+  exposureLimit: string
 }
 
 /** `GET admin/exchange/credit-history` — ek row (zip Credit History) */

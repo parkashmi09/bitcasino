@@ -8,7 +8,8 @@ import { WalletIcon } from 'lucide-react'
 
 // Component Imports
 import { formatIn, useReportMoney } from '@/components/shared/ReportMoney'
-import { useSession } from '@/contexts/SessionContext'
+import { siteConfig } from '@/configs/site'
+import { directBalanceLabel, useSession } from '@/contexts/SessionContext'
 import { useApi } from '@/hooks/use-api'
 import OwnerDirectLedger from '@/views/exchange/OwnerDirectLedger'
 import type { OwnerWallet } from '@/views/exchange/types'
@@ -22,6 +23,7 @@ import type { OwnerWallet } from '@/views/exchange/types'
  */
 const OwnerBalanceInner = () => {
   const { data, error } = useApi<OwnerWallet>('admin/exchange/owner/wallet')
+  const directLabel = directBalanceLabel(siteConfig.whitelabel, useSession().businessModel)
   const [ledgerOpen, setLedgerOpen] = useState(false)
 
   // The wallet is kept in INR; shown in the owner's default coin at the live rate.
@@ -37,8 +39,8 @@ const OwnerBalanceInner = () => {
       <button
         type='button'
         onClick={() => setLedgerOpen(true)}
-        className='bg-accent hover:bg-primary/16 flex h-8 items-center gap-2 rounded-full px-3 text-[13px] transition-colors duration-250'
-        title={`Direct Users balance${inr !== undefined ? ` (${formatIn(Number(inr) || 0, 'INR')})` : ''} — click for the ledger`}
+        className='border-border bg-muted/40 hover:bg-muted flex items-center gap-2 rounded-full border px-3 py-1 text-xs transition-colors'
+        title={`${directLabel}${inr !== undefined ? ` (${formatIn(Number(inr) || 0, 'INR')})` : ''} — click for the ledger`}
       >
         {noArt ? (
           <WalletIcon className='text-primary size-3.5 shrink-0' />

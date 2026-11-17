@@ -7,6 +7,8 @@ import DateTime from '@/components/shared/DateTime'
 import Money from '@/components/shared/Money'
 import { Badge } from '@/components/ui/badge'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { siteConfig } from '@/configs/site'
+import { directBalanceLabel, useSession } from '@/contexts/SessionContext'
 import { usePagedApi } from '@/hooks/use-api'
 import type { DirectLedgerRow } from './types'
 
@@ -57,6 +59,7 @@ const columns: Column<DirectLedgerRow>[] = [
  */
 const OwnerDirectLedger = ({ open, onOpenChange }: { open: boolean; onOpenChange: (open: boolean) => void }) => {
   const [page, setPage] = useState(1)
+  const b2bCopy = directBalanceLabel(siteConfig.whitelabel, useSession().businessModel) !== 'Direct Users balance'
   const [limit, setLimit] = useState(20)
 
   const list = usePagedApi<DirectLedgerRow>(open ? 'admin/exchange/owner/direct-ledger' : null, { page, limit })
@@ -65,8 +68,10 @@ const OwnerDirectLedger = ({ open, onOpenChange }: { open: boolean; onOpenChange
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className='sm:max-w-3xl'>
         <DialogHeader>
-          <DialogTitle>Direct User wallet ledger</DialogTitle>
-          <DialogDescription>Everything that went into or out of your Direct User wallet, newest first.</DialogDescription>
+          <DialogTitle>{b2bCopy ? 'Balance from parent — ledger' : 'Direct User wallet ledger'}</DialogTitle>
+          <DialogDescription>
+            Everything that went into or out of your {b2bCopy ? 'balance from the parent' : 'Direct User wallet'}, newest first.
+          </DialogDescription>
         </DialogHeader>
         <DataTable
           columns={columns}

@@ -46,7 +46,7 @@ class AccessService {
    */
   async myPermissions({ actor }) {
     const staff = await this.models.Staff.findByPk(actor.id, {
-      attributes: ['id', 'role_id', 'parent_id', 'must_change_password'],
+      attributes: ['id', 'name', 'email', 'role_id', 'parent_id', 'must_change_password'],
       raw: true,
     });
     if (!staff) throw errors.NOT_FOUND({ staffId: actor.id });
@@ -63,8 +63,10 @@ class AccessService {
     }
 
     let executivePermissions = null;
+    let executiveUsername = null;
     if (actor.executiveId) {
       const exec = await this.models.Executives.findByPk(actor.executiveId, { raw: true });
+      executiveUsername = exec?.username ?? null;
       // Raw: `resolvePermissions` reads every stored shape, and a missing or
       // unreadable grant is NO grant — not the parent's authority.
       executivePermissions = exec?.permissions ?? [];
@@ -80,6 +82,10 @@ class AccessService {
     return {
       staffId: actor.id,
       executiveId: actor.executiveId ?? null,
+      // Shown in the admin header next to the role. An executive (worker) sub-login shows its own username.
+      name: executiveUsername ?? staff.name ?? null,
+      email: actor.executiveId ? null : staff.email ?? null,
+      executiveUsername,
       roleId: staff.role_id,
       level,
       // The level this session acts with — the parent's, for an executive row.

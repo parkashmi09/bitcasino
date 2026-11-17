@@ -10,6 +10,7 @@ import { useRouter } from 'next/navigation'
 import { MaximizeIcon, MinimizeIcon, SearchIcon } from 'lucide-react'
 
 // Component Imports
+import AdminNotifications from '@/components/layout/AdminNotifications'
 import ModeToggle from '@/components/layout/ModeToggle'
 import OwnerBalance from '@/components/layout/OwnerBalance'
 import PaletteSync from '@/components/layout/PaletteSync'
@@ -123,6 +124,7 @@ const Header = () => {
           <OwnerBalance />
           <FullscreenToggle />
           <ModeToggle />
+          <AdminNotifications />
           <ProfileDropdown />
         </div>
       </div>

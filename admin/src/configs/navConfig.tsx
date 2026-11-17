@@ -212,6 +212,9 @@ export type MenuLeafSubItem = {
 
   /** Hidden unless this owner on/off policy (`branch_management`, …) is on. */
   policy?: string
+
+  /** Only on this business model (and hybrid): `b2c` = direct-player screens, `b2b` = agent-network screens. */
+  model?: 'b2c' | 'b2b'
 }
 
 export type MenuGroupSubItem = {
@@ -227,6 +230,7 @@ export type MenuGroupSubItem = {
 
   /** A direct-user screen: only the Super Admin and its executives (`actor.direct`). */
   direct?: boolean
+  model?: 'b2c' | 'b2b'
 }
 
 export type MenuSubItem = MenuLeafSubItem | MenuGroupSubItem
@@ -252,6 +256,9 @@ export type MenuItem = {
 
   /** Hidden unless this owner on/off policy (`branch_management`, …) is on. */
   policy?: string
+
+  /** Only on this business model (and hybrid): `b2c` = direct-player screens, `b2b` = agent-network screens. */
+  model?: 'b2c' | 'b2b'
 } & (
   | {
       href: string
@@ -301,37 +308,37 @@ export const navItems: NavItem[] = [
 
       // Either grant opens the list: reports:read reads `admin/reports/players` (balances, deposits,
       // wagers); users:read alone falls back to the player directory `admin/user/directory`.
-      { icon: 'Users', label: 'Users', href: '/users', activePath: '/users', permission: ['reports:read', 'users:read'], direct: true } as MenuItem,
-      { icon: 'Wallet', label: 'Wallets', href: '/wallets', permission: 'wallet:adjust', direct: true },
-      { icon: 'Globe', label: 'Login & IP history', href: '/ip-tracker', permission: 'reports:read', direct: true },
+      { icon: 'Users', label: 'Users', href: '/users', activePath: '/users', permission: ['reports:read', 'users:read'] } as MenuItem,
+      { icon: 'Wallet', label: 'Wallets', href: '/wallets', permission: 'wallet:adjust', direct: true, model: 'b2c' },
+      { icon: 'Globe', label: 'Login & IP history', href: '/ip-tracker', permission: 'reports:read' },
 
       // Zip ke Main jaisa: Redeem Codes (Promotions se yahan) aur Turnover Report (direct users ka wager vs target).
-      { icon: 'Ticket', label: 'Redeem Codes', href: '/redeem-codes', permission: 'reports:read', promotions: true },
-      { icon: 'Activity', label: 'Turnover Report', href: '/turnover-report', permission: 'reports:read', promotions: true, direct: true }
+      { icon: 'Ticket', label: 'Redeem Codes', href: '/redeem-codes', permission: 'reports:read', promotions: true, model: 'b2c' },
+      { icon: 'Activity', label: 'Turnover Report', href: '/turnover-report', permission: 'reports:read', promotions: true, direct: true, model: 'b2c' }
     ]
   },
   {
     // Sports Exchange ka agent system — sidebar me alag section. Create Account Account List ke button se.
-    // Not tied to a sports mode: agents' players bet on the exchange or on the sportsbook (JSGames books
-    // their bets into the same point ledger, category CASINO), so the agent system works in both.
+    // `model: 'b2b'`: the agent network's screens — not on a B2C site (Executives and Activity log stay).
+    // Its screens run on the exchange's ledger: they hide when the owner runs the sportsbook instead.
     groupLabel: 'Agent Management',
     groupIcon: 'Network',
     collapsible: true,
     items: [
-      { icon: 'LayoutDashboard', label: 'Dashboard', href: '/exchange/dashboard', permission: WALLET_ANY },
-      { icon: 'BookUser', label: 'Account List', href: '/exchange/users', activePath: '/exchange/users', permission: ['users:read', 'staff:read'] } as MenuItem,
-      { icon: 'Landmark', label: 'Bank', href: '/exchange/bank', permission: WALLET_ANY },
+      { icon: 'LayoutDashboard', label: 'Dashboard', href: '/exchange/dashboard', ownerFlag: 'sportsexchange', permission: WALLET_ANY, model: 'b2b' },
+      { icon: 'BookUser', label: 'Account List', href: '/exchange/users', ownerFlag: 'sportsexchange', activePath: '/exchange/users', permission: ['users:read', 'staff:read'], model: 'b2b' } as MenuItem,
+      { icon: 'Landmark', label: 'Bank', href: '/exchange/bank', ownerFlag: 'sportsexchange', permission: WALLET_ANY, model: 'b2b' },
 
       // Every staff login (Super Admin down to Agent) makes its own executives (user, 2026-10-17).
       { icon: 'KeyRound', label: 'Executives', href: '/access/executives', notExecutive: true },
       { icon: 'ScrollText', label: 'Activity log', href: '/audit', permission: 'audit:read' },
 
       // Agent ke reports.
-      { icon: 'ReceiptText', label: 'Account Statement', href: '/exchange/reports/account-statement', permission: 'reports:read' },
-      { icon: 'Scale', label: 'Party Win Loss', href: '/exchange/reports/party-win-loss', permission: 'reports:read' },
-      { icon: 'TrendingUp', label: 'Total Profit Loss', href: '/exchange/reports/total-profit-loss', permission: 'reports:read' },
-      { icon: 'UserRoundCheck', label: 'User Win Loss', href: '/exchange/reports/user-win-loss', permission: 'reports:read' },
-      { icon: 'Lock', label: 'General Lock', href: '/exchange/reports/general-lock', permission: 'reports:read' }
+      { icon: 'ReceiptText', label: 'Account Statement', href: '/exchange/reports/account-statement', ownerFlag: 'sportsexchange', permission: 'reports:read', model: 'b2b' },
+      { icon: 'Scale', label: 'Party Win Loss', href: '/exchange/reports/party-win-loss', ownerFlag: 'sportsexchange', permission: 'reports:read', model: 'b2b' },
+      { icon: 'TrendingUp', label: 'Total Profit Loss', href: '/exchange/reports/total-profit-loss', ownerFlag: 'sportsexchange', permission: 'reports:read', model: 'b2b' },
+      { icon: 'UserRoundCheck', label: 'User Win Loss', href: '/exchange/reports/user-win-loss', ownerFlag: 'sportsexchange', permission: 'reports:read', model: 'b2b' },
+      { icon: 'Lock', label: 'General Lock', href: '/exchange/reports/general-lock', ownerFlag: 'sportsexchange', permission: 'reports:read', model: 'b2b' }
     ]
   },
   {
@@ -379,6 +386,7 @@ export const navItems: NavItem[] = [
     groupIcon: 'Trophy',
     collapsible: true,
     items: [
+      // Market Analysis + Events (Game Details): har staff ko, apni downline ke hisaab se (reports:read).
       { icon: 'ChartColumn', label: 'Market Analysis', href: '/exchange/market-analysis', ownerFlag: 'sportsexchange', permission: 'reports:read' },
       { icon: 'Radio', label: 'Current Bets', href: '/exchange/reports/current-bets', ownerFlag: 'sportsexchange', permission: 'reports:read' },
       { icon: 'RotateCw', label: 'Turn Over', href: '/exchange/reports/turnover', ownerFlag: 'sportsexchange', permission: 'reports:read' },
@@ -388,7 +396,7 @@ export const navItems: NavItem[] = [
 
       // Zip me owner only (sports config): Buffer Time, Commission, Max Odds, Auto Void, Virtual / Bet Limits — tabs me.
       { icon: 'SlidersHorizontal', label: 'Global Settings', href: '/exchange/settings', ownerFlag: 'sportsexchange', permission: 'sports:manage', direct: true },
-      { icon: 'CalendarDays', label: 'Events', href: '/exchange/events', ownerFlag: 'sportsexchange', permission: 'sports:read' },
+      { icon: 'CalendarDays', label: 'Events', href: '/exchange/events', ownerFlag: 'sportsexchange', permission: 'reports:read' },
 
       // Super Admin's on/off; hidden when the owner has sports off (owner panel → Site flags).
       { icon: 'Power', label: 'Sports switch', href: '/exchange/sports-switch', permission: 'config:write', ownerFlag: 'sports', direct: true }
@@ -403,7 +411,8 @@ export const navItems: NavItem[] = [
     groupIcon: 'ArrowLeftRight',
     collapsible: true,
 
-    // Staff below the Super Admin see Deposit and Withdraw of their own hierarchy (the Agent System tab); the rest is house only.
+    // House only (user, 2026-10-17): an agent's player has no deposit / withdraw / KYC, so agent logins get no Transactions section.
+    // Deposit / Withdraw / Account Statement show their Direct tab on B2C and Agent tab on B2B; KYC and bank details are B2C only.
     items: [
       { icon: 'ArrowDownToLine', label: 'Deposit', href: '/transactions/deposit', permission: ['deposits:read', 'users:read'] },
       { icon: 'ArrowUpFromLine', label: 'Withdraw', href: '/transactions/withdraw', permission: ['withdrawals:read', 'users:read'] },
@@ -412,34 +421,36 @@ export const navItems: NavItem[] = [
       { icon: 'BookOpen', label: 'Account Statement', href: '/reports/statements', permission: ['users:read', 'reports:read'], promotions: true, direct: true },
 
       // Users section se yahan: KYC aur Bank details (routes wahi).
-      { icon: 'ShieldCheck', label: 'KYC', href: '/kyc', permission: 'users:read', feature: 'kyc', promotions: true, direct: true },
-      { icon: 'Building2', label: 'Bank details', href: '/bank-details', permission: 'config:read', promotions: true }
+      { icon: 'ShieldCheck', label: 'KYC', href: '/kyc', permission: 'users:read', feature: 'kyc', promotions: true, direct: true, model: 'b2c' },
+      { icon: 'Building2', label: 'Bank details', href: '/bank-details', permission: 'config:read', promotions: true, model: 'b2c' }
     ]
   },
   {
+    // `model: 'b2c'` on every entry: the house cashier and coins — a B2B site has none (agents fund players).
     groupLabel: 'Finance',
     groupIcon: 'Banknote',
     collapsible: true,
     items: [
-      { icon: 'ArrowRightLeft', label: 'Exchange rates', href: '/exchange-rates', permission: 'config:read' },
+      { icon: 'ArrowRightLeft', label: 'Exchange rates', href: '/exchange-rates', permission: 'config:read', model: 'b2c' },
 
       // House only: `promotions` is the mark that hides a screen from agent-tree logins.
-      { icon: 'Bitcoin', label: 'Coins', href: '/coins', permission: 'config:read', promotions: true },
-      { icon: 'Vault', label: 'Vault', href: '/vault', permission: 'reports:read', promotions: true, feature: 'vault' },
+      { icon: 'Bitcoin', label: 'Coins', href: '/coins', permission: 'config:read', promotions: true, model: 'b2c' },
+      { icon: 'Vault', label: 'Vault', href: '/vault', permission: 'reports:read', promotions: true, feature: 'vault', model: 'b2c' },
 
-      // Casino se Finance me (user, 2026-10-20); route wahi. `GET admin/reports/wager-stats` is reports:read and tree-scoped, so staff see their own hierarchy.
-      { icon: 'FileSpreadsheet', label: 'Wager report', href: '/casino/wager-report', permission: 'reports:read', flag: 'casino' },
+      // Casino se Finance me (user, 2026-10-20); route wahi. `GET admin/reports/wager-stats` is reports:read and tree-scoped. Not for agent logins (user, 2026-10-17).
+      { icon: 'FileSpreadsheet', label: 'Wager report', href: '/casino/wager-report', permission: 'reports:read', flag: 'casino', promotions: true, model: 'b2c' },
       {
         icon: 'Repeat',
         label: 'Swap history',
         href: '/swap',
         permission: 'wallet:read',
         promotions: true,
-        feature: 'swap'
+        feature: 'swap',
+        model: 'b2c'
       },
 
       // Player-to-player tips (read-only). Hidden when the owner left `tips` out of the plan.
-      { icon: 'HandCoins', label: 'Tips', href: '/tips', permission: 'reports:read', feature: 'tips', direct: true }
+      { icon: 'HandCoins', label: 'Tips', href: '/tips', permission: 'reports:read', feature: 'tips', model: 'b2c' }
 
       // P2P trading is off for now: its backend module is unmounted (modules/_p2p), so no menu entry.
     ]
@@ -450,21 +461,22 @@ export const navItems: NavItem[] = [
     collapsible: true,
 
     // Only direct users get promotions (user, 2026-10-17), so only the Super Admin and its executives see this section.
+    // `model: 'b2c'`: a B2B site has no promotions for anybody, so the section is gone there.
     items: [
       // The campaigns on the player site's /promotions. Reads are the public routes (staff see drafts); writes are config:write.
-      { icon: 'Megaphone', label: 'Promotions', href: '/promotions/campaigns', permission: 'config:read', promotions: true, direct: true, feature: 'promotions' },
-      { icon: 'Gift', label: 'Bonus', href: '/bonus', permission: 'reports:read', promotions: true, direct: true, flag: 'bonus', feature: 'bonus' },
+      { icon: 'Megaphone', label: 'Promotions', href: '/promotions/campaigns', permission: 'config:read', promotions: true, direct: true, feature: 'promotions', model: 'b2c' },
+      { icon: 'Gift', label: 'Bonus', href: '/bonus', permission: 'reports:read', promotions: true, direct: true, flag: 'bonus', feature: 'bonus', model: 'b2c' },
 
       // `admin/user/bonus-balance` and its stats answer any of reports:read, users:read, wallet:read.
-      { icon: 'LockKeyhole', label: 'Bonus balances', href: '/bonus-balances', permission: ['reports:read', 'users:read', 'wallet:read'], promotions: true, direct: true },
-      { icon: 'CreditCard', label: 'Gift cards', href: '/gift-cards', permission: 'reports:read', promotions: true, direct: true, flag: 'giftcards', feature: 'gift_cards' },
-      { icon: 'Disc3', label: 'Spin wheel', href: '/spin-wheel', permission: 'reports:read', promotions: true, direct: true, flag: 'wheelspin', feature: 'spin_wheel' },
-      { icon: 'Crown', label: 'VIP Club', href: '/vip', permission: 'reports:read', promotions: true, direct: true, flag: 'vipclub', feature: 'vip' },
-      { icon: 'Link', label: 'Affiliate', href: '/affiliate', permission: 'reports:read', promotions: true, direct: true, flag: 'affiliate', feature: 'affiliate' },
-      { icon: 'Flag', label: 'Races', href: '/races', permission: 'reports:read', promotions: true, direct: true, feature: 'races' },
-      { icon: 'Ticket', label: 'Raffle', href: '/raffle', permission: 'reports:read', promotions: true, direct: true, feature: 'raffles' },
-      { icon: 'Trophy', label: 'Challenges', href: '/challenges', permission: 'reports:read', promotions: true, direct: true, feature: 'challenges' },
-      { icon: 'RotateCw', label: 'Reload bonuses', href: '/reload-bonuses', permission: 'reports:read', promotions: true, direct: true, flag: 'bonus', feature: 'bonus' }
+      { icon: 'LockKeyhole', label: 'Bonus balances', href: '/bonus-balances', permission: ['reports:read', 'users:read', 'wallet:read'], promotions: true, direct: true, model: 'b2c' },
+      { icon: 'CreditCard', label: 'Gift cards', href: '/gift-cards', permission: 'reports:read', promotions: true, direct: true, flag: 'giftcards', feature: 'gift_cards', model: 'b2c' },
+      { icon: 'Disc3', label: 'Spin wheel', href: '/spin-wheel', permission: 'reports:read', promotions: true, direct: true, flag: 'wheelspin', feature: 'spin_wheel', model: 'b2c' },
+      { icon: 'Crown', label: 'VIP Club', href: '/vip', permission: 'reports:read', promotions: true, direct: true, flag: 'vipclub', feature: 'vip', model: 'b2c' },
+      { icon: 'Link', label: 'Affiliate', href: '/affiliate', permission: 'reports:read', promotions: true, direct: true, flag: 'affiliate', feature: 'affiliate', model: 'b2c' },
+      { icon: 'Flag', label: 'Races', href: '/races', permission: 'reports:read', promotions: true, direct: true, feature: 'races', model: 'b2c' },
+      { icon: 'Ticket', label: 'Raffle', href: '/raffle', permission: 'reports:read', promotions: true, direct: true, feature: 'raffles', model: 'b2c' },
+      { icon: 'Trophy', label: 'Challenges', href: '/challenges', permission: 'reports:read', promotions: true, direct: true, feature: 'challenges', model: 'b2c' },
+      { icon: 'RotateCw', label: 'Reload bonuses', href: '/reload-bonuses', permission: 'reports:read', promotions: true, direct: true, flag: 'bonus', feature: 'bonus', model: 'b2c' }
     ]
   },
   {
@@ -539,15 +551,16 @@ export const navItems: NavItem[] = [
     ]
   },
   {
+    // Direct-player reports: B2C only. B2B uses Agent Management's reports.
     groupLabel: 'Reports',
     groupIcon: 'ChartPie',
     collapsible: true,
 
     // Not for agent logins (user, 2026-10-17): agents have their own reports under Agent Management.
     items: [
-      { icon: 'ClipboardList', label: 'User reports', href: '/reports/players', permission: 'reports:read', promotions: true },
-      { icon: 'BadgeDollarSign', label: 'Profit & loss', href: '/reports/pnl', permission: 'reports:read', promotions: true },
-      { icon: 'ShieldAlert', label: 'Risk', href: '/reports/risk', permission: 'reports:read', promotions: true }
+      { icon: 'ClipboardList', label: 'User reports', href: '/reports/players', permission: 'reports:read', promotions: true, model: 'b2c' },
+      { icon: 'BadgeDollarSign', label: 'Profit & loss', href: '/reports/pnl', permission: 'reports:read', promotions: true, model: 'b2c' },
+      { icon: 'ShieldAlert', label: 'Risk', href: '/reports/risk', permission: 'reports:read', promotions: true, model: 'b2c' }
     ]
   },
   {
@@ -560,7 +573,7 @@ export const navItems: NavItem[] = [
       { icon: 'Palette', label: 'Branding', href: '/site-config/branding', permission: 'config:read' },
       { icon: 'Newspaper', label: 'Content', href: '/site-config/content', permission: 'config:read' },
       { icon: 'Flag', label: 'Feature flags', href: '/site-config/flags', permission: 'config:read' },
-      { icon: 'Gauge', label: 'Limits and policy', href: '/site-config/limits', permission: 'config:read' },
+      { icon: 'Gauge', label: 'Limits and policy', href: '/site-config/limits', permission: 'config:read', model: 'b2c' },
       { icon: 'Mail', label: 'Email', href: '/site-config/email', permission: 'config:read' },
     ]
   },
@@ -570,7 +583,7 @@ export const navItems: NavItem[] = [
     groupIcon: 'Settings',
     collapsible: true,
     items: [
-      { icon: 'CreditCard', label: 'Payment Methods', href: '/payment-methods', permission: 'config:read', direct: true },
+      { icon: 'CreditCard', label: 'Payment Methods', href: '/payment-methods', permission: 'config:read', direct: true, model: 'b2c' },
       { icon: 'CircleUserRound', label: 'My account', href: '/account' }
     ]
   }
@@ -640,9 +653,12 @@ export type RouteRequirement = {
   /** Owner-plan marks the sidebar also hides on (`feature`, the owner side of `flag`): a pasted URL says "not in your plan". */
   planFeatures: string[]
   planFlags: string[]
+
+  /** Business models the chain is marked for (`model`): a pasted URL is closed on the other model. */
+  models: Array<'b2c' | 'b2b'>
 }
 
-type Marks = { permission?: string | string[]; promotions?: boolean; direct?: boolean; account?: 'marketing'; ownerFlag?: string; feature?: string; flag?: string }
+type Marks = { permission?: string | string[]; promotions?: boolean; direct?: boolean; account?: 'marketing'; ownerFlag?: string; feature?: string; flag?: string; model?: 'b2c' | 'b2b' }
 
 const collectRoutes = (): RouteRequirement[] => {
   const out: RouteRequirement[] = []
@@ -659,7 +675,8 @@ const collectRoutes = (): RouteRequirement[] => {
         account: marks.find(m => m.account)?.account,
         ownerFlags: marks.map(m => m.ownerFlag).filter((f): f is string => !!f),
         planFeatures: marks.map(m => m.feature).filter((f): f is string => !!f),
-        planFlags: marks.map(m => m.flag).filter((f): f is string => !!f)
+        planFlags: marks.map(m => m.flag).filter((f): f is string => !!f),
+        models: marks.map(m => m.model).filter((m): m is 'b2c' | 'b2b' => !!m)
       })
     }
 
@@ -696,6 +713,9 @@ export type NavMarks = {
 
   /** Hidden unless this owner on/off policy (`branch_management`, …) is on. */
   policy?: string
+
+  /** Only on this business model (and hybrid): `b2c` = direct-player screens, `b2b` = agent-network screens. */
+  model?: 'b2c' | 'b2b'
 }
 
 type NavEntry = NavMarks & { href?: string; childItems?: MenuSubItem[] }

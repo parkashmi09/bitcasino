@@ -18,7 +18,7 @@ const { BranchesService } = require('../branches.service');
  *   GET   /admin/branches/report                  every branch over ?from&to
  *   GET   /admin/branches/:branchId/summary       ?from&to
  *   GET   /admin/branches/:branchId/players       ?search&limit&offset
- *   POST  /admin/branches/:branchId/players       { username, password, email?, phone? }
+ *   POST  /admin/branches/:branchId/players       { username, password, email?, phone }
  *   GET   /admin/branches/:branchId/statement     ?fromDate&toDate&category&userId&page&limit
  *   GET   /admin/branches/:branchId/players/:userId
  *   GET   /admin/branches/:branchId/deposits      ?fromDate&toDate&status&userId&page&limit

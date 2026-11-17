@@ -6,6 +6,7 @@ import FormDialog from '@/components/shared/FormDialog'
 import { formatIn, useReportMoney } from '@/components/shared/ReportMoney'
 import { SelectField, TextAreaField, TextField } from '@/components/shared/FormField'
 import { siteConfig } from '@/configs/site'
+import { directBalanceLabel, useSession } from '@/contexts/SessionContext'
 import { useApi, useApiMutation } from '@/hooks/use-api'
 import { api } from '@/lib/api/client'
 import { check } from '@/lib/validate'
@@ -45,6 +46,8 @@ const TITLE = siteConfig.whitelabel ? 'Move to Agent System' : 'Add Balance'
  */
 const OwnerAddBalance = ({ open, onOpenChange }: { open: boolean; onOpenChange: (open: boolean) => void }) => {
   const [target, setTarget] = useState<Target>(SHOWN[0])
+  const directLabel = directBalanceLabel(siteConfig.whitelabel, useSession().businessModel)
+  const b2bCopy = directLabel !== 'Direct Users balance'
   const [form, setForm] = useState({ amount: '', note: '', transactionPassword: '' })
 
   // Current Balance — dialog khula ho tabhi mangwao
@@ -78,7 +81,7 @@ const OwnerAddBalance = ({ open, onOpenChange }: { open: boolean; onOpenChange: 
       title={TITLE}
       description={
         siteConfig.whitelabel
-          ? 'Your Direct Users balance is what the parent site sent you. Move part of it to Agent System to give balance to your agents.'
+          ? `Your ${b2bCopy ? 'balance from the parent' : 'Direct Users balance'} is what the parent site sent you. Move part of it to Agent System to give balance to your agents.`
           : 'You have two balances. Agent System pays your staff, agents and their players. Direct Users pays direct users only.'
       }
       submitLabel={TITLE}
@@ -101,9 +104,11 @@ const OwnerAddBalance = ({ open, onOpenChange }: { open: boolean; onOpenChange: 
           hint={TARGETS[target].note}
         />
       ) : (
-        <p className='text-muted-foreground text-sm'>{TARGETS[target].note}</p>
+        <p className='text-muted-foreground text-sm'>
+          {b2bCopy && target === 'move' ? 'Moves money the parent site sent you to your Agent System balance, which pays your agents.' : TARGETS[target].note}
+        </p>
       )}
-      <TextField id='ob-current' label={target === 'move' ? 'Direct Users balance' : 'Current Balance'} readOnly disabled value={shownCurrent ?? (error ? 'Could not load' : '…')} />
+      <TextField id='ob-current' label={target === 'move' ? directLabel : 'Current Balance'} readOnly disabled value={shownCurrent ?? (error ? 'Could not load' : '…')} />
       <TextField
         id='ob-amount'
         label={coin === 'INR' ? 'Amount' : `Amount (${coin})`}

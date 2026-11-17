@@ -17,7 +17,9 @@ var Credits = db_default.define(
     upper_point: { type: DataTypes.DECIMAL(18, 2), allowNull: false, defaultValue: 0 },
     down_point: { type: DataTypes.DECIMAL(18, 2), allowNull: false, defaultValue: 0 },
     sports_pts: { type: DataTypes.DECIMAL(18, 2), allowNull: false, defaultValue: 0 },
-    thirdparty_pts: { type: DataTypes.DECIMAL(18, 2), allowNull: false, defaultValue: 0 }
+    thirdparty_pts: { type: DataTypes.DECIMAL(18, 2), allowNull: false, defaultValue: 0 },
+    // Client user ki max exposure (migration 099); 0 = koi limit nahi. placeBet check karta hai.
+    exposure_limit: { type: DataTypes.DECIMAL, allowNull: false, defaultValue: 0 }
   },
   {
     schema: "public",

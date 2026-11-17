@@ -15,7 +15,7 @@ import { useHomeHref } from '@/hooks/use-nav-visible'
 
 const isRoute = (pathname: string, route: string) => pathname === route || pathname.startsWith(`${route}/`)
 
-type Refusal = 'promotions' | 'direct' | 'permission' | 'account' | 'plan'
+type Refusal = 'promotions' | 'direct' | 'permission' | 'account' | 'plan' | 'model'
 
 /** Why the screen is closed, worded for the area the pasted URL points at. */
 const noticeReason = (pathname: string, reason: Refusal) => {
@@ -33,6 +33,7 @@ const noticeReason = (pathname: string, reason: Refusal) => {
   if (reason === 'direct' && !DIRECT_ROUTES.some(r => isRoute(pathname, r))) return 'Only the Super Admin can open this screen.'
   if (reason === 'direct') return 'Direct users are managed by the Super Admin and are not part of your account.'
   if (reason === 'account') return 'This screen is only for marketing logins.'
+  if (reason === 'model') return 'This screen is not part of this site’s business model (B2C sites have no agent network; B2B sites have no promotions or player cashier).'
   if (reason === 'plan') return 'This section is not enabled for this site. Contact the platform to add it.'
 
   return 'Your role does not include this screen. Ask the site operator if you need access.'
@@ -74,7 +75,7 @@ export const NotAvailableNotice = ({ pathname = '', reason = 'promotions' }: { p
 const RouteGate = ({ children }: { children: ReactNode }) => {
   const pathname = usePathname()
   const router = useRouter()
-  const { actor, loading, can, flagsLoading, flagEntitled, featureEntitled } = useSession()
+  const { actor, loading, can, flagsLoading, flagEntitled, featureEntitled, modelAllows } = useSession()
   const home = useHomeHref()
   const mustChange = actor?.mustChangePassword === true
 
@@ -109,6 +110,7 @@ const RouteGate = ({ children }: { children: ReactNode }) => {
   else if (required && !required.permissions.every(p => can(p))) refusal = 'permission'
   else if (required && [...required.ownerFlags, ...required.planFlags].some(f => !flagEntitled(f))) refusal = 'plan'
   else if (required?.planFeatures.some(f => !featureEntitled(f))) refusal = 'plan'
+  else if (required?.models.some(m => !modelAllows(m))) refusal = 'model'
 
   if (refusal) return <NotAvailableNotice pathname={pathname} reason={refusal} />
 

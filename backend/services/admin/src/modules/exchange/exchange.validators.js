@@ -63,6 +63,21 @@ const settle = {
     .strict(),
 };
 
+/** POST /exchange/accounts/exposure-limit — 0 = limit hatao; 2 decimal tak. */
+const exposureLimit = {
+  body: z
+    .object({
+      userId: id,
+      exposureLimit: z.coerce
+        .string()
+        .trim()
+        .regex(/^\d+(\.\d{1,2})?$/, 'must be a number >= 0 with at most 2 decimal places')
+        .refine((v) => Number.parseFloat(v) <= 1_000_000_000, 'exposure limit too large'),
+      transactionPassword: z.string().min(1).max(200),
+    })
+    .strict(),
+};
+
 /** GET /exchange/credit-history — ek account ki credit history (zip Credit History tab). */
 const creditHistory = {
   query: z.object({ ...paging, accountType: z.enum(['user', 'staff']), accountId: id }).strict(),
@@ -79,4 +94,4 @@ const directLedger = {
 /** POST /exchange/owner/move-to-agent-system — whitelabel company, Direct → Agent System. */
 const ownerMoveToAgentSystem = ownerAddBalance;
 
-module.exports = { ownerAddBalance, ownerAddDirectBalance, ownerMoveToAgentSystem, accounts, settle, creditHistory, directLedger };
+module.exports = { ownerAddBalance, ownerAddDirectBalance, ownerMoveToAgentSystem, accounts, settle, exposureLimit, creditHistory, directLedger };

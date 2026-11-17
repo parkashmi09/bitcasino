@@ -17,7 +17,7 @@ import { useApi, useApiMutation } from '@/hooks/use-api'
 import { api } from '@/lib/api/client'
 import type { ProviderSetting } from '@/views/casino/types'
 import { useOwnerCoinFilter } from '@/views/finance/useCurrencyCodes'
-import { CRYPTO_COIN_FLAGS, CRYPTO_MASTER_FLAG, FLAG_FEATURE, FLAG_GROUPS, FLAGS_ELSEWHERE, flagLabel } from './flagGroups'
+import { B2C_ONLY_FLAGS, CRYPTO_COIN_FLAGS, CRYPTO_MASTER_FLAG, FLAG_FEATURE, FLAG_GROUPS, FLAGS_ELSEWHERE, flagLabel } from './flagGroups'
 
 type Flags = Record<string, boolean>
 
@@ -28,10 +28,11 @@ const onlyBooleans = (data: Record<string, unknown>): Flags =>
   Object.fromEntries(Object.entries(data).filter(([, v]) => typeof v === 'boolean')) as Flags
 
 const FeatureFlags = () => {
-  const { can, refreshFlags, flagEntitled: flagInPlan, featureEntitled } = useSession()
+  const { can, refreshFlags, flagEntitled: flagInPlan, featureEntitled, businessModel } = useSession()
 
   // In the owner's plan: the flag, and the owner feature it belongs to (lottery, spin wheel, club …).
-  const inPlan = (key: string) => flagInPlan(key) && featureEntitled(FLAG_FEATURE[key])
+  // A B2B site does not list the B2C-only flags (promotions, crypto wallets, promo blocks).
+  const inPlan = (key: string) => flagInPlan(key) && featureEntitled(FLAG_FEATURE[key]) && !(businessModel === 'b2b' && B2C_ONLY_FLAGS.has(key))
 
   // In the owner's plan: the flag itself, and for a crypto coin the crypto master switch as well.
   const ownerCoins = useOwnerCoinFilter()

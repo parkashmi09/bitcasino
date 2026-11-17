@@ -69,6 +69,16 @@ export const FLAG_GROUPS: { title: string; description: string; keys: string[] }
   }
 ]
 
+/**
+ * Flags a B2B site (agent network: no promotions, no player cashier) has no use for — not listed there.
+ * Promotions, the crypto wallets (deposit rails) and the home-page promotion / payment blocks.
+ */
+export const B2C_ONLY_FLAGS = new Set([
+  'lotto', 'vipclub', 'clubmembership', 'bonus', 'affiliate', 'giftcards', 'welcomepack', 'wheelspin',
+  'cryptocoin', 'btc', 'eth', 'ltc', 'bch', 'usdt', 'trx', 'doge', 'ada', 'xrp', 'bnb', 'usdp', 'nexo', 'mkr', 'tusd', 'usdc', 'busd', 'shib', 'matic', 'nc', 'sc',
+  'home_welcomebanner', 'home_bonus500banner', 'home_paymentbanner', 'home_leaderboard', 'home_promocards'
+])
+
 /** The crypto master switch: when the owner leaves it out of the plan, every crypto coin is out too. */
 export const CRYPTO_MASTER_FLAG = 'cryptocoin'
 

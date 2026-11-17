@@ -17,6 +17,7 @@ const { TRANSFER_TYPE } = require('../lords/lords.constants');
 const { listChildren } = require('./accountList');
 const { DirectWalletService } = require('../direct-wallet/directWallet.service');
 const { settlePoints } = require('./pointsSettle');
+const { setUserExposureLimit } = require('./exposureLimit');
 
 /**
  * Exchange section (admin panel) — zip (msadmin) ke wallet screens ka backend.
@@ -227,6 +228,27 @@ class ExchangeService {
     );
 
     this.logger?.info({ actorStaffId: actor.id, accountType, accountId, points: result.points }, 'Points settled');
+    return result;
+  }
+
+  /**
+   * Exposure limit — sirf seedha parent apne client user ki (`./exposureLimit.js`).
+   * Transaction code hamesha zaroori, settle jaisa.
+   */
+  async setExposureLimit({ actor, userId, exposureLimit, transactionPassword }) {
+    await assertTransactionPassword(this.models, actor.id, transactionPassword, {
+      required: true,
+      executiveId: actor.executiveId ?? null,
+    });
+
+    const result = await this.db.transaction((transaction) =>
+      setUserExposureLimit(this.sequelize, { actor, userId, exposureLimit }, { transaction })
+    );
+
+    this.logger?.info(
+      { actorStaffId: actor.id, executiveId: actor.executiveId ?? null, ...result },
+      'Exposure limit changed'
+    );
     return result;
   }
 

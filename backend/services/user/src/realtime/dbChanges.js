@@ -66,6 +66,21 @@ function startDbChanges({ container, io }) {
     flushTimer ??= setTimeout(flush, FLUSH_MS);
   }
 
+  /* A notification another service wrote for a player (admin-service's Direct User Wallet credit):
+     the same `notificationsUnread` frame notifyPlayer sends, so the bell, toast and chime follow. */
+  function notice(payload) {
+    try {
+      const n = JSON.parse(payload);
+      if (!/^\d+$/.test(String(n?.userId)) || !n.title || !online(String(n.userId))) return;
+      io.to(roomForUser(String(n.userId))).emit(
+        PLATFORM_EVENTS.NOTIFICATIONS_UNREAD,
+        encode({ status: true, unread: Number(n.unread ?? 0), notification: { id: n.id, kind: n.kind, title: n.title, link: n.link ?? null } })
+      );
+    } catch (error) {
+      logger.warn({ err: error.message }, 'Could not push a notification to the player');
+    }
+  }
+
   async function connect() {
     const own = new Client({
       host: cfg.host,
@@ -79,6 +94,7 @@ function startDbChanges({ container, io }) {
     own.on('notification', (msg) => {
       if (msg.channel === 'credits_changed') queue(msg.payload, 'balance');
       else if (msg.channel === 'account_changed') queue(msg.payload, 'account');
+      else if (msg.channel === 'player_notice') notice(msg.payload);
     });
     own.on('error', (error) => retry(own, error));
     own.on('end', () => retry(own));
@@ -86,6 +102,7 @@ function startDbChanges({ container, io }) {
     await own.connect();
     await own.query('LISTEN credits_changed');
     await own.query('LISTEN account_changed');
+    await own.query('LISTEN player_notice');
     logger.info('Listening for database changes to push to players');
   }
 

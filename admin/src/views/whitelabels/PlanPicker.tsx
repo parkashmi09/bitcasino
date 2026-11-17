@@ -2,7 +2,16 @@
 
 import { Checkbox } from '@/components/ui/checkbox'
 
-import { GATEWAYS, type Gateway, type Plan } from './types'
+import { GATEWAYS, type BusinessModel, type Gateway, type Plan } from './types'
+
+export const MODELS: { key: BusinessModel; label: string; hint: string }[] = [
+  { key: 'b2c', label: 'B2C — direct players', hint: 'Players sign up themselves and use the cashier. Promotions available. No agent network.' },
+  { key: 'b2b', label: 'B2B — agent network', hint: 'No public sign-up. The company creates agents; agents create and fund players. No promotions or player cashier.' },
+  { key: 'hybrid', label: 'Both', hint: 'Public sign-up and the agent network together.' }
+]
+
+/** Not offered on a B2B site: it has no promotions for anybody. */
+const PROMOTION_FEATURES = new Set<keyof Plan['features']>(['bonus', 'affiliate', 'vip', 'promotions'])
 
 const PRODUCTS: { key: keyof Plan['products']; label: string; hint: string }[] = [
   { key: 'casino', label: 'Casino', hint: 'Slotegrator slots and live casino, run through this site.' },
@@ -32,18 +41,33 @@ export const EMPTY_PLAN: Plan = {
 }
 
 export const planError = (plan: Plan) =>
-  !Object.values(plan.products).some(Boolean)
-    ? 'Choose at least one product: Casino, Sports or Original games'
-    : !plan.payments.manual && !Object.values(plan.payments.gateways).some(Boolean)
-      ? 'Choose manual payments, a payment gateway or both'
-      : ''
+  !plan.model
+    ? 'Choose the business model: B2C, B2B or both'
+    : !Object.values(plan.products).some(Boolean)
+      ? 'Choose at least one product: Casino, Sports or Original games'
+      : plan.model !== 'b2b' && !plan.payments.manual && !Object.values(plan.payments.gateways).some(Boolean)
+        ? 'Choose manual payments, a payment gateway or both'
+        : ''
 
-type Group = 'products' | 'features' | 'payments'
+/** Switching to B2B clears what a B2B site cannot run (the backend forces the same). */
+export const withModel = (plan: Plan, model: BusinessModel): Plan =>
+  model !== 'b2b'
+    ? { ...plan, model }
+    : {
+        ...plan,
+        model,
+        features: Object.fromEntries(Object.entries(plan.features).map(([k, v]) => [k, PROMOTION_FEATURES.has(k as keyof Plan['features']) ? false : v])) as Plan['features'],
+        payments: { manual: false, gateways: { ccpayment: false, f2pay: false, upi: false } }
+      }
+
+type Group = 'model' | 'products' | 'features' | 'payments'
 
 type Props = { value: Plan; onChange: (plan: Plan) => void; disabled?: boolean; groups?: Group[] }
 
 /** The products (at least one) and features a whitelabel runs; everything left out is off on the copy. */
-const PlanPicker = ({ value, onChange, disabled, groups = ['products', 'features', 'payments'] }: Props) => {
+const PlanPicker = ({ value, onChange, disabled, groups = ['model', 'products', 'features', 'payments'] }: Props) => {
+  const b2b = value.model === 'b2b'
+
   const option = <G extends 'products' | 'features'>(group: G, key: string, label: string, hint: string) => (
     <label key={key} className='flex items-start gap-3 rounded-md border p-3'>
       <Checkbox
@@ -84,6 +108,32 @@ const PlanPicker = ({ value, onChange, disabled, groups = ['products', 'features
 
   return (
     <div className='grid gap-4'>
+      {groups.includes('model') && (
+        <div className='grid gap-2' role='radiogroup' aria-label='Business model'>
+          <span className='text-sm font-medium'>Business model</span>
+          <div className='grid gap-2 sm:grid-cols-3'>
+            {MODELS.map(m => (
+              <label
+                key={m.key}
+                className={`flex items-start gap-3 rounded-md border p-3 ${value.model === m.key ? 'border-primary bg-primary/5' : ''}`}
+              >
+                <input
+                  type='radio'
+                  name='business-model'
+                  className='accent-primary mt-1'
+                  disabled={disabled}
+                  checked={value.model === m.key}
+                  onChange={() => onChange(withModel(value, m.key))}
+                />
+                <span className='grid gap-0.5'>
+                  <span className='text-sm font-medium'>{m.label}</span>
+                  <span className='text-muted-foreground text-xs'>{m.hint}</span>
+                </span>
+              </label>
+            ))}
+          </div>
+        </div>
+      )}
       {groups.includes('products') && (
         <div className='grid gap-2'>
           <span className='text-sm font-medium'>Products (at least one)</span>
@@ -93,10 +143,18 @@ const PlanPicker = ({ value, onChange, disabled, groups = ['products', 'features
       {groups.includes('features') && (
         <div className='grid gap-2'>
           <span className='text-sm font-medium'>Features</span>
-          <div className='grid gap-2 sm:grid-cols-3'>{FEATURES.map(f => option('features', f.key, f.label, f.hint))}</div>
+          <div className='grid gap-2 sm:grid-cols-3'>
+            {FEATURES.filter(f => !b2b || !PROMOTION_FEATURES.has(f.key)).map(f => option('features', f.key, f.label, f.hint))}
+          </div>
+          {b2b && <span className='text-muted-foreground text-xs'>Bonus, affiliate, VIP and promotions are not offered on a B2B site.</span>}
         </div>
       )}
-      {groups.includes('payments') && (
+      {groups.includes('payments') && b2b && (
+        <p className='text-muted-foreground text-sm'>
+          B2B: no player deposits or withdrawals. Agents fund and pay out their players, so there is nothing to choose here.
+        </p>
+      )}
+      {groups.includes('payments') && !b2b && (
       <div className='grid gap-2'>
         <span className='text-sm font-medium'>Payments (manual, a gateway or both)</span>
         <div className='grid gap-2 sm:grid-cols-3'>

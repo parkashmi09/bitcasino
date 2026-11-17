@@ -19,6 +19,7 @@ const { STAFF_LEVELS } = require('@ibitplay/auth');
  *   Client(P/L)   = all_point − credit       (settlement me itna barabar karna hai)
  *   Available pts = inr                      (abhi ka balance)
  *   Exposure      = player ka open exposure (staff ka 0, zip jaisa)
+ *   Exposure limit = credits.exposure_limit (client user, sirf seedha parent badalta hai)
  */
 
 const round2 = (value) => Math.round(Number.parseFloat(value || 0) * 100) / 100;
@@ -33,7 +34,7 @@ const CHILDREN_SQL = `
            OR EXISTS (SELECT 1 FROM users p WHERE p.parent_staff_id = s.id)) AS has_children,
          false AS is_direct_user,
          s.phone, s.email, s.country AS city, s.created_at, c.sports_pts, c.upper_point, c.down_point, c.thirdparty_pts, c.original_game_pts,
-         s.system_locked
+         s.system_locked, c.exposure_limit
     FROM staff s
     JOIN roles r ON r.id = s.role_id
     LEFT JOIN credits c ON c.staff_id = s.id
@@ -45,7 +46,7 @@ const CHILDREN_SQL = `
          COALESCE((SELECT ABS(SUM(e.total_exposure)) FROM mssports.total_exposures e WHERE e.user_id = u.id), 0),
          false, u.parent_staff_id IS NULL,
          u.phone, u.email, COALESCE(u.country, u.last_city), u.created, c.sports_pts, c.upper_point, c.down_point, c.thirdparty_pts, c.original_game_pts,
-         u.system_locked
+         u.system_locked, c.exposure_limit
     FROM users u
     LEFT JOIN credits c ON c.uid = u.id
    WHERE u.parent_staff_id = :parentId OR (:withDirectUsers AND u.parent_staff_id IS NULL AND NOT u.is_demo)`;
@@ -83,6 +84,7 @@ function toRow(r) {
     originalPts: show(r.original_game_pts), // Original games
     upperPoint: show(r.upper_point),
     downPoint: show(r.down_point),
+    exposureLimit: show(r.exposure_limit), // 0 = koi limit nahi (More → Exposure Limit)
   };
 }
 

@@ -179,10 +179,12 @@ class BranchesService {
 
   async #figures(branchId, { from, to }) {
     const stats = new DashboardStatsService({ models: this.models, db: this.db, logger: this.logger, config: this.config, branchId });
-    const r = await stats.series({ from, to, granularity: 'month' });
+    const r = await stats.series({ from, to, granularity: 'day' });
     return {
       currency: r.currency,
       totals: Object.fromEntries([...MONEY_KEYS, ...COUNT_KEYS].map((k) => [k, r.totals[k]])),
+      /** Per UTC day, only the days with activity — the PDF report's charts. */
+      buckets: r.buckets.map((b) => Object.fromEntries(['bucket', ...MONEY_KEYS, ...COUNT_KEYS].map((k) => [k, b[k]]))),
       /** Non-empty: amounts in a coin with no rate, left out of the converted totals. */
       unconverted: r.unconverted,
     };

@@ -82,7 +82,7 @@ const AgentLedger = ({ direction }: { direction: 'deposit' | 'withdraw' }) => {
   }
 
   return (
-    <div className='mx-auto max-w-[1400px] p-4 sm:p-6'>
+    <div className='w-full p-4 sm:p-6'>
       {/* Header */}
       <div className='mb-6 flex items-center justify-between gap-3'>
         <div className='flex items-center gap-3'>

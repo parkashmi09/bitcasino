@@ -152,6 +152,7 @@ const OPERATOR_SETTINGS = Object.freeze({
   // for `idle_logout_minutes` is signed out.
   idle_logout: { env: 'IDLE_LOGOUT', kind: 'boolean', default: true, label: 'Sign a player out after N minutes with no activity' },
   idle_logout_minutes: { env: 'IDLE_LOGOUT_MINUTES', kind: 'number', min: 1, max: 120, default: 5, label: 'Minutes with no activity before the sign-out (N)' },
+  require_email_verification: { env: 'REQUIRE_EMAIL_VERIFICATION', kind: 'boolean', label: 'Verify email before transacting' },
 
   // Read by user-service's PlayerBonusService (user, 2026-10-28). The lock is in force only while
   // the owner's `bonus.wagering_lock` is on too; the forfeit pair is the withdraw popup's copy.

@@ -106,6 +106,8 @@ const validateField = (name: keyof Form, value: string, all: Form) => {
     case 'city':
       return value && value.length < 3 ? 'The City field must be at least 3 characters' : ''
     case 'mono':
+      // Player (User) ke liye zaroori (user, 2026-11-15); staff pe optional.
+      if (all.newlvlno === 'USER' && !value.trim()) return 'The Mobile Number field is required'
       if (value && !/^\d+$/.test(value)) return 'The Mobile Number field may only contain numeric characters'
       if (value && value.length < 10) return 'The Mobile Number field must be at least 10 characters'
 
@@ -171,6 +173,9 @@ const CreateAccount = () => {
     const next = { ...form, [name]: value } as Form
 
     if (name === 'username') setNameCheck('idle')
+
+    // Type badla to Mobile Number ka "required" bhi badalta hai — error taaza karo.
+    if (name === 'newlvlno' && (errors.mono || next.mono)) setErrors(prev => ({ ...prev, mono: validateField('mono', next.mono, next) }))
     setForm(next)
 
     if (!REQUIRED_FIELDS.includes(name)) return
@@ -310,7 +315,7 @@ const CreateAccount = () => {
             {field('password', 'Password', { required: true, type: 'password' })}
             {field('cpassword', 'Confirm Password', { required: true, type: 'password' })}
             {field('city', 'City')}
-            {field('mono', 'Mobile Number', { maxLength: 15 })}
+            {field('mono', 'Mobile Number', { required: isUser, maxLength: 15 })}
           </CardContent>
         </Card>
 

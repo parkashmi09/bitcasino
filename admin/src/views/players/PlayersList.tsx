@@ -114,19 +114,22 @@ type Section = 'direct' | 'agent' | 'financial'
 const UsersPage = () => {
   // The tab lives in the URL through nuqs, like the table's search/page, so the two never overwrite each other.
   const [url, setUrl] = useQueryStates({ tab: parseAsString, search: parseAsString, page: parseAsString }, { history: 'replace', scroll: false })
-  const { actor } = useSession()
-  const house = actor?.direct === true
+  const { actor, modelAllows } = useSession()
+
+  // Direct Users and Financial are B2C's, Agent System B2B's (all three on a hybrid site).
+  const house = actor?.direct === true && modelAllows('b2c')
   const promotions = actor?.promotions === true
 
   const sections: { value: Section; label: string; icon: React.ReactNode }[] = [
     ...(house ? [{ value: 'direct' as const, label: 'Direct Users', icon: <UserIcon /> }] : []),
-    { value: 'agent', label: 'Agent System', icon: <NetworkIcon /> },
+    ...(modelAllows('b2b') ? [{ value: 'agent' as const, label: 'Agent System', icon: <NetworkIcon /> }] : []),
     ...(house ? [{ value: 'financial' as const, label: 'Financial', icon: <LandmarkIcon /> }] : [])
   ]
 
-  const section: Section = sections.find(s => s.value === url.tab)?.value ?? sections[0].value
+  const section: Section = sections.find(s => s.value === url.tab)?.value ?? sections[0]?.value ?? 'agent'
+
   // A new tab starts unfiltered on page 1.
-  const select = (value: Section) => void setUrl({ tab: value === sections[0].value ? null : value, search: null, page: null })
+  const select = (value: Section) => void setUrl({ tab: value === sections[0]?.value ? null : value, search: null, page: null })
 
   // Users / Overview (graphs) — Direct aur Agent tab me.
   const [view, setView] = useState<'users' | 'overview'>('users')

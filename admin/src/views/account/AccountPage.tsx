@@ -7,7 +7,7 @@ import { PlusIcon } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { siteConfig } from '@/configs/site'
-import { useSession } from '@/contexts/SessionContext'
+import { directBalanceLabel, useSession } from '@/contexts/SessionContext'
 import { formatIn, useReportMoney } from '@/components/shared/ReportMoney'
 import { useApi } from '@/hooks/use-api'
 import OwnerAddBalance from '@/views/exchange/OwnerAddBalance'
@@ -17,6 +17,7 @@ import MyAccount from './MyAccount'
 /** Owner ke do wallet (zip My Account ka "Add amount") — header wala Add Balance popup. */
 const OwnerWalletCard = () => {
   const [open, setOpen] = useState(false)
+  const directLabel = directBalanceLabel(siteConfig.whitelabel, useSession().businessModel)
   const { data } = useApi<OwnerWallet>('admin/exchange/owner/wallet')
 
   // Both wallets are kept in INR; shown in the owner's default coin, the INR figure underneath.
@@ -32,7 +33,7 @@ const OwnerWalletCard = () => {
           {money.code !== 'INR' && inrLine(data?.wallet.balance)}
         </div>
         <div>
-          <div className='text-muted-foreground text-xs'>Direct Users balance</div>
+          <div className='text-muted-foreground text-xs'>{directLabel}</div>
           <div className='text-xl font-bold tabular-nums'>{money.format(data?.directBalance ?? 0, 'INR')}</div>
           {money.code !== 'INR' && inrLine(data?.directBalance)}
         </div>

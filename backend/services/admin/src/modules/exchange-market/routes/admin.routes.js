@@ -26,10 +26,11 @@ module.exports = function adminRoutes(deps) {
   const { auth } = deps;
   const service = new ExchangeMarketService(deps);
   const router = Router();
-  // Market Analysis and Current Bets are reports: downline staff open them too (user, 2026-11-04), and every
-  // query is scoped to the caller's own hierarchy (`#scope` → manageableStaffIds), so a report grant is enough.
-  const canRead = auth.requirePermission(PERMISSIONS.REPORTS_READ);
-  const canReadReports = canRead;
+  // Market Analysis + Game Details (book, user book, bets): har staff level ko, apni downline tak
+  // (scope service me: login wale ke tree ke players). Isliye reports:read, jo har level ke paas hai.
+  // Current Bets bhi report hai: same permission as its nav entry and Turn Over.
+  const canReadReports = auth.requirePermission(PERMISSIONS.REPORTS_READ);
+  const canRead = canReadReports;
 
   router.get(
     '/analysis',

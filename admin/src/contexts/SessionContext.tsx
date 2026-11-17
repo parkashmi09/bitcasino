@@ -80,10 +80,26 @@ type SessionValue = {
 
   /** An owner on/off policy (`branch_management`, …) is `on`. Off until the site's feature list says so. */
   policyOn: (key?: string | null) => boolean
+
+  /**
+   * The owner's business model (policy `business_model`; a whitelabel's plan sets it): `b2c` has no
+   * agent network, `b2b` no promotions or player cashier. Anything else (unset, not yet loaded) is `hybrid`.
+   */
+  businessModel: 'b2c' | 'b2b' | 'hybrid'
+
+  /** A screen marked for one model (`model: 'b2c'` / `'b2b'`) is shown on that model and on hybrid. */
+  modelAllows: (model?: 'b2c' | 'b2b' | null) => boolean
   signOut: () => Promise<void>
 }
 
 const SessionContext = createContext<SessionValue | null>(null)
+
+/**
+ * What the owner's `staff_balances` wallet is called. On a B2B whitelabel copy there are no
+ * direct users: it only holds what the parent sent, before the company moves it to Agent System.
+ */
+export const directBalanceLabel = (whitelabel: boolean, model: 'b2c' | 'b2b' | 'hybrid') =>
+  whitelabel && model === 'b2b' ? 'Balance from parent' : 'Direct Users balance'
 
 /** How often the owner's plan is re-read (cheap: an in-memory read on the backend). */
 const ENTITLEMENTS_POLL_MS = 4_000
@@ -251,6 +267,10 @@ export function SessionProvider({ children }: { children: ReactNode }) {
 
   const policyOn = useCallback((key?: string | null) => !key || liveFeatures.data?.get(key) === 'on', [liveFeatures.data])
 
+  const storedModel = liveFeatures.data?.get('business_model')
+  const businessModel = storedModel === 'b2c' || storedModel === 'b2b' ? storedModel : 'hybrid'
+  const modelAllows = useCallback((model?: 'b2c' | 'b2b' | null) => !model || businessModel === 'hybrid' || businessModel === model, [businessModel])
+
   const can = useCallback(
     (permission?: string | string[]) => {
       if (!permission || (Array.isArray(permission) && permission.length === 0)) return true
@@ -282,9 +302,11 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       featureEntitled,
       flagEntitled,
       policyOn,
+      businessModel,
+      modelAllows,
       signOut
     }),
-    [me.data, me.isLoading, can, flags.data, flags.isLoading, entitlements.data, featureEntitled, flagEntitled, policyOn, qc, signOut]
+    [me.data, me.isLoading, can, flags.data, flags.isLoading, entitlements.data, featureEntitled, flagEntitled, policyOn, businessModel, modelAllows, qc, signOut]
   )
 
   return <SessionContext.Provider value={value}>{children}</SessionContext.Provider>

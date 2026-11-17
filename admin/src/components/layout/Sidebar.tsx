@@ -98,6 +98,29 @@ const sectionRowsClass = 'gap-1'
 
 const collapseClass = `h-(--collapsible-panel-height) overflow-hidden transition-[height] duration-250 ${EASE} data-ending-style:h-0 data-starting-style:h-0`
 
+// Only words: the menu itself (labels, hrefs, permissions) still comes from navConfig.
+const GROUP_SUBTITLES: Record<string, string> = {
+  Main: 'Dashboard, players and wallets',
+  'Agent Management': 'Agents, downline and limits',
+  Sports: 'Markets, bets and results',
+  Transactions: 'Deposits, withdrawals and KYC',
+  Finance: 'Payments, banks and ledgers',
+  Promotions: 'Bonuses, VIP, races and codes',
+  Casino: 'Providers, games and lobby',
+  'Original Games': 'Our own games and settings',
+  Team: 'Staff and roles',
+  Content: 'Banners, pages and messages',
+  Reports: 'Profit, turnover and audits',
+  'Site Config': 'Branding, coins and switches',
+  Settings: 'Access and your account'
+}
+
+// On a B2C site the agent network's screens are gone (navConfig `model: 'b2b'`): what is left of
+// Agent Management is the company's own management — executives and the activity log.
+const B2C_TITLES: Record<string, { title: string; subtitle: string }> = {
+  'Agent Management': { title: 'Management', subtitle: 'Executives and activity' }
+}
+
 // Bottom shortcut row: real pages, shown only when the menu shows them to this session.
 const SHORTCUT_HREFS = ['/transactions/deposit', '/transactions/withdraw', '/kyc', '/users']
 
@@ -300,6 +323,8 @@ const SidebarGroupedMenuItems = ({
   isBranchOpen: (key: string) => boolean
   setOpenItem: (key: string, open: boolean) => void
 }) => {
+  const { businessModel } = useSession()
+
   const menu = (
     <SidebarGroupContent>
       <SidebarMenu className={sectionRowsClass}>
@@ -496,10 +521,17 @@ const SidebarGroupedMenuItems = ({
     </SidebarGroupContent>
   )
 
-  // ccpayment's section title: a small caps label in disabled ink.
+  // Luno's section title: a small caps TITLE with a muted line under it. Shown name only: the
+  // group's key (open state) stays `groupLabel`.
+  const renamed = groupLabel && businessModel === 'b2c' ? B2C_TITLES[groupLabel] : undefined
+  const subtitle = renamed?.subtitle ?? (groupLabel ? GROUP_SUBTITLES[groupLabel] : undefined)
+
   const title = groupLabel && (
-    <span className='min-w-0 flex-1 truncate text-left text-[11px] leading-tight font-bold tracking-wider text-[var(--mui-palette-text-disabled,#b3b9c5)] uppercase'>
-      {groupLabel}
+    <span className='flex min-w-0 flex-1 flex-col items-start gap-0.5 text-left'>
+      <span className='text-sidebar-foreground text-[13px] leading-tight font-semibold tracking-wide uppercase'>
+        {renamed?.title ?? groupLabel}
+      </span>
+      {subtitle && <span className='text-muted-foreground truncate text-xs leading-tight font-normal'>{subtitle}</span>}
     </span>
   )
 

@@ -69,7 +69,7 @@ test('casino aggregator switch', async (t) => {
 
   await q(`DELETE FROM ${LIVE}`);
   await q(`DELETE FROM ${PARKED}`);
-  await q(`INSERT INTO ${LIVE} (uuid, name, provider) VALUES (:a, 'JS slot', 'pragmatic'), (:b, 'JS live', 'evolution')`, {
+  await q(`INSERT INTO ${LIVE} (uuid, name, provider) VALUES (:a, 'JS slot', 'netent'), (:b, 'JS live', 'bgaming')`, {
     a: `${tag}-js-a`,
     b: `${tag}-js-b`,
   });
@@ -136,5 +136,24 @@ test('casino aggregator switch', async (t) => {
     await applyAggregator(deps);
     assert.ok((await where(`${tag}-sg-d`)).live);
     assert.ok((await where(`${tag}-js-b`)).parked);
+  });
+
+  await t.test('studios Slotegrator lacks stay in the lobby under the Slotegrator policy', async () => {
+    await choose('slotegrator');
+    await q(`INSERT INTO ${PARKED} (uuid, name, provider) VALUES (:e, 'Evo table', 'evolution'), (:f, 'Mac88 table', 'MAC88')`, {
+      e: `${tag}-js-e`,
+      f: `${tag}-js-f`,
+    });
+    const result = await applyAggregator(deps);
+    assert.equal(result.restored, 2);
+    assert.ok((await where(`${tag}-js-e`)).live, 'evolution is live');
+    assert.ok((await where(`${tag}-js-f`)).live, 'kept list matches case-insensitively');
+    assert.ok((await where(`${tag}-js-b`)).parked, 'a studio Slotegrator serves stays parked');
+    assert.equal(await aggregatorOf(deps, `${tag}-js-e`), 'js_games', 'so it launches through JSGames V2');
+    assert.deepEqual(await applyAggregator(deps), { aggregator: 'slotegrator', parked: 0, restored: 0 });
+
+    await choose('js_games');
+    await applyAggregator(deps);
+    assert.ok((await where(`${tag}-js-e`)).live, 'and stays live under the JSGames policy');
   });
 });
