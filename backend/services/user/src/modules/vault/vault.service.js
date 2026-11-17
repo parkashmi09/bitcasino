@@ -495,7 +495,9 @@ class VaultService {
     const dayEnd = startOfTomorrow();
 
     const deposits = await this.models.VaultPro.findAll({
-      where: { status: 'active', vaultBalance: { [Op.gt]: 0 } },
+      // Security (M6): a fixed-term deposit stays status='active' after maturity until it is withdrawn.
+      // Interest must stop at endTime, or a matured deposit keeps compounding at the locked rate.
+      where: { status: 'active', vaultBalance: { [Op.gt]: 0 }, endTime: { [Op.gt]: dayStart } },
       order: [['id', 'ASC']],
       limit,
       raw: true,

@@ -108,16 +108,12 @@ class TipService {
 
     const value = money.toDecimalString(money.toMinor(amount));
 
-    // rainbet: the coin the sender pays in. Another coin than the tip's is charged the tip's worth
-    // at the platform rate, no fee (`fromCurrency`); the recipient still gets `value` of `code`.
+    // Security (M4): paying a tip in a DIFFERENT currency converted at the platform rate with NO fee is
+    // a zero-fee cross-currency swap (self-tip to an alt), which bypasses the swap rail's fee and its
+    // on/off switch. Tips are single-currency; conversion must go through Swap.
     const payCode = fromCurrency ? String(fromCurrency).toUpperCase() : code;
-    let payValue = value;
-    if (payCode !== code) {
-      const converted = await this.rewardMoney.convert(value, code, payCode);
-      if (converted == null) throw errors.NO_RATE({ currency: payCode });
-      payValue = money.toDecimalString(money.toMinor(converted));
-      if (!money.gt(payValue, '0')) throw errors.MIN_AMOUNT({ currency: code, minimum, amount });
-    }
+    if (payCode !== code) throw errors.CROSS_CURRENCY({ pay: payCode, tip: code });
+    const payValue = value;
 
     // Money out of the sender: the requirements and the cap are checked on what actually leaves.
     const applied = await this.requirements.assertMet(senderId, {

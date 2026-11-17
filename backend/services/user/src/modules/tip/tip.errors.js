@@ -5,6 +5,7 @@ const { defineErrors } = require('@ibitplay/common');
 module.exports = defineErrors('TIP', {
   USER_NOT_FOUND: { status: 404, message: 'No player with that username' },
   SELF: { status: 400, message: 'You cannot tip yourself' },
+  CROSS_CURRENCY: { status: 400, message: 'Tips must be sent in a single currency; use Swap to convert' },
   DISABLED_BY_RECIPIENT: { status: 400, message: 'This player does not accept tips' },
   RECIPIENT_UNAVAILABLE: { status: 400, message: 'This player cannot receive tips' },
   SENDER_BLOCKED: { status: 403, message: 'Your account cannot send tips' },
