@@ -6,7 +6,7 @@ import { isLineMarket } from "../../../lib/helper/lineMarket.mjs";
 import { isBadloBet, isBadloLeg } from "../../../lib/helper/badloMarket.mjs";
 import { leagueNameForBet } from "../../../lib/services/SportsLeagueResolver.mjs";
 import { isHiddenSport, isHiddenLeague } from "../../../lib/constants/hiddenSports.mjs";
-import { isLaySide, readBufferTick, finalSuspensionStatus, fancyOddsDrift, deriveBufferFlags, feedRunners, khadoQuote, manualBetLiveCheck, autoBetCheck } from "./betBufferRules.mjs";
+import { isLaySide, readBufferTick, finalSuspensionStatus, fancyOddsDrift, deriveBufferFlags, feedRunners, khadoQuote, manualBetLiveCheck, autoBetCheck, runnerNameForSid } from "./betBufferRules.mjs";
 import { liveOdds_default } from "./liveOdds.mjs";
 import { cleanRef, betInflight_default } from "./betInflight.mjs";
 
@@ -115,6 +115,16 @@ async function runBetBuffer(body, sb, opts = {}) {
     const runners = list && marketId ? feedRunners({ marketList: list, marketId }) : null;
     if (runners && liveTracked && !runners.includes(String(body.selection_name ?? ""))) {
       return reject(MESSAGES.BET.GAME_SUSPEND, "RUNNER_NOT_IN_MARKET");
+    }
+    // Security (S1): the live PRICE is read by the client `selection_id` (readBufferTick), but validation
+    // and settlement use `selection_name`. So a bet can name the favourite yet carry the outsider's
+    // selection_id and be booked at the outsider's odds. Reject when the runner that selection_id points
+    // to is not the one selection_name names. Honest slips (id and name agree) pass unchanged.
+    if (liveTracked && list && marketId) {
+      const idName = runnerNameForSid({ marketList: list, marketId, selectionId });
+      if (idName !== null && String(idName) !== String(body.selection_name ?? "")) {
+        return reject(MESSAGES.BET.GAME_SUSPEND, "SELECTION_ID_NAME_MISMATCH");
+      }
     }
     if (feedFlags && isLineMarket(body.market_type) && !feedFlags.lineMarket) {
       return reject(MESSAGES.BET.GAME_SUSPEND, "MARKET_TYPE_MISMATCH");

@@ -138,4 +138,12 @@ function readMarketList(body) {
   return Array.isArray(node) ? node : null;
 }
 
-export { isLaySide, readBufferTick, finalSuspensionStatus, fancyOddsDrift, deriveBufferFlags, feedRunners, khadoQuote, manualBetLiveCheck, autoBetCheck, readMarketList };
+// Security (S1): the name of the runner that a client `selection_id` points to, for cross-checking
+// against the client `selection_name`. Price and settlement must address the SAME runner.
+function runnerNameForSid({ marketList, marketId, selectionId }) {
+  if (selectionId === undefined || selectionId === null || selectionId === "") return null;
+  const runner = findRunner(findMarket(marketList, marketId), selectionId);
+  return runner ? String(runner.nat || "") : null;
+}
+
+export { isLaySide, readBufferTick, finalSuspensionStatus, fancyOddsDrift, deriveBufferFlags, feedRunners, khadoQuote, manualBetLiveCheck, autoBetCheck, readMarketList, runnerNameForSid };
