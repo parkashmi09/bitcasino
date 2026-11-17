@@ -82,8 +82,22 @@ function attachSockets({ server, container }) {
     // `verify` throws on anything invalid — expired, wrong type, wrong secret.
     // The caller logs and treats the connection as signed-out.
     const payload = tokens.verify(token, TOKEN_TYPES.ACCESS);
+    if (!payload?.sub) return null;
+    const userId = String(payload.sub);
+    // Security (A5): a valid signature is not enough on a socket, same as on HTTP. A logged-out or
+    // password-reset session (revoked) and a locked / non-active account must lose their socket reach
+    // too. Mirror the HTTP loadSession + requireActive checks, keyed on the token's own session id.
+    if (payload.sid) {
+      const session = await container.models.AuthSession.findByPk(payload.sid, { attributes: ['revoked_at'], raw: true });
+      if (!session || session.revoked_at) return null;
+    }
+    const account = await container.models.Users.findByPk(userId, {
+      attributes: ['status', 'is_locked', 'system_locked'],
+      raw: true,
+    });
+    if (!account || account.is_locked || account.system_locked || (account.status && account.status !== 'active')) return null;
     // `expiresAt` lets the transport drop the identity when the token would stop working on HTTP.
-    return payload?.sub ? { userId: String(payload.sub), expiresAt: payload.exp * 1000 } : null;
+    return { userId, expiresAt: payload.exp * 1000 };
   };
 
   /**

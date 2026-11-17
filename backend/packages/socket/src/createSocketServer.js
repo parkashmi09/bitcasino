@@ -127,6 +127,9 @@ function createSocketServer({ io, authenticate, authenticateStaff, logger, confi
   /** Wire a connection up to everything registered. */
   /** How stale a staff socket's row may get before a staff event re-reads it. */
   const STAFF_RECHECK_MS = 5000;
+  // Security (A5): re-validate a USER socket's session/lock periodically too (logout/ban/reset). Rarer
+  // than staff actions, so a longer window keeps the DB load low while bounding the stale window.
+  const USER_RECHECK_MS = 30000;
 
   function attach(socket, context) {
     for (const [event, spec] of handlers) {
@@ -153,6 +156,20 @@ function createSocketServer({ io, authenticate, authenticateStaff, logger, confi
           const expired = context.expiresAt != null && Date.now() >= context.expiresAt;
           if (spec.audience === AUDIENCE.USER && (!context.userId || expired)) {
             return refuse(errors.UNAUTHENTICATED({ event: name }));
+          }
+
+          // Security (A5): the session may have been revoked (logout / password reset) or the account
+          // locked since the handshake. Re-resolve the player token at most every USER_RECHECK_MS, as
+          // HTTP re-checks per request, so an already-open socket loses its reach too.
+          if (spec.audience === AUDIENCE.USER && context.userToken && Date.now() - (context.userCheckedAt ?? 0) > USER_RECHECK_MS) {
+            const fresh = await Promise.resolve(authenticate(context.userToken)).catch(() => null);
+            context.userCheckedAt = Date.now();
+            if (!fresh) {
+              context.userId = null;
+              return refuse(errors.UNAUTHENTICATED({ event: name }));
+            }
+            context.userId = fresh.userId;
+            context.expiresAt = fresh.expiresAt ?? context.expiresAt;
           }
 
           /**
@@ -278,6 +295,9 @@ function createSocketServer({ io, authenticate, authenticateStaff, logger, confi
       staff,
       staffToken: staff ? String(token) : null,
       staffCheckedAt: staff ? Date.now() : 0,
+      // Security (A5): the player token + when it was last re-validated, for the periodic USER re-check.
+      userToken: userId ? String(token) : null,
+      userCheckedAt: userId ? Date.now() : 0,
       socket,
       ip: ipOf(socket),
       userAgent: socket.handshake.headers?.['user-agent'] ?? null,
@@ -332,6 +352,8 @@ function createSocketServer({ io, authenticate, authenticateStaff, logger, confi
 
       context.userId = bound;
       context.expiresAt = boundExpiresAt;
+      context.userToken = String(candidateToken);
+      context.userCheckedAt = Date.now();
       context.armExpiry?.();
       socket.join(roomForUser(bound));
 
