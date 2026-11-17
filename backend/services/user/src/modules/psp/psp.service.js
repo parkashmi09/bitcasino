@@ -346,6 +346,16 @@ class PspService {
 
     // ── Success: the money already left. Record and stop. ─────────────
     if (parsed.status === PSP_STATUS.SUCCESS) {
+      // Security (M1): if the hold was already refunded but the provider now reports the payout
+      // succeeded, the player keeps BOTH. Do not silently confirm — alert for manual clawback.
+      if (payout.refunded) {
+        this.logger?.error(
+          { provider: providerName, reference: parsed.reference, userId: payout.userId, amount: payout.amount },
+          'PAYOUT PAID AFTER REFUND — the hold was refunded AND the provider paid; manual clawback required'
+        );
+        await this.#record(audit, { accepted: true, amount: payout.amount });
+        return { status: 'ok', settled: true, conflict: true, reference: parsed.reference };
+      }
       await this.#markPayoutStatus(payout, PSP_STATUS.SUCCESS);
       await this.#record(audit, { accepted: true, amount: payout.amount });
       this.logger?.info(

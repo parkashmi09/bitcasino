@@ -330,13 +330,21 @@ class PaymentOrdersService {
         { http: this.http }
       );
     } catch (error) {
-      // ── 4. Anything went wrong: give the money back ─────────────────
-      await this.#refund({ userId, currency, amount, reference, providerName, reason: error.message });
-      this.logger?.error({ err: error, provider: providerName, reference, userId }, 'Withdrawal request failed');
-      throw error;
+      // ── 4. The gateway call THREW — the result is UNKNOWN ───────────
+      // Security (M1): a throw here (timeout / 5xx / network / unparseable reply) does NOT mean the
+      // payout was not sent — the provider may already be paying the bank. Refunding the hold here AND
+      // a real payout landing is a double-spend. So DO NOT refund: the withdrawal stays PENDING (the row
+      // recorded in step 2) for the provider's success callback, or an operator, to resolve. Only an
+      // EXPLICIT provider rejection (`!result.ok` below) is safe to refund.
+      this.logger?.error(
+        { err: error, provider: providerName, reference, userId: String(userId), amount, currency },
+        'Payout result UNKNOWN — withdrawal left PENDING, funds NOT refunded; reconcile against the provider before any refund'
+      );
+      throw errors.PROVIDER_UNREACHABLE({ provider: providerName });
     }
 
     if (!result.ok) {
+      // An explicit provider rejection: the payout was definitely not accepted, so return the hold.
       await this.#refund({ userId, currency, amount, reference, providerName, reason: result.message });
       throw errors.PROVIDER_REJECTED({ provider: providerName, reason: result.message });
     }
