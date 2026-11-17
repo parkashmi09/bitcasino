@@ -11,6 +11,10 @@ module.exports = defineErrors('SWAP', {
     status: 402,
     message: 'Insufficient balance for this swap',
   },
+  RATE_STALE: {
+    status: 503,
+    message: 'The exchange rate is out of date right now — try again shortly',
+  },
   RATE_UNAVAILABLE: {
     status: 409,
     message: 'No exchange rate is available for one of these currencies',

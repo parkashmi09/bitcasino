@@ -103,7 +103,7 @@ var WalletService = {
   creditBalance: async (entityId, amount, userType, transaction, initiatedBy, senderType = null) => {
     try {
       const idField = WalletService.getWalletQueryField(userType);
-      const wallet = await Wallet_default.findOne({ where: { [idField]: entityId, user_type: userType }, transaction });
+      const wallet = await Wallet_default.findOne({ where: { [idField]: entityId, user_type: userType }, transaction, ...(transaction ? { lock: transaction.LOCK.UPDATE } : {}) }); // Security (N5): row lock so concurrent credits/debits cannot lose an update
       if (!wallet) throw new Error("Wallet not found");
       const prev = parseFloat(wallet.inr_balance);
       wallet.inr_balance = prev + parseFloat(amount);
@@ -140,7 +140,7 @@ var WalletService = {
   debitBalance: async (entityId, amount, userType, transaction, initiatedBy) => {
     try {
       const idField = WalletService.getWalletQueryField(userType);
-      const wallet = await Wallet_default.findOne({ where: { [idField]: entityId, user_type: userType }, transaction });
+      const wallet = await Wallet_default.findOne({ where: { [idField]: entityId, user_type: userType }, transaction, ...(transaction ? { lock: transaction.LOCK.UPDATE } : {}) }); // Security (N5): row lock so concurrent credits/debits cannot lose an update
       if (!wallet) throw new Error("Wallet not found");
       const current = parseFloat(wallet.inr_balance);
       if (current < parseFloat(amount)) throw new Error("Insufficient balance");

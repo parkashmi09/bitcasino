@@ -382,7 +382,15 @@ class SwapService {
   }
 
   async #rateOf(currency) {
-    const { usdRate } = await this.rates.getRate(currency);
+    const { usdRate, lastUpdated, managedBy } = await this.rates.getRate(currency);
+    // Security (M3): a MARKET rate (managedBy null) that has not refreshed within the window is stale;
+    // a dead price feed must not be arbitraged by swapping at a frozen rate. Pinned owner/site rates are
+    // intentionally fixed, so they are exempt. Threshold must exceed EXCHANGE_RATE_REFRESH_MS (default 1h).
+    if (managedBy == null) {
+      const maxAgeMs = Number(process.env.SWAP_RATE_MAX_AGE_MS || 3 * 60 * 60 * 1000);
+      const ts = lastUpdated ? new Date(lastUpdated).getTime() : 0;
+      if (!ts || Date.now() - ts > maxAgeMs) throw errors.RATE_STALE({ currency });
+    }
     return usdRate;
   }
 }
