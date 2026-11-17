@@ -35,12 +35,13 @@ function createControllers({ service, emails }) {
      * that is where password reset will deliver afterwards.
      */
     changeEmail: asyncHandler(async (req, res) => {
-      const { email, code } = req.body;
+      const { email, code, password } = req.body;
 
       await emails.verifyOtp({ email, code, purpose: EMAIL_PURPOSE.CHANGE_EMAIL });
 
       const profile = await service.changeEmail(req.user.id, {
         email,
+        password,
         proveEmail: ({ email: address }) =>
           emails.spendProof({ email: address, purpose: EMAIL_PURPOSE.CHANGE_EMAIL }),
       });

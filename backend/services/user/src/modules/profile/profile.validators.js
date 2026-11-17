@@ -45,6 +45,7 @@ const changeEmail = {
     .object({
       email: z.string().trim().toLowerCase().email('a valid email is required').max(255),
       code: z.string().trim().regex(/^\d{6}$/, 'the code is 6 digits'),
+      password: z.string().min(1, 'your current password is required'),
     })
     .strict(),
 };

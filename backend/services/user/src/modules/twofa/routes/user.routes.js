@@ -31,7 +31,7 @@ module.exports = function userRoutes(deps) {
 
   router.get('/status', noQuery(), ctrl.status);
   router.post('/enable', noBody(), ctrl.beginSetup);
-  router.post('/setup-verify', codeLimiter, validate(v.verifyCode), ctrl.completeSetup);
+  router.post('/setup-verify', codeLimiter, validate(v.completeSetup), ctrl.completeSetup);
   router.post('/verify', codeLimiter, validate(v.verifyCode), ctrl.verify);
   router.post('/disable', codeLimiter, validate(v.disable), ctrl.disable);
 

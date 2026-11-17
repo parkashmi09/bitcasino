@@ -16,8 +16,11 @@ const code = z
  */
 const verifyCode = { body: z.object({ code }).strict() };
 
+// Security (A18): enabling 2FA also requires the account password, so a stolen session cannot enrol.
+const completeSetup = { body: z.object({ code, password: z.string().min(1, 'password is required') }).strict() };
+
 const disable = {
   body: z.object({ code, password: z.string().min(1, 'password is required') }).strict(),
 };
 
-module.exports = { verifyCode, disable, code };
+module.exports = { verifyCode, completeSetup, disable, code };

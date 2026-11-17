@@ -3,6 +3,7 @@
 const { defineErrors } = require('@ibitplay/common');
 
 module.exports = defineErrors('PROFILE', {
+  PASSWORD_REQUIRED: { status: 403, message: 'Your current password is required to change your email' },
   USER_NOT_FOUND: {
     status: 404,
     message: 'Account not found',

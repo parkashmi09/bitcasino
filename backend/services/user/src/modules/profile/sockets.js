@@ -95,7 +95,7 @@ function register({ on, deps }) {
     // Both halves write to `users`; neither is a thing anyone does often.
     limit: { windowMs: 60_000, max: 10 },
     handle: async (payload, context) => {
-      const { username, email, code } = payload ?? {};
+      const { username, email, code, password } = payload ?? {};
 
       if (username === undefined && email === undefined) {
         return { status: false, msg: 'Provide a username or an email address' };
@@ -125,6 +125,8 @@ function register({ on, deps }) {
 
           result = await profile.changeEmail(context.userId, {
             email: String(email),
+            // Security (A4): the current password is required to change the email on this path too.
+            password: String(password ?? ''),
             proveEmail: ({ email: address }) =>
               emails.spendProof({ email: address, purpose: EMAIL_PURPOSE.CHANGE_EMAIL }),
           });

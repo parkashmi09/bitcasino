@@ -115,10 +115,16 @@ class TwoFactorService {
    *
    * @legacy POST /2fa/setup-verify
    */
-  async completeSetup(userId, { code }) {
+  async completeSetup(userId, { code, password }) {
     const row = await this.models.User2fa.findOne({ where: { uid: TwoFactorService.#key(userId) }, raw: true });
     if (!row?.secret_key) throw errors.NOT_INITIATED();
     if (row.is_enabled) throw errors.ALREADY_ENABLED();
+
+    // Security (A18): enabling a second factor requires the account password, so a stolen access token
+    // cannot enrol the attacker's authenticator and lock the real owner out. `disable` already does this.
+    const account = await this.models.Users.findByPk(userId);
+    const passwordOk = account?.password ? await verifyPassword(password, account.password) : false;
+    if (!passwordOk) throw errors.PASSWORD_REQUIRED();
 
     const secret = this.#openSecret(row.secret_key);
     if (!secret) throw errors.NOT_INITIATED();

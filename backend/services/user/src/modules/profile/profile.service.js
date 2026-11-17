@@ -1,6 +1,7 @@
 'use strict';
 
 const { Op, fn, col, where } = require('@ibitplay/db');
+const { verifyPassword } = require('@ibitplay/auth');
 
 const errors = require('./profile.errors');
 const avatarErrors = require('./avatar.errors');
@@ -282,9 +283,14 @@ class ProfileService {
    *   not depend on the email module's construction — the caller passes
    *   `EmailService.spendProof`.
    */
-  async changeEmail(userId, { email, proveEmail }) {
+  async changeEmail(userId, { email, password, proveEmail }) {
     const user = await this.models.Users.findByPk(userId);
     if (!user) throw errors.USER_NOT_FOUND({ userId });
+
+    // Security (A4): changing the email is an account-takeover vector (change it, then password-reset).
+    // Require the current password, so a stolen access token alone cannot move the account's email.
+    const passwordOk = user.password ? await verifyPassword(String(password ?? ''), user.password) : false;
+    if (!passwordOk) throw errors.PASSWORD_REQUIRED();
 
     const address = String(email ?? '').trim().toLowerCase();
 
