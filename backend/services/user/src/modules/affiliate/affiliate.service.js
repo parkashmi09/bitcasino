@@ -729,6 +729,11 @@ class AffiliateService {
 
     const campaignLabel = String(campaign ?? '').trim().slice(0, 80);
 
+    // Security (B4): snapshot the member's cumulative wager now, so tier unlocks count only what they
+    // wager AFTER joining — a late joiner's pre-existing wager must not instantly pay the referrer.
+    const joinWagerRow = await this.models.Userwager.findOne({ where: { uid: member.id }, raw: true });
+    const wagerAtJoin = this.#wagerAmount(joinWagerRow);
+
     const [row, created] = await this.models.Team.findOrCreate({
       where: { membername: member.name },
       defaults: {
@@ -736,6 +741,7 @@ class AffiliateService {
         membername: member.name,
         referalCode: owner.referalcode,
         campaign: campaignLabel,
+        wager_at_join: wagerAtJoin,
         createdAt: new Date(),
         updatedAt: new Date(),
       },
@@ -788,8 +794,13 @@ class AffiliateService {
 
     const wagerRow = await this.models.Userwager.findOne({ where: { uid: member.id }, raw: true });
     const { currency, tiers } = await this.#tiersInDefault();
+    // Security (B4): count only wager made AFTER joining. `wager_at_join` is the baseline captured at
+    // join time (NULL for rows created before this fix -> 0 baseline, i.e. grandfathered).
+    const cumulativeUsd = Number(this.#wagerAmount(wagerRow));
+    const baselineUsd = Number(this.#wagerAmount({ wager: team.wager_at_join }));
+    const effectiveUsd = Math.max(0, cumulativeUsd - baselineUsd).toString();
     // `userwager` is USD; the steps are the admin's figures in the owner's default currency (INR).
-    const wager = await this.rewardMoney.convert(this.#wagerAmount(wagerRow), 'USD', currency);
+    const wager = await this.rewardMoney.convert(effectiveUsd, 'USD', currency);
     if (wager == null) return { unlocked: false, reason: `No exchange rate for ${currency}` };
     if (!tiers.some((t) => money.gte(wager, t.wager))) {
       return { unlocked: false, reason: 'The member has not reached the first tier', wager };

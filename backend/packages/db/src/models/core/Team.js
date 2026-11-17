@@ -28,6 +28,12 @@ module.exports = (sequelize) => {
       allowNull: false,
       field: "referalCode",
     },
+    // Security (B4, migration 190): the member's cumulative wager when they joined this team.
+    wager_at_join: {
+      type: DataTypes.TEXT,
+      allowNull: true,
+      field: "wager_at_join",
+    },
   }, {
     sequelize,
     modelName: "Team",
