@@ -82,7 +82,7 @@ const disableTwoFactor = {
  */
 const firstLoginPassword = {
   body: z
-    .object({ email: staffLoginId, currentPassword: submitted, newPassword: chosen })
+    .object({ email: staffLoginId, currentPassword: submitted, newPassword: chosen, twoFactorCode: twoFactorCode.optional() })
     .strict()
     .refine((v) => v.currentPassword !== v.newPassword, {
       message: 'the new password must be different',

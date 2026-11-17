@@ -53,7 +53,12 @@ async function up({ sequelize, transaction, logger }) {
   // ── Bootstrap super-admin ────────────────────────────────────────────
   const email = process.env.SEED_ADMIN_EMAIL || 'admin@ibitplay.local';
   const name = process.env.SEED_ADMIN_USERNAME || 'superadmin';
-  const plainPassword = process.env.SEED_ADMIN_PASSWORD || 'ChangeMe!2026';
+  // Security (A1): no built-in default. A site seeded without SEED_ADMIN_PASSWORD must fail loudly
+  // rather than ship a publicly known super-admin password.
+  const plainPassword = process.env.SEED_ADMIN_PASSWORD;
+  if (!plainPassword) {
+    throw new Error('SEED_ADMIN_PASSWORD is required to seed the super-admin (no default is used).');
+  }
 
   const existing = await sequelize.query('SELECT id FROM staff WHERE email = :email LIMIT 1', {
     replacements: { email },

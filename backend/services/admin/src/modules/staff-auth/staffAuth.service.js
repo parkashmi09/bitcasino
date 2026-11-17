@@ -377,7 +377,7 @@ class StaffAuthService {
     };
   }
 
-  async firstLoginPassword({ email, currentPassword, newPassword }, context = {}) {
+  async firstLoginPassword({ email, currentPassword, newPassword, twoFactorCode }, context = {}) {
     const { ip } = context;
     this.#assertNotThrottled(email, ip);
 
@@ -390,6 +390,10 @@ class StaffAuthService {
     }
 
     await this.#assertUsable(staff, { allowFirstLogin: true });
+
+    // Security (A2): a forced/first-login password set must still clear the second factor when the
+    // account has 2FA enrolled — otherwise anyone who learns the temporary password bypasses TOTP.
+    await this.#assertSecondFactor(staff, twoFactorCode, { email, ip });
 
     // rainbet: this route is the forced change only; it is no way round the creator-only rule.
     if (!staff.first_login && !staff.must_change_password) throw errors.PASSWORD_CHANGE_NOT_DUE();

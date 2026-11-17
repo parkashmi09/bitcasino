@@ -14,7 +14,7 @@ const { notifyPlayer } = require('../notifications/notifyPlayer');
 const { withdrawalNotice } = require('../notifications/notices');
 const { PlayerBonusService } = require('../player-bonuses/playerBonus.service');
 const { createWithdrawRequirements } = require('../withdraw-requirements/withdrawRequirements');
-const { withChannel } = require('../directory/playerScope');
+const { withChannel, assertPlayerVisible } = require('../directory/playerScope');
 
 /** Thrown inside the request transaction to roll back a double submit's row. */
 class ReplayedRequest extends Error {}
@@ -46,6 +46,7 @@ class ReplayedRequest extends Error {}
 class FiatWithdrawService {
   constructor(deps) {
     const { models, db, config, logger } = deps;
+    this.deps = deps;
     this.models = models;
     this.db = db;
     this.config = config;
@@ -279,6 +280,9 @@ class FiatWithdrawService {
       if (!(NEXT_STATUSES[row.status] ?? []).includes(status)) {
         throw errors.ALREADY_PROCESSED({ withdrawalId, status: row.status });
       }
+
+      // Security (M11): only decide on a player inside the caller's own staff tree (owner/root sees all).
+      await assertPlayerVisible(this.deps, staff?.id, row.uid);
 
       /* ONE WITHDRAWAL, ONE REFUND. Three things hold it: the row lock above serialises two
          staff deciding at once, Rejected is final so the transition check refuses a second

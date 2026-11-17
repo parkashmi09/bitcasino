@@ -726,6 +726,10 @@ function resolveMobmWinner({ result, team_one, team_two, runners }) {
 function resolveFancyWinner({ result, fancy_name, selection_name, team_one, team_two, bet_type, market_type, odds, badlo = false }) {
   console.log("result", result);
   let final_result = result.winnerId;
+  // Security: line markets compare numerically; result.winnerId and odds are DECIMAL strings,
+  // so a raw >=/< is lexicographic ("5" >= "40"). Coerce. NaN stays loss (house-safe).
+  const numLineResult = Number(final_result);
+  const numLineOdds = Number(odds);
   console.log("market_type", market_type);
   console.log("final_result", final_result);
   console.log("odds", odds);
@@ -797,14 +801,14 @@ function resolveFancyWinner({ result, fancy_name, selection_name, team_one, team
     return { type: "string", winnerName, reason: "determined from final_result string for tied match" };
   } else if (market_type === "Over By Over") {
     if (bet_type === "yes") {
-      if (final_result >= odds) {
+      if (numLineResult >= numLineOdds) {
         winnerName = "won";
       } else {
         winnerName = "loss";
       }
       return { type: "string", winnerName, reason: "determined from final_result string for over by over" };
     } else if (bet_type === "no") {
-      if (final_result < odds) {
+      if (numLineResult < numLineOdds) {
         winnerName = "won";
       } else {
         winnerName = "loss";
@@ -853,14 +857,14 @@ function resolveFancyWinner({ result, fancy_name, selection_name, team_one, team
     return { type: "meter", runs, line, reason: `meter line ${line}, result ${runs}` };
   } else if (market_type === "1st Innings 6 Overs Line" || market_type === "2nd Innings 6 Overs Line" || market_type === "3rd Innings 6 Overs Line" || market_type === "1st Innings 10 Overs Line" || market_type === "2nd Innings 10 Overs Line" || market_type === "3rd Innings 10 Overs Line" || market_type === "1st Innings 15 Overs Line" || market_type === "2nd Innings 15 Overs Line" || market_type === "3rd Innings 15 Overs Line" || market_type === "1st Innings 20 Overs Line" || market_type === "2nd Innings 20 Overs Line" || market_type === "3rd Innings 20 Overs Line" || market_type === "1st Innings 25 Overs Line" || market_type === "2nd Innings 25 Overs Line" || market_type === "3rd Innings 25 Overs Line" || market_type === "1st Innings 30 Overs Line" || market_type === "2nd Innings 30 Overs Line" || market_type === "3rd Innings 30 Overs Line" || market_type === "1st Innings 35 Overs Line" || market_type === "2nd Innings 35 Overs Line" || market_type === "3rd Innings 35 Overs Line" || market_type === "1st Innings 40 Overs Line" || market_type === "2nd Innings 40 Overs Line" || market_type === "3rd Innings 40 Overs Line" || market_type === "1st Innings 45 Overs Line" || market_type === "2nd Innings 45 Overs Line" || market_type === "3rd Innings 45 Overs Line" || market_type === "1st Innings 50 Overs Line" || market_type === "2nd Innings 50 Overs Line" || market_type === "3rd Innings 50 Overs Line" || market_type === "Over By Over" || market_type === "Normal" || market_type === "Ball By Ball" || market_type === "khado" || isLineMarket(market_type)) {
     if (bet_type === "yes") {
-      if (final_result >= odds) {
+      if (numLineResult >= numLineOdds) {
         winnerName = "won";
       } else {
         winnerName = "loss";
       }
       return { type: "string", winnerName, reason: "determined from final_result string for 1st innings 6 overs line" };
     } else if (bet_type === "no") {
-      if (final_result < odds) {
+      if (numLineResult < numLineOdds) {
         winnerName = "won";
       } else {
         winnerName = "loss";
@@ -900,14 +904,14 @@ function resolveFancyWinner({ result, fancy_name, selection_name, team_one, team
     return { type: "string", winnerName, reason: "determined from final_result string for tied match" };
   } else if (market_type === "1st Innings 50 Overs Line" || market_type === "2nd Innings 50 Overs Line") {
     if (bet_type === "yes") {
-      if (final_result >= odds) {
+      if (numLineResult >= numLineOdds) {
         winnerName = "won";
       } else {
         winnerName = "loss";
       }
       return { type: "string", winnerName, reason: "determined from final_result string for innings 50 overs line" };
     } else if (bet_type === "no") {
-      if (final_result < odds) {
+      if (numLineResult < numLineOdds) {
         winnerName = "won";
       } else {
         winnerName = "loss";
@@ -915,9 +919,9 @@ function resolveFancyWinner({ result, fancy_name, selection_name, team_one, team
       return { type: "string", winnerName, reason: "determined from final_result string for  innings 50 overs line" };
     }
   } else if (market_type === "Game To Deuce 1/1" || market_type === "Game To Deuce 1/2" || market_type === "Game To Deuce 1/3" || market_type === "Game To Deuce 1/4" || market_type === "Game To Deuce 2/1" || market_type === "Game To Deuce 2/2" || market_type === "Game To Deuce 2/3" || market_type === "Game To Deuce 2/4" || market_type === "Game To Deuce 3/1" || market_type === "Game To Deuce 3/2" || market_type === "Game To Deuce 3/3" || market_type === "Game To Deuce 3/4") {
-    if (final_result === "0" && selection_name === "No" || selection_name === "NO") {
+    if ((final_result === "0") && (String(selection_name).toUpperCase() === "NO")) {
       winnerName = "won";
-    } else if (final_result === "1" && selection_name === "Yes" || selection_name === "YES") {
+    } else if ((final_result === "1") && (String(selection_name).toUpperCase() === "YES")) {
       winnerName = "won";
     } else {
       winnerName = "loss";
@@ -933,9 +937,9 @@ function resolveFancyWinner({ result, fancy_name, selection_name, team_one, team
     }
     return { type: "string", winnerName, reason: "determined from final_result string for half time" };
   } else if (market_type === "Both Teams To Score") {
-    if (final_result === 0 && selection_name === "No" || selection_name === "NO") {
+    if ((Number(final_result) === 0) && (String(selection_name).toUpperCase() === "NO")) {
       winnerName = "won";
-    } else if (final_result > 0 && selection_name === "Yes" || selection_name === "YES") {
+    } else if ((Number(final_result) > 0) && (String(selection_name).toUpperCase() === "YES")) {
       winnerName = "won";
     } else {
       winnerName = "loss";
@@ -978,9 +982,9 @@ function resolveFancyWinner({ result, fancy_name, selection_name, team_one, team
     }
     return { type: "string", winnerName, reason: "determined from final_result string for tied match" };
   } else if (market_type === "Match Result/Both Teams to score") {
-    if (final_result === 0 && selection_name === "No" || selection_name === "NO") {
+    if ((Number(final_result) === 0) && (String(selection_name).toUpperCase() === "NO")) {
       winnerName = "won";
-    } else if (final_result > 0 && selection_name === "Yes" || selection_name === "YES") {
+    } else if ((Number(final_result) > 0) && (String(selection_name).toUpperCase() === "YES")) {
       winnerName = "won";
     } else {
       winnerName = "loss";

@@ -12,8 +12,9 @@ function service({ challenge } = {}) {
   const winners = [];
   const credits = [];
   const svc = new ChallengeService({
+    db: { transaction: async (fn) => fn({ LOCK: { UPDATE: 'UPDATE' } }) },
     models: {
-      CasinoChallenge: { findAll: async () => [challenge] },
+      CasinoChallenge: { findAll: async () => [challenge], findOne: async () => challenge },
       CasinoChallengeWinner: {
         count: async () => winners.length,
         create: async (row) => {

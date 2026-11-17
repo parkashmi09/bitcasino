@@ -27,6 +27,7 @@ class ChallengeService {
     this.logger = deps.logger;
     this.clients = deps.clients;
     this.wallet = deps.wallet;
+    this.db = deps.db;
   }
 
   // ══ Players ═════════════════════════════════════════════════════════
@@ -178,18 +179,33 @@ class ChallengeService {
   async #award(challenge, { userId, coin, betId, multiplier, betUsd }) {
     let row;
     try {
-      row = await this.models.CasinoChallengeWinner.create({
-        challenge_id: challenge.id,
-        user_id: userId,
-        bet_id: String(betId ?? ''),
-        multiplier,
-        bet_usd: betUsd,
-        created_at: new Date(),
+      // Security (C7): serialise awards for this challenge and re-check the winner cap under a row
+      // lock, so concurrent qualifying settlements by different players cannot exceed `winners`.
+      row = await this.db.transaction(async (transaction) => {
+        await this.models.CasinoChallenge.findOne({
+          where: { id: challenge.id },
+          transaction,
+          lock: transaction.LOCK.UPDATE,
+        });
+        const count = await this.models.CasinoChallengeWinner.count({
+          where: { challenge_id: challenge.id },
+          transaction,
+        });
+        if (count >= Number(challenge.winners)) return null;
+        return this.models.CasinoChallengeWinner.create({
+          challenge_id: challenge.id,
+          user_id: userId,
+          bet_id: String(betId ?? ''),
+          multiplier,
+          bet_usd: betUsd,
+          created_at: new Date(),
+        }, { transaction });
       });
     } catch (error) {
       if (error?.name === 'SequelizeUniqueConstraintError') return; // already won this one
       throw error;
     }
+    if (!row) return; // cap reached under the lock
     const currency = String(coin).toUpperCase();
     const amount = await this.#fromUsd(String(challenge.prize_usd), currency);
     if (amount == null) {

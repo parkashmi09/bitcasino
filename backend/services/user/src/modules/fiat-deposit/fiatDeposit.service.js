@@ -260,6 +260,8 @@ class FiatDepositService {
       if (deposit.status !== DEPOSIT_STATUS.PENDING) {
         throw errors.ALREADY_PROCESSED({ depositId, status: deposit.status });
       }
+      // Security (M11): only act on a player inside the caller's own staff tree (owner/root sees all).
+      await assertPlayerVisible(this.deps, staff?.id, deposit.user_id);
       // Manual deposit sirf direct user ka — child user (koi parent) ka paisa Sports Exchange D/W se.
       await assertPlayerCapability(deposit.user_id, 'deposit');
 
@@ -350,6 +352,8 @@ class FiatDepositService {
     if (deposit.status !== DEPOSIT_STATUS.PENDING) {
       throw errors.ALREADY_PROCESSED({ depositId, status: deposit.status });
     }
+    // Security (M11): scope the reject to the caller's tree.
+    await assertPlayerVisible(this.deps, staff?.id, deposit.user_id);
 
     await deposit.update({
       status: DEPOSIT_STATUS.REJECTED,
