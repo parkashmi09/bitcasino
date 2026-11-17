@@ -44,6 +44,12 @@ module.exports = (sequelize) => {
       defaultValue: "Activated",
       field: "status",
     },
+    // Security (B10, migration 189): the deposit that satisfied this claim; one deposit, one card.
+    deposit_transaction_id: {
+      type: DataTypes.TEXT,
+      allowNull: true,
+      field: "deposit_transaction_id",
+    },
   }, {
     sequelize,
     modelName: "UserGiftCards",

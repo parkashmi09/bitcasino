@@ -326,7 +326,7 @@ class GiftCardsService {
     if (!card.deposit_status) return { status: true, message: 'No deposit required' };
 
     try {
-      const result = await this.#checkDeposit({ userId, from, to, requiredUsd: (await this.#requiredUsd(card)) ?? card.deposit_amount, ctx });
+      const result = await this.#checkDeposit({ userId, from, to, requiredUsd: (await this.#requiredUsd(card)) ?? card.deposit_amount, ctx, usedTxnIds: await this.#usedDepositTxnIds(userId) });
       return result.met
         ? { status: true, message: 'Deposit requirement met', amountUSD: this.#num(result.usd) }
         : { status: false, message: 'No single deposit transaction meets the required amount' };
@@ -442,9 +442,12 @@ class GiftCardsService {
     const from = activation.start_date;
     const to = this.#conditionEnd(card, activation);
 
+    let depositTxnId = null;
     if (card.deposit_status) {
-      const deposit = await this.#checkDeposit({ userId, from, to, requiredUsd: (await this.#requiredUsd(card)) ?? card.deposit_amount });
+      const usedTxnIds = await this.#usedDepositTxnIds(userId);
+      const deposit = await this.#checkDeposit({ userId, from, to, requiredUsd: (await this.#requiredUsd(card)) ?? card.deposit_amount, usedTxnIds });
       if (!deposit.met) throw errors.DEPOSIT_CONDITION_UNMET({ required: String(card.deposit_amount), deposit });
+      depositTxnId = deposit.transactionId != null ? String(deposit.transactionId) : null;
     }
 
     if (card.wager_status) {
@@ -467,7 +470,7 @@ class GiftCardsService {
        * this one without crediting.
        */
       const [affected] = await this.models.UserGiftCards.update(
-        { status: STATUS.CLAIMED },
+        { status: STATUS.CLAIMED, deposit_transaction_id: depositTxnId },
         { where: { id: activation.id, status: STATUS.ACTIVATED }, transaction }
       );
 
@@ -532,7 +535,17 @@ class GiftCardsService {
    * Keeping it explicit here because a future reader will otherwise "fix" it
    * into a SUM and quietly loosen every gift card on the platform.
    */
-  async #checkDeposit({ userId, from, to, requiredUsd, ctx }) {
+  /** Security (B10): deposit transaction ids already consumed by this player's claimed gift cards. */
+  async #usedDepositTxnIds(userId) {
+    const rows = await this.models.UserGiftCards.findAll({
+      where: { user_id: userId, status: STATUS.CLAIMED, deposit_transaction_id: { [Op.ne]: null } },
+      attributes: ['deposit_transaction_id'],
+      raw: true,
+    });
+    return new Set(rows.map((r) => String(r.deposit_transaction_id)));
+  }
+
+  async #checkDeposit({ userId, from, to, requiredUsd, ctx, usedTxnIds = new Set() }) {
     const rates = await this.#usdRates(ctx);
     const required = money.toDecimalString(money.toMinor(requiredUsd ?? '0'));
 
@@ -548,6 +561,8 @@ class GiftCardsService {
       });
 
       for (const row of rows) {
+        // Security (B10): a deposit already spent on another of this player's claimed cards cannot count again.
+        if (usedTxnIds.has(String(row[source.idColumn] ?? ''))) continue;
         const currency = String(source.currency ?? row.currency ?? 'USDT').toUpperCase();
         const usd = this.#toUsd(row.amount ?? '0', currency, rates);
         if (usd === null) continue;
