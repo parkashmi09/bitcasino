@@ -409,7 +409,13 @@ function createSocketServer({ io, authenticate, authenticateStaff, logger, confi
  * fresh budget.
  */
 const bucketKey = (context, socket) =>
-  context.staff ? `staff:${context.staff.id}` : (context.userId ?? socket.id);
+  context.staff
+    ? `staff:${context.staff.id}`
+    : context.userId
+      ? `user:${context.userId}`
+      // Security (A6): an UNAUTHENTICATED socket is bucketed by IP, not socket.id — otherwise a
+      // reconnect hands out a fresh bucket and the public-event limits (register, reset-password) reset.
+      : `ip:${context.ip ?? socket.id}`;
 
 /** The room a player's own updates are pushed to. */
 const roomForUser = (userId) => `user:${userId}`;
