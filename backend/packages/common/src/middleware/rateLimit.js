@@ -77,7 +77,7 @@ const DECREMENT_SCRIPT = `
  * ALWAYS_ON — the password and code guards, which stop account takeover and never switch off.
  * Starts on, and an answer that cannot be read keeps the last state.
  */
-const ALWAYS_ON = new Set(['auth:login', 'auth:reset', 'otp-issue', 'otp-verify', 'twofa:code', 'staff-auth:signin', 'staff-2fa:code', 'exchange-lookup:txn-verify']);
+const ALWAYS_ON = new Set(['auth:login', 'auth:reset', 'otp-issue', 'otp-verify', 'twofa:code', 'staff-auth:signin', 'staff-2fa:code', 'branches:signin', 'exchange-lookup:txn-verify']);
 const OWNER_POLL_MS = 15_000;
 let ownerOff = false;
 let watching = false;
