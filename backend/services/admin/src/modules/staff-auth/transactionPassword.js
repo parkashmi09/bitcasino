@@ -43,6 +43,7 @@ const { verifyTransactionPassword } = require('../staff-directory/staffDirectory
 const errors = defineErrors('TXN_PASSWORD', {
   REQUIRED: { status: 403, message: 'This action requires your transaction password' },
   INVALID: { status: 403, message: 'The transaction password is not correct' },
+  LOCKED: { status: 429, message: 'Too many wrong transaction passwords — try again in a few minutes' },
   NOT_SET: {
     status: 403,
     message: 'No transaction password is set. The Super Admin sets it under My account. Other staff: ask an account above you to reset your password; a new one is issued at the next sign-in',
@@ -95,6 +96,31 @@ async function hasTransactionPassword(models, staffId) {
  *
  * @returns {Promise<{set: boolean, verified: boolean}>}
  */
+// Security (A9): a per-staff brute-force lockout on the transaction password, so a stolen session
+// cannot guess it (or the login password, in login mode) through money endpoints at the global rate.
+// In-process, like the staff-login throttle; good enough to stop rapid guessing within a process.
+const TXN_MAX_ATTEMPTS = 5;
+const TXN_WINDOW_MS = 10 * 60 * 1000;
+const TXN_LOCK_MS = 15 * 60 * 1000;
+const txnAttempts = new Map(); // staffId -> { count, firstAt, lockedUntil }
+
+function assertTxnNotLocked(staffId) {
+  const rec = txnAttempts.get(String(staffId));
+  if (rec?.lockedUntil && Date.now() < rec.lockedUntil) throw errors.LOCKED();
+}
+function recordTxnFailure(staffId) {
+  const key = String(staffId);
+  const now = Date.now();
+  let rec = txnAttempts.get(key);
+  if (!rec || now - rec.firstAt > TXN_WINDOW_MS) rec = { count: 0, firstAt: now, lockedUntil: 0 };
+  rec.count += 1;
+  if (rec.count >= TXN_MAX_ATTEMPTS) rec.lockedUntil = now + TXN_LOCK_MS;
+  txnAttempts.set(key, rec);
+}
+function clearTxnFailures(staffId) {
+  txnAttempts.delete(String(staffId));
+}
+
 async function assertTransactionPassword(models, staffId, candidate, { required = true, executiveId = null } = {}) {
   const set = await hasTransactionPassword(models, staffId);
 
@@ -103,7 +129,12 @@ async function assertTransactionPassword(models, staffId, candidate, { required 
     return { set: false, verified: false };
   }
   if (typeof candidate !== 'string' || !candidate) throw errors.REQUIRED();
-  if (!(await verifyTransactionPassword(models, staffId, candidate, { executiveId }))) throw errors.INVALID();
+  assertTxnNotLocked(staffId);
+  if (!(await verifyTransactionPassword(models, staffId, candidate, { executiveId }))) {
+    recordTxnFailure(staffId);
+    throw errors.INVALID();
+  }
+  clearTxnFailures(staffId);
   return { set: true, verified: true };
 }
 
