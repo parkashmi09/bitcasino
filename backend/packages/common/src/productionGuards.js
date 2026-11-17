@@ -47,8 +47,14 @@ const PLACEHOLDER_SECRETS = new Set([
   'your-secret-here',
 ]);
 
-const isPlaceholder = (value) =>
-  typeof value === 'string' && PLACEHOLDER_SECRETS.has(value.trim().toLowerCase());
+/** Substrings that mark an example/placeholder value even when it is long enough to pass the length gate. */
+const PLACEHOLDER_MARKERS = ['replace-me', 'dev-only', 'your-secret-here', 'example', 'changeme'];
+
+const isPlaceholder = (value) => {
+  if (typeof value !== 'string') return false;
+  const v = value.trim().toLowerCase();
+  return PLACEHOLDER_SECRETS.has(v) || PLACEHOLDER_MARKERS.some((m) => v.includes(m));
+};
 
 /**
  * @param {object} config  the parsed service config
@@ -85,7 +91,7 @@ function auditProductionConfig(config, serviceName = 'service') {
     );
   }
 
-  for (const key of ['JWT_ACCESS_SECRET', 'JWT_REFRESH_SECRET', 'JWT_ADMIN_SECRET', 'INTERNAL_API_KEY']) {
+  for (const key of ['JWT_ACCESS_SECRET', 'JWT_REFRESH_SECRET', 'JWT_ADMIN_SECRET', 'INTERNAL_API_KEY', 'OWNER_SHARED_SECRET', 'WHITELABEL_LINK_KEY']) {
     const value = config[key];
     if (value === undefined) continue;
     if (isPlaceholder(value)) {
@@ -112,6 +118,29 @@ function auditProductionConfig(config, serviceName = 'service') {
     );
   }
 
+  // Bootstrap super-admin password (A1): must be set and not an example value, or a site could be
+  // seeded with a publicly known credential.
+  if (config.SEED_ADMIN_PASSWORD !== undefined && isPlaceholder(config.SEED_ADMIN_PASSWORD)) {
+    fatal.push('SEED_ADMIN_PASSWORD is a placeholder/example value — the super-admin would ship with a known password.');
+  }
+
+  // Provider callback integrity (N2/C1): the legacy seamless signature does not cover the amount or
+  // the member account, so a replayed signature can credit an arbitrary account.
+  if (config.SEAMLESS_SIGN_MODE !== undefined && String(config.SEAMLESS_SIGN_MODE).toLowerCase() === 'legacy') {
+    fatal.push("SEAMLESS_SIGN_MODE=legacy in production — the signature omits amount and member_account. Set SEAMLESS_SIGN_MODE=full.");
+  }
+
+  // Replay window (N3): a non-positive skew makes every captured signature valid forever.
+  if (config.SEAMLESS_MAX_SKEW_SECONDS !== undefined && Number(config.SEAMLESS_MAX_SKEW_SECONDS) <= 0) {
+    fatal.push('SEAMLESS_MAX_SKEW_SECONDS <= 0 — captured provider signatures never expire. Set a positive window.');
+  }
+
+  // x-casino legacy hash (N3): the legacy hash does not cover the request body, so one captured hash
+  // authenticates any amount/account.
+  if (config.XCASINO_ALLOW_LEGACY_HASH === true || String(config.XCASINO_ALLOW_LEGACY_HASH).toLowerCase() === 'true') {
+    fatal.push('XCASINO_ALLOW_LEGACY_HASH=true in production — a captured hash authenticates any changebalance. Disable it.');
+  }
+
   // ── Warnings ─────────────────────────────────────────────────────────
 
   if (!config.REDIS_URL) {
@@ -134,6 +163,13 @@ function auditProductionConfig(config, serviceName = 'service') {
       `BIND_HOST=${bindHost} — this service accepts connections on every interface, bypassing the ` +
         'gateway\'s header stripping and internal-route refusal. Correct inside a container; ' +
         'confirm nothing else can reach the port.'
+    );
+  }
+
+  if (config.TXN_PASSWORD_MODE !== undefined && String(config.TXN_PASSWORD_MODE).toLowerCase() !== 'separate') {
+    warn.push(
+      `TXN_PASSWORD_MODE=${config.TXN_PASSWORD_MODE} — the money-action transaction password is the staff ` +
+        'login password. A stolen session can then move money. Set TXN_PASSWORD_MODE=separate.'
     );
   }
 

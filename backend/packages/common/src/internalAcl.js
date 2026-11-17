@@ -254,6 +254,9 @@ for (const [caller, prefixes] of Object.entries(INTERNAL_ACL)) {
  *   path including `/internal/...`, matched by prefix.
  * @returns {{allowed: boolean, reason: string}}
  */
+/** Internal path prefixes that move money; an unidentified caller is refused these in production (N1). */
+const SENSITIVE_INTERNAL_PREFIXES = ['/internal/user/wallet'];
+
 function isInternalCallAllowed(caller, path) {
   /**
    * An unidentified caller is not denied here.
@@ -263,14 +266,29 @@ function isInternalCallAllowed(caller, path) {
    * per-service keys. `internalAuth` warns on this path instead. Enforcement
    * requires identity; without identity there is nothing to enforce against.
    */
-  if (!caller) return { allowed: true, reason: 'caller not identified — shared key in use' };
+  const normalised = String(path || '');
+
+  if (!caller) {
+    // Security (N1): an unidentified caller (the shared-key fallback) is tolerated for
+    // backward compatibility, EXCEPT on money-mutating internal paths in production. There, a pod
+    // that only needs, say, an odds feed must never be able to mint balance with the shared key.
+    // Setting the per-service keys identifies callers and restores these paths through the ACL below.
+    const sensitive = SENSITIVE_INTERNAL_PREFIXES.some(
+      (p) => normalised === p || normalised.startsWith(`${p}/`)
+    );
+    if (sensitive && process.env.NODE_ENV === 'production') {
+      return {
+        allowed: false,
+        reason: 'unidentified caller blocked from a money path in production — set the per-service internal keys',
+      };
+    }
+    return { allowed: true, reason: 'caller not identified — shared key in use' };
+  }
 
   const prefixes = INTERNAL_ACL[caller];
   if (!prefixes) {
     return { allowed: false, reason: `"${caller}" is not a known service` };
   }
-
-  const normalised = String(path || '');
   const hit = prefixes.find((p) => normalised === p || normalised.startsWith(`${p}/`));
 
   return hit
