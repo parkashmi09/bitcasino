@@ -537,6 +537,18 @@ class VaultService {
       });
       if (!deposit) return null;
 
+      // Security (M7): the `already` count above runs BEFORE this row lock, so two concurrent workers
+      // both see zero and both accrue. Re-check under the lock — the deposit row serialises us, so the
+      // second worker now sees the first worker's row and backs out.
+      const alreadyLocked = await this.models.VaultInterestHistory.count({
+        where: {
+          deposit_id: depositId,
+          createdAt: { [Op.gte]: dayStart, [Op.lt]: dayEnd },
+        },
+        transaction,
+      });
+      if (alreadyLocked > 0) return null;
+
       const principal = money.toDecimalString(money.toMinor(deposit.vaultBalance ?? '0'));
       if (money.lte(principal, '0')) return null;
 

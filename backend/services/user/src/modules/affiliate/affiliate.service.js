@@ -317,24 +317,37 @@ class AffiliateService {
       return false;
     }
 
-    const existing = await this.models.UnlockedRewards.findOne({
-      where: { uid: owner.id, membername: member.name, wager_amount: '0' },
-      raw: true,
-    });
-    if (existing) return false;
-
     // Entered by the operator in the site's reward currency; paid as entered.
     const bonus = money.toDecimalString(money.toMinor(settings.affiliateBonus));
-    await this.models.UnlockedRewards.create({
-      uid: owner.id,
-      ownername: owner.name,
-      membername: member.name,
-      amount: bonus,
-      cointype: await this.rewardMoney.currency(),
-      referalCode: team.referalCode ?? owner.referalcode,
-      wager_amount: '0',
-      claimed: false,
+    const cointype = await this.rewardMoney.currency();
+
+    // Security (B5): the exists-check and the insert must be atomic, or two concurrent first-deposit
+    // webhooks both pass the check and book the joining bonus twice. An advisory lock per (owner, member)
+    // serialises them; the re-check inside the lock is the real guard.
+    const booked = await this.db.transaction(async (transaction) => {
+      await this.db.sequelize.query('SELECT pg_advisory_xact_lock(hashtext(:key))', {
+        replacements: { key: `affiliate-joining:${owner.id}:${member.name}` },
+        transaction,
+      });
+      const existing = await this.models.UnlockedRewards.findOne({
+        where: { uid: owner.id, membername: member.name, wager_amount: '0' },
+        transaction,
+        raw: true,
+      });
+      if (existing) return false;
+      await this.models.UnlockedRewards.create({
+        uid: owner.id,
+        ownername: owner.name,
+        membername: member.name,
+        amount: bonus,
+        cointype,
+        referalCode: team.referalCode ?? owner.referalcode,
+        wager_amount: '0',
+        claimed: false,
+      }, { transaction });
+      return true;
     });
+    if (!booked) return false;
     this.logger?.info({ owner: owner.name, member: member.name, amount: bonus }, 'Affiliate joining bonus booked');
     void Promise.resolve().then(() => this.rewardMoney.currency()).catch(() => null).then((currency) => notifyPlayer(owner.id, { kind: 'affiliate_reward', key: `affiliate:joining:${member.name}`, title: 'Referral bonus unlocked', body: `{amount} is ready to claim — ${member.name} joined with your code.`, link: '/affiliate', meta: { amount: bonus, currency } }));
     return true;
@@ -783,6 +796,13 @@ class AffiliateService {
     }
 
     return this.db.transaction(async (transaction) => {
+      // Security (B2): serialise unlocks for this member. The row lock below locks NOTHING when the
+      // member has no prior unlocked_rewards row, so two concurrent first-time unlocks would both read
+      // floor='0' and insert the same tiers. An advisory lock per member closes that window.
+      await this.db.sequelize.query('SELECT pg_advisory_xact_lock(hashtext(:key))', {
+        replacements: { key: `affiliate-unlock:${memberName}` },
+        transaction,
+      });
       /**
        * Every tier ABOVE the highest already granted for this member, up to the one the wager
        * has reached — each its own row. hash.game pays a friend's $1,000 in ten steps; paying

@@ -403,13 +403,25 @@ class RaffleService {
     for (const [id, wagered] of wagers) {
       const earned = Math.floor(Number(wagered) / per);
       if (!earned) continue;
-      const held = await this.models.RaffleTicket.count({ where: { draw_number: draw.number, user_id: id, source: TICKET_SOURCE.WAGER } });
-      for (let i = held; i < earned; i += 1) await this.#issue(draw.number, id, TICKET_SOURCE.WAGER);
+      // Security (B3): count-then-issue with no lock lets concurrent reads (parallel GET /raffle/me)
+      // each issue the full `earned - held`, multiplying a player's wager tickets. Serialise per
+      // (draw, player) and re-count inside the lock.
+      await this.db.transaction(async (transaction) => {
+        await this.db.sequelize.query('SELECT pg_advisory_xact_lock(hashtext(:key))', {
+          replacements: { key: `raffle-wager:${draw.number}:${id}` },
+          transaction,
+        });
+        const held = await this.models.RaffleTicket.count({
+          where: { draw_number: draw.number, user_id: id, source: TICKET_SOURCE.WAGER },
+          transaction,
+        });
+        for (let i = held; i < earned; i += 1) await this.#issue(draw.number, id, TICKET_SOURCE.WAGER, transaction);
+      });
     }
   }
 
   /** A new ticket with a fresh seven-digit number (retried on the rare clash). */
-  async #issue(drawNumber, userId, source) {
+  async #issue(drawNumber, userId, source, transaction = null) {
     for (let attempt = 0; attempt < 5; attempt += 1) {
       try {
         const row = await this.models.RaffleTicket.create({
@@ -418,7 +430,7 @@ class RaffleService {
           ticket_number: crypto.randomInt(TICKET_MIN, TICKET_MAX + 1),
           source,
           created_at: new Date(),
-        });
+        }, transaction ? { transaction } : {});
         return row.get({ plain: true });
       } catch (error) {
         const clash = error?.name === 'SequelizeUniqueConstraintError' && /ticket_number/.test(JSON.stringify(error.fields ?? error.parent?.detail ?? ''));
