@@ -6,8 +6,7 @@ const { PERMISSIONS } = require('@ibitplay/auth');
 
 const { TurnoverReportService } = require('../turnoverReport.service');
 
-// 0 = no rollover (target 0, which clears the withdrawal requirement).
-const multiplier = z.coerce.number().min(0).max(100);
+const multiplier = z.coerce.number().positive().max(100);
 
 const v = {
   list: {
@@ -79,3 +78,5 @@ module.exports = function adminRoutes(deps) {
 
   return router;
 };
+
+module.exports.v = v;

@@ -90,12 +90,9 @@ function deriveBufferFlags({ marketList, marketId }) {
   if (!mkt) return null;
   const gtype = normalizeName(mkt.gtype);
   const mname = mkt.mname || "";
-  // rainbet: every match and match1 market takes a better price and refuses a worse one.
-  const priceGuarded = gtype === "match" || gtype === "match1";
   return {
-    priceGuarded,
     ownLine: gtype === "khado" || normalizeName(mname) === "khado",
-    liveTracked: priceGuarded || isBookieFavourMarket(mname),
+    liveTracked: gtype === "match" || isBookieFavourMarket(mname),
     lineMarket: gtype === "fancy2" || isLineMarket(mname),
     marketType: mname
   };
@@ -119,8 +116,8 @@ function manualBetLiveCheck({ betType, editedOdds, liveOdds }) {
   const accept = isLaySide(betType) ? liveOdds <= editedOdds + EPSILON : liveOdds >= editedOdds - EPSILON;
   return { accept, finalOdds: liveOdds };
 }
-function autoBetCheck({ marketType, priceGuarded = false, betType, selectedOdds, currentOdds }) {
-  if (!priceGuarded && !isBookieFavourMarket(marketType)) return { accept: true, finalOdds: currentOdds };
+function autoBetCheck({ marketType, betType, selectedOdds, currentOdds }) {
+  if (!isBookieFavourMarket(marketType)) return { accept: true, finalOdds: currentOdds };
   if (betType === "back" || betType === "yes") {
     return { accept: currentOdds >= selectedOdds - EPSILON, finalOdds: currentOdds };
   }
