@@ -34,5 +34,5 @@ export function cashierTabs(gates, withdrawLocked = false) {
 export function walletCoins({ balances = {}, status, flag, agentPlayer }) {
   const held = status === 'ready' ? CURRENCY_ORDER.filter((code) => code in balances) : [];
   const list = held.length ? held : CURRENCY_ORDER.filter((code) => flag(code.toLowerCase()));
-  return agentPlayer && list.includes('INR') ? ['INR'] : list;
+  return agentPlayer ? ['INR'] : list;
 }

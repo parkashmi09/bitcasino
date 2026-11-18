@@ -339,6 +339,7 @@ export function WalletMenu({ onOpenDeposit }) {
 
               {/* 48px, and its 20px gutter is wider than the list's 16px —
                   both measured, and the difference is the reference's. */}
+              {!gates.agentPlayer && (
               <div className="flex h-12 shrink-0 items-center justify-between gap-3 px-5">
                 <span className="text-sm text-trunks">Hide 0 balances</span>
                 <Switch
@@ -347,6 +348,7 @@ export function WalletMenu({ onOpenDeposit }) {
                   label="Hide 0 balances"
                 />
               </div>
+              )}
             </>
           )}
         </MenuPanel>

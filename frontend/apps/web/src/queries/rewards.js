@@ -4,6 +4,7 @@ import { ENDPOINTS } from '@/lib/endpoints';
 import { queryKeys } from '@/queries/keys';
 import { refreshBalances } from '@/hooks/useWallet';
 import { useAuth } from '@/auth/AuthProvider';
+import { AGENT_SITE } from '@/lib/agentBase';
 
 /**
  * Rewards, rakeback and the VIP standing — the account's own bonus surfaces.
@@ -84,7 +85,7 @@ export function useFirstDepositOffer() {
   return useQuery({
     queryKey: queryKeys.rewards.firstDeposit(status),
     queryFn: ({ signal }) => api(ENDPOINTS.firstDeposit, { signal }),
-    enabled: status !== 'loading',
+    enabled: status !== 'loading' && !AGENT_SITE,
     select: toDepositOffer,
     staleTime: 60 * 1000,
   });

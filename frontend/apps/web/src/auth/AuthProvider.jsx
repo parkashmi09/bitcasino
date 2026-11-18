@@ -6,6 +6,7 @@ import { tokenStore } from './tokenStore';
 import { bindSession } from '@/lib/socket';
 import { toast } from '@/lib/toast';
 import { brandName, readCachedBranding } from '@/lib/branding';
+import { AGENT_SITE } from '@/lib/agentBase';
 
 /**
  * Session state for the whole app.
@@ -156,12 +157,19 @@ export function AuthProvider({ children }) {
         body: {
           identifier: identifier.trim(),
           password,
+          // Each side signs in its own players: an agent's on /agent, a direct player on the main site.
+          site: AGENT_SITE ? 'agent' : 'direct',
           ...(twoFactorCode ? { twoFactorCode } : {}),
           deviceLabel: deviceLabel(),
         },
       });
       return adopt(session);
     },
+    [adopt],
+  );
+
+  const demoLogin = useCallback(
+    async () => adopt(await api(ENDPOINTS.demoLogin, { method: 'POST', auth: false })),
     [adopt],
   );
 
@@ -203,6 +211,17 @@ export function AuthProvider({ children }) {
       toast.info(message);
     }
   }, []);
+
+  // A demo account ends with its time (backend `demo_expires_at`).
+  const demoEndsAt = user?.demo ? user.demoExpiresAt : null;
+  useEffect(() => {
+    if (!demoEndsAt) return undefined;
+    const timer = setTimeout(
+      () => logout(false, 'Your demo session has ended.'),
+      Math.max(0, new Date(demoEndsAt).getTime() - Date.now()),
+    );
+    return () => clearTimeout(timer);
+  }, [demoEndsAt, logout]);
 
   /**
    * Idle logout (backend `POST /user/auth/activity` + `/idle-check`, window `idle_logout_minutes`).
@@ -265,8 +284,8 @@ export function AuthProvider({ children }) {
 
   const value = useMemo(
     // `acceptSession`: a session obtained elsewhere (Google's `/login/google` exchange).
-    () => ({ user, status, login, register, logout, refreshUser, acceptSession: adopt }),
-    [user, status, login, register, logout, refreshUser, adopt],
+    () => ({ user, status, login, demoLogin, register, logout, refreshUser, acceptSession: adopt }),
+    [user, status, login, demoLogin, register, logout, refreshUser, adopt],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

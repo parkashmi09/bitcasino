@@ -131,13 +131,13 @@ export function useCryptoCoins() {
  * default — and a 422 on a list renders as an empty history, which is
  * indistinguishable from a player who has never transacted.
  */
-export function useWalletLedger({ limit = 25, offset = 0, enabled = true } = {}) {
+export function useWalletLedger({ limit = 25, offset = 0, reason, enabled = true } = {}) {
   const { status } = useAuth();
 
   return useQuery({
-    queryKey: walletKeys.ledger(limit, offset),
+    queryKey: [...walletKeys.ledger(limit, offset), reason],
     queryFn: ({ signal }) =>
-      api(ENDPOINTS.walletLedger, { query: { limit, offset }, signal }),
+      api(ENDPOINTS.walletLedger, { query: { limit, offset, ...(reason ? { reason } : {}) }, signal }),
     enabled: enabled && status === 'authenticated',
     staleTime: 30 * 1000,
   });

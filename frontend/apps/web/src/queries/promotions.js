@@ -6,6 +6,7 @@ import { refreshBalances } from '@/hooks/useWallet';
 import { useAuth } from '@/auth/AuthProvider';
 import { formatBalance } from '@/lib/format';
 import { toast } from '@/lib/toast';
+import { AGENT_SITE } from '@/lib/agentBase';
 
 /**
  * The promotions surfaces: the spin wheel, the VIP standing, the player's
@@ -432,12 +433,13 @@ export function usePromotion(segment, slug) {
  * ═══════════════════════════════════════════════════════════════════════ */
 
 const SLIDE_PLACEMENT = /^(slider-|home_top_)\d+$/;
+const AGENT_SLIDE_PLACEMENT = /^agent-slider-\d+$/;
 
 const versioned = (url, at) => (at ? `${url}${url.includes('?') ? '&' : '?'}v=${encodeURIComponent(at)}` : url);
 
-export function toSlides(rows) {
+export function toSlides(rows, placement = SLIDE_PLACEMENT) {
   return (Array.isArray(rows) ? rows : [])
-    .filter((row) => SLIDE_PLACEMENT.test(row?.type ?? '') && row.active !== false)
+    .filter((row) => placement.test(row?.type ?? '') && row.active !== false)
     .sort(
       (a, b) =>
         (a.sortOrder ?? 0) - (b.sortOrder ?? 0) ||
@@ -472,12 +474,14 @@ export function useSidebarBanner() {
   });
 }
 
+const toAgentSlides = (rows) => toSlides(rows, AGENT_SLIDE_PLACEMENT);
+
 export function useHomeSlides({ enabled = true } = {}) {
   return useQuery({
-    queryKey: queryKeys.content.slides(),
+    queryKey: AGENT_SITE ? queryKeys.content.agentSlides() : queryKeys.content.slides(),
     queryFn: ({ signal }) =>
-      api(ENDPOINTS.banners, { query: { mode: 'direct' }, auth: false, signal }),
-    select: toSlides,
+      api(ENDPOINTS.banners, { query: { mode: AGENT_SITE ? 'agent' : 'direct' }, auth: false, signal }),
+    select: AGENT_SITE ? toAgentSlides : toSlides,
     enabled,
     staleTime: 10 * 60 * 1000,
   });

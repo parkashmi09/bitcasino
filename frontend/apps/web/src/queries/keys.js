@@ -81,6 +81,8 @@ export const queryKeys = {
     post: (slug) => ['content', 'post', slug],
     /** Direct-mode (`?mode=direct`) home slides, with their copy. */
     slides: () => ['content', 'banners', 'direct'],
+    /** /agent's own slides (`?mode=agent`). */
+    agentSlides: () => ['content', 'banners', 'agent'],
   },
 
   /**

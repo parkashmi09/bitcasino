@@ -78,8 +78,11 @@ const currencyStore = {
  * owner set none, or set one this wallet does not know).
  */
 export function useDisplayCurrency() {
-  const owner = useGates().policy('default_currency');
+  const { policy, agentPlayer } = useGates();
+  const owner = policy('default_currency');
   const code = useSyncExternalStore(currencyStore.subscribe, currencyStore.get, () => null);
+  // An agent's player runs on INR alone, whatever this browser last chose.
+  if (agentPlayer) return ['INR', currencyStore.set];
   return [code ?? (owner in CURRENCIES ? owner : DEFAULT_CURRENCY), currencyStore.set];
 }
 

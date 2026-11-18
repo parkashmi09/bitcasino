@@ -1,5 +1,6 @@
 import { useState } from "react";
 import "./CookieConsent.css";
+import { withBase } from "@/lib/agentBase";
 
 const KEY = "cookie-consent-accepted";
 
@@ -17,7 +18,7 @@ export default function CookieConsent() {
   };
   return (
     <aside className="cookie-consent" aria-label="Cookie consent">
-      <span><a href="/help-center/privacy-policy">We use cookies</a> for functional and analytical purposes.</span>
+      <span><a href={withBase("/help-center/privacy-policy")}>We use cookies</a> for functional and analytical purposes.</span>
       <button type="button" onClick={accept}>Accept</button>
     </aside>
   );

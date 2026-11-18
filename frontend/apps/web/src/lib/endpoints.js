@@ -24,6 +24,8 @@ export const ENDPOINTS = {
   // credentials right after, so the form still lands on a signed-in home.
   register: `${USER}/auth/register`,
   login: `${USER}/auth/login`,
+  // The /agent sign-in form's throwaway account: no body, answers a session like `login`.
+  demoLogin: `${USER}/auth/demo-login`,
   refresh: `${USER}/auth/refresh`,
   logout: `${USER}/auth/logout`,
   me: `${USER}/auth/me`,

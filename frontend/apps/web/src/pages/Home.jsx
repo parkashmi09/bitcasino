@@ -8,6 +8,8 @@ import { ProviderRail } from '@/components/sections/ProviderRail';
 import { useHomeSlides, useLobbyCategories, useSiteConfig } from '@/queries';
 import { HOME_RAILS, THEME_RAIL_INDEX, lobbyRail } from '@/data/homeRails';
 import { OriginalsRail } from '@/components/sections/OriginalsRail';
+import { useGates } from '@/hooks/useGates';
+import { AGENT_SITE } from '@/lib/agentBase';
 
 /**
  * Section order follows the reference home page.
@@ -70,6 +72,7 @@ import { OriginalsRail } from '@/components/sections/OriginalsRail';
  */
 export function Home() {
   const { status } = useAuth();
+  const { agentPlayer } = useGates();
   const { config } = useSiteConfig();
   const lobby = useLobbyCategories();
   const heroOn = config.flag('home_heroSection');
@@ -118,8 +121,9 @@ export function Home() {
   return (
     <>
       {/* The site admin's banners (Content -> Banners) for everyone; the built-in hero only when there are none. */}
-      {(status === 'authenticated' || (signedOut && hasSlides)) && <HomeBanner />}
-      {signedOut && !hasSlides && slidesKnown && <Hero />}
+      {/* /agent always has slides (its defaults), under the hero's art. */}
+      {signedOut && (AGENT_SITE || (!hasSlides && slidesKnown)) && <Hero />}
+      {(status === 'authenticated' || (signedOut && (hasSlides || AGENT_SITE))) && <HomeBanner />}
       {status === 'loading' && <AboveTheFoldSkeleton />}
 
       {signedOut && casinoOn && <ProviderRail />}
@@ -141,7 +145,8 @@ export function Home() {
         <CatalogueRail key={rail.title} {...rail} />
       ))}
 
-      <TrustSection />
+      {/* Its copy is sign-up, deposit and bonus steps. */}
+      {!agentPlayer && <TrustSection />}
       {!signedOut && casinoOn && <ProviderRail />}
     </>
   );

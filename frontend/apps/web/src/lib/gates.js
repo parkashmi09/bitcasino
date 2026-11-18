@@ -88,15 +88,32 @@ export const ROUTES = [
   ['/sports', 'sports'],
 ];
 
+/** An address as the router matches it: any case, percent-encoded or not. */
+function routePath(href) {
+  const path = String(href ?? '').split(/[?#]/)[0].toLowerCase();
+  try {
+    return decodeURI(path);
+  } catch {
+    return path;
+  }
+}
+
 /** The section an href belongs to, if any (`/vip?x=1` → vip). */
 export function gateOf(href) {
-  const path = String(href ?? '').split(/[?#]/)[0];
+  const path = routePath(href);
   return ROUTES.find(([p]) => path === p || path.startsWith(`${p}/`))?.[1] ?? null;
 }
 
 /* On a B2B site (`business_model: b2b`, agents only) every promotion section is off for everyone,
    as the backend refuses them (PROMOTIONS_DISABLED_B2B). */
 const PROMO_GATES = new Set(['bonus', 'vip', 'affiliate', 'promotions', 'contest', 'wheel', 'quests', 'challenges', 'rewards', 'giftCards', 'rakeback']);
+
+/* An agent's player (and anyone signed out on /agent) has none of these. */
+const AGENT_OFF = new Set([...PROMO_GATES, 'deposit', 'withdraw', 'swap', 'vault', 'kyc', 'blog']);
+/* Pages about what those sections offer, which have no gate of their own. */
+const AGENT_CLOSED = /^\/(?:bitcoin-breakdown|help-center\/(?:help-loyalty|help-your-bonuses|reward-terms))(?:\/|$)/;
+/* A demo account has its balance, its sports bets and Logout. */
+const DEMO_CLOSED = /^\/(?:profile|sports\/statement)(?:\/|$)/;
 
 /* The owner's policies when the site never chose one — backend sitePolicy.js POLICY_DEFAULTS. */
 const POLICY_DEFAULTS = { business_model: 'hybrid', deposit_mode: 'both', withdrawal_mode: 'both', theme_mode: 'dark_only' };
@@ -108,9 +125,11 @@ const railOpen = (mode, channel) => mode === 'both' || mode === channel;
  * may each be missing (not answered, failed, signed out): what it would
  * switch reads as on.
  *
- * @param {{flags?: object|null, features?: Array|null, capabilities?: object|null, ready?: boolean}} reads
+ * `agentSite`: the address is under /agent. `demo`: the Demo Login's throwaway account.
+ *
+ * @param {{flags?: object|null, features?: Array|null, capabilities?: object|null, ready?: boolean, agentSite?: boolean, demo?: boolean}} reads
  */
-export function makeGates({ flags, features, capabilities, ready = true } = {}) {
+export function makeGates({ flags, features, capabilities, ready = true, agentSite = false, demo = false } = {}) {
   const list = Array.isArray(features) ? features : null;
   const byKey = new Map((list ?? []).map((f) => [f.feature, f]));
   const flagMap = flags && typeof flags === 'object' ? flags : null;
@@ -118,7 +137,8 @@ export function makeGates({ flags, features, capabilities, ready = true } = {}) 
   const can = (cap) => capabilities?.[cap] !== false;
   const policy = (key) => byKey.get(key)?.variant ?? POLICY_DEFAULTS[key];
   // `vault` and `deposit` are switched off together for nobody but an agent's player (backend agentPlayers.js).
-  const agentPlayer = capabilities?.vault === false && capabilities?.deposit === false;
+  // The player's OWN capabilities decide; signed out, the address does.
+  const agentPlayer = capabilities ? capabilities.vault === false && capabilities.deposit === false : agentSite;
   const manualOpen = () => railOpen(policy('deposit_mode'), 'manual') && capabilities?.manualDeposit !== false;
   const blocked = (gate) => {
     const g = GATES[gate];
@@ -130,6 +150,8 @@ export function makeGates({ flags, features, capabilities, ready = true } = {}) 
     if (g.rail && !railOpen(policy(g.rail[0]), g.rail[1]) && !(g.orManual && manualOpen())) return 'site';
     if (PROMO_GATES.has(gate) && policy('business_model') === 'b2b') return 'site';
     if (g.notAgentPlayer && agentPlayer) return 'account';
+    if (agentPlayer && AGENT_OFF.has(gate)) return 'account';
+    if (demo && gate === 'notifications') return 'account';
     if (g.capability && !can(g.capability)) return 'account';
     return null;
   };
@@ -142,9 +164,11 @@ export function makeGates({ flags, features, capabilities, ready = true } = {}) 
     can,
     /** False only for a link into a switched-off section. */
     routeOn: (href) => {
+      const path = routePath(href);
+      if ((agentPlayer && AGENT_CLOSED.test(path)) || (demo && DEMO_CLOSED.test(path))) return false;
       const gate = gateOf(href);
       // Every /promotions/* page sits inside the promotions section, whatever its own gate.
-      const promo = String(href ?? '').split(/[?#]/)[0].startsWith('/promotions');
+      const promo = path.startsWith('/promotions');
       return (!gate || on(gate)) && (!promo || on('promotions'));
     },
     policy,
@@ -157,8 +181,9 @@ export function makeGates({ flags, features, capabilities, ready = true } = {}) 
     /** One site-admin flag; absent / not answered = on. */
     flag: (key) => flagMap?.[key] !== false,
     agentPlayer,
-    /** Public self-registration: off on a B2B (agent-only) site. */
-    canSignUp: () => policy('business_model') !== 'b2b',
+    demo,
+    /** Public self-registration: off on a B2B (agent-only) site and on /agent. */
+    canSignUp: () => !agentSite && policy('business_model') !== 'b2b',
   };
 }
 

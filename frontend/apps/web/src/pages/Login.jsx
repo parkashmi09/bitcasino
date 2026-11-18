@@ -13,6 +13,7 @@ import { useAuth } from '@/auth/AuthProvider';
 import { safeNext } from '@/auth/safeNext';
 import { useGates } from '@/hooks/useGates';
 import { ApiError } from '@/lib/api';
+import { AGENT_SITE } from '@/lib/agentBase';
 
 /**
  * Log in.
@@ -69,7 +70,7 @@ export function Login() {
   const navigate = useNavigate();
   const location = useLocation();
   const [params] = useSearchParams();
-  const { login } = useAuth();
+  const { login, demoLogin } = useAuth();
   const gates = useGates();
 
   const [identifier, setIdentifier] = useState('');
@@ -153,13 +154,29 @@ export function Login() {
     }
   }
 
+  async function onDemo() {
+    if (busy) return;
+    setBusy(true);
+    setError(null);
+    try {
+      await demoLogin();
+      navigate('/', { replace: true });
+    } catch (failure) {
+      setAttempt((count) => count + 1);
+      setError(failure instanceof ApiError ? failure.message : 'Could not start a demo. Please try again.');
+    } finally {
+      setBusy(false);
+    }
+  }
+
   return (
     <AuthShell
       heading="Log in"
       image="/images/auth/login-hero.png"
       title="Enjoy premium gaming"
-      benefits={BENEFITS}
-      footer={
+      benefits={AGENT_SITE ? [] : BENEFITS}
+      // /agent: no password recovery and no sign-up, by any path.
+      footer={AGENT_SITE ? undefined : (
         <div className="grid gap-2">
           <Link to="/forgot-password" className="text-base leading-6 text-bulma hover:underline">
             Forgot password?
@@ -177,12 +194,12 @@ export function Login() {
 
           <RecaptchaNotice />
         </div>
-      }
+      )}
     >
       <form className="grid gap-2" onSubmit={onSubmit} noValidate>
         <AuthField
           id="identifier"
-          label="Username or Email"
+          label={AGENT_SITE ? 'Username' : 'Username or Email'}
           value={identifier}
           onChange={setIdentifier}
           autoComplete="username"
@@ -198,9 +215,11 @@ export function Login() {
           disabled={busy}
         />
 
-        <AuthCheckbox name="uses2FA" checked={uses2FA} onChange={setUses2FA}>
-          I use Google Authenticator
-        </AuthCheckbox>
+        {!AGENT_SITE && (
+          <AuthCheckbox name="uses2FA" checked={uses2FA} onChange={setUses2FA}>
+            I use Google Authenticator
+          </AuthCheckbox>
+        )}
 
         {/* `reveal` opens the row over 200ms by growing a 0fr grid track — see
             index.css. The field stays mounted through the close, so a code
@@ -235,6 +254,13 @@ export function Login() {
           {busy && <Spinner />}
           {busy ? 'Logging in' : 'Log in'}
         </Button>
+
+        {/* The owner panel's Demo login switch (site-config public `demo_login`). */}
+        {AGENT_SITE && gates.flag('demo_login') && (
+          <Button type="button" variant="secondary" fullWidth disabled={busy} onClick={onDemo} className="text-base">
+            Demo Login
+          </Button>
+        )}
       </form>
     </AuthShell>
   );

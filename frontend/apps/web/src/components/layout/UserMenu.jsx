@@ -98,6 +98,16 @@ const ITEMS = [
   { label: 'Refer a friend', icon: 'refer-a-friend', to: '/profile/refer-a-friend' },
 ];
 
+/** An agent's player: their account and their play. `routeOn` leaves a demo account My Bets alone. */
+const AGENT_ITEMS = [
+  { label: 'Account', icon: 'account', to: '/profile/account' },
+  { label: 'Security', icon: 'security', to: '/profile/security' },
+  { label: 'Transactions', icon: 'rewards', to: '/profile/transactions' },
+  { label: 'My Bets', icon: 'tournaments', to: '/sports/my-bets' },
+  { label: 'Settings', icon: 'account', to: '/profile/settings' },
+  { label: 'Notifications', icon: 'notifications', to: '/profile/notifications' },
+];
+
 export function UserMenu() {
   const { user, logout } = useAuth();
   const gates = useGates();
@@ -140,7 +150,10 @@ export function UserMenu() {
 
           <MenuDivider className="-mx-1 my-1 bg-hit" />
 
-          {ITEMS.filter((item) => gates.routeOn(item.to)).map((item) => (
+          {(gates.agentPlayer ? AGENT_ITEMS : ITEMS)
+            // My Bets is the exchange's page; the provider's book keeps its own inside its frame.
+            .filter((item) => gates.routeOn(item.to) && (item.to !== '/sports/my-bets' || gates.flag('sportsexchange')))
+            .map((item) => (
             <MenuRow key={item.label} {...item} onNavigate={() => setOpen(false)} />
           ))}
 

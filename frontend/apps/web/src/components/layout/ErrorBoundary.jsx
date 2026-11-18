@@ -1,6 +1,7 @@
 import { Component } from 'react';
 import { useLocation } from 'react-router-dom';
 import { Icon } from '@/components/ui/Icon';
+import { withBase } from '@/lib/agentBase';
 
 /**
  * The last line of defence: a render that threw.
@@ -111,7 +112,7 @@ function RenderFailed({ error, onReset }) {
           {/* A plain anchor, not <Link>: the outer boundary (main.jsx) sits above the router, and a
               <Link> there throws inside the fallback itself — the page went white with no reason. */}
           <a
-            href="/"
+            href={withBase('/')}
             className="rounded-i-sm bg-piccolo px-3 py-1.5 text-sm font-medium text-on-piccolo transition-opacity hover:opacity-90"
           >
             Go to the lobby

@@ -31,8 +31,30 @@ describe('gates', () => {
     expect(agent.agentPlayer).toBe(true);
     expect(agent.on('deposit')).toBe(false);
     expect(agent.routeOn('/vip')).toBe(false);
-    // The blog is content, not refused to an agent's player by the backend.
-    expect(agent.routeOn('/blog')).toBe(true);
+    expect(agent.routeOn('/blog')).toBe(false);
+    expect(agent.on('kyc')).toBe(false);
+  });
+
+  it('treats a visitor on /agent as an agent player, and a signed-in player by their own capabilities', () => {
+    const visitor = makeGates({ agentSite: true });
+    expect(visitor.agentPlayer).toBe(true);
+    expect(visitor.canSignUp()).toBe(false);
+    for (const path of ['/promotions', '/vip', '/blog', '/BLOG', '/bl%6Fg/post', '/tournaments', '/bitcoin-breakdown']) {
+      expect(visitor.routeOn(path), path).toBe(false);
+    }
+    expect(visitor.on('deposit')).toBe(false);
+    expect(visitor.routeOn('/help-center')).toBe(true);
+    expect(makeGates({ agentSite: true, capabilities: { vault: true, deposit: true } }).agentPlayer).toBe(false);
+    expect(makeGates().agentPlayer).toBe(false);
+  });
+
+  it('leaves a demo account its sports bets only', () => {
+    const demo = makeGates({ capabilities: AGENT_CAPS, demo: true, flags: { sportsexchange: true } });
+    expect(demo.routeOn('/sports/my-bets')).toBe(true);
+    for (const path of ['/sports/statement', '/profile/settings', '/profile/transactions', '/profile/account']) {
+      expect(demo.routeOn(path), path).toBe(false);
+    }
+    expect(demo.on('notifications')).toBe(false);
   });
 
   it('b2b drops promotions and sign-up for everyone', () => {

@@ -256,6 +256,7 @@ function FooterLanguage() {
 export function Footer() {
   const wide = useMediaQuery(UNFOLD_AT);
   const name = brandName(useBranding());
+  const { agentPlayer } = useGates();
 
   /**
    * The marks to show, from the operator's own currency flags.
@@ -314,15 +315,19 @@ export function Footer() {
 
           {/* Payment methods / social / licences */}
           <div className="flex flex-col gap-4 lg:flex-row lg:justify-between">
-            <div className="flex flex-col gap-4">
-              <BandHeading>Payment methods</BandHeading>
-              <MarkRow items={paymentMethods} />
-            </div>
+            {!agentPlayer && (
+              <>
+                <div className="flex flex-col gap-4">
+                  <BandHeading>Payment methods</BandHeading>
+                  <MarkRow items={paymentMethods} />
+                </div>
 
-            <div className="flex flex-col gap-4">
-              <BandHeading>Follow us</BandHeading>
-              <MarkRow items={SOCIAL_LINKS} />
-            </div>
+                <div className="flex flex-col gap-4">
+                  <BandHeading>Follow us</BandHeading>
+                  <MarkRow items={SOCIAL_LINKS} />
+                </div>
+              </>
+            )}
 
             <div className="flex flex-col gap-4">
               <BandHeading>Licenses</BandHeading>

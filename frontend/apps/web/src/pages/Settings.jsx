@@ -1,5 +1,7 @@
 import { useId, useState } from 'react';
 import { Icon } from '@/components/ui/Icon';
+import { LanguageSelect } from '@/components/ui/LanguageSelect';
+import { useLanguageLabel } from '@/lib/i18n';
 import {
   FIAT_DISPLAY_CURRENCIES,
   currencyMeta,
@@ -71,11 +73,33 @@ export function Settings() {
   const coins = useWalletCoins(balances, balanceStatus);
   const [fiat, setFiat] = useFiatCurrency();
   const { switches, status, toggle, saveError } = usePreferences();
-  // An agent's player has no marketing subscriptions: their agent owns the contact details.
+  // An agent's player has one wallet (INR) and no marketing subscriptions: language is what is left.
   const { agentPlayer } = useGates();
+  const language = useLanguageLabel();
 
   const [changing, setChanging] = useState(false);
   const fiatId = useId();
+
+  if (agentPlayer) {
+    return (
+      <div className="grid max-w-[430px] gap-2">
+        <h1 className="font-primary text-2xl font-normal tracking-normal text-bulma">
+          Settings
+        </h1>
+        {language.show && (
+          <div>
+            <label htmlFor={fiatId} className="block pb-2 text-base leading-6 text-bulma select-none">
+              Language
+            </label>
+            <LanguageSelect
+              id={fiatId}
+              className="h-10 w-full cursor-pointer rounded-md bg-goku px-4 text-base text-bulma shadow-[inset_0_0_0_1px_var(--color-beerus)] outline-none"
+            />
+          </div>
+        )}
+      </div>
+    );
+  }
 
   return (
     <div className="grid max-w-[430px] gap-2">
@@ -172,7 +196,6 @@ export function Settings() {
 
       {/* Subscriptions. `list-none` on the reference; a plain grid here, since
           three switches are a form and not a list. */}
-      {!agentPlayer && (
       <div className="grid gap-2">
         <p className="text-base leading-6 text-bulma">
           Enjoy exclusive offers: Make sure to receive deposit offers and bonuses
@@ -200,7 +223,6 @@ export function Settings() {
           {saveError ? (saveError.message ?? 'Could not save that. Please try again.') : ''}
         </p>
       </div>
-      )}
     </div>
   );
 }
