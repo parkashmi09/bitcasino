@@ -90,7 +90,6 @@ module.exports = function adminRoutes(deps) {
         await txn.setTransactionPassword(deps.models, {
           staffId: req.staff.id,
           executiveId: req.staff.executiveId,
-          level: req.staff.level,
           currentPassword: req.body.currentPassword,
           transactionPassword: req.body.transactionPassword,
           logger,

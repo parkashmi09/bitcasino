@@ -92,7 +92,7 @@ const Login = () => {
 
     try {
       if (mustChange) {
-        const { data: changed } = await request<{ transactionPassword?: string }>('admin/auth/first-login-password', {
+        await request('admin/auth/first-login-password', {
           method: 'POST',
           body: { email: identifier, currentPassword: password, newPassword }
         })
@@ -101,7 +101,6 @@ const Login = () => {
         setPassword('')
         setNewPassword('')
         setMustChange(false)
-        if (changed?.transactionPassword) setIssuedTxn(changed.transactionPassword)
 
         return
       }

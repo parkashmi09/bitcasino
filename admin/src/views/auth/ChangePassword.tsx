@@ -40,10 +40,10 @@ const ChangePassword = () => {
   const [next, setNext] = useState('')
   const [confirm, setConfirm] = useState('')
 
-  // Whitelabel company (Super Admin only): chooses its own 6-digit transaction code on this screen (no issued one).
+  // Whitelabel company: chooses its own 6-digit transaction code on this screen (no issued one).
   const [code, setCode] = useState('')
   const [codeAgain, setCodeAgain] = useState('')
-  const chooseCode = siteConfig.whitelabel && actor?.level === 1
+  const chooseCode = siteConfig.whitelabel
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
 

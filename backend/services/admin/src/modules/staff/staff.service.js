@@ -319,11 +319,8 @@ class StaffService {
         raw: true,
       });
       if (!row) throw errors.NOT_FOUND({ staffId: target });
-      // rainbet: an executive never changes its parent's password; below the Super Admin only the
-      // forced change is open.
-      if (actor.executiveId || (Number(actor.level) !== STAFF_LEVELS.SUPER_ADMIN && !row.must_change_password)) {
-        throw errors.OWN_PASSWORD_LOCKED();
-      }
+      // An executive session acts as its parent staff account: that password is not the executive's own.
+      if (actor.executiveId) throw errors.OWN_PASSWORD_LOCKED();
       if (!(await verifyPassword(oldPassword ?? '', row.password ?? ''))) {
         throw errors.OLD_PASSWORD_WRONG();
       }
@@ -332,9 +329,7 @@ class StaffService {
       // Never to an executive: it acts for this account but does not own its secrets.
       // A whitelabel company chooses its own instead of being issued one.
       if (row.must_change_password && !actor.executiveId && !isLoginPasswordMode()) {
-        // rainbet: only a Super Admin (a whitelabel company) may choose its own; everyone else is issued one.
-        const mayChoose = Number(actor.level) === STAFF_LEVELS.SUPER_ADMIN;
-        transactionPassword = (mayChoose && chosenTransactionPassword) || String(randomInt(100000, 1000000));
+        transactionPassword = chosenTransactionPassword ?? String(randomInt(100000, 1000000));
       }
     }
 
@@ -355,8 +350,8 @@ class StaffService {
 
     this.logger?.warn({ actorStaffId: actor.id, targetStaffId: target, self, transactionPasswordIssued: Boolean(transactionPassword) }, 'Staff password changed');
     // A chosen one is not echoed back: its owner just typed it.
-    const issued = transactionPassword && transactionPassword !== chosenTransactionPassword;
-    return { staffId: target, changed: true, ...(issued ? { transactionPassword } : {}), ...(transactionPassword && !issued && chosenTransactionPassword ? { transactionPasswordSet: true } : {}) };
+    const issued = transactionPassword && !chosenTransactionPassword;
+    return { staffId: target, changed: true, ...(issued ? { transactionPassword } : {}), ...(transactionPassword && chosenTransactionPassword ? { transactionPasswordSet: true } : {}) };
   }
 
   // ══════════════════════════════════════════════════════════════════════
