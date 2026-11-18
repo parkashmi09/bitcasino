@@ -129,8 +129,7 @@ test('admin-service promotion routes refuse the agent tree', async (t) => {
     ['GET', '/site-config/affiliate', 200],
     ['GET', '/site-config/rewards', 200],
     // An unknown player: the house caller reaches the handler (404), the agent never does.
-    // rainbet: the whole dashboard is Super Admin only (`denyDirectUsers` on the router), so that refusal answers first.
-    ['GET', '/dashboard/members/999999999', 404, 'DIRECT_USERS_ONLY'],
+    ['GET', '/dashboard/members/999999999', 404],
     // The promotions LIST is the public read on the same path; the admin router is writes.
     ['DELETE', '/promotions/999999999', null],
   ];

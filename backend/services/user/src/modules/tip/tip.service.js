@@ -356,7 +356,10 @@ class TipService {
       replacements.ids = ids;
     }
     if (search) {
-      where.push("(fu.name ILIKE :search ESCAPE '\\' OR tu.name ILIKE :search ESCAPE '\\')");
+      // A scoped caller matches its own players' names only, so a name outside the tree cannot be probed.
+      where.push(ids
+        ? "((fu.name ILIKE :search ESCAPE '\\' AND t.from_user_id IN (:ids)) OR (tu.name ILIKE :search ESCAPE '\\' AND t.to_user_id IN (:ids)))"
+        : "(fu.name ILIKE :search ESCAPE '\\' OR tu.name ILIKE :search ESCAPE '\\')");
       replacements.search = `%${escapeLike(search)}%`;
     }
     // Channel tip PAANE wale (recipient) se: agent ke users tip bhej nahi sakte, sirf paa sakte hain.
@@ -400,12 +403,15 @@ class TipService {
     ]);
 
     const total = byCurrency.reduce((n, r) => n + Number(r.count), 0);
+    // The other side of a tip can be outside a scoped caller's tree: the row stays, the identity does not.
+    const inTree = ids && new Set(ids.map(String));
+    const party = (id, name) => (inTree && !inTree.has(String(id)) ? { id: null, name: null } : { id: Number(id), name: name ?? `User #${id}` });
 
     return {
       rows: rows.map((r) => ({
         id: Number(r.id),
-        from: { id: Number(r.from_user_id), name: r.from_name ?? `User #${r.from_user_id}` },
-        to: { id: Number(r.to_user_id), name: r.to_name ?? `User #${r.to_user_id}` },
+        from: party(r.from_user_id, r.from_name),
+        to: party(r.to_user_id, r.to_name),
         currency: r.currency,
         amount: amountOut(r.amount),
         note: r.note ?? null,
