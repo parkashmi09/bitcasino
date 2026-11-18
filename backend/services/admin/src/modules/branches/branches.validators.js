@@ -22,7 +22,10 @@ const branchUsername = z
   .regex(/^[A-Za-z0-9_.-]+$/, 'username may contain letters, digits and _ . - only');
 
 // bcrypt reads 72 bytes at most (hashPassword refuses more).
-const password = z.string().min(8, 'password must be at least 8 characters').max(72, 'password must be at most 72 characters');
+const password = z
+  .string()
+  .min(8, 'password must be at least 8 characters')
+  .refine((p) => Buffer.byteLength(p, 'utf8') <= 72, 'password is too long: at most 72 bytes (accented letters and symbols count for more)');
 
 /** The player username rule of the site's own sign-up (user-service profile validators). */
 const playerUsername = z
@@ -41,7 +44,12 @@ const window = z
     else if (span > MAX_SPAN_DAYS * DAY_MS) ctx.addIssue({ code: 'custom', path: ['from'], message: `A window may span at most ${MAX_SPAN_DAYS} days` });
   });
 
-const day = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'a date as YYYY-MM-DD');
+/** A real calendar day: 2026-02-31 rolls over in `Date`, so the round trip refuses it. */
+const isRealDay = (v) => {
+  const date = new Date(`${v}T00:00:00Z`);
+  return !Number.isNaN(date.getTime()) && date.toISOString().slice(0, 10) === v;
+};
+const day = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'a date as YYYY-MM-DD').refine(isRealDay, 'not a real date');
 
 const statementQuery = z
   .object({
@@ -84,7 +92,8 @@ const createPlayerBody = z
   .object({
     username: playerUsername,
     password,
-    email: z.string().trim().email().max(255).optional(),
+    // Lower-case like the site's sign-up: the player login looks an email up in lower case.
+    email: z.string().trim().toLowerCase().email().max(255).optional(),
     // Mandatory (user, 2026-11-15): digits only, 10–15 — the same rule as Sports Exchange Create Account.
     phone: z.string({ required_error: 'The Mobile Number field is required' }).trim().regex(/^\d{10,15}$/, 'The Mobile Number field must be 10 to 15 digits'),
   })

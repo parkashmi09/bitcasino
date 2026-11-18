@@ -36,6 +36,17 @@ test('branch validators', () => {
   assert.equal(v.portalCreatePlayer.body.safeParse({ username: 'ok_name', password: 'longenough', phone: '12345' }).success, false);
   assert.equal(v.portalCreatePlayer.body.safeParse({ username: 'ok_name', password: 'longenough', phone: '+91 98765' }).success, false);
   assert.equal(v.portalCreatePlayer.body.safeParse({ username: 'ok_name', password: 'longenough', phone: '9876543210' }).success, true);
+  // The login looks an email up in lower case.
+  assert.equal(v.portalCreatePlayer.body.parse({ username: 'ok_name', password: 'longenough', phone: '9876543210', email: 'Mixed@Example.COM' }).email, 'mixed@example.com');
+  // bcrypt's limit is bytes, not characters.
+  assert.equal(v.create.body.safeParse({ name: 'Branch', username: 'branch', password: 'é'.repeat(37) }).success, false);
+  assert.equal(v.create.body.safeParse({ name: 'Branch', username: 'branch', password: 'a'.repeat(72) }).success, true);
+  // A date Postgres would refuse is a validation error, not a 500.
+  for (const fromDate of ['2026-13-45', '2026-02-31']) {
+    assert.equal(v.portalStatement.query.safeParse({ fromDate, toDate: '2026-12-31' }).success, false, fromDate);
+    assert.equal(v.portalBets.query.safeParse({ fromDate, toDate: '2026-12-31', kind: 'casino' }).success, false, fromDate);
+  }
+  assert.equal(v.portalStatement.query.safeParse({ fromDate: '2028-02-29', toDate: '2028-03-01' }).success, true);
 });
 
 test('branches against a database', async (t) => {
@@ -129,6 +140,23 @@ test('branches against a database', async (t) => {
       () => service.createPlayer({ branchId: b.id, username: `${tag}A1`, password: 'player-pass' }),
       (e) => e.code === 'BRANCH_PLAYER_EXISTS'
     );
+  });
+
+  await t.test('a new player clashes as on the site sign-up', async () => {
+    // Its own branch: the reports below count the players of a and b.
+    const c = await service.create({ actor: owner, name: 'Branch C', username: `${tag}-c`, password: 'branch-c-pass' });
+    const phone = `9${String(Date.now()).slice(-9)}`;
+    const email = `${tag}Mixed@example.com`;
+    const first = await service.createPlayer({ branchId: c.id, username: `${tag}Zx1`, password: 'player-pass', phone, email });
+    playerIds.push(Number(first.id));
+    const refused = (fields) =>
+      assert.rejects(() => service.createPlayer({ branchId: b.id, password: 'player-pass', ...fields }), (e) => e.code === 'BRANCH_PLAYER_EXISTS');
+    await refused({ username: `${tag}ph`, phone });
+    await refused({ username: `${tag}em`, email: email.toLowerCase() });
+
+    // `_` is an ordinary character in a name, not a LIKE wildcard.
+    const underscore = await service.createPlayer({ branchId: c.id, username: `${tag}_x1`, password: 'player-pass' });
+    playerIds.push(Number(underscore.id));
   });
 
   await t.test('a branch sees only its own players and their ledger', async () => {
@@ -233,6 +261,10 @@ test('branches against a database', async (t) => {
 
     const fresh = (await service.login({ username: `${tag}-a`, password: 'branch-a-new' })).token;
     await service.update({ branchId: a.id, status: 'inactive' });
+    await assert.rejects(
+      () => service.createPlayer({ branchId: a.id, username: `${tag}late`, password: 'player-pass' }),
+      (e) => e.code === 'BRANCH_INACTIVE_NO_NEW_PLAYERS'
+    );
     await assert.rejects(() => service.authenticate(fresh), (e) => e.code === 'BRANCH_UNAUTHENTICATED');
     await assert.rejects(() => service.login({ username: `${tag}-a`, password: 'branch-a-new' }), (e) => e.code === 'BRANCH_INACTIVE');
 

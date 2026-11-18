@@ -1,7 +1,7 @@
 'use strict';
 
 const crypto = require('node:crypto');
-const { Op, QueryTypes } = require('sequelize');
+const { Op, QueryTypes, fn, col, where: sqlWhere } = require('sequelize');
 const { money, sitePolicy } = require('@ibitplay/common');
 const { hashPassword, verifyPassword, TokenService, TOKEN_TYPES } = require('@ibitplay/auth');
 
@@ -233,8 +233,16 @@ class BranchesService {
    */
   async createPlayer({ branchId, username, password, email, phone }) {
     const branch = await this.#get(branchId);
+    if (branch.status !== 'active') throw errors.INACTIVE_NO_NEW_PLAYERS();
+    // As the site's sign-up: name and email case-blind, and the phone too, since it is a login identifier.
     const clash = await this.models.Users.findOne({
-      where: { [Op.or]: [{ name: { [Op.iLike]: username } }, ...(email ? [{ email: { [Op.iLike]: email } }] : [])] },
+      where: {
+        [Op.or]: [
+          sqlWhere(fn('lower', col('name')), username.toLowerCase()),
+          ...(email ? [sqlWhere(fn('lower', col('email')), email.toLowerCase())] : []),
+          ...(phone ? [{ phone }] : []),
+        ],
+      },
       attributes: ['id'],
       raw: true,
     });

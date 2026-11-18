@@ -11,7 +11,7 @@ module.exports = defineErrors('BRANCH', {
 
   USERNAME_TAKEN: { status: 409, message: 'That branch username is already in use' },
 
-  PLAYER_EXISTS: { status: 409, message: 'That username or email is already in use' },
+  PLAYER_EXISTS: { status: 409, message: 'That username, email or mobile number is already in use' },
 
   PLAYER_NOT_FOUND: { status: 404, message: 'This player is not in the branch' },
 
@@ -19,6 +19,8 @@ module.exports = defineErrors('BRANCH', {
   INVALID_CREDENTIALS: { status: 401, message: 'Wrong username or password' },
 
   INACTIVE: { status: 403, message: 'This branch is inactive. Contact the Super Admin.' },
+
+  INACTIVE_NO_NEW_PLAYERS: { status: 409, message: 'This branch is inactive. Activate it before adding players.' },
 
   UNAUTHENTICATED: { status: 401, message: 'Sign in to the branch panel again' },
 
