@@ -124,12 +124,6 @@ function auditProductionConfig(config, serviceName = 'service') {
     fatal.push('SEED_ADMIN_PASSWORD is a placeholder/example value — the super-admin would ship with a known password.');
   }
 
-  // Provider callback integrity (N2/C1): the legacy seamless signature does not cover the amount or
-  // the member account, so a replayed signature can credit an arbitrary account.
-  if (config.SEAMLESS_SIGN_MODE !== undefined && String(config.SEAMLESS_SIGN_MODE).toLowerCase() === 'legacy') {
-    fatal.push("SEAMLESS_SIGN_MODE=legacy in production — the signature omits amount and member_account. Set SEAMLESS_SIGN_MODE=full.");
-  }
-
   // Replay window (N3): a non-positive skew makes every captured signature valid forever.
   if (config.SEAMLESS_MAX_SKEW_SECONDS !== undefined && Number(config.SEAMLESS_MAX_SKEW_SECONDS) <= 0) {
     fatal.push('SEAMLESS_MAX_SKEW_SECONDS <= 0 — captured provider signatures never expire. Set a positive window.');
@@ -163,6 +157,15 @@ function auditProductionConfig(config, serviceName = 'service') {
       `BIND_HOST=${bindHost} — this service accepts connections on every interface, bypassing the ` +
         'gateway\'s header stripping and internal-route refusal. Correct inside a container; ' +
         'confirm nothing else can reach the port.'
+    );
+  }
+
+  // Provider callback integrity (N2/C1): the legacy seamless signature does not cover the amount or
+  // the member account. Allowed, because it is the provider's documented scheme, but never silently.
+  if (config.SEAMLESS_SIGN_MODE !== undefined && String(config.SEAMLESS_SIGN_MODE).toLowerCase() === 'legacy') {
+    warn.push(
+      'SEAMLESS_SIGN_MODE=legacy — the signature omits amount and member_account, so a captured one can be ' +
+        'replayed until it goes stale. Set SEAMLESS_ALLOWED_IPS, and SEAMLESS_SIGN_MODE=full if the provider supports it.'
     );
   }
 

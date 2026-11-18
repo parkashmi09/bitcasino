@@ -2,7 +2,7 @@
 
 const { buildGisService } = require('../gis/gis.factory');
 const { buildJsGamesService } = require('../js-games/jsGames.factory');
-const { LIVE, JS_ALWAYS_LIVE } = require('./catalogueSwitch');
+const { LIVE, JS_ALWAYS_LIVE, chosenAggregator } = require('./catalogueSwitch');
 const { MOBILE_SUFFIX } = require('./games.service');
 const { KNOWN_BOOK_UIDS } = require('./gameEntitlement');
 const E = require('./games.errors');
@@ -23,6 +23,16 @@ function bookUids({ config } = {}) {
       .map((uid) => uid.trim().toLowerCase())
       .filter(Boolean)
   );
+}
+
+/**
+ * May this JSGames launch go ahead? Under the JSGames policy every row in the live lobby is the
+ * owner's choice. Under Slotegrator only the always-live studios stay, and any other row is parked.
+ * A uid outside the lobby opens only when it is a configured book.
+ */
+function mayOpenJsGame({ row, provider, isBook, aggregator }) {
+  if (!row) return isBook;
+  return aggregator === 'js_games' || JS_ALLOWED_PROVIDERS.has(provider);
 }
 
 /**
@@ -107,7 +117,8 @@ async function launchGame(deps, { userId, gameUuid: requested, currencyCode, dev
    */
   const provider = String(row?.provider ?? '').trim().toLowerCase();
   const isBook = bookUids(deps).has(String(requested).toLowerCase());
-  if (row ? !JS_ALLOWED_PROVIDERS.has(provider) : !isBook) {
+  const aggregator = row ? await chosenAggregator(deps.models) : null;
+  if (!mayOpenJsGame({ row, provider, isBook, aggregator })) {
     throw E.NOT_FOUND({ uuid: requested });
   }
 
@@ -115,4 +126,4 @@ async function launchGame(deps, { userId, gameUuid: requested, currencyCode, dev
   return { ...result, via: 'jsgames-v2' };
 }
 
-module.exports = { aggregatorOf, deviceVariant, launchGame };
+module.exports = { aggregatorOf, deviceVariant, launchGame, mayOpenJsGame };
