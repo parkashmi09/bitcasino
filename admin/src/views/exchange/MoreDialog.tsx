@@ -244,7 +244,7 @@ const showsExposureLimit = (row: AccountRow) => row.accountType === 'user' && !r
 
 /**
  * More — zip ka `components/MoreModal.jsx`: account ki poori jaankari, password, lock, credit history.
- * Drill-down list me bhi yahi window ("P" button).
+ * Drill-down list me sirf Profile ("P" button).
  */
 type MoreDialogProps = {
   row: AccountRow
@@ -278,7 +278,7 @@ const MoreDialog = ({ row, trigger, profileOnly = false }: MoreDialogProps) => {
             <DialogTitle className='uppercase'>{row.username}</DialogTitle>
           </DialogHeader>
           <div className='flex flex-wrap gap-1 border-b'>
-            {TABS.map(t => (
+            {tabs.map(t => (
               <button
                 key={t.key}
                 type='button'

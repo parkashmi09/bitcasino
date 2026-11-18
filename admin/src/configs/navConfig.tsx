@@ -304,7 +304,7 @@ export const navItems: NavItem[] = [
     groupIcon: 'LayoutGrid',
     collapsible: true,
     items: [
-      { icon: 'LayoutDashboard', label: 'Dashboard', href: '/dashboard', permission: ['reports:read', ...WALLET_ANY], direct: true },
+      { icon: 'LayoutDashboard', label: 'Dashboard', href: '/dashboard', permission: ['reports:read', ...WALLET_ANY] },
 
       // Either grant opens the list: reports:read reads `admin/reports/players` (balances, deposits,
       // wagers); users:read alone falls back to the player directory `admin/user/directory`.
@@ -414,8 +414,8 @@ export const navItems: NavItem[] = [
     // House only (user, 2026-10-17): an agent's player has no deposit / withdraw / KYC, so agent logins get no Transactions section.
     // Deposit / Withdraw / Account Statement show their Direct tab on B2C and Agent tab on B2B; KYC and bank details are B2C only.
     items: [
-      { icon: 'ArrowDownToLine', label: 'Deposit', href: '/transactions/deposit', permission: ['deposits:read', 'users:read'] },
-      { icon: 'ArrowUpFromLine', label: 'Withdraw', href: '/transactions/withdraw', permission: ['withdrawals:read', 'users:read'] },
+      { icon: 'ArrowDownToLine', label: 'Deposit', href: '/transactions/deposit', permission: ['deposits:read', 'users:read'], promotions: true, direct: true },
+      { icon: 'ArrowUpFromLine', label: 'Withdraw', href: '/transactions/withdraw', permission: ['withdrawals:read', 'users:read'], promotions: true, direct: true },
 
       // The transfer list is `admin/accounts/statement` (users:read); the drill-down is `admin/statements` (reports:read).
       { icon: 'BookOpen', label: 'Account Statement', href: '/reports/statements', permission: ['users:read', 'reports:read'], promotions: true, direct: true },
@@ -614,14 +614,16 @@ export const PROMOTION_ROUTES = [
   '/coins',
   '/payment-methods',
 
-  // The old cashier screens and the other Transactions entries: house only.
+  // Transactions (and the old cashier screens behind it): house only — an agent's player has none.
+  '/transactions',
   '/deposits',
   '/withdrawals',
   '/reports/statements',
   '/kyc',
   '/bank-details',
 
-  // The Reports section: Super Admin side only, not the agent system.
+  // Casino wager report and the Reports section: Super Admin side only, not the agent system.
+  '/casino/wager-report',
   '/reports'
 ]
 
