@@ -2,7 +2,7 @@ import type { NextRequest } from 'next/server'
 
 import { serverConfig } from '@/configs/site'
 import { writeSession } from '@/lib/auth/session'
-import { loginFailed, loginSucceeded, loginWait } from '@/lib/auth/throttle'
+import { loginClient, loginFailed, loginSucceeded, loginWait } from '@/lib/auth/throttle'
 import { safeEqual } from '@/lib/auth/token'
 
 export const dynamic = 'force-dynamic'
@@ -15,7 +15,7 @@ export async function POST(req: NextRequest) {
   }
 
   // Per client and global throttling; see lib/auth/throttle.ts.
-  const client = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || req.headers.get('x-real-ip') || 'direct'
+  const client = loginClient(req.headers.get('x-forwarded-for'))
   const wait = loginWait(client)
 
   if (wait > 0) {

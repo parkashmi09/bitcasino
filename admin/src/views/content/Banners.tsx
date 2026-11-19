@@ -165,8 +165,8 @@ const UploadBanner = ({ existing, mode }: { existing?: Banner; mode: BannerMode 
           'b-href':
             hasLabel && !hasHref
               ? 'A CTA label needs a link'
-              : hasHref && !/^(\/[^\s]*|https?:\/\/[^\s]+)$/i.test(form.ctaHref.trim())
-                ? 'CTA link must be a site path (/casino) or an http(s) URL'
+              : hasHref && !/^(\/(?![/\\])\S*|https:\/\/\S+)$/i.test(form.ctaHref.trim())
+                ? 'CTA link must be a site path (/casino) or an https URL'
                 : check.length(form.ctaHref, 'CTA link', { max: 500 }),
           'b-sort': check.number(form.sortOrder, 'Sort order', { integer: true, min: 0, max: 9999, optional: true })
         }

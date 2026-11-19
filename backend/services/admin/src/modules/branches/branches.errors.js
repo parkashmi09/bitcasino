@@ -18,6 +18,8 @@ module.exports = defineErrors('BRANCH', {
   // One answer for a wrong username and a wrong password, like the staff sign-in.
   INVALID_CREDENTIALS: { status: 401, message: 'Wrong username or password' },
 
+  TOO_MANY_ATTEMPTS: { status: 429, message: 'Too many sign-in attempts. Try again in 15 minutes.' },
+
   INACTIVE: { status: 403, message: 'This branch is inactive. Contact the Super Admin.' },
 
   INACTIVE_NO_NEW_PLAYERS: { status: 409, message: 'This branch is inactive. Activate it before adding players.' },

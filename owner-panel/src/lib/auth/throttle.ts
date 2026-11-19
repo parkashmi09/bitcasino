@@ -41,6 +41,17 @@ export function loginFailed(client: string, now = Date.now()) {
   if (clients.size > 1000) for (const [key, e] of clients) if (now - e.first > WINDOW_MS && e.lockedUntil < now) clients.delete(key)
 }
 
+/**
+ * The client address for throttling. Only the `hops` right-most x-forwarded-for entries were written by
+ * proxies we run (TRUST_PROXY, default 1, as the backend); anything left of them is client-supplied and
+ * ignored. With TRUST_PROXY=0 or no header every caller shares one bucket.
+ */
+export function loginClient(forwardedFor: string | null, hops = Number(process.env.TRUST_PROXY ?? 1)) {
+  const ips = (forwardedFor ?? '').split(',').map(s => s.trim()).filter(Boolean)
+
+  return (Number.isInteger(hops) && hops > 0 && ips[ips.length - hops]) || 'direct'
+}
+
 export function loginSucceeded(client: string) {
   clients.delete(client)
 }

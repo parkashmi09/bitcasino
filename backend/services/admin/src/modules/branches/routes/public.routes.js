@@ -55,7 +55,7 @@ module.exports = function publicRoutes(deps) {
     '/portal/login',
     signInLimiter,
     validate(v.login),
-    asyncHandler(async (req, res) => response.ok(res, await service.login(req.body)))
+    asyncHandler(async (req, res) => response.ok(res, await service.login(req.body, { ip: req.ip })))
   );
 
   router.get('/portal/me', branchOnly, noQuery(), (req, res) => response.ok(res, req.branch));

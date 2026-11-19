@@ -24,6 +24,22 @@ const publicBranch = (b) => ({
   lastLoginAt: b.last_login_at ?? null,
 });
 
+/**
+ * Sign-in lockout (A8), in memory like the staff sign-in's. Failures count per username+address
+ * (8, so a stranger's guesses cannot lock the branch out from its own address) and per username
+ * from anywhere (80, the backstop against guesses spread over many addresses), over 15 minutes.
+ */
+const LOGIN_WINDOW_MS = 15 * 60_000;
+const LOGIN_MAX_ATTEMPTS = 8;
+const loginFailures = new Map();
+const loginKeys = (username, ip) => {
+  const name = String(username ?? '').toLowerCase();
+  return [
+    { key: `${name}|${ip ?? 'unknown'}`, max: LOGIN_MAX_ATTEMPTS },
+    { key: name, max: LOGIN_MAX_ATTEMPTS * 10 },
+  ];
+};
+
 /** A branch's players: direct users it created. A player with a parent is never one, whatever its column says. */
 const BRANCH_PLAYERS = 'SELECT u.id FROM users u WHERE u.branch_id = :branchId AND u.parent_staff_id IS NULL AND NOT u.is_demo';
 
@@ -413,16 +429,31 @@ class BranchesService {
 
   // ══ The branch's sign-in ════════════════════════════════════════════════
 
-  async login({ username, password }) {
+  async login({ username, password }, { ip } = {}) {
     await this.assertEnabled();
+    const now = Date.now();
+    for (const { key } of loginKeys(username, ip)) {
+      const entry = loginFailures.get(key);
+      if (entry && entry.first + LOGIN_WINDOW_MS < now) loginFailures.delete(key);
+      else if (entry?.locked) throw errors.TOO_MANY_ATTEMPTS();
+    }
     const [branch] = await this.#query('SELECT * FROM branches WHERE LOWER(username) = LOWER(:username)', { username });
     // Compared even with no branch (verifyPassword runs a dummy hash), so the timing names nobody.
     const ok = await verifyPassword(password, branch?.password);
     if (!branch || !ok) {
+      for (const { key, max } of loginKeys(username, ip)) {
+        const entry = loginFailures.get(key) ?? { count: 0, first: now, locked: false };
+        entry.count += 1;
+        entry.locked = entry.count >= max;
+        loginFailures.set(key, entry);
+      }
+      // Bounded: a spray over many usernames cannot grow this without limit.
+      if (loginFailures.size > 10_000) for (const [k, e] of loginFailures) if (e.first + LOGIN_WINDOW_MS < now) loginFailures.delete(k);
       this.logger?.warn({ username: String(username).slice(0, 3) + '…' }, 'Branch sign-in refused');
       throw errors.INVALID_CREDENTIALS();
     }
     if (branch.status !== 'active') throw errors.INACTIVE();
+    loginFailures.delete(loginKeys(username, ip)[0].key);
     await this.sequelize.query('UPDATE branches SET last_login_at = NOW() WHERE id = :id', { replacements: { id: branch.id } });
     return {
       token: this.tokens.signBranchToken({ branchId: branch.id, tokenVersion: branch.token_version }),
