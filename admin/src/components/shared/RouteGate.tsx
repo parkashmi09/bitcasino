@@ -26,7 +26,10 @@ const noticeReason = (pathname: string, reason: Refusal) => {
     // The coin registry is house configuration, not a promotion (see PROMOTION_ROUTES).
     if (isRoute(pathname, '/coins')) return 'Coins are managed by the site operator.'
 
-    return 'Promotions are managed by the site operator and are not part of agent accounts.'
+    if (isPromotionRoute(pathname)) return 'Promotions are managed by the site operator and are not part of agent accounts.'
+
+    // House-only screens carry the same mark (KYC, payment methods, the deposit/withdraw queues, statements).
+    return 'This screen is managed by the site operator and is not part of agent accounts.'
   }
 
   // Other Super-Admin-only screens are refused with the same reason; they are not about direct users.

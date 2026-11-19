@@ -1,6 +1,7 @@
 // controller/sports/cricket/cricketController.js — mssports core, moved unchanged
 import { User_default } from "../../../models/user/User.mjs";
 import { SportsBet_default } from "../../../models/user/SportsBet.mjs";
+import "../../../models/associations.mjs"; // registers SportsBet.user for the include in getMatchedBetsByEvent
 import { CricketService_default } from "../../../lib/services/CricketService.mjs";
 import { getStoredMarkets } from "../../../lib/helper/marketListStore.mjs";
 import { ScoreAnimationService_default } from "../services/ScoreAnimationService.mjs";
