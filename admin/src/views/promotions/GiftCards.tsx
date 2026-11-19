@@ -276,6 +276,7 @@ const Records = () => {
 
 const Analytics = ({ q }: { q: ReturnType<typeof useApi<GiftCardAnalytics>> }) => {
   const { code: cur } = useRewardCurrency()
+
   const columns: Column<GiftCardAnalytics['cards'][number]>[] = [
     { key: 'key', header: 'Gift code', cell: r => <span className='font-mono text-sm'>{r.uniqueKey}</span> },
     { key: 'amount', header: 'Claim amount', align: 'right', cell: r => <Money value={r.amount} currency={cur} /> },
