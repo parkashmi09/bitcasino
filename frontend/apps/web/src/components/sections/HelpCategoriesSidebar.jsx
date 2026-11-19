@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom';
 import { withBrand } from '@/lib/branding';
 import { useSiteName } from '@/queries/siteConfig';
+import { useGates } from '@/hooks/useGates';
 
 const HELP_CATEGORIES = [
   ['Getting Started', '/help-center/help-getting-started'],
@@ -17,11 +18,12 @@ const HELP_CATEGORIES = [
 /** Shared category navigation for help-centre and policy pages. */
 export function HelpCategoriesSidebar() {
   const site = useSiteName();
+  const { routeOn } = useGates();
   return (
     <aside className="hidden min-w-72 self-start md:block md:ps-8 lg:min-w-[280px] lg:ps-4">
       <h2 className="mb-4 text-2xl font-normal leading-8 text-bulma">Categories</h2>
       <div className="divide-y divide-beerus border-t border-beerus">
-        {withBrand(HELP_CATEGORIES, site).map(([label, to]) => (
+        {withBrand(HELP_CATEGORIES, site).filter(([, to]) => routeOn(to)).map(([label, to]) => (
           <Link key={label} to={to} className="block py-4 text-base text-bulma hover:text-piccolo">
             {label}
           </Link>
