@@ -17,6 +17,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { useApi } from '@/hooks/use-api'
 import { formatMoney, formatNumber } from '@/lib/format'
 import { cn } from '@/lib/utils'
+import { useIsAgentTree } from '@/views/finance/StaffFloat'
 
 /**
  * `GET admin/reports/players/:id/status-stats` — `from`/`to` (instants) and `granularity`, nothing
@@ -81,6 +82,8 @@ const KYC_LABEL: Record<string, string> = { none: 'Not submitted' }
 
 /** One player's standing and activity — the top of the user page's Stats tab. */
 const PlayerStatusSection = ({ userId, filters: f }: { userId: string; filters: StatsFilters }) => {
+  // KYC is house only: an agent-tree login sees no KYC status.
+  const agentTree = useIsAgentTree()
   const q = useApi<PlayerStatus>(pathFor(userId), { ...f.apiRange, granularity: f.granularity }, { placeholderData: prev => prev, retry: false })
   const s = q.data
 
@@ -142,6 +145,7 @@ const PlayerStatusSection = ({ userId, filters: f }: { userId: string; filters: 
         </Panel>
 
         <Panel title='Identity and security' icon={<FingerprintIcon />}>
+          {!agentTree && (<>
           <div className='flex items-center gap-2'>
             <span className='text-muted-foreground text-xs'>KYC</span>
             <StatusBadge value={KYC_LABEL[kyc.status] ?? kyc.status} className={kyc.status === 'none' ? 'bg-muted text-muted-foreground' : undefined} />
@@ -152,6 +156,7 @@ const PlayerStatusSection = ({ userId, filters: f }: { userId: string; filters: 
               {kyc.updatedAt && kyc.updatedAt !== kyc.submittedAt ? <> · updated <DateTime value={kyc.updatedAt} relative /></> : null}
             </p>
           )}
+          </>)}
           <div className='flex flex-wrap gap-1.5'>
             <Check ok={a.twoFa} label={a.twoFa ? '2FA on' : '2FA off'} />
             <Check ok={a.hasEmail} label={a.hasEmail ? 'Email on file' : 'No email'} />

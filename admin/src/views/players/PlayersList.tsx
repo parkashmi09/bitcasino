@@ -172,7 +172,7 @@ const UsersPage = () => {
           onOpenBalanceSheet={setSheet}
         />
       ) : (
-        <UserStatusOverview showVip={promotions} channel={channel} />
+        <UserStatusOverview showVip={promotions} showKyc={promotions} channel={channel} />
       )}
     </>
   )
