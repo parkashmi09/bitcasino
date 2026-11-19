@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { HOME_BANNERS, TOURNAMENTS_BANNER } from '@/data/catalog';
+import { AGENT_DEFAULT_SLIDES, HOME_BANNERS, TOURNAMENTS_BANNER } from '@/data/catalog';
+import { AGENT_SITE } from '@/lib/agentBase';
 import { withBrand } from '@/lib/branding';
 import { useSiteName } from '@/queries/siteConfig';
 import { useGates } from '@/hooks/useGates';
@@ -98,7 +99,7 @@ export function HomeBanner() {
   const { data: slides } = useHomeSlides({ enabled: show });
   const site = useSiteName();
   const { data: offer } = useFirstDepositOffer();
-  const banners = (slides?.length ? slides : withBrand(HOME_BANNERS, site))
+  const banners = (slides?.length ? slides : AGENT_SITE ? AGENT_DEFAULT_SLIDES : withBrand(HOME_BANNERS, site))
     // The built-in welcome-bonus banner only while the first-deposit bonus is on; Tournaments otherwise.
     .map((banner) => (banner.id === 'banner-deposit-rewards' && !offer ? TOURNAMENTS_BANNER : banner))
     .filter((banner) => !banner.href || routeOn(banner.href));
@@ -247,7 +248,7 @@ export function HomeBanner() {
     >
       {/* From `sm`: the reference's row, measured on bitcasino.io at 1920 — three 499×304 cards, 12px
           apart, the rest a scroll away (Rail's arrows). */}
-      <Rail title="Featured promotions" headingClassName="sr-only" className="-mt-5 max-sm:hidden">
+      <Rail title={AGENT_SITE ? 'Featured' : 'Featured promotions'} headingClassName="sr-only" className="-mt-5 max-sm:hidden">
         {/* Up to three share the row evenly (two cards = halves); a fourth and on scroll. */}
         {banners.map((banner) => (
           <BannerCard
@@ -332,7 +333,7 @@ function BannerCard({ banner, spare = false, className, style, aspect = 499 / 30
       {banner.href && (
         <CardLink
           href={banner.href}
-          aria-label={banner.title || 'Promotion'}
+          aria-label={banner.title || (AGENT_SITE ? 'Featured' : 'Promotion')}
           tabIndex={spare ? -1 : undefined}
           className="absolute inset-0 z-1 rounded-[12px] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-piccolo"
         />

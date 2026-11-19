@@ -47,6 +47,9 @@ function publicRoutes(deps) {
     enabled: deps.config.RATE_LIMIT_ENABLED !== false,
   });
 
+  if (!deps.config.SEAMLESS_ALLOWED_IPS?.length) {
+    deps.logger?.warn('SEAMLESS_ALLOWED_IPS is empty — seamless callbacks are accepted from any address. The legacy signature covers neither member nor amount: set the provider IPs on a live server.');
+  }
   router.use(ipGuard(deps.config.SEAMLESS_ALLOWED_IPS));
 
   const handle = (method) =>

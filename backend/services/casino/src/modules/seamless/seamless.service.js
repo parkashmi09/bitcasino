@@ -214,17 +214,14 @@ class SeamlessService {
 
       if (money.isZero(magnitude)) continue;
 
-      // A win that names its round needs this player's stake in that round.
+      // A win with no stake in its round is paid (free spins and bonus rounds arrive this way) and logged.
       if (action === ACTION.DEPOSIT && tx.round_id != null) {
         const stake = await this.models.SeamlessTransaction.findOne({
           where: { user_id: userId, round_id: String(tx.round_id), action: [ACTION.WITHDRAW, ACTION.PUSHBET] },
           attributes: ['id'],
           raw: true,
         });
-        if (!stake) {
-          this.logger?.error({ member, roundId: tx.round_id, transactionId: tx.id }, 'Seamless win refused: no bet in this round');
-          return { code: RESPONSE_CODES.BET_NOT_EXIST, message: 'No bet for this round' };
-        }
+        if (!stake) this.logger?.warn({ member, roundId: tx.round_id, transactionId: tx.id }, 'Seamless win paid with no bet in this round');
       }
 
       const outcome = await this.#applyOnce({
@@ -452,13 +449,6 @@ class SeamlessService {
       // An unconfigured integration must refuse, not fall through to a
       // signature check against `undefined`.
       this.logger?.error('SEAMLESS_SECRET_KEY is not configured — refusing casino callbacks');
-      return { code: RESPONSE_CODES.PRODUCT_UNDER_MAINTENANCE, message: 'Product under maintenance' };
-    }
-
-    // The legacy signature covers no member or amount, so one captured signature could move money
-    // until it goes stale. It is only accepted from the provider's own addresses.
-    if (this.config.SEAMLESS_SIGN_MODE !== 'full' && !this.config.SEAMLESS_ALLOWED_IPS?.length) {
-      this.logger?.error('Seamless legacy signature needs SEAMLESS_ALLOWED_IPS — refusing casino callbacks');
       return { code: RESPONSE_CODES.PRODUCT_UNDER_MAINTENANCE, message: 'Product under maintenance' };
     }
 

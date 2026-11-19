@@ -2,12 +2,24 @@ import { Link } from 'react-router-dom';
 import { Button } from '@/components/ui/Button';
 import { useGates } from '@/hooks/useGates';
 import { useFirstDepositOffer } from '@/queries/rewards';
+import { AGENT_SITE } from '@/lib/agentBase';
 
 const POINTS = [
   'Huge selection of high RTP games',
   'Unparalleled VIP benefits',
   'Fast crypto deposits and withdrawals',
 ];
+
+const ART = (
+  <img
+    src="/images/hero.avif"
+    alt=""
+    width={788}
+    height={562}
+    fetchPriority="high"
+    className="block aspect-[788/562] w-full object-fill"
+  />
+);
 
 /**
  * Above-the-fold banner.
@@ -31,6 +43,8 @@ const POINTS = [
 export function Hero() {
   const { data: offer } = useFirstDepositOffer();
   const { canSignUp } = useGates();
+  // /agent has no sign-up: the art, none of the pitch.
+  if (AGENT_SITE) return <section className="mx-auto w-full max-w-[788px]">{ART}</section>;
   return (
     <section
       className={[
@@ -87,16 +101,7 @@ export function Hero() {
         </a>
       </div>
 
-      <div className="w-full max-w-[788px]">
-        <img
-          src="/images/hero.avif"
-          alt=""
-          width={788}
-          height={562}
-          fetchPriority="high"
-          className="block aspect-[788/562] w-full object-fill"
-        />
-      </div>
+      <div className="w-full max-w-[788px]">{ART}</div>
     </section>
   );
 }

@@ -57,6 +57,7 @@ import { GatesProvider } from '@/hooks/useGates';
 import { Toaster } from '@/components/ui/Toaster';
 import { IdleLogout } from '@/components/layout/IdleLogout';
 import CookieConsent from '@/components/cookieConsent/CookieConsent';
+import { AGENT_AUTH_CLOSED, AGENT_BASE, AGENT_SITE } from '@/lib/agentBase';
 
 /**
  * `AuthProvider` sits inside the router rather than around it, for one reason:
@@ -116,6 +117,11 @@ function AppRoutes() {
               </RedirectIfAuthenticated>
             }
           />
+          {/* /agent has no sign-up, referral or password recovery: those pages are not mounted there. */}
+          {AGENT_SITE ? AGENT_AUTH_CLOSED.map((path) => (
+            <Route key={path} path={path} element={<Navigate to="/login" replace />} />
+          )) : (
+          <>
           {/* Google's return trip (`lib/googleAuth.js`). Not guarded: it signs the visitor in itself. */}
           <Route path="login/google" element={<GoogleLogin />} />
           <Route
@@ -155,6 +161,8 @@ function AppRoutes() {
               </RedirectIfAuthenticated>
             }
           />
+          </>
+          )}
           <Route path="terms" element={<Navigate to="/help-center/terms-and-conditions" replace />} />
           <Route path="privacy" element={<Navigate to="/help-center/privacy-policy" replace />} />
 
@@ -336,7 +344,7 @@ function AppRoutes() {
 
 export default function App() {
   return (
-    <BrowserRouter>
+    <BrowserRouter basename={AGENT_SITE ? AGENT_BASE : undefined}>
       <AuthProvider>
         <Toaster />
         <CookieConsent />

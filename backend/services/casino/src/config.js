@@ -84,7 +84,7 @@ const config = loadEnv(
     /**
      * The provider's callback source IPs. The legacy signature covers neither the member nor the
      * amount, so this is what stops a captured one being replayed: set it on any live server.
-     * Empty = any source (local development).
+     * Empty = any source, with a warning at startup.
      */
     SEAMLESS_ALLOWED_IPS: coercers.list([]),
 

@@ -564,22 +564,27 @@ test('casino seamless wallet', async (t) => {
     assert.equal(Number(balances.get(String(uid))), 100, 'the stake came back once');
   });
 
-  await t.test('a win naming a round with no bet of this player is refused', async () => {
+  await t.test('a win naming a round with no bet of this player is paid once and logged', async () => {
     const { uid, balances } = player('100');
     const { service } = build(balances);
-    const result = await service.deposit(
-      request('deposit', { member_account: String(uid), transactions: [{ id: newTxId(), amount: '500', round_id: `none-${newTxId()}` }] })
-    );
-    assert.equal(result.code, RESPONSE_CODES.BET_NOT_EXIST);
-    assert.equal(Number(balances.get(String(uid))), 100);
+    const warned = [];
+    service.logger = { warn: (details) => warned.push(details), info() {}, error() {} };
+    const tx = { id: newTxId(), amount: '500', round_id: `none-${newTxId()}` };
+    const result = await service.deposit(request('deposit', { member_account: String(uid), transactions: [tx] }));
+    assert.equal(result.code, RESPONSE_CODES.SUCCESS);
+    assert.equal(Number(balances.get(String(uid))), 600);
+    assert.equal(warned[0].roundId, tx.round_id);
+
+    await service.deposit(request('deposit', { member_account: String(uid), transactions: [tx] }));
+    assert.equal(Number(balances.get(String(uid))), 600, 'a retry pays nothing more');
   });
 
-  await t.test('the legacy signature is refused with no provider IP list', async () => {
+  await t.test('the legacy signature is accepted with no provider IP list', async () => {
     const { uid, balances } = player('100');
     const { service } = build(balances, { SEAMLESS_ALLOWED_IPS: [] });
     const result = await service.deposit(request('deposit', { member_account: String(uid), transactions: [{ id: newTxId(), amount: '50' }] }));
-    assert.equal(result.code, RESPONSE_CODES.PRODUCT_UNDER_MAINTENANCE);
-    assert.equal(Number(balances.get(String(uid))), 100);
+    assert.equal(result.code, RESPONSE_CODES.SUCCESS);
+    assert.equal(Number(balances.get(String(uid))), 150);
   });
 
   await t.test('every applied movement leaves a traceable record', async () => {

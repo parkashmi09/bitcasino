@@ -3,6 +3,7 @@ import { KycDialog } from '@/components/account/KycDialog';
 import { COUNTRIES } from '@/data/countries';
 import { useProfile } from '@/hooks/useProfile';
 import { useGates } from '@/hooks/useGates';
+import { useAuth } from '@/auth/AuthProvider';
 import { useKycStatus } from '@/queries';
 import { cn } from '@/lib/cn';
 
@@ -78,6 +79,7 @@ export function Account() {
   // their profile (backend PROFILE_EDIT_NOT_FOR_AGENT_USERS).
   const gates = useGates();
   const { agentPlayer } = gates;
+  const { user } = useAuth();
 
   const [form, setForm] = useState(null);
   const [result, setResult] = useState(null);
@@ -102,6 +104,20 @@ export function Account() {
   async function onSubmit(event) {
     event.preventDefault();
     setResult(await save(form));
+  }
+
+  if (agentPlayer) {
+    return (
+      <div className="grid gap-2 pt-2">
+        <h1 className="font-primary text-2xl font-normal tracking-normal text-bulma">
+          Account
+        </h1>
+        <div className="grid h-max gap-4 rounded-i-md bg-gohan p-4">
+          <Fact label="Username" value={profile?.username ?? user?.name ?? '—'} />
+          <Fact label="ID" value={user?.id ?? '—'} />
+        </div>
+      </div>
+    );
   }
 
   return (
@@ -132,11 +148,11 @@ export function Account() {
               </h2>
             </div>
 
-            {!agentPlayer && <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2">
               <span className="truncate text-sm leading-6 text-trunks">
                 {profile?.email ?? <Placeholder w="18ch" />}
               </span>
-            </div>}
+            </div>
           </div>
 
           <hr className="h-px border-0 bg-beerus" />
@@ -154,10 +170,10 @@ export function Account() {
             </p>
           ) : (
             <form onSubmit={onSubmit}>
-              <fieldset disabled={!form || saving || agentPlayer} className="grid gap-4 border-0 p-0">
+              <fieldset disabled={!form || saving} className="grid gap-4 border-0 p-0">
                 {/* Only what the platform stores: the phone from signup (read-only,
                     `PUT /user/profile` has no phone) and the country, which it does save. */}
-                {!agentPlayer && profile?.phone && <Fact label="Phone number" value={profile.phone} />}
+                {profile?.phone && <Fact label="Phone number" value={profile.phone} />}
 
                 {/* Two equal columns at every width on the reference — no
                     responsive variant on its own `grid-cols-2`. */}
@@ -170,7 +186,7 @@ export function Account() {
                   />
                 </div>
 
-                {!agentPlayer && <div className="grid w-max gap-4">
+                <div className="grid w-max gap-4">
                   <button
                     type="submit"
                     className={cn(
@@ -184,7 +200,7 @@ export function Account() {
                   >
                     {saving ? 'Saving…' : 'Save changes'}
                   </button>
-                </div>}
+                </div>
               </fieldset>
 
               {/* The reference gives no feedback here at all. This does, and

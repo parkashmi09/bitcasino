@@ -1,5 +1,6 @@
 import { api, ApiError } from '@/lib/api';
 import { ENDPOINTS } from '@/lib/endpoints';
+import { AGENT_BASE, AGENT_SITE } from '@/lib/agentBase';
 
 /**
  * The real sportsbook, as rainbet and SmartBet open it: an iframe from the provider.
@@ -43,7 +44,7 @@ async function slotegrator(currency) {
   }
   const uuid = books.map((b) => b.uuid ?? b.sportsbook_uuid ?? b.id).find(Boolean);
   if (!uuid) return null;
-  const body = { sportsbookUuid: String(uuid), currency, language: 'en', returnUrl: window.location.origin };
+  const body = { sportsbookUuid: String(uuid), currency, language: 'en', returnUrl: `${window.location.origin}${AGENT_SITE ? AGENT_BASE : ''}` };
   try {
     const s = await api(ENDPOINTS.sportsbookInit, { method: 'POST', body });
     remember(uuid, s.sessionId);

@@ -124,20 +124,13 @@ class GiftCardsService {
    * which orphaned every `user_gift_cards` row pointing at it — those players'
    * cards then failed to load with a join returning nothing, and there was no
    * way to tell them apart from a player who never had one.
-   *
-   * So a card players hold is switched off instead (is_active false): it leaves
-   * every player list, cannot be activated, and claim() refuses it. Otherwise an
-   * all-users card with no end date could never be stopped.
    */
   async remove({ id }) {
     const card = await this.models.GiftCards.findByPk(id, { raw: true });
     if (!card) throw errors.NOT_FOUND({ id });
 
     const activations = await this.models.UserGiftCards.count({ where: { gift_card_id: id } });
-    if (activations > 0) {
-      await this.models.GiftCards.update({ is_active: false }, { where: { id } });
-      return { id, deleted: false, deactivated: true, activations };
-    }
+    if (activations > 0) throw errors.IN_USE({ id, activations });
 
     await this.models.GiftCards.destroy({ where: { id } });
     return { id, deleted: true };
@@ -436,8 +429,6 @@ class GiftCardsService {
 
     const card = await this.models.GiftCards.findByPk(giftCardId, { raw: true });
     if (!card) throw errors.NOT_FOUND({ giftCardId });
-    // Switched off by the operator after this player activated it.
-    if (!card.is_active) throw errors.INACTIVE({ giftCardId });
 
     const from = activation.start_date;
     const to = this.#conditionEnd(card, activation);

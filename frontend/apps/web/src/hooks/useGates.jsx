@@ -4,6 +4,7 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { api } from '@/lib/api';
 import { ENDPOINTS } from '@/lib/endpoints';
 import { ALL_ON, gateOf, makeGates } from '@/lib/gates';
+import { AGENT_SITE, agentBaseTarget } from '@/lib/agentBase';
 import { useAuth } from '@/auth/AuthProvider';
 import { useBranding, useSiteConfig } from '@/queries/siteConfig';
 import { applyBranding, pageNameFor } from '@/lib/branding';
@@ -95,12 +96,21 @@ export function GatesProvider({ children }) {
   // `config.raw` is `{}` until the flags answer, which reads as all-on.
   const flags = flagsPending ? null : config.raw;
   const capabilities = status === 'authenticated' ? (user?.capabilities ?? null) : null;
+  const demo = status === 'authenticated' && user?.demo === true;
   const ready = status !== 'loading' && !flagsPending && !features.isPending;
 
   const value = useMemo(
-    () => makeGates({ flags, features: Array.isArray(features.data) ? features.data : null, capabilities, ready }),
-    [flags, features.data, capabilities, ready],
+    () => makeGates({ flags, features: Array.isArray(features.data) ? features.data : null, capabilities, ready, agentSite: AGENT_SITE, demo }),
+    [flags, features.data, capabilities, ready, demo],
   );
+
+  // Each player belongs on their own side of /agent, judged once their capabilities have answered.
+  const { agentPlayer } = value;
+  useEffect(() => {
+    if (!capabilities) return;
+    const target = agentBaseTarget(window.location, agentPlayer);
+    if (target) window.location.replace(target);
+  }, [capabilities, agentPlayer]);
 
   // The owner's colour theme (styles/tokens.css [data-palette]); unset until the plan answers.
   // An owner-made theme (`custom_*`) has no CSS block: its colours ride on the row and go inline.
@@ -165,7 +175,7 @@ export function GatesProvider({ children }) {
 export function RouteGate({ children }) {
   const gates = useGates();
   const { pathname } = useLocation();
-  if (!gateOf(pathname)) return children;
+  if (!gateOf(pathname) && gates.routeOn(pathname)) return children;
   if (!gates.ready || !gates.routeOn(pathname)) return null;
   return children;
 }

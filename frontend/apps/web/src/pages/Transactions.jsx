@@ -2,6 +2,8 @@ import { useState } from 'react';
 import { Skeleton } from '@/components/ui/Skeleton';
 import { QueryError } from '@/components/ui/QueryState';
 import { useTransactionHistory, useTransfers } from '@/queries';
+import { useWalletLedger } from '@/queries/wallet';
+import { useGates } from '@/hooks/useGates';
 import { formatBalance } from '@/lib/format';
 import { currencyMeta } from '@/data/currencies';
 import { cn } from '@/lib/cn';
@@ -51,7 +53,51 @@ const TABS = [
 
 const PAGE = 25;
 
+/* What an agent's player's balance moves by: their agent's transfers and the site's adjustments. */
+const AGENT_REASONS = 'TRANSFER_IN,TRANSFER_OUT,ADMIN_CREDIT,ADMIN_DEBIT';
+
 export function Transactions() {
+  const { agentPlayer } = useGates();
+  return agentPlayer ? <AgentStatement /> : <PlayerTransactions />;
+}
+
+/* A ledger row in the shape `Row` draws. */
+const asLedgerRow = (row) => ({
+  id: row.id,
+  createdAt: row.created_at,
+  method: row.description || row.reason,
+  amount: row.amount,
+  currency: row.currency,
+  status: String(row.amount).startsWith('-') ? 'Sent' : 'Received',
+});
+
+/** An agent's player has no deposits or withdrawals of their own: one statement of the ledger. */
+function AgentStatement() {
+  const [page, setPage] = useState(0);
+  const ledger = useWalletLedger({ limit: PAGE, offset: page * PAGE, reason: AGENT_REASONS });
+  const rows = (ledger.data ?? []).map(asLedgerRow);
+
+  return (
+    <div className="grid gap-2 pt-2">
+      <h1 className="font-primary text-2xl font-normal tracking-normal text-bulma">
+        Transactions
+      </h1>
+      <section className="rounded-i-md bg-gohan p-4">
+        {ledger.isPending ? (
+          <Skeleton className="h-14 rounded-i-sm" />
+        ) : ledger.isError ? (
+          <QueryError error={ledger.error} onRetry={ledger.refetch} title="Could not load your transactions" />
+        ) : rows.length === 0 ? (
+          <Empty tab="transfers" paged={page > 0} onBack={() => setPage(0)} />
+        ) : (
+          <RowsTable rows={rows} page={page} onPage={setPage} />
+        )}
+      </section>
+    </div>
+  );
+}
+
+function PlayerTransactions() {
   const [tab, setTab] = useState('deposits');
   const [page, setPage] = useState(0);
 
@@ -132,39 +178,40 @@ export function Transactions() {
         ) : rows.length === 0 ? (
           <Empty tab={tab} paged={page > 0} onBack={() => setPage(0)} />
         ) : (
-          <>
-            {/* The table scrolls inside itself rather than pushing the page
-                sideways — five columns do not fit a phone and a horizontally
-                scrolling document is worse than a horizontally scrolling
-                table. */}
-            <div className="overflow-x-auto">
-              <table className="w-full min-w-[560px] border-collapse text-sm">
-                <thead>
-                  <tr className="text-start text-xs text-trunks">
-                    <Th>Date</Th>
-                    <Th>Method</Th>
-                    <Th align="end">Amount</Th>
-                    <Th>Status</Th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {rows.map((row, index) => (
-                    <Row key={rowKey(row, index)} row={row} />
-                  ))}
-                </tbody>
-              </table>
-            </div>
-
-            <Pager
-              page={page}
-              rows={rows.length}
-              count={count}
-              onChange={setPage}
-            />
-          </>
+          <RowsTable rows={rows} page={page} count={count} onPage={setPage} />
         )}
       </section>
     </div>
+  );
+}
+
+function RowsTable({ rows, page, count, onPage }) {
+  return (
+    <>
+      {/* The table scrolls inside itself rather than pushing the page
+          sideways — five columns do not fit a phone and a horizontally
+          scrolling document is worse than a horizontally scrolling
+          table. */}
+      <div className="overflow-x-auto">
+        <table className="w-full min-w-[560px] border-collapse text-sm">
+          <thead>
+            <tr className="text-start text-xs text-trunks">
+              <Th>Date</Th>
+              <Th>Method</Th>
+              <Th align="end">Amount</Th>
+              <Th>Status</Th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((row, index) => (
+              <Row key={rowKey(row, index)} row={row} />
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      <Pager page={page} rows={rows.length} count={count} onChange={onPage} />
+    </>
   );
 }
 

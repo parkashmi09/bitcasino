@@ -393,19 +393,18 @@ test('gift cards', async (t) => {
     }
   });
 
-  await t.test('a card with activations is switched off, not deleted, and can no longer be claimed', async () => {
+  await t.test('a card with activations cannot be deleted and stays claimable', async () => {
     const service = build();
     const uid = newUid();
     await seed(uid);
     const card = await makeCard(service);
     await service.activate({ userId: uid, giftCardId: card.id });
 
-    const out = await service.remove({ id: card.id });
-    assert.equal(out.deactivated, true);
-    await assert.rejects(
-      () => service.claim({ userId: uid, giftCardId: card.id }),
-      (err) => err.code === 'GIFTCARD_INACTIVE'
-    );
+    await assert.rejects(() => service.remove({ id: card.id }), (err) => err.code === 'GIFTCARD_IN_USE');
+
+    // Switched off afterwards, a card a player already holds is still paid.
+    await connection.models.GiftCards.update({ is_active: false }, { where: { id: card.id } });
+    await service.claim({ userId: uid, giftCardId: card.id });
   });
 
   await t.test('a condition switched on with no figure is refused at creation', async () => {

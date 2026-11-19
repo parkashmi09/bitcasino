@@ -305,7 +305,7 @@ export function SidebarNav({ onNavigate, recentsCount, favouritesCount }) {
           reference — `min-h` rather than a fixed height. The rail drops it
           outright; there is no 56px-wide form of a 232px banner. */}
       {/* The admin's `sidebar` banner (Content → Banners) when uploaded; else the built-in League card. */}
-      {promo.href && gates.routeOn(promo.href) && (
+      {!gates.agentPlayer && promo.href && gates.routeOn(promo.href) && (
       <div className="px-3 pb-2 group-data-[collapsed=true]/rail:hidden">
         <PromoLink
           href={promo.href}

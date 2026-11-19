@@ -141,10 +141,6 @@ function denyAgentTree({
   };
 }
 
-/** rainbet: a direct-user screen's API. Staff below the Super Admin work in the agent system only. */
-const denyDirectUsers = () =>
-  denyAgentTree({ code: 'DIRECT_USERS_ONLY', message: 'Direct users are managed by the Super Admin' });
-
 /**
  * Route protection.
  *
@@ -482,7 +478,6 @@ module.exports = {
   PASSWORD_CHANGE_ALLOWED,
   passwordChangeAllows,
   denyAgentTree,
-  denyDirectUsers,
   PROMOTIONS_NOT_FOR_AGENTS,
   VAULT_NOT_FOR_AGENTS,
   SWAP_NOT_FOR_AGENTS,

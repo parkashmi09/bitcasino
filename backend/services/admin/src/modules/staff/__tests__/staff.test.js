@@ -598,10 +598,15 @@ test('admin staff', async (t) => {
     assert.equal(await verifyPassword(first.transactionPassword, stored.transaction_password), true);
     assert.equal(stored.first_login, false);
 
-    // Below the Super Admin there is no later own change, only the creator's reset.
+    // Any staff account changes its own password with the current one.
+    await service.changePassword({
+      actor: { id: created.id, level: 4 }, oldPassword: 'another long password', newPassword: 'a third long password',
+    });
+
+    // An executive acts for the account and does not own its password.
     await assert.rejects(
       () => service.changePassword({
-        actor: { id: created.id, level: 4 }, oldPassword: 'another long password', newPassword: 'a third long password',
+        actor: { id: created.id, level: 4, executiveId: 7 }, oldPassword: 'a third long password', newPassword: 'a fifth long password',
       }),
       (e) => e.code === 'STAFF_OWN_PASSWORD_LOCKED'
     );
@@ -612,16 +617,16 @@ test('admin staff', async (t) => {
     });
     assert.equal(await mustChange(created.id), true);
 
-    // …and the forced change after it issues a NEW transaction password; the old one stops working.
+    // …and the forced change after it keeps a chosen transaction password; the old one stops working.
     const rotated = await service.changePassword({
       actor: { id: created.id, level: 4 }, oldPassword: 'reset by the boss!!', newPassword: 'a fourth long password',
-      transactionPassword: '123456', // ignored: only a Super Admin may choose its own
+      transactionPassword: '123456',
     });
-    assert.notEqual(rotated.transactionPassword, undefined);
-    assert.match(rotated.transactionPassword, /^\d{6}$/);
+    assert.equal(rotated.transactionPassword, undefined, 'a chosen one is not echoed back');
+    assert.equal(rotated.transactionPasswordSet, true);
     const after = await connection.models.Staff.findByPk(created.id, { attributes: ['transaction_password'], raw: true });
-    assert.equal(await verifyPassword(rotated.transactionPassword, after.transaction_password), true);
-    if (rotated.transactionPassword !== first.transactionPassword) {
+    assert.equal(await verifyPassword('123456', after.transaction_password), true);
+    if (first.transactionPassword !== '123456') {
       assert.equal(await verifyPassword(first.transactionPassword, after.transaction_password), false);
     }
 

@@ -140,7 +140,7 @@ const Cards = () => {
   const remove = useApiMutation<number>({
     fn: id => api.delete(`admin/user/gift-cards/${id}`),
     invalidate: INVALIDATE,
-    success: 'Gift card removed'
+    success: 'Gift card deleted'
   })
 
   const columns: Column<GiftCard>[] = [
@@ -167,14 +167,14 @@ const Cards = () => {
       align: 'right',
       cell: r => (
         <Can permission='config:write'>
-          {r.isActive && <ConfirmDialog
+          <ConfirmDialog
             trigger={<Button variant='ghost' size='icon-sm' aria-label='Delete'><Trash2Icon /></Button>}
             title={`Delete ${r.uniqueKey}?`}
-            description='A card users have already activated is switched off instead: it can no longer be activated or claimed.'
+            description='Refused by the platform once any user has activated it.'
             confirmLabel='Delete'
             destructive
             onConfirm={() => remove.mutateAsync(r.id)}
-          />}
+          />
         </Can>
       )
     }

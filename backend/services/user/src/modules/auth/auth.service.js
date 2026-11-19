@@ -372,7 +372,6 @@ class AuthService {
         'system_locked',
         // migration 161-demo-users: sent as `demo` / `demoExpiresAt`
         'is_demo', 'demo_expires_at',
-        'must_change_password',
         // migration 180: sent as `emailVerified`
         'email_verified_at',
       ],
@@ -380,10 +379,8 @@ class AuthService {
     });
 
     if (!user) throw errors.SESSION_NOT_FOUND();
-    user.mustChangePassword = Boolean(user.must_change_password);
     user.emailVerified = Boolean(user.email_verified_at);
     delete user.email_verified_at;
-    delete user.must_change_password;
     user.withdraw_locked = Boolean(user.withdraw_locked);
     const systemLocked = Boolean(user.system_locked);
     delete user.system_locked;
@@ -472,9 +469,6 @@ class AuthService {
   async changePassword({ currentPassword, newPassword }, user) {
     const record = await this.models.Users.findByPk(user.id);
     if (!record) throw errors.SESSION_NOT_FOUND();
-    // rainbet: a player with an upline changes it only at the forced change; afterwards the upline does.
-    const forced = record.must_change_password === true;
-    if (record.parent_staff_id != null && !forced) throw errors.OWN_PASSWORD_LOCKED();
 
     const ok = record.password ? await verifyPassword(currentPassword, record.password) : false;
     if (!ok) throw errors.CURRENT_PASSWORD_INCORRECT();
@@ -494,8 +488,7 @@ class AuthService {
      * genuine owner a day's delay on a withdrawal they were probably not
      * making at that exact moment.
      */
-    // Not on the forced change: that is the owner replacing a temporary password, not a takeover risk.
-    const lockedUntil = forced ? record.withdraw_locked_until : new Date(Date.now() + WITHDRAW_COOLDOWN_MS);
+    const lockedUntil = new Date(Date.now() + WITHDRAW_COOLDOWN_MS);
 
     return this.db.transaction(async (transaction) => {
       /* One update, so a password that changed always carries its freeze — two
@@ -1338,8 +1331,6 @@ class AuthService {
       sessionId: session.id,
       role: 'player',
       status: user.status || 'active',
-      // rainbet: every service reads this and allows only the password change until it is done.
-      extra: user.must_change_password ? { pcr: true } : {},
       notAfter: user.is_demo ? expiresAt : null,
     });
 
@@ -1356,7 +1347,6 @@ class AuthService {
           email: user.email,
           status: user.status,
           twoFactorEnabled: Boolean(user.two_fa_status),
-          mustChangePassword: Boolean(user.must_change_password),
         },
       },
     };

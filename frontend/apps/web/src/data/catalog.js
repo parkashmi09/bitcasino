@@ -517,6 +517,14 @@ export const HOME_BANNERS = [
 ];
 
 /** Takes the welcome-bonus card's slot while the first-deposit bonus is off. */
+/** /agent's carousel until the admin uploads `agent-slider-<n>` rows: game banners, never a promotion. */
+export const AGENT_DEFAULT_SLIDES = [
+  ['1', '/sports', 'Cricket, football & more', 'Live odds on every match'],
+  ['2', '/games', 'Crash games', 'Cash out in time'],
+  ['3', '/sports', 'Back your team', 'Back or lay, in-play'],
+  ['4', '/games', 'Slots & live casino', 'Thousands of games'],
+].map(([n, href, title, blurb]) => ({ id: `agent-slider-${n}`, title, blurb, href, art: `/brand/agent/slide-${n}.webp` }));
+
 export const TOURNAMENTS_BANNER = {
   id: 'banner-tournaments',
   title: 'Tournaments',
