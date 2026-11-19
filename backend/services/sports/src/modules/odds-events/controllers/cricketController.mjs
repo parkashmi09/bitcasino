@@ -466,7 +466,9 @@ var CricketController = {
       const offset = (page - 1) * limit;
       const { count, rows } = await SportsBet_default.findAndCountAll({
         where: {
-          eventid: eventid.toString()
+          eventid: eventid.toString(),
+          // Security (F3): set by the route for non-owner staff — only their own tree's players.
+          ...Array.isArray(req.visibleUserIds) ? { user_id: { [Op4.in]: req.visibleUserIds } } : {}
         },
         include: [{
           model: User_default,

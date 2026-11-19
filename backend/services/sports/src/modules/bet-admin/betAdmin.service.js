@@ -420,6 +420,11 @@ class BetAdminService {
    * VERIFIED staff id. Legacy read the id from `req.headers['x-staff-id']`, so
    * `x-staff-id: 1` — the platform owner — returned the whole book.
    */
+  /** The same scope, for the mssports staff routes (bets `/cricket/matched-bets/all`). */
+  visiblePlayerIds(staff) {
+    return this.#visibleUserIds(staff);
+  }
+
   async #visibleUserIds(staff) {
     let staffIds;
     try {

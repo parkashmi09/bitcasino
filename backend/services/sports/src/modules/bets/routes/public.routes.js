@@ -5,6 +5,7 @@ const { refuseCustomCurrencies } = require('@ibitplay/common');
 
 const { lazy } = require('../../../lib/mssports');
 const { sportsEnabled } = require('../../../lib/sportsEnabled');
+const { BetAdminService } = require('../../bet-admin/betAdmin.service');
 
 /**
  * mssports `api/bets.api.js`, route for route (same path, same middleware, same handler).
@@ -58,6 +59,20 @@ module.exports = function publicRoutes(deps) {
     req.user?.account?.type && req.user.account.type !== 'USER'
       ? next()
       : res.status(403).json({ success: false, error: 'Staff only' });
+  // Security (F3): the owner sees every bet on the event; any other staff only its own tree's players
+  // (the bet-admin reports' scope, fail closed with 503 when the tree cannot be resolved).
+  const betAdmin = new BetAdminService(deps);
+  const staffTree = async (req, res, next) => {
+    const account = req.user?.account;
+    if (account?.type === 'OWNER') return next();
+    if (account?.type !== 'STAFF') return res.status(403).json({ success: false, error: 'Staff only' });
+    try {
+      req.visibleUserIds = (await betAdmin.visiblePlayerIds({ id: account.id })).map(String);
+      return next();
+    } catch (error) {
+      return next(error);
+    }
+  };
 
   // ── exposure ────────────────────────────────────────────────────────
   router.post('/matchexposures/match', authMiddleware, ownUser, Exposure('getExposureById'));
@@ -67,7 +82,7 @@ module.exports = function publicRoutes(deps) {
   router.get('/cricket/sports-bets/user', authMiddleware, Cricket('getSportsBetsByUserId'));
   router.get('/cricket/user-open-bets', authMiddleware, ownUser, Cricket('getUserOpenBetsForEvent'));
   router.get('/cricket/user-open-bets-grouped', authMiddleware, ownUser, Cricket('getUserOpenBetsGrouped')); // { matchedBets, unmatchedBets } split
-  router.get('/cricket/matched-bets/all', authMiddleware, staffOnly, Cricket('getMatchedBetsByEvent')); // total bets on particular event - admin
+  router.get('/cricket/matched-bets/all', authMiddleware, staffOnly, staffTree, Cricket('getMatchedBetsByEvent')); // total bets on particular event - admin
 
   return router;
 };

@@ -97,6 +97,27 @@ function deriveBufferFlags({ marketList, marketId }) {
     marketType: mname
   };
 }
+// Security (S3): market_type / game_type pick the odds scale, exposure branch and settlement path, so they
+// must be the feed market's, never the client's. Derived exactly as the player site builds them
+// (frontend betFlow.buildBetValue + betHelpers.prepareBetPayload), so an honest slip already carries these.
+var FANCY_GTYPES = ["fancy", "fancy1", "fancy2", "khado", "oddeven", "meter", "normal", "cricketcasino"];
+function feedBetLabels({ marketList, marketId }) {
+  const mkt = findMarket(marketList, marketId);
+  if (!mkt) return null;
+  const gtype = normalizeName(mkt.gtype);
+  const mname = String(mkt.mname || "");
+  const isTied = gtype === "match1" && mname.toLowerCase().includes("tied");
+  const isBookmaker = !isTied && (gtype === "match1" || normalizeName(mname) === "bookmaker");
+  return {
+    marketType: isTied ? "Tied Match" : mname,
+    gameType: FANCY_GTYPES.includes(gtype) || isTied ? "FANCY" : isBookmaker ? "BOOKMAKER" : "MATCH",
+    mname,
+    gtype: String(mkt.gtype || "")
+  };
+}
+// 'Bookmaker 2' / 'BOOKMAKER_2' and MO / MATCH etc. compare equal; anything else is a different market.
+var labelKey = (s) => String(s || "").toUpperCase().replace(/[^A-Z0-9]/g, "");
+var gameTypeKey = (s) => ({ MO: "MATCH", BM: "BOOKMAKER", FAN: "FANCY" })[labelKey(s)] || labelKey(s);
 // The market's runner names as the feed lists them (what the slip's `runners` is built from).
 // placeBet works the per-runner book off this list, so it must never come from the request.
 function feedRunners({ marketList, marketId }) {
@@ -143,4 +164,4 @@ function runnerNameForSid({ marketList, marketId, selectionId }) {
   return runner ? String(runner.nat || "") : null;
 }
 
-export { isLaySide, readBufferTick, finalSuspensionStatus, fancyOddsDrift, deriveBufferFlags, feedRunners, khadoQuote, manualBetLiveCheck, autoBetCheck, readMarketList, runnerNameForSid };
+export { isLaySide, readBufferTick, finalSuspensionStatus, fancyOddsDrift, deriveBufferFlags, feedRunners, khadoQuote, manualBetLiveCheck, autoBetCheck, readMarketList, runnerNameForSid, feedBetLabels, labelKey, gameTypeKey };

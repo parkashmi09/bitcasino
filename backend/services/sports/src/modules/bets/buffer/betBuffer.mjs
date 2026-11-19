@@ -6,7 +6,7 @@ import { isLineMarket } from "../../../lib/helper/lineMarket.mjs";
 import { isBadloBet, isBadloLeg } from "../../../lib/helper/badloMarket.mjs";
 import { leagueNameForBet } from "../../../lib/services/SportsLeagueResolver.mjs";
 import { isHiddenSport, isHiddenLeague } from "../../../lib/constants/hiddenSports.mjs";
-import { isLaySide, readBufferTick, finalSuspensionStatus, fancyOddsDrift, deriveBufferFlags, feedRunners, khadoQuote, manualBetLiveCheck, autoBetCheck, runnerNameForSid } from "./betBufferRules.mjs";
+import { isLaySide, readBufferTick, finalSuspensionStatus, fancyOddsDrift, deriveBufferFlags, feedRunners, khadoQuote, manualBetLiveCheck, autoBetCheck, runnerNameForSid, feedBetLabels, labelKey, gameTypeKey } from "./betBufferRules.mjs";
 import { liveOdds_default } from "./liveOdds.mjs";
 import { cleanRef, betInflight_default } from "./betInflight.mjs";
 
@@ -133,6 +133,20 @@ async function runBetBuffer(body, sb, opts = {}) {
     if (feedFlags && (body.market_type === "khado") !== feedFlags.ownLine) {
       return reject(MESSAGES.BET.GAME_SUSPEND, "MARKET_TYPE_MISMATCH");
     }
+    // Security (S3): market_type / game_type come from the client and drive odds scale, exposure and
+    // settlement (a Bookmaker quote booked as MATCH_ODDS pays 100x). Refuse a label that is not the feed
+    // market's; an accepted bet is stored with the feed's own spelling (applyDecision). The legacy
+    // 'badlo' label is badlo to placeBet, so it is kept as the badlo flag.
+    const labels = feedFlags ? feedBetLabels({ marketList: list, marketId }) : null;
+    if (labels) {
+      const legacyBadlo = labelKey(body.market_type) === "BADLO";
+      if (!legacyBadlo && labelKey(body.market_type) !== labelKey(labels.marketType)) {
+        return reject(MESSAGES.BET.GAME_SUSPEND, "MARKET_TYPE_MISMATCH");
+      }
+      if (gameTypeKey(body.game_type) !== gameTypeKey(labels.gameType)) {
+        return reject(MESSAGES.BET.GAME_SUSPEND, "GAME_TYPE_MISMATCH");
+      }
+    }
     if (list && marketId) {
       const gs = finalSuspensionStatus({ marketList: list, marketId, selectionId, runnerName, strict: FAIL_CLOSED });
       if (gs) return reject(gs === "BALL RUNNING" ? MESSAGES.BET.BALL_RUNNING : MESSAGES.BET.GAME_SUSPEND, `SUSPENDED:${gs}`);
@@ -194,7 +208,7 @@ async function runBetBuffer(body, sb, opts = {}) {
       if (!auto.accept) return reject(MESSAGES.BET.ODDS_CHANGE_NOT_CONFIRMED, `ODDS_MOVED:${selectedOdds}->${finalOdds}`);
       finalOdds = auto.finalOdds;
     }
-    return { accept: true, odds: finalOdds, size: finalSize, stake: finalStake, runners, bufferSeconds, ticks, liveTicks };
+    return { accept: true, odds: finalOdds, size: finalSize, stake: finalStake, runners, labels, bufferSeconds, ticks, liveTicks };
   } finally {
     if (canPoll) liveOdds_default.release(gmid);
   }
@@ -208,6 +222,13 @@ function applyDecision(body, d) {
     body.runners = d.runners;
     body.team_one = d.runners[0] || "";
     body.team_two = d.runners[1] || "";
+  }
+  if (d.labels) {
+    if (labelKey(body.market_type) === "BADLO") body.badlo = true;
+    body.market_type = d.labels.marketType;
+    body.game_type = d.labels.gameType;
+    body.mname = d.labels.mname;
+    body.gtype = d.labels.gtype;
   }
   if (d.size > 0) {
     body.size = d.size;
