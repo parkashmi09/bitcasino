@@ -596,6 +596,7 @@ function TwoFactorSetupDialog({ open, onClose }) {
   const complete = useCompleteTwoFactor();
 
   const [code, setCode] = useState('');
+  const [password, setPassword] = useState('');
   const [done, setDone] = useState(false);
   const codeRef = useRef(null);
 
@@ -604,6 +605,7 @@ function TwoFactorSetupDialog({ open, onClose }) {
   useEffect(() => {
     if (!open) return;
     setCode('');
+    setPassword('');
     setDone(false);
     complete.reset();
     begin.reset();
@@ -614,13 +616,16 @@ function TwoFactorSetupDialog({ open, onClose }) {
   async function submit(event) {
     event.preventDefault();
     try {
-      await complete.mutateAsync({ code });
+      await complete.mutateAsync({ code, password });
+      setPassword('');
       setDone(true);
     } catch {
       // `complete.error` carries it and the form renders from that. The code
       // is kept so the player can correct a digit rather than retype six.
     }
   }
+
+  const wrongPassword = complete.error?.code === 'TWOFA_PASSWORD_REQUIRED';
 
   return (
     <Dialog
@@ -666,7 +671,7 @@ function TwoFactorSetupDialog({ open, onClose }) {
         <form onSubmit={submit} className="grid gap-4">
           <p className="text-base leading-6 text-trunks">
             Scan this with an authenticator app, then enter the six-digit code
-            it shows.
+            it shows and your account password.
           </p>
 
           {begin.data?.qrCode && (
@@ -696,15 +701,23 @@ function TwoFactorSetupDialog({ open, onClose }) {
             ref={codeRef}
             value={code}
             onChange={setCode}
-            error={complete.isError ? complete.error?.message : undefined}
+            error={complete.isError && !wrongPassword ? complete.error?.message : undefined}
             hint="Ten attempts every fifteen minutes."
+          />
+
+          <PasswordField
+            label="Account password"
+            value={password}
+            onChange={setPassword}
+            autoComplete="current-password"
+            error={wrongPassword ? complete.error?.message : undefined}
           />
 
           <Button
             type="submit"
             size="lg"
             fullWidth
-            disabled={code.length !== 6 || complete.isPending}
+            disabled={code.length !== 6 || !password || complete.isPending}
           >
             {complete.isPending ? 'Verifying…' : 'Turn on'}
           </Button>

@@ -181,19 +181,51 @@ export function useDeposits({ limit = 25, offset = 0, enabled = true } = {}) {
  * (`GET /user/payments/methods/:provider`), confirmed against this backend's
  * `payment-orders` module.
  */
-export function usePaymentMethods(provider, { enabled = true } = {}) {
-  const { status } = useAuth();
-
-  return useQuery({
+function paymentRails(provider, { enabled = true, select }) {
+  return {
     queryKey: ['wallet', 'payment-methods', provider],
     queryFn: () =>
       api(path(ENDPOINTS.paymentMethods, { provider })).then(
-        (data) => (Array.isArray(data?.methods) ? data.methods : []),
+        (data) => ({
+          methods: Array.isArray(data?.methods) ? data.methods : [],
+          payout: Array.isArray(data?.payout) ? data.payout : [],
+        }),
         // Disabled / unconfigured / unreachable: offer nothing rather than err.
-        () => [],
+        () => ({ methods: [], payout: [] }),
       ),
-    enabled: enabled && status === 'authenticated' && Boolean(provider),
+    enabled: enabled && Boolean(provider),
+    select,
     staleTime: 5 * 60 * 1000,
+  };
+}
+
+export function usePaymentMethods(provider, { enabled = true } = {}) {
+  const { status } = useAuth();
+  return useQuery(paymentRails(provider, { enabled: enabled && status === 'authenticated', select: (rails) => rails.methods }));
+}
+
+/** The coins the provider pays out automatically (`payout`, e.g. `['INR']`); `[]` while it is closed. */
+export function usePayoutCurrencies(provider, { enabled = true } = {}) {
+  const { status } = useAuth();
+  return useQuery(paymentRails(provider, { enabled: enabled && status === 'authenticated', select: (rails) => rails.payout }));
+}
+
+/**
+ * An automatic payout (`POST /user/payments/withdrawals`): no staff review, the amount is held and
+ * the provider's callback settles it or refunds it. Not idempotent: `retry: false` (client default).
+ */
+export function useCreateWithdrawalOrder() {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: ({ provider, currency, amount, details, forfeitBonus }) =>
+      api(ENDPOINTS.paymentWithdrawals, {
+        method: 'POST',
+        body: { provider, currency, amount: String(amount), details, ...(forfeitBonus ? { forfeitBonus: true } : {}) },
+      }),
+    onSuccess: () => {
+      client.invalidateQueries({ queryKey: walletKeys.all });
+      refreshBalances();
+    },
   });
 }
 

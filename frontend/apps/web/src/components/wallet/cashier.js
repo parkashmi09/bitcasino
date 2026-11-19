@@ -36,3 +36,22 @@ export function walletCoins({ balances = {}, status, flag, agentPlayer }) {
   const list = held.length ? held : CURRENCY_ORDER.filter((code) => flag(code.toLowerCase()));
   return agentPlayer ? ['INR'] : list;
 }
+
+/** The rail a withdraw form shows: the player's pick when both are open, the open one otherwise, null for none. */
+export const shownRail = ({ manual, auto, picked }) => (manual && auto ? picked : auto ? 'auto' : manual ? 'manual' : null);
+
+// shortcut: F2Pay's BANK_INR payout range as hash hard-codes it; read it from the backend if F2Pay changes it.
+export const AUTO_PAYOUT_MIN = '100';
+export const AUTO_PAYOUT_MAX = '30000';
+
+const PAYOUT_LABELS = { account_name: 'Account holder name', account_number: 'Account number', bank_code: 'IFSC code' };
+
+/** A refused automatic payout's sentence, plus the field the server named (422 INVALID_PAYOUT_DETAILS). */
+export function payoutError(error) {
+  const fields = error?.details?.fields;
+  const named = Array.isArray(fields)
+    ? fields[0]?.message
+    : Object.entries(fields ?? {}).map(([key, why]) => `${PAYOUT_LABELS[key] ?? key} ${why}`).join('; ');
+  const message = error?.message || 'The withdrawal was refused.';
+  return named ? `${message}: ${named}` : message;
+}

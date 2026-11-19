@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { makeGates } from '@/lib/gates';
-import { cashierTabs, walletCoins } from './cashier';
+import { cashierTabs, payoutError, shownRail, walletCoins } from './cashier';
 
 const AGENT_CAPS = { promotions: false, vault: false, deposit: false, swap: false, withdraw: false };
 const policy = (key, variant) => ({ feature: key, kind: 'policy', variant });
@@ -42,5 +42,26 @@ describe('walletCoins', () => {
 
   it('shows an agent player INR only', () => {
     expect(walletCoins({ status: 'loading', flag, agentPlayer: true })).toEqual(['INR']);
+  });
+});
+
+describe('withdraw rails', () => {
+  it('shows the pick when both are open, the open one otherwise', () => {
+    expect(shownRail({ manual: true, auto: true, picked: 'auto' })).toBe('auto');
+    expect(shownRail({ manual: true, auto: false, picked: 'auto' })).toBe('manual');
+    expect(shownRail({ manual: false, auto: true, picked: 'manual' })).toBe('auto');
+    expect(shownRail({ manual: false, auto: false, picked: 'manual' })).toBeNull();
+  });
+
+  it('keeps an automatic-only site on the automatic rail (withdraw tab stays)', () => {
+    const gates = makeGates({ features: [policy('withdrawal_mode', 'automatic')] });
+    expect(cashierTabs(gates)).toContain('withdraw');
+    expect(shownRail({ manual: gates.manualWithdraw(true), auto: gates.autoWithdraw(), picked: 'manual' })).toBe('auto');
+  });
+
+  it('names the field a refused payout points at', () => {
+    expect(payoutError({ message: 'Invalid payout details', details: { fields: { bank_code: 'must be a valid IFSC code' } } }))
+      .toBe('Invalid payout details: IFSC code must be a valid IFSC code');
+    expect(payoutError({ message: 'Nope' })).toBe('Nope');
   });
 });

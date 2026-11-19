@@ -1,5 +1,6 @@
+import { Link } from 'react-router-dom';
 import { Icon } from '@/components/ui/Icon';
-import { useInHouseGames } from '@/queries';
+import { orderOriginals, useInHouseGames, useOriginalGames } from '@/queries';
 import { toast } from '@/lib/toast';
 import { Rail } from './Rail';
 
@@ -12,7 +13,30 @@ import { Rail } from './Rail';
 const blocked = (name) =>
   toast.info(`${name} is switched off by the site admin right now.`, { title: 'Not available' });
 
+/** The in-house list, replaced by the aggregator's (the admin's on/off and order) once it lists any. */
+function useOriginalTiles() {
+  const inHouse = useInHouseGames();
+  const aggregator = useOriginalGames();
+  return {
+    data: aggregator.isPending ? undefined : orderOriginals(inHouse.data, aggregator.data),
+    isPending: inHouse.isPending || aggregator.isPending,
+  };
+}
+
 function OriginalCard({ game, className }) {
+  if (game.code) {
+    return (
+      <Link
+        to={`/play/originals/${encodeURIComponent(game.code)}`}
+        aria-label={game.name}
+        className={`relative flex aspect-[3/4] flex-col items-center justify-end overflow-hidden rounded-i-md bg-gradient-to-b from-[#5b2bd6] to-[#1d0b4a] p-3 text-left ${className}`}
+      >
+        {game.image && <img src={game.image} alt="" className="absolute inset-0 size-full object-cover" loading="lazy" />}
+        {!game.image && <span className="font-display text-xl font-bold uppercase leading-none text-white">{game.name}</span>}
+        {!game.image && <span className="mt-1 text-[11px] text-white/70">Originals</span>}
+      </Link>
+    );
+  }
   return (
     <button
       type="button"
@@ -30,7 +54,7 @@ function OriginalCard({ game, className }) {
 }
 
 export function OriginalsRail() {
-  const { data: games } = useInHouseGames();
+  const { data: games } = useOriginalTiles();
   if (!games?.length) return null;
 
   return (
@@ -44,7 +68,7 @@ export function OriginalsRail() {
 
 /** `/categories/originals`: the same cards as a page (the catalogue has no `originals` category). */
 export function OriginalsPage() {
-  const { data: games, isPending } = useInHouseGames();
+  const { data: games, isPending } = useOriginalTiles();
 
   return (
     <section className="pt-6">

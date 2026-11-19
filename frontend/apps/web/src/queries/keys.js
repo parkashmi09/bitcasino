@@ -151,5 +151,6 @@ export const queryKeys = {
     firstDeposit: (status) => ['rewards', 'first-deposit', status],
     bonusBalance: () => ['rewards', 'bonus-balance'],
     rakeback: () => ['rewards', 'rakeback'],
+    lossBonus: () => ['rewards', 'loss-bonus'],
   },
 };

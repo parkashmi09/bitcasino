@@ -6,7 +6,7 @@ import { GamePanel } from '@/components/play/GamePanel';
 import { GameInfo } from '@/components/play/GameInfo';
 import { ProviderGames } from '@/components/play/ProviderGames';
 import { RecentRounds } from '@/components/play/RecentRounds';
-import { isPlayable, useGame } from '@/queries';
+import { isPlayable, originalFor, toOriginalGame, useGame, useOriginalGames } from '@/queries';
 import { cn } from '@/lib/cn';
 
 /**
@@ -52,8 +52,14 @@ import { cn } from '@/lib/cn';
  * ships for phones.
  */
 export function Play() {
-  const { slug } = useParams();
-  const { data: game, isPending, error, refetch } = useGame(slug);
+  const { category, slug } = useParams();
+  // `/play/originals/:code` is an Original Games Aggregator game, not a catalogue row.
+  const original = category === 'originals';
+  const catalogue = useGame(slug, { enabled: !original });
+  const originals = useOriginalGames({ enabled: original });
+  const { data: game, isPending, error, refetch } = original
+    ? { ...originals, data: toOriginalGame(originalFor(originals.data, slug)) }
+    : catalogue;
 
   const shellRef = useRef(null);
   const [view, setView] = useState('min');

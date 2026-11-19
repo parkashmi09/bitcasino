@@ -55,6 +55,26 @@ export function isPlayable(game) {
 }
 
 /**
+ * The wallets a game launches in (hash `services/game.js`): the lobby route takes INR, PKR and USDT,
+ * the Original Games Aggregator INR and USDT, narrowed by the row's own `launchCurrencies` (a
+ * JSGames V2 row opens in INR only).
+ */
+const LOBBY_LAUNCH_CURRENCIES = ['INR', 'PKR', 'USDT'];
+const ORIGINAL_LAUNCH_CURRENCIES = ['INR', 'USDT'];
+
+export function launchCurrencies(game) {
+  const route = game?.originalCode ? ORIGINAL_LAUNCH_CURRENCIES : LOBBY_LAUNCH_CURRENCIES;
+  const own = Array.isArray(game?.launchCurrencies) ? game.launchCurrencies.map((c) => String(c).toUpperCase()) : null;
+  return own ? route.filter((code) => own.includes(code)) : route;
+}
+
+/** The code the selected wallet launches this game in, or null: no launch, the panel asks for another. */
+export function launchCurrency(game, currency) {
+  const code = String(currency ?? '').toUpperCase();
+  return launchCurrencies(game).includes(code) ? code : null;
+}
+
+/**
  * Open an aggregator game and get its launch URL.
  *
  * A real-money, wallet-backed session (there is no fun / demo mode). Answers `201 {url}`.
@@ -73,8 +93,8 @@ export function isPlayable(game) {
  */
 export function useLaunchGame() {
   return useMutation({
-    mutationFn: ({ gameUuid, currency, device = 'desktop', language }) =>
-      api(ENDPOINTS.gameLaunch, {
+    mutationFn: ({ gameUuid, originalCode, currency, device = 'desktop', language }) =>
+      api(originalCode ? ENDPOINTS.originalLaunch : ENDPOINTS.gameLaunch, {
         method: 'POST',
         /**
          * The validator is `.strict()` — an extra key is a 422, not a
@@ -82,7 +102,9 @@ export function useLaunchGame() {
          * The backend picks the aggregator from the game's row, so a
          * JSGames lobby and a Slotegrator one both open here.
          */
-        body: compactBody({ gameUuid, currencyCode: currency, device, language }),
+        body: originalCode
+          ? compactBody({ gameCode: originalCode, currencyCode: currency, device, language })
+          : compactBody({ gameUuid, currencyCode: currency, device, language }),
       }).then((answer) => ({ ...answer, url: answer?.gameLaunchUrl ?? answer?.url ?? null })),
     retry: false,
   });

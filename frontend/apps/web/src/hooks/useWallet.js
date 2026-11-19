@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import { ApiError, api } from '@/lib/api';
 import { ENDPOINTS } from '@/lib/endpoints';
 import { subscribe } from '@/lib/socket';
@@ -70,6 +70,15 @@ const currencyStore = {
     }
     for (const listener of listeners) listener();
   },
+  forget() {
+    current = null;
+    try {
+      localStorage.removeItem(STORAGE_KEY);
+    } catch {
+      // Nothing stored to remove.
+    }
+    for (const listener of listeners) listener();
+  },
 };
 
 /**
@@ -81,6 +90,16 @@ export function useDisplayCurrency() {
   const { policy, agentPlayer } = useGates();
   const owner = policy('default_currency');
   const code = useSyncExternalStore(currencyStore.subscribe, currencyStore.get, () => null);
+  // A real sign-out forgets the pick; the signed-out first paint (session still restoring) does not.
+  const { status } = useAuth();
+  const wasSignedIn = useRef(false);
+  useEffect(() => {
+    if (status === 'authenticated') wasSignedIn.current = true;
+    else if (status === 'anonymous' && wasSignedIn.current) {
+      wasSignedIn.current = false;
+      currencyStore.forget();
+    }
+  }, [status]);
   // An agent's player runs on INR alone, whatever this browser last chose.
   if (agentPlayer) return ['INR', currencyStore.set];
   return [code ?? (owner in CURRENCIES ? owner : DEFAULT_CURRENCY), currencyStore.set];

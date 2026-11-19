@@ -280,6 +280,9 @@ export const ENDPOINTS = {
   // the wallet. F2Pay is the one wired here — UPI in INR, USDT on TRON.
   paymentMethods: `${USER}/payments/methods/:provider`,
   paymentDeposits: `${USER}/payments/deposits`,
+  // The automatic payout: `POST {provider, currency, amount, details, forfeitBonus?}` (`.strict()`); F2Pay's
+  // BANK_INR `details` is `{account_name, account_number, bank_code}`. The amount is held; the callback settles or refunds it.
+  paymentWithdrawals: `${USER}/payments/withdrawals`,
 
   // ── Swap and Vault ──────────────────────────────────────────────────
   // Both answer 403 NOT_ENTITLED outside the owner's plan and
@@ -362,6 +365,10 @@ export const ENDPOINTS = {
 
   // The in-house originals (dice, crash, limbo…), outside the catalogue.
   inHouseGames: `${CASINO}/js-games/v1/games`,
+  // The Original Games Aggregator: the admin's enabled games in its order, `[{game_code, name, image}]`
+  // (`[]` while Originals are off); launch `{gameCode, currencyCode: INR|USDT, device?, language?}` → 201 `{gameLaunchUrl}`.
+  originalGames: `${CASINO}/original-games/games`,
+  originalLaunch: `${CASINO}/original-games/launch`,
 
   // ═══════════════════════════════════════════════════════════════════
   // TWO PUBLIC CASINO READS ARE DELIBERATELY ABSENT FROM THIS TABLE.
@@ -540,12 +547,19 @@ export const ENDPOINTS = {
   vip: `${USER}/vip`,
   // Public. The ladder: `{unranked, bonusGates, levels: [{level, name, minXp, maxXp, card}]}`.
   vipLevels: `${USER}/vip/levels`,
+  // Rank-up rewards held for a claim: `{cards, totalUsd}`; claim pays them all → `{granted: [{card, amount, currency}]}`.
+  vipRankUps: `${USER}/vip/rank-ups`,
+  vipRankUpsClaim: `${USER}/vip/rank-ups/claim`,
   // Public with an optional session: the first-deposit terms and `eligible`.
   firstDeposit: `${USER}/bonus/first-deposit`,
   // No feature gate. `{wageringLock, currency, balances, active, history}`.
   bonusBalance: `${USER}/bonus-balance`,
   // Claims every gradual bonus's unlocked part at once.
   bonusBalanceClaim: `${USER}/bonus-balance/claim`,
+  // The Super Admin's loss-bonus terms and the last window: `{enabled, welcome, percent, maxBonus,
+  // wagerMultiplier, currency, netLoss, bonus, state, period, claimExpiresAt}`; claim pays it once.
+  lossBonus: `${USER}/loss-bonus`,
+  lossBonusClaim: `${USER}/loss-bonus/claim`,
   // `bonus` feature. `{code}` → `{code, amount, currency, newBalance}`.
   bonusRedeem: `${USER}/bonus/redeem`,
   // Promotions capability. `{amount, currency, claimable, minimum, rate}`.

@@ -1,5 +1,20 @@
 import { describe, expect, it } from 'vitest';
-import { toDepositOffer, toTiers } from './rewards';
+import { claimWaitingRankUps, toDepositOffer, toTiers } from './rewards';
+
+describe('claimWaitingRankUps', () => {
+  it('claims only when something is waiting, and reports a payout', async () => {
+    let claims = 0;
+    const claim = async () => {
+      claims += 1;
+      return { granted: [{ card: 'gold' }] };
+    };
+    expect(await claimWaitingRankUps({ read: async () => ({ cards: [] }), claim })).toBe(false);
+    expect(claims).toBe(0);
+    expect(await claimWaitingRankUps({ read: async () => ({ cards: ['gold'] }), claim })).toBe(true);
+    expect(claims).toBe(1);
+    expect(await claimWaitingRankUps({ read: async () => ({ cards: ['gold'] }), claim: async () => ({ granted: [] }) })).toBe(false);
+  });
+});
 
 describe('toTiers', () => {
   // The live ladder's shape, cut down: unranked, then bands grouped by `card`.
