@@ -134,6 +134,16 @@ test('direct wallet against a database', async (t) => {
     assert.equal(history.rows[0].operation, 'credit');
   });
 
+  await t.test('N6: the same credit sent again at once is a double-submit and moves nothing', async () => {
+    const before = await directBalance();
+    await assert.rejects(
+      () => service.adjust({ actor, userId: direct, currency: 'USDT', amount: '5', operation: 'credit', transactionPassword: TXN }),
+      (e) => e.code === 'DIRECT_WALLET_DUPLICATE'
+    );
+    assert.equal(await usdtOf(direct), '5.00000000');
+    assert.equal(await directBalance(), before);
+  });
+
   await t.test('debit in USDT: comes back into the owner wallet; more than the user holds moves nothing', async () => {
     const before = await directBalance();
     await service.adjust({ actor, userId: direct, currency: 'USDT', amount: '2', operation: 'debit', transactionPassword: TXN });

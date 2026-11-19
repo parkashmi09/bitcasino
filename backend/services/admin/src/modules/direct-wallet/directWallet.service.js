@@ -31,6 +31,12 @@ const unknownCurrency = (currency) =>
 const tooSmall = () => new AppError('The amount is too small: it is worth less than ₹0.01', 422, 'DIRECT_WALLET_AMOUNT_TOO_SMALL');
 const userShort = (details) =>
   new AppError('The user does not have that much in this currency', 422, 'INSUFFICIENT_FUNDS', { party: 'user', ...details });
+const duplicate = () =>
+  new AppError('The same adjustment was just made — check the balance before sending it again', 409, 'DIRECT_WALLET_DUPLICATE');
+
+// Security (N6): the window in which an identical adjustment (same staff, user, coin, operation,
+// amount) is taken as a double-submit. The UI sends no idempotency key.
+const DUPLICATE_WINDOW_SECONDS = 15;
 
 /**
  * Direct User Wallet — admin-structure.zip ka "Wallet" (WalletUpdate) page.
@@ -200,6 +206,28 @@ class DirectWalletService {
         transaction,
       });
       const previousMinor = money.toMinorQuantised(wallet.bal);
+
+      // Checked under the wallet row lock: a double-submit waits here for the first, then sees its ledger row.
+      const [recent] = await this.sequelize.query(
+        `SELECT 1 FROM credits_ledger
+          WHERE user_id = :userId AND currency = :code AND reason = :reason AND amount = :signed
+            AND meta->>'refType' = 'DIRECT_WALLET' AND meta->>'staffId' = :staffId
+            AND created_at > NOW() - make_interval(secs => :windowSeconds)
+          LIMIT 1`,
+        {
+          replacements: {
+            userId: String(userId),
+            code,
+            reason: isCredit ? 'ADMIN_CREDIT' : 'ADMIN_DEBIT',
+            signed: isCredit ? decimal : `-${decimal}`,
+            staffId: String(actor.id),
+            windowSeconds: DUPLICATE_WINDOW_SECONDS,
+          },
+          type: QueryTypes.SELECT,
+          transaction,
+        }
+      );
+      if (recent) throw duplicate();
 
       // Names the user's balance update for the direct-ledger trigger (the owner's own row is not labelled).
       await directLedgerContext(this.sequelize, transaction, {

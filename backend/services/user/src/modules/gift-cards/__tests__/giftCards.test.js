@@ -244,6 +244,28 @@ test('gift cards', async (t) => {
     assert.equal(result.status, 'Claimed');
   });
 
+  await t.test('B10: one deposit pays ONE of two cards, even when both are claimed at once', async () => {
+    const uid = newUid();
+    await seed(uid);
+    const service = build();
+
+    const a = await makeCard(service, { depositRequired: true, depositAmount: '100' });
+    const b = await makeCard(service, { depositRequired: true, depositAmount: '100' });
+    await service.activate({ userId: uid, giftCardId: a.id });
+    await service.activate({ userId: uid, giftCardId: b.id });
+    await connection.models.Ccdeposit.create({
+      userid: String(uid), amount: '150', status: 'Success', chain: 'TRX', orderid: newKey(),
+    });
+
+    const results = await Promise.allSettled([
+      service.claim({ userId: uid, giftCardId: a.id }),
+      service.claim({ userId: uid, giftCardId: b.id }),
+    ]);
+    assert.equal(results.filter((r) => r.status === 'fulfilled').length, 1, 'only one card may use the deposit');
+    const refused = results.find((r) => r.status === 'rejected');
+    assert.equal(refused.reason.code, 'GIFTCARD_DEPOSIT_CONDITION_UNMET');
+  });
+
   await t.test('a deposit made in the same instant as the claim still counts', async () => {
     // An open-ended card's conditions run until it is claimed. Clamping the
     // window to `< now` at claim time excluded a deposit made in the same

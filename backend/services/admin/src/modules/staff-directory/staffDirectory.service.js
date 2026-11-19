@@ -1,6 +1,7 @@
 'use strict';
 
 const { Op } = require('sequelize');
+const { AppError } = require('@ibitplay/common');
 const {
   resolvePermissions,
   verifyPassword,
@@ -415,7 +416,34 @@ function roleGrants(value) {
  * Returns a boolean. The caller decides what a false means — this function has
  * no opinion about status codes.
  */
-async function verifyTransactionPassword(models, staffId, candidate, { executiveId = null } = {}) {
+// Security (A9): per-staff lockout on wrong transaction passwords. It lives here, in the one
+// verifier, so every path is covered: staff-auth's assertTransactionPassword, lords' money moves
+// and the internal /verify-transaction-password route casino and sports call.
+// shortcut: in-process like the staff-login throttle, so N admin instances allow N x the tries; move to Redis when admin runs more than one.
+const TXN_MAX_ATTEMPTS = 5;
+const TXN_WINDOW_MS = 10 * 60 * 1000;
+const TXN_LOCK_MS = 15 * 60 * 1000;
+const txnAttempts = new Map(); // staffId -> { count, firstAt, lockedUntil }
+const txnLocked = () => new AppError('Too many wrong transaction passwords — try again in a few minutes', 429, 'TXN_PASSWORD_LOCKED');
+
+/** Throws 429 TXN_PASSWORD_LOCKED while locked — even for the right password, so a lock cannot be guessed through. */
+async function verifyTransactionPassword(models, staffId, candidate, opts = {}) {
+  const key = String(staffId);
+  const now = Date.now();
+  let rec = txnAttempts.get(key);
+  if (rec?.lockedUntil > now) throw txnLocked();
+  if (await checkTransactionPassword(models, staffId, candidate, opts)) {
+    txnAttempts.delete(key);
+    return true;
+  }
+  if (!rec || now - rec.firstAt > TXN_WINDOW_MS) rec = { count: 0, firstAt: now, lockedUntil: 0 };
+  rec.count += 1;
+  if (rec.count >= TXN_MAX_ATTEMPTS) rec.lockedUntil = now + TXN_LOCK_MS;
+  txnAttempts.set(key, rec);
+  return false;
+}
+
+async function checkTransactionPassword(models, staffId, candidate, { executiveId = null } = {}) {
   if (typeof candidate !== 'string' || !candidate) return false;
 
   // TXN_PASSWORD_MODE=login (the default): the transaction password IS the
