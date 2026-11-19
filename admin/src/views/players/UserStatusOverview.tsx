@@ -92,12 +92,15 @@ type Props = {
   /** Agent-tree logins see no VIP figures (the backend sends `null` for them too). */
   showVip: boolean
 
+  /** Agent-tree logins see no KYC figures: KYC is house only. */
+  showKyc: boolean
+
   /** Kaunse users: 'direct' (parent nahi) ya 'agent' (parent hai). */
   channel?: 'direct' | 'agent'
 }
 
 /** Account-status charts for the Users page, driven by the FilterBar — ek channel (direct / agent) ke users. */
-const UserStatusOverview = ({ showVip, channel = 'direct' }: Props) => {
+const UserStatusOverview = ({ showVip, showKyc, channel = 'direct' }: Props) => {
   const f = useStatsFilters({ defaultPreset: '30d' })
   const query = { ...f.apiRange, granularity: f.granularity, channel }
   const q = useApi<UserStatusStats>(PATH, query, { placeholderData: prev => prev, retry: false })
@@ -132,8 +135,12 @@ const UserStatusOverview = ({ showVip, channel = 'direct' }: Props) => {
     { name: 'Unlocks', data: line('unblocks'), color: 'chart-4' },
     { name: 'Product locks', data: line('productLocks'), color: 'warning' },
     { name: 'Closures', data: line('closures'), color: 'muted-foreground' },
-    { name: 'KYC approved', data: line('kycApprovals'), color: 'success' },
-    { name: 'KYC rejected', data: line('kycRejections'), color: 'chart-6' }
+    ...(showKyc
+      ? [
+          { name: 'KYC approved', data: line('kycApprovals'), color: 'success' },
+          { name: 'KYC rejected', data: line('kycRejections'), color: 'chart-6' }
+        ] satisfies ChartSeries[]
+      : [])
   ]
 
   return (
@@ -174,13 +181,13 @@ const UserStatusOverview = ({ showVip, channel = 'direct' }: Props) => {
           hint={k ? `${formatNumber(k.locked)} locked · ${formatNumber(k.closed)} closed · ${formatNumber(k.restricted)} product-restricted` : undefined}
           goodWhen='down'
         />
-        <KpiCard
+        {showKyc && <KpiCard
           label='KYC verified'
           value={k ? pct(k.kycVerifiedPct) : '—'}
           icon={<UserCheckIcon />}
           loading={loading}
           hint={k ? `${formatNumber(k.kycVerified)} verified · ${formatNumber(k.kycPending)} pending` : undefined}
-        />
+        />}
         <KpiCard
           label='2FA on'
           value={k ? pct(k.twoFaPct) : '—'}
@@ -192,7 +199,7 @@ const UserStatusOverview = ({ showVip, channel = 'direct' }: Props) => {
 
       <div className='grid gap-4 lg:grid-cols-2 xl:grid-cols-3'>
         <SliceDonut title='Account status' description='Every account now, by its strongest restriction.' slices={b?.status} colors={STATUS_COLORS} loading={loading} error={q.error} />
-        <SliceDonut title='KYC status' description='Identity verification, now.' slices={b?.kyc} colors={KYC_COLORS} loading={loading} error={q.error} />
+        {showKyc && <SliceDonut title='KYC status' description='Identity verification, now.' slices={b?.kyc} colors={KYC_COLORS} loading={loading} error={q.error} />}
         {showVip && b?.vip !== null && (
           <SliceBar title='VIP tiers' description='Accounts per tier, by lifetime wager.' slices={b?.vip ?? []} name='Users' color='chart-5' loading={loading} error={q.error} />
         )}
@@ -231,11 +238,11 @@ const UserStatusOverview = ({ showVip, channel = 'direct' }: Props) => {
         <ChartCard
           className='lg:col-span-2 xl:col-span-3'
           title='Status changes'
-          description={`Per ${f.granularity}, from the staff audit trail (locks, closures, KYC decisions).`}
+          description={`Per ${f.granularity}, from the staff audit trail (locks, closures${showKyc ? ', KYC decisions' : ''}).`}
           table={seriesTable({ buckets: f.buckets, granularity: f.granularity, series: changes, format: 'number' })}
         >
           <TimeSeriesChart
-            ariaLabel={`Account locks, closures and KYC decisions per ${f.granularity}`}
+            ariaLabel={`Account locks, closures${showKyc ? ' and KYC decisions' : ''} per ${f.granularity}`}
             buckets={f.buckets}
             granularity={f.granularity}
             series={changes}
@@ -244,7 +251,7 @@ const UserStatusOverview = ({ showVip, channel = 'direct' }: Props) => {
             format='number'
             loading={loading}
             error={q.error}
-            emptyMessage='No locks, closures or KYC decisions in this period.'
+            emptyMessage={`No locks, closures${showKyc ? ' or KYC decisions' : ''} in this period.`}
           />
         </ChartCard>
       </div>
