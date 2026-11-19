@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest';
 
 import { ApiError } from '@/lib/api';
 import { shouldRetry } from './client';
+import { launchCurrencies, launchCurrency } from './play';
+import { orderOriginals, originalFor, toOriginalGame } from './collections';
 import { compact, queryKeys } from './keys';
 import {
   gamesQuery,
@@ -182,5 +184,43 @@ describe('query params', () => {
       'live-casino',
       'popular-slots',
     ]);
+  });
+});
+
+describe('launch currencies', () => {
+  it('lobby games take INR, PKR and USDT; aggregator originals INR and USDT', () => {
+    expect(launchCurrencies({})).toEqual(['INR', 'PKR', 'USDT']);
+    expect(launchCurrencies({ originalCode: 'crash' })).toEqual(['INR', 'USDT']);
+  });
+
+  it("narrows to the row's own launchCurrencies (a JSGames V2 row opens in INR only)", () => {
+    const game = { launchCurrencies: ['inr'] };
+    expect(launchCurrencies(game)).toEqual(['INR']);
+    expect(launchCurrency(game, 'USDT')).toBeNull();
+    expect(launchCurrency(game, 'inr')).toBe('INR');
+    expect(launchCurrency({}, 'BTC')).toBeNull();
+  });
+});
+
+describe('aggregator originals', () => {
+  const rows = [{ game_code: 'crash', name: 'Crash' }, { game_code: 'classic_dice', name: 'Dice' }, { game_code: 'twist', name: 'Twist' }];
+  const tiles = [{ id: 'classic-dice', name: 'Classic Dice' }, { id: 'mines', name: 'Mines' }, { id: 'crash', name: 'Crash!' }];
+
+  it("keeps the admin's order, drops switched-off games and lists aggregator-only ones", () => {
+    expect(orderOriginals(tiles, rows).map((t) => [t.id, t.name, t.code])).toEqual([
+      ['crash', 'Crash!', 'crash'],
+      ['classic_dice', 'Classic Dice', 'classic_dice'],
+      ['twist', 'Twist', 'twist'],
+    ]);
+  });
+
+  it('leaves the in-house tiles alone while the aggregator lists nothing', () => {
+    expect(orderOriginals(tiles, [])).toBe(tiles);
+  });
+
+  it('finds the row for an address and shapes it as a launchable game', () => {
+    expect(originalFor(rows, 'classic-dice')?.game_code).toBe('classic_dice');
+    expect(originalFor(rows, 'mines')).toBeNull();
+    expect(toOriginalGame(rows[0])).toMatchObject({ slug: 'crash', title: 'Crash', originalCode: 'crash' });
   });
 });

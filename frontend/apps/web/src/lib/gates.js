@@ -22,7 +22,8 @@
 export const GATES = {
   // `rail`: the owner's cashier policy. Deposit stays open on a manual-only site when manual is allowed.
   deposit: { capability: 'deposit', rail: ['deposit_mode', 'automatic'], orManual: true },
-  withdraw: { capability: 'withdraw', rail: ['withdrawal_mode', 'manual'] },
+  // Every `withdrawal_mode` opens a channel (manual: bank queue + crypto, automatic: F2Pay); the forms pick the rail.
+  withdraw: { capability: 'withdraw' },
   swap: { feature: 'swap', capability: 'swap' },
   vault: { feature: 'vault', capability: 'vault' },
   bonus: { flag: 'bonus', feature: 'bonus', capability: 'promotions' },
@@ -180,6 +181,11 @@ export function makeGates({ flags, features, capabilities, ready = true, agentSi
     manualDeposit: () => on('deposit') && can('deposit') && manualOpen(),
     /** The gateway (crypto address) deposit may show. */
     autoDeposit: () => on('deposit') && can('deposit') && railOpen(policy('deposit_mode'), 'automatic'),
+    /** A manual withdrawal (crypto, or for `fiat` the staff-paid bank queue the admin's manual switch closes) may show. */
+    manualWithdraw: (fiat = false) =>
+      on('withdraw') && railOpen(policy('withdrawal_mode'), 'manual') && (!fiat || capabilities?.manualWithdraw !== false),
+    /** The automatic (F2Pay) payout may show; which coins it pays is the provider's answer. */
+    autoWithdraw: () => on('withdraw') && railOpen(policy('withdrawal_mode'), 'automatic'),
     /** One site-admin flag; absent / not answered = on. */
     flag: (key) => flagMap?.[key] !== false,
     agentPlayer,

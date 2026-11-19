@@ -155,6 +155,8 @@ export function toGame(row) {
      * by the Phase 0 seeder and absent for everything a real sync writes.
      */
     ...(parameters.inHouse ? { inHouse: true, event: parameters.event ?? slug } : {}),
+    // Set when the game opens only in some wallets (backend games.service.js, JSGames V2 rows: INR).
+    ...(Array.isArray(row.launchCurrencies) ? { launchCurrencies: row.launchCurrencies } : {}),
     /** Live-dealer tables have a lobby; the launch call differs. */
     hasLobby: Boolean(row.has_lobby),
   };

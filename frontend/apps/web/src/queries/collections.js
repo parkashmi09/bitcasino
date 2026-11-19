@@ -184,3 +184,54 @@ export function useInHouseGames() {
         .map((g) => ({ id: g.game_uid ?? String(g.id), name: g.game_name, type: g.game_type })),
   });
 }
+
+/**
+ * The Original Games Aggregator's list (hash `services/originals.js`): the admin's enabled games in
+ * its order, `[{game_code, name, image}]`; `[]` while Originals are off or not synced.
+ */
+export function useOriginalGames({ enabled = true } = {}) {
+  return useQuery({
+    // Under `in-house-games` so the admin's `original-games` push re-reads it (hooks/useGates.jsx).
+    queryKey: ['in-house-games', 'aggregator'],
+    queryFn: ({ signal }) => api(ENDPOINTS.originalGames, { auth: false, signal }),
+    select: (data) => (Array.isArray(data) ? data : []),
+    enabled,
+    staleTime: 60 * 1000,
+  });
+}
+
+/** `classic_dice` is the same game as a tile or address spelled `classic-dice`. */
+const sameOriginal = (code, id) => code === id || String(code).replace(/_/g, '-') === id;
+
+/** The aggregator row for an address's slug, or null when its list does not hold it. */
+export const originalFor = (rows, slug) => (rows ?? []).find((row) => sameOriginal(row.game_code, slug)) ?? null;
+
+/**
+ * The Originals tiles as the admin has them: switched-off games dropped, the admin's order kept, a
+ * game only the aggregator offers listed too, each with its launch `code`. An empty list (aggregator
+ * off or not synced) leaves the in-house tiles alone.
+ */
+export function orderOriginals(tiles, rows) {
+  if (!rows?.length) return tiles;
+  return rows.map((row) => {
+    const tile = tiles?.find((t) => sameOriginal(row.game_code, t.id));
+    return { id: row.game_code, name: tile?.name ?? row.name ?? row.game_code, image: row.image ?? null, code: row.game_code };
+  });
+}
+
+/** An aggregator row as the `Game` the play page renders; launched through `originalCode`. */
+export function toOriginalGame(row) {
+  if (!row?.game_code) return null;
+  const thumb = row.image || '/images/categories/originals.png';
+  return {
+    id: row.game_code,
+    slug: row.game_code,
+    title: row.name || row.game_code,
+    provider: 'in-house',
+    category: 'originals',
+    thumb,
+    thumbWide: thumb,
+    originalCode: row.game_code,
+    hasLobby: false,
+  };
+}

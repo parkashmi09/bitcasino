@@ -10,10 +10,11 @@ import { RouteErrorBoundary } from './ErrorBoundary';
 import { MobileBottomNav } from './MobileBottomNav';
 import { useRecentlyPlayed } from '@/hooks/useRecentlyPlayed';
 import { useFavourites } from '@/hooks/useFavourites';
-import { RouteGate } from '@/hooks/useGates';
+import { RouteGate, useGates } from '@/hooks/useGates';
 import { useAuth } from '@/auth/AuthProvider';
 import { toast } from '@/lib/toast';
 import { ForcedPasswordChange } from '@/pages/Security';
+import { useVipRankUps } from '@/queries/rewards';
 
 export function Layout() {
   const [menuOpen, setMenuOpen] = useState(false);
@@ -21,7 +22,12 @@ export function Layout() {
   const [depositOpen, setDepositOpen] = useState(false);
   const [railCollapsed, setRailCollapsed] = useState(false);
   const { pathname } = useLocation();
-  const { status } = useAuth();
+  const { status, user } = useAuth();
+  const gates = useGates();
+  // Rank-up rewards pay without a claim button, as on hash. Waits for `/auth/me`'s capabilities.
+  useVipRankUps({
+    enabled: status === 'authenticated' && gates.ready && gates.on('vip') && !gates.demo && Boolean(user?.capabilities?.promotions),
+  });
 
   // The wallet is a signed-in surface: when the session ends (sign-out, or a refresh the server
   // refused) close it and say why, rather than leave it open on 401s.

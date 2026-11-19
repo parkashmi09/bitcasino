@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api';
 import { ENDPOINTS } from '@/lib/endpoints';
@@ -5,6 +6,8 @@ import { queryKeys } from '@/queries/keys';
 import { refreshBalances } from '@/hooks/useWallet';
 import { useAuth } from '@/auth/AuthProvider';
 import { AGENT_SITE } from '@/lib/agentBase';
+import { subscribe } from '@/lib/socket';
+import { walletKeys } from '@/queries/wallet';
 
 /**
  * Rewards, rakeback and the VIP standing — the account's own bonus surfaces.
@@ -28,6 +31,58 @@ export function useVipStanding({ enabled = true } = {}) {
     enabled: enabled && status === 'authenticated',
     staleTime: 30 * 1000,
   });
+}
+
+/** Claims every waiting rank-up; true when something was paid. One attempt: a failure waits for the next trigger. */
+export async function claimWaitingRankUps({ read = () => api(ENDPOINTS.vipRankUps), claim = () => api(ENDPOINTS.vipRankUpsClaim, { method: 'POST' }) } = {}) {
+  const waiting = await read();
+  if (!waiting?.cards?.length) return false;
+  const paid = await claim();
+  return Boolean(paid?.granted?.length);
+}
+
+/**
+ * Hash pays a VIP rank-up with the level-up; this backend holds it behind a claim. So the signed-in
+ * site claims for the player: once on session load, and again on a `vip_rank_up` notification push.
+ * `enabled` only where VIP is on for this player (never an agent's player or a demo account).
+ */
+export function useVipRankUps({ enabled }) {
+  const client = useQueryClient();
+  useEffect(() => {
+    if (!enabled) return undefined;
+    let live = true;
+    let running = false;
+    let again = false;
+    const run = async () => {
+      if (running) {
+        again = true;
+        return;
+      }
+      running = true;
+      try {
+        if ((await claimWaitingRankUps()) && live) {
+          refreshBalances();
+          client.invalidateQueries({ queryKey: walletKeys.all });
+          client.invalidateQueries({ queryKey: queryKeys.rewards.all });
+        }
+      } catch {
+        // Not retried here: the next rank-up or session load asks again.
+      }
+      running = false;
+      if (again && live) {
+        again = false;
+        run();
+      }
+    };
+    run();
+    const off = subscribe('notificationsUnread', (frame) => {
+      if (frame?.notification?.kind === 'vip_rank_up') run();
+    });
+    return () => {
+      live = false;
+      off();
+    };
+  }, [enabled, client]);
 }
 
 /** The ladder, grouped into tiers by `card`. Public. */
@@ -160,6 +215,33 @@ export function useRedeemCode() {
     mutationFn: ({ code }) => api(ENDPOINTS.bonusRedeem, { method: 'POST', body: { code } }),
     retry: false,
     onSuccess: () => refreshBalances(),
+  });
+}
+
+/* ── Loss bonus ──────────────────────────────────────────────────────── */
+
+/** The loss bonus terms and the last window's result; `state` drives the button. */
+export function useLossBonus({ enabled = true } = {}) {
+  const { status } = useAuth();
+  return useQuery({
+    queryKey: queryKeys.rewards.lossBonus(),
+    queryFn: ({ signal }) => api(ENDPOINTS.lossBonus, { signal }),
+    enabled: enabled && status === 'authenticated',
+    staleTime: 30 * 1000,
+  });
+}
+
+export function useClaimLossBonus() {
+  const client = useQueryClient();
+  return useMutation({
+    meta: { success: 'Loss bonus claimed.' },
+    mutationFn: () => api(ENDPOINTS.lossBonusClaim, { method: 'POST' }),
+    retry: false,
+    onSuccess: () => {
+      // The payout may land in the bonus balance (wager-locked) as well as the loss-bonus card.
+      client.invalidateQueries({ queryKey: queryKeys.rewards.all });
+      refreshBalances();
+    },
   });
 }
 

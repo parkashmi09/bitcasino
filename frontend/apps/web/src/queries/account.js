@@ -73,14 +73,15 @@ export function useBeginTwoFactor() {
   });
 }
 
-/** Confirm setup with a code from the authenticator app. */
+/** Confirm setup with a code from the authenticator app and the account password. */
 export function useCompleteTwoFactor() {
   const client = useQueryClient();
 
   return useMutation({
     meta: { success: 'Two-factor authentication is on.' },
-    mutationFn: ({ code }) =>
-      api(ENDPOINTS.twoFactorSetupVerify, { method: 'POST', body: { code } }),
+    // The account password too (backend twofa.validators.js completeSetup), so a stolen session cannot enrol.
+    mutationFn: ({ code, password }) =>
+      api(ENDPOINTS.twoFactorSetupVerify, { method: 'POST', body: { code, password } }),
     retry: false,
     onSuccess: () => {
       client.invalidateQueries({ queryKey: queryKeys.account.twoFactor() });

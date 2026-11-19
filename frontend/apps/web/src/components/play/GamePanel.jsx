@@ -1,8 +1,10 @@
+import { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Icon } from '@/components/ui/Icon';
-import { isPlayable, useLaunchGame } from '@/queries';
+import { Button } from '@/components/ui/Button';
+import { isPlayable, launchCurrencies, launchCurrency, useLaunchGame } from '@/queries';
 import { useAuth } from '@/auth/AuthProvider';
-import { useDisplayCurrency } from '@/hooks/useWallet';
+import { useBalances, useDisplayCurrency } from '@/hooks/useWallet';
 import { cn } from '@/lib/cn';
 import { LimboGame } from './LimboGame';
 import { SignInToPlay } from './SignInToPlay';
@@ -27,14 +29,23 @@ const NOT_CONFIGURED = new Set(['GIS_NOT_CONFIGURED']);
 
 export function GamePanel({ game, view, onExpand, onFullscreen }) {
   const { status } = useAuth();
-  const [currency] = useDisplayCurrency();
+  const [currency, setCurrency] = useDisplayCurrency();
+  const { balances } = useBalances();
   const navigate = useNavigate();
   const launch = useLaunchGame();
+  const { reset } = launch;
+
+  // Hash's rule: the selected wallet or no launch. The player picks; nothing switches it for them.
+  const code = launchCurrency(game, currency);
+  const choices = launchCurrencies(game).filter((c) => balances[c] !== undefined);
+  // A session belongs to the coin it opened in: a new header coin drops the frame and its refusal.
+  useEffect(() => reset(), [code, reset]);
 
   const signedIn = status === 'authenticated';
   const playable = isPlayable(game);
   const fullscreen = view === 'fullscreen';
   const url = launch.data?.url ?? null;
+  const unsupported = signedIn && !code;
 
   /** Open a real-money session — `POST /casino/games/launch`. Never on mount: a launch writes a
    *  `gis_sessions` row and logs the play, so page load would record a round nobody played. */
@@ -43,10 +54,12 @@ export function GamePanel({ game, view, onExpand, onFullscreen }) {
       navigate('/login');
       return;
     }
+    if (!code) return;
     launch.reset();
     launch.mutate({
       gameUuid: game.slug,
-      currency,
+      originalCode: game.originalCode,
+      currency: code,
       device: window.matchMedia('(max-width: 767px)').matches ? 'mobile' : 'desktop',
     });
   };
@@ -75,6 +88,8 @@ export function GamePanel({ game, view, onExpand, onFullscreen }) {
                  origin's storage — the access token included. */
               sandbox="allow-scripts allow-forms allow-popups allow-popups-to-escape-sandbox"
             />
+          ) : unsupported ? (
+            <CurrencyPrompt currency={currency} choices={choices} onPick={setCurrency} />
           ) : launch.isPending ? (
             <p className="text-sm text-trunks">
               Opening {game.title}…
@@ -203,6 +218,27 @@ function ChooseMode({ game, onPlay, pending }) {
   );
 }
 
+/** The selected wallet cannot settle this game: hash's sentence, and one button per held wallet that can. */
+function CurrencyPrompt({ currency, choices, onPick }) {
+  return (
+    <div role="alert" className="grid max-w-[420px] justify-items-center gap-3 px-6 text-center">
+      <p className="text-sm font-medium text-bulma">
+        {String(currency ?? '').toUpperCase()} isn&apos;t supported for this game right now. Please choose another
+        currency to continue playing.
+      </p>
+      {choices.length > 0 && (
+        <div className="flex flex-wrap justify-center gap-2">
+          {choices.map((choice) => (
+            <Button key={choice} variant="secondary" size="sm" onClick={() => onPick(choice)}>
+              Use {choice}
+            </Button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 /** An in-house original this client cannot draw yet — see `Play`'s header. */
 function NotBuilt({ game }) {
   return (
@@ -235,7 +271,7 @@ function LaunchRefused({ error }) {
     ? 'This game is served by an aggregator, and no provider credentials are set on this deployment. Nothing is wrong with the game — there is no upstream to open it against.'
     : code === 'GIS_CASINO_LOCKED'
       ? 'Casino play is locked on this account. Support can tell you why.'
-      : code === 'GIS_UNSUPPORTED_CURRENCY'
+      : code === 'GIS_UNSUPPORTED_CURRENCY' || code === 'JSGAMES_UNSUPPORTED_CURRENCY'
         ? 'That currency cannot be used for this game. Switch the wallet to USDT or INR and try again.'
         : error?.message || 'The game could not be opened.';
 

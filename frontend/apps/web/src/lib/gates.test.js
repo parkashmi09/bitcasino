@@ -69,11 +69,25 @@ describe('gates', () => {
     expect(b2b.canSignUp()).toBe(false);
   });
 
-  it('a manual-only site keeps deposit open when manual is allowed, closes withdraw on automatic-only', () => {
+  it('a manual-only site keeps deposit open when manual is allowed; automatic-only withdraw keeps the automatic rail', () => {
     const manual = makeGates({ features: [{ feature: 'deposit_mode', variant: 'manual' }, { feature: 'withdrawal_mode', variant: 'automatic' }] });
     expect(manual.on('deposit')).toBe(true);
     expect(manual.autoDeposit()).toBe(false);
-    expect(manual.on('withdraw')).toBe(false);
+    expect(manual.on('withdraw')).toBe(true);
+    expect(manual.autoWithdraw()).toBe(true);
+    expect(manual.manualWithdraw()).toBe(false);
+  });
+
+  it('the admin manual switch closes the fiat bank queue only', () => {
+    const gates = makeGates({ capabilities: { manualWithdraw: false } });
+    expect(gates.manualWithdraw(true)).toBe(false);
+    expect(gates.manualWithdraw(false)).toBe(true);
+    expect(gates.autoWithdraw()).toBe(true);
+  });
+
+  it('an agent player has no withdraw rail at all', () => {
+    const agent = makeGates({ capabilities: { promotions: false, vault: false, deposit: false, withdraw: false } });
+    expect(agent.manualWithdraw(true) || agent.autoWithdraw()).toBe(false);
   });
 });
 

@@ -1,13 +1,14 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Button } from '@/components/ui/Button';
+import { Dialog } from '@/components/ui/Dialog';
 import { Icon } from '@/components/ui/Icon';
 import { Skeleton } from '@/components/ui/Skeleton';
 import { DepositDialog } from '@/components/layout/DepositDialog';
 import { ClaimRewardDialog } from '@/components/rewards/ClaimRewardDialog';
 import { useRewards } from '@/hooks/useRewards';
 import { useGates } from '@/hooks/useGates';
-import { useBonusBalance, useClaimUnlocked, useFirstDepositOffer } from '@/queries/rewards';
+import { useBonusBalance, useClaimLossBonus, useClaimUnlocked, useFirstDepositOffer, useLossBonus } from '@/queries/rewards';
 import { compareDecimal, formatBalance } from '@/lib/format';
 import { cn } from '@/lib/cn';
 
@@ -91,6 +92,7 @@ export function Rewards() {
   const { claim } = useRewards();
   const offer = useFirstDepositOffer();
   const balance = useBonusBalance();
+  const loss = useLossBonus();
   const [claimOpen, setClaimOpen] = useState(false);
   const [depositOpen, setDepositOpen] = useState(false);
 
@@ -99,7 +101,8 @@ export function Rewards() {
   const active = balance.data?.active ?? [];
   const history = balance.data?.history ?? [];
   const loading = offer.isPending || balance.isPending;
-  const empty = !offer.data && active.length === 0;
+  const lossOn = Boolean(loss.data?.enabled);
+  const empty = !offer.data && active.length === 0 && !lossOn;
 
   return (
     <div className="grid gap-4">
@@ -155,6 +158,11 @@ export function Rewards() {
           {offer.data && (
             <li>
               <OfferCard offer={offer.data} onDeposit={() => setDepositOpen(true)} />
+            </li>
+          )}
+          {lossOn && (
+            <li>
+              <LossBonusCard loss={loss.data} />
             </li>
           )}
           {active.map((bonus) => (
@@ -299,6 +307,73 @@ function BonusCard({ bonus }) {
           {claim.error?.message || 'The claim was refused.'}
         </p>
       )}
+    </Card>
+  );
+}
+
+/** The loss bonus button, by the server's `state` (hash `LossBonus.jsx`). */
+const LOSS_BUTTON = {
+  no_deposit: 'Deposit to activate',
+  active: 'Protection active',
+  claimable: 'Claim',
+  claimed: 'Claimed',
+  expired: 'Expired',
+  none: 'Nothing to claim',
+};
+
+/** The Super Admin's loss bonus (or Welcome Shield): the last window's net loss, its bonus, and Claim behind a confirm. */
+function LossBonusCard({ loss }) {
+  const claim = useClaimLossBonus();
+  const [confirming, setConfirming] = useState(false);
+  const { currency, state } = loss;
+  const money = (amount) => `${formatBalance(String(amount ?? '0'))} ${currency}`;
+  const range = loss.period ? `${formatDate(loss.period.from)} – ${formatDate(loss.period.to)}` : '';
+  const wager = Number(loss.bonus) * Number(loss.wagerMultiplier);
+
+  return (
+    <Card
+      title={loss.welcome ? 'Welcome Shield' : 'Loss bonus'}
+      description={`Get ${Number(loss.percent)}% of your net loss back. Only real money wagers count.`}
+      facts={[
+        ['Bonus up to:', Number(loss.maxBonus) > 0 ? money(loss.maxBonus) : 'No cap'],
+        ['Wager:', Number(loss.wagerMultiplier) > 0 && `${Number(loss.wagerMultiplier)}x`],
+        [loss.welcome ? 'Protection:' : 'Last period:', state !== 'no_deposit' && range],
+        ['Net loss:', state !== 'no_deposit' && money(loss.netLoss)],
+        ['Claim before:', state === 'claimable' && formatDate(loss.claimExpiresAt)],
+      ]}
+      reward={state !== 'no_deposit' && money(loss.bonus)}
+    >
+      <Button size="lg" disabled={state !== 'claimable' || claim.isPending} onClick={() => setConfirming(true)}>
+        {LOSS_BUTTON[state] ?? LOSS_BUTTON.none}
+      </Button>
+      {claim.isError && (
+        <p role="alert" className="text-sm text-chichi">
+          {claim.error?.message || 'The loss bonus could not be claimed.'}
+        </p>
+      )}
+
+      <Dialog open={confirming} onClose={() => setConfirming(false)} title="Claim your loss bonus?">
+        <div className="grid gap-4">
+          <p className="text-base leading-6 text-bulma">
+            You will receive {money(loss.bonus)}.{' '}
+            {wager > 0
+              ? `It is added to your bonus balance and becomes cash after you wager ${money(wager.toFixed(2))}.`
+              : 'It is added to your balance straight away.'}
+          </p>
+          <div className="grid grid-cols-2 gap-4">
+            <Button variant="secondary" size="lg" disabled={claim.isPending} onClick={() => setConfirming(false)}>
+              Cancel
+            </Button>
+            <Button
+              size="lg"
+              disabled={claim.isPending}
+              onClick={() => claim.mutate(undefined, { onSettled: () => setConfirming(false) })}
+            >
+              {claim.isPending ? 'Claiming…' : 'Confirm'}
+            </Button>
+          </div>
+        </div>
+      </Dialog>
     </Card>
   );
 }

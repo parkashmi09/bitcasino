@@ -33,12 +33,24 @@ export {
 
 export { useProviders, useProviderGames } from './providers';
 
-export { useGameCollection, useRail, useLobbyCategories, useInHouseGames, PLATFORM_COLLECTIONS } from './collections';
+export {
+  useGameCollection,
+  useRail,
+  useLobbyCategories,
+  useInHouseGames,
+  useOriginalGames,
+  originalFor,
+  orderOriginals,
+  toOriginalGame,
+  PLATFORM_COLLECTIONS,
+} from './collections';
 
 export { useSiteConfig, useBranding, useSiteName } from './siteConfig';
 
 export {
   useLaunchGame,
+  launchCurrencies,
+  launchCurrency,
   usePlayRound,
   useBetHistory,
   isPlayable,
