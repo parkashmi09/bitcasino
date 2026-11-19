@@ -5,6 +5,7 @@ import { fmt, gameMetrics } from './playMetrics';
 import { providerLabel } from '@/data/adapters/providers';
 import { Brand } from '@/components/ui/Brand';
 import { useSiteName } from '@/queries/siteConfig';
+import { useGates } from '@/hooks/useGates';
 
 /**
  * In the reference, `In-House` games print the operator's own name under the
@@ -84,6 +85,7 @@ function describe(game, site) {
  * so it is JSX rather than `dangerouslySetInnerHTML`.
  */
 function GameSeo({ game }) {
+  const { agentPlayer } = useGates();
   const [open, setOpen] = useState(false);
   const site = useSiteName();
   const brand = providerLabel(game.provider);
@@ -127,7 +129,7 @@ function GameSeo({ game }) {
         </div>
 
         <p className="mt-3">
-          Check the lobby for the latest promotions and the casino rules that govern every round played
+          Check the lobby for {agentPlayer ? '' : 'the latest promotions and '}the casino rules that govern every round played
           here, whatever the studio behind it.
         </p>
       </div>

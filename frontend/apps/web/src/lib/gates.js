@@ -110,8 +110,10 @@ const PROMO_GATES = new Set(['bonus', 'vip', 'affiliate', 'promotions', 'contest
 
 /* An agent's player (and anyone signed out on /agent) has none of these. */
 const AGENT_OFF = new Set([...PROMO_GATES, 'deposit', 'withdraw', 'swap', 'vault', 'kyc', 'blog']);
-/* Pages about what those sections offer, which have no gate of their own. */
-const AGENT_CLOSED = /^\/(?:bitcoin-breakdown|help-center\/(?:help-loyalty|help-your-bonuses|reward-terms))(?:\/|$)/;
+/* Pages about what those sections offer, which have no gate of their own: help on money, rewards, KYC
+   and passwords, and Profile > Security (an agent's player never changes or resets their own password). */
+const AGENT_CLOSED =
+  /^\/(?:bitcoin-breakdown|profile\/security|help-center\/(?:help-loyalty|help-your-bonuses|reward-terms|help-your-transactions|help-payment-options|how-to-buy-crypto)|help-center\/[^/]+\/[^/]*(?:deposit|withdraw|kyc|vault|password|vip|bonus|reward|affiliate|upload-documents|buy-crypto|loyalty)[^/]*)(?:\/|$)/;
 /* A demo account has its balance, its sports bets and Logout. */
 const DEMO_CLOSED = /^\/(?:profile|sports\/statement)(?:\/|$)/;
 

@@ -5,6 +5,13 @@ import { SUPPORT_EMAIL } from '@/lib/site';
 import { Brand } from '@/components/ui/Brand';
 import { withBrand } from '@/lib/branding';
 import { useSiteName } from '@/queries/siteConfig';
+import { useGates } from '@/hooks/useGates';
+
+/** A link to a page the visitor cannot open (a closed section on /agent) shows as plain text. */
+function GatedLink({ to, children, ...rest }) {
+  const { routeOn } = useGates();
+  return routeOn(to) ? <Link to={to} {...rest}>{children}</Link> : <span>{children}</span>;
+}
 
 function RichText({ parts }) {
   return parts.map((part, index) => {
@@ -14,7 +21,7 @@ function RichText({ parts }) {
       if (isExternal) {
         return <a key={index} href={part.href} {...(isMailto ? {} : { target: '_blank', rel: 'noreferrer' })} className="font-bold underline hover:text-piccolo">{part.linkLabel}</a>;
       }
-      return <Link key={index} to={part.href} className="font-bold underline hover:text-piccolo">{part.linkLabel}</Link>;
+      return <GatedLink key={index} to={part.href} className="font-bold underline hover:text-piccolo">{part.linkLabel}</GatedLink>;
     }
     if (part.bold) return <strong key={index}>{part.bold}</strong>;
     return <span key={index}>{part.text}</span>;
@@ -29,7 +36,7 @@ function ListItemContent({ item }) {
       <>
         {item.bold ? <><strong>{item.bold}</strong><br /></> : null}
         {item.prefix}
-        {item.href ? <Link to={item.href} className="font-bold underline hover:text-piccolo">{item.linkLabel}</Link> : null}
+        {item.href ? <GatedLink to={item.href} className="font-bold underline hover:text-piccolo">{item.linkLabel}</GatedLink> : null}
         {item.suffix ?? item.text}
         {item.note ? <><br /><em>{item.note}</em></> : null}
       </>
@@ -96,8 +103,8 @@ function ContentBlocks({ blocks }) {
       );
     }
     if (block.type === 'external-links') return <ul key={index}>{block.links.map(([label, href]) => <li key={href}><a href={href} target="_blank" rel="noreferrer" className="underline hover:text-piccolo">{label}</a></li>)}</ul>;
-    if (block.type === 'notice') return <p key={index}><strong>{block.prefix}<Link to={block.href} className="underline hover:text-piccolo">{block.linkLabel}</Link>{block.suffix}</strong></p>;
-    if (block.type === 'link-paragraph') return <p key={index}>{block.prefix}<Link to={block.href} className="font-bold underline hover:text-piccolo">{block.linkLabel}</Link>{block.suffix}</p>;
+    if (block.type === 'notice') return <p key={index}><strong>{block.prefix}<GatedLink to={block.href} className="underline hover:text-piccolo">{block.linkLabel}</GatedLink>{block.suffix}</strong></p>;
+    if (block.type === 'link-paragraph') return <p key={index}>{block.prefix}<GatedLink to={block.href} className="font-bold underline hover:text-piccolo">{block.linkLabel}</GatedLink>{block.suffix}</p>;
     if (block.type === 'rich-paragraph') return <p key={index}><RichText parts={block.parts} /></p>;
     if (block.type === 'code') return <pre key={index}><code>{block.value}</code></pre>;
     if (block.type === 'video') return <div key={index} className="relative aspect-video"><iframe src={block.src} title={block.title} allow="autoplay; fullscreen; picture-in-picture; clipboard-write" className="absolute inset-0 h-full w-full" allowFullScreen /></div>;

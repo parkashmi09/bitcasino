@@ -4,6 +4,7 @@ import { SUPPORT_EMAIL } from '@/lib/site';
 import { Brand } from '@/components/ui/Brand';
 import { withBrand } from '@/lib/branding';
 import { useSiteName } from '@/queries/siteConfig';
+import { useGates } from '@/hooks/useGates';
 
 const IMAGE_ROOT = 'https://heathmont.imgix.net/bitcasino/images';
 
@@ -120,7 +121,8 @@ const CATEGORIES = [
 
 function CategoryCard({ category }) {
   const data = findHelpCategory(category.id);
-  const articles = withBrand(data?.articles ?? [], useSiteName());
+  const { routeOn } = useGates();
+  const articles = withBrand(data?.articles ?? [], useSiteName()).filter((article) => routeOn(`/help-center/${category.id}/${article.slug}`));
   // Counted from the articles themselves, so removing one updates the card; static only where there is no data.
   const count = data ? articles.filter((article) => article.slug).length : category.count;
   return (
@@ -146,6 +148,7 @@ function CategoryCard({ category }) {
 
 export function HelpCenter() {
   const site = useSiteName();
+  const { routeOn } = useGates();
   return (
     <div className="w-full max-w-[99rem] overflow-x-clip">
       <div className="grid gap-4">
@@ -155,7 +158,7 @@ export function HelpCenter() {
         </header>
 
         <section aria-label="Help Centre categories" className="grid grid-cols-1 gap-4 pb-6 md:grid-cols-3">
-          {withBrand(CATEGORIES, site).map((category) => <CategoryCard key={category.id} category={category} />)}
+          {withBrand(CATEGORIES, site).filter((category) => routeOn(category.href)).map((category) => <CategoryCard key={category.id} category={category} />)}
         </section>
 
         {SUPPORT_EMAIL && (
