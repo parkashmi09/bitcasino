@@ -53,9 +53,6 @@ const TABS = [
 
 const PAGE = 25;
 
-/* What an agent's player's balance moves by: their agent's transfers and the site's adjustments. */
-const AGENT_REASONS = 'TRANSFER_IN,TRANSFER_OUT,ADMIN_CREDIT,ADMIN_DEBIT';
-
 export function Transactions() {
   const { agentPlayer } = useGates();
   return agentPlayer ? <AgentStatement /> : <PlayerTransactions />;
@@ -71,10 +68,10 @@ const asLedgerRow = (row) => ({
   status: String(row.amount).startsWith('-') ? 'Sent' : 'Received',
 });
 
-/** An agent's player has no deposits or withdrawals of their own: one statement of the ledger. */
+/** An agent's player has no deposits or withdrawals of their own: their whole ledger, as on hash. */
 function AgentStatement() {
   const [page, setPage] = useState(0);
-  const ledger = useWalletLedger({ limit: PAGE, offset: page * PAGE, reason: AGENT_REASONS });
+  const ledger = useWalletLedger({ limit: PAGE, offset: page * PAGE });
   const rows = (ledger.data ?? []).map(asLedgerRow);
 
   return (
