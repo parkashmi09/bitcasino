@@ -18,9 +18,16 @@ function jsonField(schema, { defaultValue = undefined } = {}) {
   }, inner);
 }
 
+/*
+ * Links are drawn straight into an anchor's href on the player site: a site path with one leading `/`
+ * (not `//host` or `/\host`, which browsers treat as another site) or an https url. No `javascript:`/`data:`.
+ */
+const SITE_LINK = /^(\/(?![/\\])\S*|https:\/\/\S+)$/i;
+const siteLink = z.string().trim().max(512).regex(SITE_LINK, 'must be a site path (/casino) or an https url');
+
 const gameCard = z
   .object({
-    href: z.string().trim().min(1).max(512),
+    href: siteLink,
     name: z.string().trim().min(1).max(200),
     img: z.string().trim().max(512).default(''), // empty: the player site draws its own art for the /game/<slug>
     color: z.string().trim().max(80).optional(),
@@ -31,7 +38,7 @@ const gameCard = z
 const sportEvent = z
   .object({
     label: z.string().trim().min(1).max(300),
-    href: z.string().trim().min(1).max(512),
+    href: siteLink,
     icon: z.string().trim().max(512).optional(),
     sportAlt: z.string().trim().max(80).optional(),
   })
@@ -84,9 +91,10 @@ const sportEvents = jsonField(z.array(sportEvent).max(80), { defaultValue: [] })
 const tags = jsonField(z.array(z.string().trim().min(1).max(64)).max(30), { defaultValue: [] });
 const leaderboardField = jsonField(leaderboard.nullable(), { defaultValue: null });
 const tournamentPanelField = jsonField(tournamentPanel.nullable(), { defaultValue: null });
-const viewAllHref = z.string().trim().max(512).optional().nullable();
+const viewAllHref = z.union([z.literal(''), siteLink]).optional().nullable();
 
 module.exports = {
+  SITE_LINK,
   gameCard,
   sportEvent,
   leaderboard,

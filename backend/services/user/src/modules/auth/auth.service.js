@@ -149,13 +149,15 @@ class AuthService {
       },
     });
 
-    // Same error for "no such user" and "wrong password" — see auth.errors.js.
+    // Same error for "no such user" and "wrong password" — see auth.errors.js. The dummy compare
+    // keeps the timing the same too, so it cannot be used to enumerate usernames (A11).
     if (!user) {
+      await verifyPassword(password, null);
       await this.#recordAttempt(identifier, ip, false, 'no_such_user');
       throw errors.INVALID_CREDENTIALS();
     }
 
-    const ok = user.password ? await verifyPassword(password, user.password) : false;
+    const ok = await verifyPassword(password, user.password);
     if (!ok) {
       await this.#recordAttempt(identifier, ip, false, 'bad_password');
       throw errors.INVALID_CREDENTIALS();
@@ -1393,26 +1395,26 @@ class AuthService {
   }
 
   /**
-   * Throttle on identifier and IP independently.
+   * Throttle on identifier+IP, IP, and identifier from anywhere.
    *
-   * Identifier alone lets a botnet spread one account's guesses across many
-   * addresses; IP alone lets one host walk a list of accounts.
+   * The tight limit is per identifier AND address, so a stranger guessing at
+   * someone's account locks only their own address out, not the player (A12).
+   * IP alone stops one host walking a list of accounts; the identifier-wide
+   * backstop, ten times looser, stops a botnet spreading one account's guesses
+   * across many addresses.
    */
   async #assertNotThrottled(identifier, ip) {
     const since = new Date(Date.now() - LOCKOUT_WINDOW_MINUTES * 60_000);
+    const failed = { successful: false, created_at: { [Op.gte]: since } };
+    const key = throttleKey(identifier);
 
-    const [byIdentifier, byIp] = await Promise.all([
-      this.models.AuthLoginAttempt.count({
-        where: { identifier: throttleKey(identifier), successful: false, created_at: { [Op.gte]: since } },
-      }),
-      ip
-        ? this.models.AuthLoginAttempt.count({
-            where: { ip_address: ip, successful: false, created_at: { [Op.gte]: since } },
-          })
-        : Promise.resolve(0),
+    const [byIdentifierAndIp, byIp, byIdentifier] = await Promise.all([
+      this.models.AuthLoginAttempt.count({ where: { ...failed, identifier: key, ip_address: ip || null } }),
+      ip ? this.models.AuthLoginAttempt.count({ where: { ...failed, ip_address: ip } }) : Promise.resolve(0),
+      this.models.AuthLoginAttempt.count({ where: { ...failed, identifier: key } }),
     ]);
 
-    if (byIdentifier >= MAX_FAILED_ATTEMPTS || byIp >= MAX_FAILED_ATTEMPTS * 3) {
+    if (byIdentifierAndIp >= MAX_FAILED_ATTEMPTS || byIp >= MAX_FAILED_ATTEMPTS * 3 || byIdentifier >= MAX_FAILED_ATTEMPTS * 10) {
       throw errors.TOO_MANY_ATTEMPTS({ retryAfterMinutes: LOCKOUT_WINDOW_MINUTES });
     }
   }

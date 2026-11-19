@@ -232,7 +232,8 @@ const move = <T,>(list: T[], from: number, to: number) => {
   return next
 }
 
-const isLink = (v: string) => /^(\/[^\s]*|https?:\/\/[^\s]+)$/i.test(v.trim())
+// Same rule as the backend: one leading `/` (not `//host` or `/\host`) or https.
+const isLink = (v: string) => /^(\/(?![/\\])\S*|https:\/\/\S+)$/i.test(v.trim())
 
 // ── Row editors ─────────────────────────────────────────────────────────────────────────────
 
@@ -694,7 +695,7 @@ const PromotionDialog = ({ existing }: { existing?: Promotion }) => {
       'pr-desc': check.required(form.description, 'Description') || check.length(form.description, 'Description', { max: 200000 }),
       'pr-terms': check.length(form.termsHtml, 'Terms', { max: 200000 }),
       'pr-alt': check.length(form.imageAlt, 'Image alt text', { max: 512 }),
-      'pr-viewall': form.viewAllHref.trim() && !isLink(form.viewAllHref) ? '“View all” link must be a site path (/casino) or an http(s) URL' : check.length(form.viewAllHref, '“View all” link', { max: 512 }),
+      'pr-viewall': form.viewAllHref.trim() && !isLink(form.viewAllHref) ? '“View all” link must be a site path (/casino) or an https URL' : check.length(form.viewAllHref, '“View all” link', { max: 512 }),
       'pr-image': !file
         ? undefined
         : !IMAGE_TYPES.includes(file.type)

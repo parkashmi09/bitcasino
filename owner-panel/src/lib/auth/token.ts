@@ -10,8 +10,11 @@ export { SESSION_COOKIE }
  */
 const secret = () => process.env.OWNER_SESSION_SECRET ?? ''
 
+// The owner login is part of the key, so changing OWNER_PASSWORD (or the secret) signs every open session out.
 function sign(payload: string) {
-  return createHmac('sha256', secret()).update(payload).digest('hex')
+  const key = `${secret()}\n${process.env.OWNER_USERNAME ?? ''}\n${process.env.OWNER_PASSWORD ?? ''}`
+
+  return createHmac('sha256', key).update(payload).digest('hex')
 }
 
 /** Constant-time string compare; unequal lengths still burn one compare. */

@@ -40,15 +40,15 @@ const uploadBody = z
     subtitle: z.string().trim().max(300).optional(),
     ctaLabel: z.string().trim().max(60).optional(),
     /**
-     * Restricted to a site-relative path or an http(s) url, so a slide's button
-     * cannot be made to carry `javascript:` — this value is rendered straight
-     * into an anchor's href on the home page.
+     * Restricted to a site-relative path (one leading `/`, not `//host` or
+     * `/\host`) or an https url, so a slide's button cannot carry `javascript:`
+     * or send players off-site — rendered straight into an anchor's href.
      */
     ctaHref: z
       .string()
       .trim()
       .max(500)
-      .regex(/^(\/[^\s]*|https?:\/\/[^\s]+)$/i, 'must be a site path or an http(s) url')
+      .regex(/^(\/(?![/\\])\S*|https:\/\/\S+)$/i, 'must be a site path or an https url')
       .optional(),
     /** Position among the slides. Multipart sends numbers as strings. */
     sortOrder: z.coerce.number().int().min(0).max(9999).optional(),

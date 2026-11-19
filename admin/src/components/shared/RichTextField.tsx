@@ -26,6 +26,7 @@ import {
 
 import { Field, FieldDescription, FieldLabel } from '@/components/ui/field'
 import { Textarea } from '@/components/ui/textarea'
+import { sanitizeHtml } from '@/lib/sanitizeHtml'
 import { cn } from '@/lib/utils'
 
 import { Message, useFieldError } from './FormField'
@@ -69,7 +70,7 @@ export const RichTextField = ({ id, name, label, hint, required, error, value, o
   useEffect(() => {
     const el = editor.current
 
-    if (el && !source && el.innerHTML !== value) el.innerHTML = value
+    if (el && !source && el.innerHTML !== value) el.innerHTML = sanitizeHtml(value)
   }, [value, source])
 
   const emit = () => {

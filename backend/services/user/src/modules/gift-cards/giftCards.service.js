@@ -460,6 +460,20 @@ class GiftCardsService {
        * race the legacy version lost — and the correct response is to refuse
        * this one without crediting.
        */
+      // Security (B10): the used-deposit check above runs outside this transaction, so two cards
+      // claimed at once could both take the same deposit. Serialise per player and re-check here.
+      if (depositTxnId) {
+        await this.db.sequelize.query('SELECT pg_advisory_xact_lock(hashtext(:key))', {
+          replacements: { key: `giftcard-deposit:${userId}` },
+          transaction,
+        });
+        const taken = await this.models.UserGiftCards.count({
+          where: { user_id: userId, status: STATUS.CLAIMED, deposit_transaction_id: depositTxnId },
+          transaction,
+        });
+        if (taken > 0) throw errors.DEPOSIT_CONDITION_UNMET({ required: String(card.deposit_amount), reason: 'deposit already used' });
+      }
+
       const [affected] = await this.models.UserGiftCards.update(
         { status: STATUS.CLAIMED, deposit_transaction_id: depositTxnId },
         { where: { id: activation.id, status: STATUS.ACTIVATED }, transaction }

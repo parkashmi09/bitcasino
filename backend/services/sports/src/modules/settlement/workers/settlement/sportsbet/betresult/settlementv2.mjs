@@ -1,6 +1,7 @@
 // sportsbet/betresult/settlementv2.js — mssports settlement worker, moved unchanged
 import { makeCachedGet, makePayloadGetter } from "./resultCache.mjs";
 import { isMeterMarket, meterPnl } from "../../helper/meterMarket.mjs";
+import { withClaimTx } from "../../helper/claimTx.mjs";
 import { isBadloBet, badloPnl } from "../../helper/badloMarket.mjs";
 import { isLineMarket, exposureIdentity } from "../../helper/lineMarket.mjs";
 import { resolveLineMarketFromFeed } from "../../helper/lineResult.mjs";
@@ -68,8 +69,9 @@ async function applyWalletDeltaWithLedger(user_id, { cashDelta = 0, inrDelta = 0
 // NEW (credits.inr): one balance. Placement took the liability out of inr, so inr gets what
 // cash got — the released liability plus the market result (a win pays in, a full loss adds 0).
 // `inrDelta` (the old inr_balance P/L) has no column any more and is ignored.
-async function applyWalletDeltaWithLedger(user_id, { cashDelta = 0, inrDelta = 0, ledger }) {
-  return db_default.transaction(async (t) => {
+// `transaction`: the caller's status-claim transaction (N4), so the claim and the credit commit or roll back together.
+async function applyWalletDeltaWithLedger(user_id, { cashDelta = 0, inrDelta = 0, ledger, transaction = null }) {
+  const run = async (t) => {
     const w = await Credits_default.findOne({
       where: { uid: user_id },
       transaction: t,
@@ -80,7 +82,8 @@ async function applyWalletDeltaWithLedger(user_id, { cashDelta = 0, inrDelta = 0
     await w.update({ inr: newCash }, { transaction: t });
     const ledgerRow = await CreditsLedger_default.create({ ...ledger, closing: newCash }, { transaction: t });
     return { ledgerRow, newCash, newInr: newCash };
-  });
+  };
+  return transaction ? run(transaction) : db_default.transaction(run);
 }
 console.log("[Settlement] Process started");
 var DEBUG = process.env.DEBUG === "1" || process.env.DEBUG === "true";
@@ -996,12 +999,15 @@ async function initiateRefund({ job_id, user_id, eventid, match_id, bet, market_
   const { id: bet_id, stake_amount } = bet;
   const stake = num2(stake_amount);
   const meta = { api: { type: "result", eventid, match_id, status: "suspended" }, bet_id };
+  // N4: the claim commits only together with the refund credit; a crash or failure in between leaves the bet open for the next pass.
+  const claimTx = await db_default.transaction();
   try {
     const [refundClaimed] = await SportsBet_default.update(
       { status: "closed", result_status: "refund", fixed: 1, updated_at: /* @__PURE__ */ new Date() },
-      { where: { id: bet_id, status: { [Op2.in]: ["open", "manual"] } } }
+      { where: { id: bet_id, status: { [Op2.in]: ["open", "manual"] } }, transaction: claimTx }
     );
     if (!refundClaimed) {
+      await claimTx.rollback();
       log.warn("[Settlement] refund skipped \u2014 bet already closed", { bet_id, user_id, job_id });
       return;
     }
@@ -1051,9 +1057,11 @@ async function initiateRefund({ job_id, user_id, eventid, match_id, bet, market_
         bet_id,
         netamount: refundAmount,
         category: "SPORTS"
-      }
+      },
+      transaction: claimTx
     });
     if (!refundWrite) throw new Error(`No wallet found for user_id=${user_id}`);
+    await claimTx.commit();
     const newBalance = refundWrite.newCash;
     const cashBefore = newBalance - Number(refundAmount);
     log.info(`[Settlement] Refund applied`, { bet_id, user_id, refundAmount, balance: newBalance, refundSource });
@@ -1101,6 +1109,7 @@ async function initiateRefund({ job_id, user_id, eventid, match_id, bet, market_
       decision_path: ["refund due to SUSPENDED status", desc]
     });
   } catch (e) {
+    if (!claimTx.finished) await claimTx.rollback();
     log.error("[Settlement] Refund failed", { bet_id, user_id, error: e.message });
     await writeReport({
       job_id,
@@ -1208,7 +1217,10 @@ async function writeReport(r) {
     log.error("[Settlement] writeReport failed", { bet_id: r.bet_id, error: e.message });
   }
 }
-async function processMobmGroup({ job_id, user_id, eventid, match_id, bets, eventName, marketId, marketName, market_type, game_type, team_one, team_two, sport_id }) {
+async function processMobmGroup(args) {
+  return withClaimTx(db_default, (claim) => processMobmGroupClaimed(args, claim));
+}
+async function processMobmGroupClaimed({ job_id, user_id, eventid, match_id, bets, eventName, marketId, marketName, market_type, game_type, team_one, team_two, sport_id }, claim) {
   log.info("[Settlement] Processing MO/BM group", { user_id, eventid, match_id, bets: bets.length });
   let result;
   const any = bets[0] || {};
@@ -1259,9 +1271,10 @@ async function processMobmGroup({ job_id, user_id, eventid, match_id, bets, even
     return { settled: true, requeue: false };
   }
   const preCredit = bets.reduce((sum, b) => sum + moBmBetWinCredit(b, winners), 0);
+  const claimTx = await claim.open();
   const [claimedCount] = await SportsBet_default.update(
     { status: "closed", result_status: preCredit > 0 ? "won" : "loss", fixed: 1, updated_at: /* @__PURE__ */ new Date() },
-    { where: { id: { [Op2.in]: bets.map((b) => b.id) }, status: { [Op2.in]: ["open", "manual"] } } }
+    { where: { id: { [Op2.in]: bets.map((b) => b.id) }, status: { [Op2.in]: ["open", "manual"] } }, transaction: claimTx }
   );
   if (!claimedCount) {
     log.warn("[Settlement] MO/BM bets already settled \u2014 duplicate pass skipped", { user_id, match_id, eventid, job_id, bet_ids: bets.map((b) => b.id) });
@@ -1290,7 +1303,8 @@ async function processMobmGroup({ job_id, user_id, eventid, match_id, bets, even
   let winnerExposure = 0;
   if (isMultiWinner) {
     const allMarketBets = await SportsBet_default.findAll({
-      where: { user_id: String(user_id), match_id, market_type, status: { [Op2.in]: ["open", "manual"] } }
+      where: { user_id: String(user_id), match_id, market_type, status: { [Op2.in]: ["open", "manual"] } },
+      transaction: claimTx
     });
     const legs = allMarketBets.length ? allMarketBets : bets;
     winnerExposure = legs.reduce((sum, leg) => sum + moBmBetPnl(leg, winners), 0);
@@ -1335,7 +1349,7 @@ async function processMobmGroup({ job_id, user_id, eventid, match_id, bets, even
         payout: marketFinalCredit,
         user_id,
         created_at: /* @__PURE__ */ new Date()
-      });
+      }, { transaction: claimTx });
     }
     let cost = 0;
     if (isBack(bet) || bet.bet_type === "Yes" || bet.bet_type === "yes") {
@@ -1368,7 +1382,8 @@ async function processMobmGroup({ job_id, user_id, eventid, match_id, bets, even
         profit: netamount
       },
       {
-        where: { user_id }
+        where: { user_id },
+        transaction: claimTx
       }
     );
     await writeReport({
@@ -1415,7 +1430,8 @@ async function processMobmGroup({ job_id, user_id, eventid, match_id, bets, even
           loss: marketNetAmount < 0 ? marketNetAmount : null,
           bet_id: firstBet.id || null,
           category: "SPORTS"
-        }
+        },
+        transaction: claimTx
       });
       if (moWrite) {
         moSettlementLedgerRow = moWrite.ledgerRow;
@@ -1425,8 +1441,11 @@ async function processMobmGroup({ job_id, user_id, eventid, match_id, bets, even
       }
     } catch (err) {
       log.error("[Settlement] Error updating wallet", { user_id, error: err.message });
+      // N4: rethrow so the claim rolls back with the failed credit and the job is retried.
+      throw err;
     }
   }
+  await claimTx.commit();
   const resultStatus = totalCredit > 0 ? "won" : "loss";
   await SportsBet_default.update({ fixed: 1, updated_at: /* @__PURE__ */ new Date() }, { where: { match_id, user_id, game_type, market_type } });
   await closeBetsForMatch(user_id, match_id, false, resultStatus, job_id);
@@ -1455,7 +1474,10 @@ async function processMobmGroup({ job_id, user_id, eventid, match_id, bets, even
   }
   return { settled: true, requeue: false };
 }
-async function processnonfancy({ job_id, user_id, eventid, match_id, bet, eventName, marketId, marketName, market_type, game_type, team_one, team_two, result }) {
+async function processnonfancy(args) {
+  return withClaimTx(db_default, (claim) => processnonfancyClaimed(args, claim));
+}
+async function processnonfancyClaimed({ job_id, user_id, eventid, match_id, bet, eventName, marketId, marketName, market_type, game_type, team_one, team_two, result }, claim) {
   console.log("result", result);
   console.log("entered nonfancysettlement");
   let winnerName, reason;
@@ -1484,9 +1506,10 @@ async function processnonfancy({ job_id, user_id, eventid, match_id, bet, eventN
     return { settled: true, requeue: false };
   }
   const nfPreCredit = moBmBetWinCredit(bet, winnerName);
+  const claimTx = await claim.open();
   const [nfClaimed] = await SportsBet_default.update(
     { status: "closed", result_status: nfPreCredit > 0 ? "won" : "loss", fixed: 1, updated_at: /* @__PURE__ */ new Date() },
-    { where: { id: bet.id, status: { [Op2.in]: ["open", "manual"] } } }
+    { where: { id: bet.id, status: { [Op2.in]: ["open", "manual"] } }, transaction: claimTx }
   );
   if (!nfClaimed) {
     log.warn("[Settlement] non-fancy bet already settled \u2014 duplicate pass skipped", { user_id, match_id, eventid, job_id, bet_id: bet.id });
@@ -1553,7 +1576,7 @@ async function processnonfancy({ job_id, user_id, eventid, match_id, bet, eventN
       payout: finalcredit,
       user_id,
       created_at: /* @__PURE__ */ new Date()
-    });
+    }, { transaction: claimTx });
   }
   let cost = 0;
   if (isBack(bet)) {
@@ -1604,7 +1627,8 @@ async function processnonfancy({ job_id, user_id, eventid, match_id, bet, eventN
           loss: loss || null,
           bet_id: bet.id || null,
           category: "SPORTS"
-        }
+        },
+        transaction: claimTx
       });
       if (nfWrite) {
         nfSettlementLedgerRow = nfWrite.ledgerRow;
@@ -1614,6 +1638,8 @@ async function processnonfancy({ job_id, user_id, eventid, match_id, bet, eventN
       }
     } catch (err) {
       log.error("[Settlement] Error updating wallet", { user_id, error: err.message });
+      // N4: rethrow so the claim rolls back with the failed credit and the job is retried.
+      throw err;
     }
   }
   await User_default.increment(
@@ -1623,7 +1649,8 @@ async function processnonfancy({ job_id, user_id, eventid, match_id, bet, eventN
       profit: netamount
     },
     {
-      where: { user_id }
+      where: { user_id },
+      transaction: claimTx
     }
   );
   await writeReport({
@@ -1642,6 +1669,7 @@ async function processnonfancy({ job_id, user_id, eventid, match_id, bet, eventN
     api_snapshot: result.meta,
     decision_path: [reason, desc]
   });
+  await claimTx.commit();
   const resultStatus = totalCredit > 0 ? "won" : "loss";
   await SportsBet_default.update({ fixed: 1, updated_at: /* @__PURE__ */ new Date() }, { where: { match_id, user_id, game_type, market_type } });
   await closeBetsForMatch(user_id, match_id, false, resultStatus, job_id);

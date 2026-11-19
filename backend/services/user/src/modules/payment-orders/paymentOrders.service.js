@@ -16,6 +16,7 @@ const { validatePayoutDetails } = require('./payoutDetails');
 const { createHttpClient } = require('../psp/providers/http');
 const { ccpaymentCoinId, ccpaymentTicker, refreshCcpaymentCoinIds, formatEkqrDate } = require('./gateways');
 const { WalletService } = require('../wallet/wallet.service');
+const { ExchangeRateService } = require('../exchange-rate/exchangeRate.service');
 const { REASON } = require('../wallet/wallet.constants');
 const { PlayerBonusService } = require('../player-bonuses/playerBonus.service');
 const { createWithdrawRequirements } = require('../withdraw-requirements/withdrawRequirements');
@@ -859,8 +860,22 @@ class PaymentOrdersService {
 
   async #assertWithinLimits(amount, currency, flow) {
     // The deployment's min / max for this rail.
-    const min = flow === FLOW.PAY_OUT ? this.config.WITHDRAW_MINIMUM : this.config.DEPOSIT_MINIMUM;
-    const max = flow === FLOW.PAY_OUT ? this.config.WITHDRAW_MAXIMUM : this.config.DEPOSIT_MAXIMUM;
+    let min = flow === FLOW.PAY_OUT ? this.config.WITHDRAW_MINIMUM : this.config.DEPOSIT_MINIMUM;
+    let max = flow === FLOW.PAY_OUT ? this.config.WITHDRAW_MAXIMUM : this.config.DEPOSIT_MAXIMUM;
+    // Security (M13): those figures are INR. In another currency they are its INR worth at the
+    // site's rates, not the same number of (say) PHP. A coin with no rate row keeps the raw figure,
+    // as before, rather than closing its cashier.
+    const code = String(currency).toUpperCase();
+    if (code !== 'INR') {
+      const rates = new ExchangeRateService(this.deps);
+      try {
+        const inCurrency = async (inr) => (inr ? (await rates.convert({ from: 'INR', to: code, amount: String(inr) })).converted : inr);
+        [min, max] = await Promise.all([inCurrency(min), inCurrency(max)]);
+      } catch (error) {
+        if (error.code !== 'EXCHANGE_RATE_RATE_NOT_FOUND') throw error;
+        this.logger?.warn({ currency: code }, 'No exchange rate: payment limits applied as INR figures');
+      }
+    }
 
     if (min && money.lt(amount, String(min))) throw errors.BELOW_MINIMUM({ minimum: String(min), currency });
     if (max && money.gt(amount, String(max))) throw errors.ABOVE_MAXIMUM({ maximum: String(max), currency });
