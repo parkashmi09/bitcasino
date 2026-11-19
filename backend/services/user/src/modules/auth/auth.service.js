@@ -469,6 +469,8 @@ class AuthService {
   async changePassword({ currentPassword, newPassword }, user) {
     const record = await this.models.Users.findByPk(user.id);
     if (!record) throw errors.SESSION_NOT_FOUND();
+    // An agent's player never sets or changes their own password: their upline does.
+    if (record.parent_staff_id != null) throw errors.OWN_PASSWORD_LOCKED();
 
     const ok = record.password ? await verifyPassword(currentPassword, record.password) : false;
     if (!ok) throw errors.CURRENT_PASSWORD_INCORRECT();
