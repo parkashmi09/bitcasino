@@ -23,7 +23,7 @@ const message = {
   title: z.string().trim().min(1).max(200),
   body: z.string().trim().max(1000).optional(),
   type: z.enum(NOTIFICATION_TYPE_NAMES).default('general'),
-  data: z.record(z.union([z.string(), z.number(), z.boolean()])).optional(),
+  data: z.record(z.string(), z.union([z.string(), z.number(), z.boolean()])).optional(),
   /** Direct Users | Agent Users tab; agent users take general notifications only. */
   channel: z.enum(['direct', 'agent']).default('direct'),
 };

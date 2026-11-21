@@ -16,7 +16,7 @@ const provider = z.enum(Object.keys(PROVIDERS));
  */
 const callback = {
   params: z.object({ provider }),
-  body: z.record(z.any()),
+  body: z.record(z.string(), z.any()),
 };
 
 const statusLookup = {

@@ -25,7 +25,7 @@ const recordActivity = {
     // Target ids are heterogeneous across domains (numeric bet ids, text match
     // ids), so this is carried as text rather than coerced.
     targetId: z.coerce.string().trim().max(128).nullable().optional(),
-    details: z.record(z.any()).nullable().optional(),
+    details: z.record(z.string(), z.any()).nullable().optional(),
 
     ip: z.string().trim().max(64).nullable().optional(),
     userAgent: z.string().trim().max(500).nullable().optional(),

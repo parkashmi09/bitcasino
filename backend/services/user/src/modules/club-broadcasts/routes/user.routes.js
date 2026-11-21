@@ -40,7 +40,7 @@ module.exports = function userRoutes(deps) {
       title: z.string().trim().min(1).max(200),
       body: z.string().trim().max(4000).optional(),
       type: z.enum(NOTIFICATION_TYPES).optional(),
-      additionalData: z.record(z.unknown()).optional(),
+      additionalData: z.record(z.string(), z.unknown()).optional(),
     })
     .strict();
 

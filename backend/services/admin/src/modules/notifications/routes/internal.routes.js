@@ -117,7 +117,7 @@ module.exports = function internalRoutes(deps) {
           title: z.string().trim().min(1).max(200),
           body: z.string().max(2000).nullish(),
           key: z.string().trim().min(1).max(160),
-          data: z.record(z.unknown()).nullish(),
+          data: z.record(z.string(), z.unknown()).nullish(),
         })
         .strict(),
     }),

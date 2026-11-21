@@ -8,7 +8,7 @@ const { z } = require('@ibitplay/common');
  * including one that renders as markup.
  */
 const username = z
-  .string({ required_error: 'username is required' })
+  .string({ error: (iss) => (iss.code === 'invalid_type' && iss.input === undefined ? 'username is required' : undefined) })
   .trim()
   .min(3, 'username must be at least 3 characters')
   .max(30, 'username must be at most 30 characters')

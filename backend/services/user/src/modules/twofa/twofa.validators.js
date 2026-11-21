@@ -3,7 +3,7 @@
 const { z } = require('@ibitplay/common');
 
 const code = z
-  .string({ required_error: 'code is required' })
+  .string({ error: (iss) => (iss.code === 'invalid_type' && iss.input === undefined ? 'code is required' : undefined) })
   .trim()
   .regex(/^\d{6}$/, 'the code is 6 digits');
 

@@ -2,6 +2,7 @@
 
 const { z } = require('zod');
 const { ValidationError } = require('../errors');
+const { v3Issues } = require('../zod3Compat');
 
 /**
  * Request validation.
@@ -21,9 +22,10 @@ function validate(schemas = {}) {
       const schema = schemas[part];
       if (!schema) continue;
 
-      const result = schema.safeParse(req[part]);
+      // reportInput: v3Issues needs the input to pick zod 3's code; it never reaches the response.
+      const result = schema.safeParse(req[part], { reportInput: true });
       if (!result.success) {
-        for (const issue of result.error.issues) {
+        for (const issue of v3Issues(result.error.issues)) {
           issues.push({
             field: [part, ...issue.path].join('.').replace(/^body\./, ''),
             message: issue.message,
@@ -64,33 +66,29 @@ const VALIDATE_SCHEMAS = Symbol.for('ibitplay.validateSchemas');
  * is not an object at the bottom (z.any(), z.record()) is not strict.
  */
 function isStrictSchema(schema, seen = new Set()) {
-  if (!schema || typeof schema !== 'object' || !schema._def) return false;
+  const def = schema?._zod?.def;
+  if (!def) return false;
   if (seen.has(schema)) return true;
   seen.add(schema);
-  const def = schema._def;
-  switch (def.typeName) {
-    case 'ZodObject':
-      return def.unknownKeys === 'strict';
-    case 'ZodEffects':
-      return isStrictSchema(def.schema, seen);
-    case 'ZodOptional':
-    case 'ZodNullable':
-    case 'ZodDefault':
-    case 'ZodCatch':
-    case 'ZodReadonly':
+  switch (def.type) {
+    case 'object':
+      return def.catchall?._zod.def.type === 'never';
+    case 'optional':
+    case 'nullable':
+    case 'default':
+    case 'prefault':
+    case 'nonoptional':
+    case 'catch':
+    case 'readonly':
       return isStrictSchema(def.innerType, seen);
-    case 'ZodBranded':
-      return isStrictSchema(def.type, seen);
-    case 'ZodPipeline':
-      return isStrictSchema(def.in, seen);
-    case 'ZodLazy':
+    case 'pipe':
+      // z.preprocess(fn, s) is pipe(transform, s); s.transform(fn) is pipe(s, transform).
+      return isStrictSchema(def.in._zod.def.type === 'transform' ? def.out : def.in, seen);
+    case 'lazy':
       return isStrictSchema(def.getter(), seen);
-    case 'ZodUnion':
-    case 'ZodDiscriminatedUnion': {
-      const options = Array.isArray(def.options) ? def.options : [...def.options.values()];
-      return options.length > 0 && options.every((o) => isStrictSchema(o, seen));
-    }
-    case 'ZodIntersection':
+    case 'union':
+      return def.options.length > 0 && def.options.every((o) => isStrictSchema(o, seen));
+    case 'intersection':
       return isStrictSchema(def.left, seen) && isStrictSchema(def.right, seen);
     default:
       return false;
@@ -123,9 +121,9 @@ const paginationQuery = z.object({
 });
 
 /** A monetary amount: accepts number or numeric string, rejects NaN/negatives. */
+// zod 4 has no .finite(): Infinity fails the number type itself, so its message sits there.
 const amount = z.coerce
-  .number()
-  .finite('amount must be a finite number')
+  .number({ error: (iss) => (iss.code === 'invalid_type' && iss.received === 'Infinity' ? 'amount must be a finite number' : undefined) })
   .positive('amount must be greater than zero');
 
 const currencyCode = z
