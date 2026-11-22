@@ -42,6 +42,11 @@ var UserEventMarketLocks = db_default.define(
       type: DataTypes24.BIGINT,
       allowNull: true,
       comment: "staff_id or owner_id who locked"
+    },
+    // migration 192: the staff level that set the lock; only that level or above lifts it
+    locked_level: {
+      type: DataTypes24.SMALLINT,
+      allowNull: true
     }
   },
   {

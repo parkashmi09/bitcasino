@@ -9,7 +9,9 @@ const {
   BCRYPT_PATTERN,
   STAFF_LEVELS,
   isLoginPasswordMode,
+  effectiveStaffLevel,
 } = require('@ibitplay/auth');
+const { directSources, upheldAbove } = require('../locks/lockSources');
 
 /**
  * Staff identity resolution — the authority every service defers to.
@@ -623,8 +625,19 @@ async function setBetLock(models, { staffId, locked, actorStaffId }, { logger } 
     return { ok: false, reason: 'that account is not in your hierarchy' };
   }
 
-  const [affected] = await models.Staff.update({ sports_betlocked: locked }, { where: { id: staffId } });
-  if (!affected) return { ok: false, reason: 'no such staff account' };
+  // A lock is lifted only by the level that set it or one above (lockSources `upheldAbove`).
+  const changes = { sports_betlocked: Boolean(locked) };
+  const level = effectiveStaffLevel((await resolveStaff(models, actorStaffId)) ?? {});
+  const tree = visible.filter((id) => Number(id) !== Number(actorStaffId));
+  const refused = await models.Staff.sequelize.transaction(async (transaction) => {
+    const row = await models.Staff.findOne({ where: { id: staffId }, attributes: ['sports_betlocked', 'lock_sources'], transaction, lock: transaction.LOCK.UPDATE, raw: true });
+    if (!row) return 'no such staff account';
+    const { blocked, levels } = upheldAbove(row, changes, level, tree);
+    if (blocked.length) return 'This lock was set by an account above you';
+    await models.Staff.update({ ...changes, lock_sources: directSources(changes, levels) }, { where: { id: staffId }, transaction });
+    return null;
+  });
+  if (refused) return { ok: false, reason: refused };
 
   logger?.warn(
     { staffId, locked, actorStaffId },
