@@ -8,6 +8,7 @@ const test = require('node:test');
 const assert = require('node:assert');
 
 const db = require('@ibitplay/db');
+const { idBlock, purgeBlocks } = require('@ibitplay/db/src/testing');
 const { createLogger, money } = require('@ibitplay/common');
 const { hashPassword } = require('@ibitplay/auth');
 
@@ -33,10 +34,10 @@ const TEST_DB = process.env.TEST_DB_NAME || 'ibitplay_test';
 
 let connection;
 
-let nextStaffId = 980_000 + (process.pid % 1000) * 100;
+let nextStaffId; // a fresh block per run (idBlock), set once the database is reachable
 const newStaffId = () => (nextStaffId += 1);
 
-let nextUid = 830_000_000 + Math.floor(process.pid % 100_000) * 1000;
+let nextUid; // a fresh block per run (idBlock), set once the database is reachable
 const newUid = () => (nextUid += 1);
 
 const LOGIN_PASSWORD = 'agent login password';
@@ -63,6 +64,12 @@ test('agent-tree money', async (t) => {
     t.skip(`No test database reachable (${error.message})`);
     return;
   }
+
+  // Fixture ids from a sequence, never reused: a cut-off run or another site cannot have left a row on them.
+  const blocks = { staff: await idBlock(connection.sequelize, 'staff'), users: await idBlock(connection.sequelize, 'users') };
+  nextStaffId = blocks.staff;
+  nextUid = blocks.users;
+  t.after(() => purgeBlocks(connection.sequelize, blocks));
 
   t.after(async () => {
     if (connection) await connection.close();

@@ -105,7 +105,7 @@ test('the wager listing carries the money', async (t) => {
 
     // `parent_staff_id` is a foreign key, so the agent has to exist.
     await connection.sequelize.query(
-      `INSERT INTO roles (id, name, level) VALUES (:roleId, :roleName, 3) ON CONFLICT (id) DO NOTHING`,
+      `INSERT INTO roles (id, name, level) VALUES (:roleId, :roleName, 3) ON CONFLICT (id) DO UPDATE SET level = EXCLUDED.level`,
       { replacements: { roleId: agentRole, roleName: `wager-role-${agentRole}` } }
     );
     await connection.sequelize.query(

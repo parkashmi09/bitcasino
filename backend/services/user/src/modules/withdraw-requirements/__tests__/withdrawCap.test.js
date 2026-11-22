@@ -5,6 +5,7 @@ const assert = require('node:assert');
 const express = require('express');
 
 const db = require('@ibitplay/db');
+const { idBlock } = require('@ibitplay/db/src/testing');
 const { createLogger, errorHandler, requestContext, money, entitlements, withdrawalCap } = require('@ibitplay/common');
 const { hashPassword, configureAgentPlayers, resetAgentPlayers } = require('@ibitplay/auth');
 const { EVENTS } = require('@ibitplay/socket');
@@ -31,7 +32,7 @@ const TEST_DB = process.env.TEST_DB_NAME || 'ibitplay_test';
 const PASSWORD = 'withdraw-cap-pass';
 const ON = { enabled: true, depositMultiplier: 3, wagerBonus: true, wagerMultiplier: 5 };
 
-let nextId = 948_000_000 + Math.floor(process.pid % 100_000) * 1000;
+let nextId; // a fresh block per run (idBlock), set once the database is reachable
 const newId = () => (nextId += 1);
 
 test('the rule: addaplay worked examples (pure)', () => {
@@ -72,6 +73,10 @@ test('withdrawal cap on the rails', async (t) => {
     t.skip(`No test database reachable (${error.message})`);
     return;
   }
+
+  // Fixture ids from a sequence, never reused: a cut-off run or another site cannot have left a row on them.
+  const blocks = { users: await idBlock(connection.sequelize, 'users') };
+  nextId = blocks.users;
 
   const sql = (query, replacements = {}) => connection.sequelize.query(query, { replacements });
 

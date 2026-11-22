@@ -5,6 +5,7 @@ const assert = require('node:assert');
 const express = require('express');
 
 const db = require('@ibitplay/db');
+const { idBlock } = require('@ibitplay/db/src/testing');
 const { createLogger, errorHandler, requestContext, ForbiddenError } = require('@ibitplay/common');
 const { hashPassword, verifyPassword, LEVEL_PERMISSIONS, STAFF_LEVELS } = require('@ibitplay/auth');
 
@@ -18,7 +19,7 @@ const { hashPassword, verifyPassword, LEVEL_PERMISSIONS, STAFF_LEVELS } = requir
  */
 
 const TEST_DB = process.env.TEST_DB_NAME || 'ibitplay_test';
-let nextId = 760_000 + (process.pid % 1000) * 100;
+let nextId; // a fresh block per run (idBlock), set once the database is reachable
 const newId = () => (nextId += 1);
 
 test('staff password route against a database', async (t) => {
@@ -43,6 +44,10 @@ test('staff password route against a database', async (t) => {
     t.skip(`No test database reachable (${error.message})`);
     return;
   }
+
+  // Fixture ids from a sequence, never reused: a cut-off run or another site cannot have left a row on them.
+  const blocks = { staff: await idBlock(connection.sequelize, 'staff') };
+  nextId = blocks.staff;
 
   const { models } = connection;
   const roleId = (await models.Roles.findOne({ where: { level: 6 }, raw: true }))?.id;

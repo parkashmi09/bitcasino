@@ -6,6 +6,7 @@ const test = require('node:test');
 const assert = require('node:assert');
 
 const db = require('@ibitplay/db');
+const { idBlock, purgeBlocks } = require('@ibitplay/db/src/testing');
 const { createLogger, money } = require('@ibitplay/common');
 const { hashPassword } = require('@ibitplay/auth');
 
@@ -21,10 +22,10 @@ const migration104 = require('../../../../../../packages/db/migrations/104-excha
 
 const TEST_DB = process.env.TEST_DB_NAME || 'ibitplay_test';
 const TXN = 'exchange accounts txn password';
-const tag = `${process.pid % 100000}`;
+let tag; // from the staff/users id block: a leftover row cannot share it
 
 let connection;
-let nextStaffId = 1_240_000 + (process.pid % 1000) * 100;
+let nextStaffId; // a fresh block per run (idBlock), set once the database is reachable
 const newStaffId = () => (nextStaffId += 1);
 
 test('Create Account: staff login needs staff:write, users:write alone is refused before any write', async () => {
@@ -60,6 +61,12 @@ test('exchange accounts screens', async (t) => {
     t.skip(`No test database reachable (${error.message})`);
     return;
   }
+
+  // Fixture ids from a sequence, never reused: a cut-off run or another site cannot have left a row on them.
+  const blocks = { staff: await idBlock(connection.sequelize, 'staff') };
+  nextStaffId = blocks.staff;
+  tag = `q${(blocks.staff % 1e9) / 1000}`;
+  t.after(() => purgeBlocks(connection.sequelize, blocks));
   t.after(async () => {
     if (connection) await connection.close();
   });
