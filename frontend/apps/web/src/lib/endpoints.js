@@ -122,6 +122,18 @@ export const ENDPOINTS = {
   // is why `useProfile` splits the account form's fields rather than posting
   // the whole thing.
   profile: `${USER}/profile`,
+  // Lifetime play `{bets, wins, winRate, wagered: {usd}, biggestWin, favouriteGames, …}` (cached 60 s).
+  profileStats: `${USER}/profile/stats`,
+  // `{avatarId}` — one of Admin → Avatars' pictures; 403 AVATAR_LOCKED above the player's VIP level.
+  profileAvatar: `${USER}/profile/avatar`,
+  // `{email, code, password}`: the code is a `change-email` OTP sent to the NEW address (`emailOtp`).
+  profileChangeEmail: `${USER}/profile/change-email`,
+  // Public: `{userId, username, avatar, joinedAt, level, levelName, badgeUrl, bets, wins, statisticsHidden}`.
+  publicProfile: `${USER}/profile/:userId/public`,
+  // Public: the Edit Avatar grid `[{id, url, minLevel, sort}]`.
+  avatarsPublic: `${ADMIN}/avatars/public`,
+  // Public: `{restricted, mode: off|notice|block, areaCode, ip, rayId}` for this visitor.
+  region: `${USER}/region`,
 
   // The player's own KYC state: `NotSubmitted` until they apply, then
   // `Pending` / `Verified` / `Rejected`. What the account page's identity
@@ -217,6 +229,8 @@ export const ENDPOINTS = {
   notifications: `${USER}/notifications`,
   notificationRead: `${USER}/notifications/:id/read`,
   notificationsReadAll: `${USER}/notifications/read-all`,
+  // `{unread, byCategory}` over the whole inbox (the bell's count; the list above is capped at 50).
+  notificationsUnread: `${USER}/notifications/unread-count`,
 
   // ── Preferences ─────────────────────────────────────────────────────
   // `userconfig`: theme, language, and the two notification switches. GET
@@ -384,6 +398,10 @@ export const ENDPOINTS = {
   // win, `transaction_type` is `ROUND`. A provider row is a movement, so a
   // bet and its win are two rows sharing a `round_id`.
   betHistory: `${CASINO}/bet-history`,
+  // The caller's own casino `{bets, wins, bySource}` (no money: the sources hold different coins).
+  betStats: `${CASINO}/bet-history/stats`,
+  // `?period=daily|weekly|monthly` → `{period, rank (null = no bets), total, bets, wagered, won}`.
+  betRankMe: `${CASINO}/bet-history/leaderboard/me`,
 
   // ── Catalogue ───────────────────────────────────────────────────────
   // All public. Every one of these is `.strict()` on its query, and the

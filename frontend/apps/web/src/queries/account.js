@@ -456,3 +456,94 @@ export function useSendTip() {
     },
   });
 }
+
+/* ═══════════════════════════════════════════════════════════════════════
+ * Profile: lifetime stats, avatar, email change, public card
+ * ═══════════════════════════════════════════════════════════════════════ */
+
+/** `{bets, wins, winRate, wagered: {usd}, biggestWin, favouriteGames, firstBetAt, lastBetAt}`. */
+export function useProfileStats() {
+  const { status } = useAuth();
+  return useQuery({
+    queryKey: queryKeys.account.profileStats(),
+    queryFn: ({ signal }) => api(ENDPOINTS.profileStats, { signal }),
+    enabled: status === 'authenticated',
+    staleTime: 60 * 1000,
+  });
+}
+
+/** Answers the updated profile; `AVATAR_LOCKED` carries the level it needs. */
+export function useSetAvatar() {
+  return useMutation({
+    meta: { success: 'Avatar updated.' },
+    mutationFn: (avatarId) => api(ENDPOINTS.profileAvatar, { method: 'POST', body: { avatarId } }),
+    retry: false,
+  });
+}
+
+/** Step one: a `change-email` code to the NEW address (public OTP route, 5 a minute). */
+export function useRequestEmailChangeCode() {
+  return useMutation({
+    mutationFn: (email) => api(ENDPOINTS.emailOtp, { method: 'POST', body: { email, purpose: 'change-email' } }),
+    retry: false,
+  });
+}
+
+/** Step two: `{email, code, password}` → the updated profile. */
+export function useChangeEmail() {
+  return useMutation({
+    meta: { success: 'Email changed.' },
+    mutationFn: (body) => api(ENDPOINTS.profileChangeEmail, { method: 'POST', body }),
+    retry: false,
+  });
+}
+
+/** Any player's public card. Public route, on its own rate limit. */
+export function usePublicProfile(userId, { enabled = true } = {}) {
+  return useQuery({
+    queryKey: queryKeys.live.player(userId),
+    queryFn: ({ signal }) => api(path(ENDPOINTS.publicProfile, { userId }), { auth: false, signal }),
+    enabled: enabled && Boolean(userId),
+    staleTime: 60 * 1000,
+    retry: false,
+  });
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+ * Casino bets: counts, board position, the unread bell
+ * ═══════════════════════════════════════════════════════════════════════ */
+
+/** `{bets, wins, bySource}` — counts only. */
+export function useBetStats({ enabled = true } = {}) {
+  const { status } = useAuth();
+  return useQuery({
+    queryKey: queryKeys.account.betStats(),
+    queryFn: ({ signal }) => api(ENDPOINTS.betStats, { signal }),
+    enabled: enabled && status === 'authenticated',
+    staleTime: 30 * 1000,
+  });
+}
+
+/** `{period, rank, total, bets}`; `rank` null = no bets in the window (not last place). */
+export function useBetRank(period, { enabled = true } = {}) {
+  const { status } = useAuth();
+  return useQuery({
+    queryKey: queryKeys.account.betRank(period),
+    queryFn: ({ signal }) => api(ENDPOINTS.betRankMe, { query: { period }, signal }),
+    enabled: enabled && status === 'authenticated',
+    staleTime: 30 * 1000,
+  });
+}
+
+/** The whole inbox's unread total (`{unread}`); the list itself stops at 50 rows. */
+export function useUnreadCount({ enabled = true } = {}) {
+  return useQuery({
+    queryKey: queryKeys.account.unread(),
+    queryFn: ({ signal }) => api(ENDPOINTS.notificationsUnread, { signal }),
+    select: (body) => Number(body?.unread) || 0,
+    enabled,
+    staleTime: 60 * 1000,
+    refetchInterval: enabled ? 60 * 1000 : false,
+    retry: false,
+  });
+}

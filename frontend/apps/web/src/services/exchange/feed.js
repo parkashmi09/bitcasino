@@ -155,6 +155,21 @@ export async function getScoreUrl(gmid, sid) {
 }
 
 /**
+ * Scorecard fallback — `POST cricket/score-card {gmid, sid}`, asked only when score-url has none.
+ * The v2 feed answers `{score_url}` (already probed server-side); any other body has no embed.
+ * @returns {Promise<string|null>}
+ */
+export async function getScoreCardUrl(gmid, sid) {
+  try {
+    const body = await exchangeRequest('/cricket/score-card', { method: 'POST', json: { gmid, sid }, timeout: POLL_TIMEOUT_MS });
+    const url = unwrapFeed(body)?.score_url;
+    return typeof url === 'string' && /^https?:\/\//.test(url) ? url : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
  * Virtual round stream + scorecard — `GET virtual/event-media?gmid&etid`.
  * @returns {Promise<{ gmid:string, etid:string, stream:string|null, score:string|null }|null>}
  */

@@ -119,3 +119,24 @@ export function usePublicCurrencies() {
   });
   return query.data ?? [];
 }
+
+/** This visitor's region check (`GET /user/region`). No answer = no notice: a failed check never blocks. */
+export function useRegion() {
+  return useQuery({
+    queryKey: queryKeys.site.region(),
+    queryFn: ({ signal }) => api(ENDPOINTS.region, { auth: false, signal }),
+    staleTime: Infinity,
+    retry: false,
+  });
+}
+
+/** The Edit Avatar grid: `[{id, url, minLevel, sort}]`, already in the admin's order. */
+export function useAvatars({ enabled = true } = {}) {
+  return useQuery({
+    queryKey: queryKeys.site.avatars(),
+    queryFn: ({ signal }) => api(ENDPOINTS.avatarsPublic, { auth: false, signal }),
+    select: (rows) => (Array.isArray(rows) ? rows : []),
+    enabled,
+    staleTime: 60 * 1000,
+  });
+}

@@ -126,6 +126,10 @@ export const queryKeys = {
     tipSettings: () => ['account', 'tip-settings'],
     responsible: () => ['account', 'responsible'],
     kycLevels: () => ['account', 'kyc-levels'],
+    unread: () => ['account', 'notifications', 'unread'],
+    profileStats: () => ['account', 'profile-stats'],
+    betStats: () => ['account', 'bet-stats'],
+    betRank: (period) => ['account', 'bet-rank', period],
   },
 
   /**
@@ -142,6 +146,7 @@ export const queryKeys = {
     betsByGame: (game) => ['live', 'bets', 'game', game],
     topWinners: () => ['live', 'top-winners'],
     notifications: () => ['live', 'notifications'],
+    player: (userId) => ['live', 'player', String(userId)],
   },
 
   site: {
@@ -152,6 +157,8 @@ export const queryKeys = {
     sportsbook: () => ['site', 'sportsbook'],
     currencies: () => ['site', 'currencies'],
     googleLogin: () => ['site', 'google-login'],
+    avatars: () => ['site', 'avatars'],
+    region: () => ['site', 'region'],
   },
 
   /** Rewards, rakeback and VIP. `vipLevels` is public; `firstDeposit` differs signed in and out. */
