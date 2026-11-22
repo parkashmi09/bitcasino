@@ -399,7 +399,7 @@ function SelectField({ label, value, onChange, options, error }) {
  * `div` with a click handler — so it keeps keyboard focus, the space bar, and
  * whatever file picker the platform provides.
  */
-function FileField({ label, file, onChange, error }) {
+export function FileField({ label, file, onChange, error }) {
   const id = useId();
 
   return (

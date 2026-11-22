@@ -1,5 +1,6 @@
 import { useEffect, useId, useState } from 'react';
 import { KycDialog } from '@/components/account/KycDialog';
+import { EmailVerifyCard, KycLevelsCard } from '@/components/account/VerificationCards';
 import { COUNTRIES } from '@/data/countries';
 import { useProfile } from '@/hooks/useProfile';
 import { useGates } from '@/hooks/useGates';
@@ -67,19 +68,20 @@ import { cn } from '@/lib/cn';
  *
  * Everything shown comes from `GET /user/profile`: username, email, phone
  * (read-only) and country, which `PUT /user/profile` saves. Fields the platform
- * has no column for (birthday, names, address, Telegram…) are not drawn, and
- * neither is an email-verification notice — no route reports or resends one.
+ * has no column for (birthday, names, address, Telegram…) are not drawn. An
+ * unverified address gets the Verify Email card (`/user/email/verify/*`), and
+ * the verification levels 3-4 sit under the identity card.
  * The identity card is driven by `GET /user/kyc/status`; `Start verification`
  * opens the real multipart submission (`components/account/KycDialog.jsx`).
  */
 export function Account() {
-  const { profile, status, save, saving } = useProfile();
+  const { profile, status, save, saving, reload } = useProfile();
   const { data: kyc, isSuccess: kycRead } = useKycStatus();
   // An agent's player: read-only, no email or contact fields — the site admin edits
   // their profile (backend PROFILE_EDIT_NOT_FOR_AGENT_USERS).
   const gates = useGates();
   const { agentPlayer } = gates;
-  const { user } = useAuth();
+  const { user, refreshUser } = useAuth();
 
   const [form, setForm] = useState(null);
   const [result, setResult] = useState(null);
@@ -135,6 +137,16 @@ export function Account() {
           {gates.on('kyc') && kycRead && kyc?.status !== 'Verified' && (
             <IdentityCard kyc={kyc} />
           )}
+          {profile?.email && profile.emailVerified === false && (
+            <EmailVerifyCard
+              email={profile.email}
+              onVerified={() => {
+                reload();
+                refreshUser?.();
+              }}
+            />
+          )}
+          {gates.on('kyc') && <KycLevelsCard />}
         </div>
 
         <div className="grid h-max gap-4 rounded-i-md bg-gohan p-4 [@media(min-width:1500px)]:order-1">
