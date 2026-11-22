@@ -23,8 +23,9 @@ function Breadcrumbs() {
   );
 }
 
-function SupportLink({ href, children }) {
-  return <a href={href} target="_blank" rel="noreferrer" className="underline hover:text-piccolo">{children}</a>;
+/* Named, not linked: the player site carries no links off the site. */
+function SupportLink({ children }) {
+  return <span className="font-medium">{children}</span>;
 }
 
 function Article() {
@@ -50,22 +51,22 @@ function Article() {
 
       <p className="mt-4">If you have concerns about your gambling habits and feel that you cannot follow these recommendations, we urge you to seek advice from accredited organisations that can offer support and advice, such as:</p>
       <ul className="mt-4 list-disc space-y-2 ps-7 marker:text-piccolo md:ps-8">
-        <li><SupportLink href="http://www.gamcare.org.uk/">GamCare</SupportLink></li>
-        <li><SupportLink href="https://keepitfun.rank.com/">Keep It Fun</SupportLink></li>
-        <li><SupportLink href="https://www.gamblingtherapy.org/">Gambling Therapy</SupportLink></li>
+        <li><SupportLink>GamCare</SupportLink></li>
+        <li><SupportLink>Keep It Fun</SupportLink></li>
+        <li><SupportLink>Gambling Therapy</SupportLink></li>
       </ul>
 
       <p className="mt-4">You can also contact our friendly <Brand /> support agents if you would like to discuss our self-exclusion process. Sometimes a short break can be useful in gathering your thoughts and stopping you from making a rash wagering decision.</p>
-      <p className="mt-4">On request, we will place your account on a minimum 24-hour cooling-off period. This will be followed by one of our support agents informing you of the voluntary 1-week, 1-month, 3-month, 6-month or permanent self-exclusions available.</p>
+      <p className="mt-4">You can place your account on a 24-hour cooling-off period yourself, under <Link to="/profile/settings" className="text-piccolo underline hover:text-piccolo-120">Profile &gt; Settings &gt; Responsible gambling</Link>. During it you choose a self-exclusion from 1 day up to 10 years, or permanent. The same page sets daily, weekly or monthly loss and wager limits.</p>
       <p className="mt-4">Please note that accounts closed under our self-exclusion Policy cannot be reversed or reopened for any reason. Once your self-exclusion has expired, we will email you to let you know your account is active again. Permanent self-exclusion will remain in place indefinitely.</p>
 
       <h2 className="mb-4 mt-10 font-primary text-xl font-bold leading-7 text-bulma">Underage</h2>
       <p>You must be over 18 years of age, or the legal minimum age for gambling in the jurisdiction where you reside under the laws applicable to you, to gamble with <Brand />.</p>
       <p className="mt-4">If you have minors living in your household, we recommend reviewing parental-control software that may help control and restrict content accessible on your devices.</p>
       <ul className="mt-4 list-disc space-y-2 ps-7 marker:text-piccolo md:ps-8">
-        <li><SupportLink href="https://www.netnanny.com/">https://www.netnanny.com/</SupportLink></li>
+        <li><SupportLink>Net Nanny</SupportLink></li>
       </ul>
-      <p className="mt-4">We encourage you to take a short self-assessment questionnaire to help you understand your gaming habits and ensure that playing remains enjoyable and under control. Questionnaires can be found on <SupportLink href="https://gamblersanonymous.org/20-questions/">Gamblers Anonymous</SupportLink> or <SupportLink href="https://gamblingtherapy.org/information/do-i-have-a-gambling-problem/">Gambling Therapy</SupportLink>.</p>
+      <p className="mt-4">We encourage you to take a short self-assessment questionnaire to help you understand your gaming habits and ensure that playing remains enjoyable and under control. Questionnaires can be found on <SupportLink>Gamblers Anonymous</SupportLink> or <SupportLink>Gambling Therapy</SupportLink>.</p>
     </article>
   );
 }

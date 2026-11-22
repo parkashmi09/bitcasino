@@ -1,5 +1,7 @@
 import { useId, useState } from 'react';
 import { Icon } from '@/components/ui/Icon';
+import { ResponsibleGambling } from '@/components/account/ResponsibleGambling';
+import { useTipSettings, useUpdateTipSettings } from '@/queries/account';
 import { LanguageSelect } from '@/components/ui/LanguageSelect';
 import { useLanguageLabel } from '@/lib/i18n';
 import {
@@ -74,7 +76,8 @@ export function Settings() {
   const [fiat, setFiat] = useFiatCurrency();
   const { switches, status, toggle, saveError } = usePreferences();
   // An agent's player has one wallet (INR) and no marketing subscriptions: language is what is left.
-  const { agentPlayer } = useGates();
+  const gates = useGates();
+  const { agentPlayer } = gates;
   const language = useLanguageLabel();
 
   const [changing, setChanging] = useState(false);
@@ -223,6 +226,32 @@ export function Settings() {
           {saveError ? (saveError.message ?? 'Could not save that. Please try again.') : ''}
         </p>
       </div>
+
+      {gates.on('tips') && <TipsSwitch />}
+
+      <ResponsibleGambling />
+    </div>
+  );
+}
+
+/** `PATCH /user/tip/settings {enabled}`: whether other players can find and tip this account. */
+function TipsSwitch() {
+  const { data, isPending } = useTipSettings();
+  const update = useUpdateTipSettings();
+  return (
+    <div className="grid gap-2 pt-2">
+      <p className="text-base leading-6 text-bulma">Tips</p>
+      <Switch
+        label="Let other players send me tips"
+        checked={Boolean(data?.enabled)}
+        disabled={isPending || update.isPending}
+        onChange={(next) => update.mutate(next)}
+      />
+      {update.isError && (
+        <p role="alert" className="text-sm leading-5 text-chichi">
+          {update.error?.message ?? 'Could not save that. Please try again.'}
+        </p>
+      )}
     </div>
   );
 }
