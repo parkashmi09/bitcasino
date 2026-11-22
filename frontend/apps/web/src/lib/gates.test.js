@@ -33,6 +33,10 @@ describe('gates', () => {
     expect(agent.routeOn('/vip')).toBe(false);
     expect(agent.routeOn('/blog')).toBe(false);
     expect(agent.on('kyc')).toBe(false);
+    expect(agent.on('tips')).toBe(false);
+    // Tips follow the owner's plan for a direct player.
+    expect(makeGates({ features: [{ feature: 'tips' }] }).on('tips')).toBe(true);
+    expect(makeGates({ features: [] }).on('tips')).toBe(false);
   });
 
   it('treats a visitor on /agent as an agent player, and a signed-in player by their own capabilities', () => {

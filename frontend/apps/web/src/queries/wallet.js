@@ -43,6 +43,9 @@ export const walletKeys = {
   swapQuote: (from, to, amount) => ['wallet', 'swap-quote', from, to, amount],
   vault: () => ['wallet', 'vault'],
   vaultTerms: () => ['wallet', 'vault-terms'],
+  bankAccounts: () => ['wallet', 'bank-accounts'],
+  /** One of the history lists below: `name` is the endpoint key. */
+  list: (name, limit, offset) => ['wallet', 'list', name, limit, offset],
 };
 
 /**
@@ -495,5 +498,65 @@ export function useSubmitFiatDeposit() {
       return api(ENDPOINTS.fiatDeposits, { method: 'POST', body: form });
     },
     onSuccess: () => client.invalidateQueries({ queryKey: walletKeys.all }),
+  });
+}
+
+/* ── Saved payout accounts (`/bank-accounts`) ───────────────────────────── */
+
+/** The player's saved bank / UPI accounts, default first. */
+export function useBankAccounts({ enabled = true } = {}) {
+  const { status } = useAuth();
+  return useQuery({
+    queryKey: walletKeys.bankAccounts(),
+    queryFn: ({ signal }) => api(ENDPOINTS.bankAccounts, { signal }),
+    enabled: enabled && status === 'authenticated',
+    staleTime: 60 * 1000,
+  });
+}
+
+/** `kind`: add `{body}`, remove `{id}`, default `{id}`. Each re-reads the list. */
+export function useBankAccountAction() {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: ({ kind, id, body }) => {
+      if (kind === 'add') return api(ENDPOINTS.bankAccounts, { method: 'POST', body });
+      if (kind === 'remove') return api(path(ENDPOINTS.bankAccount, { id }), { method: 'DELETE' });
+      return api(path(ENDPOINTS.bankAccountDefault, { id }), { method: 'PUT' });
+    },
+    retry: false,
+    onSuccess: () => client.invalidateQueries({ queryKey: walletKeys.bankAccounts() }),
+  });
+}
+
+/* ── History lists for the Transactions tabs ────────────────────────────── */
+
+/**
+ * One offset-paged list: `name` is the ENDPOINTS key (fiatDeposits, withdrawFiat, paymentOrders,
+ * swapHistory, vaultTransactions, vaultInterest), `query` its extra filters. Answers the rows.
+ */
+export function useWalletList(name, { limit = 25, offset = 0, query = {}, enabled = true } = {}) {
+  const { status } = useAuth();
+  return useQuery({
+    queryKey: [...walletKeys.list(name, limit, offset), query],
+    queryFn: ({ signal }) => api(ENDPOINTS[name], { query: { ...query, limit, offset }, signal }),
+    enabled: enabled && status === 'authenticated',
+    staleTime: 15 * 1000,
+  });
+}
+
+/** Cancel a fiat withdrawal still In Queue (`{withdrawalId}`), or ask a provider about an order (`{provider, reference}`). */
+export function usePendingAction() {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: ({ withdrawalId, provider, reference }) =>
+      withdrawalId
+        ? api(path(ENDPOINTS.withdrawFiatCancel, { withdrawalId }), { method: 'POST' })
+        : api(path(ENDPOINTS.paymentOrderRefresh, { provider, reference }), { method: 'POST' }),
+    retry: false,
+    onSuccess: (_data, { withdrawalId }) => {
+      client.invalidateQueries({ queryKey: walletKeys.all });
+      client.invalidateQueries({ queryKey: ['account', 'history'] });
+      if (withdrawalId) refreshBalances();
+    },
   });
 }

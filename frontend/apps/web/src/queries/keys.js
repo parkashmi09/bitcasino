@@ -115,6 +115,10 @@ export const queryKeys = {
     notifications: () => ['account', 'notifications'],
     affiliateUnclaimed: () => ['account', 'affiliate-unclaimed'],
     raceRewards: () => ['account', 'race-rewards'],
+    tips: (limit, offset) => ['account', 'tips', limit, offset],
+    tipSettings: () => ['account', 'tip-settings'],
+    responsible: () => ['account', 'responsible'],
+    kycLevels: () => ['account', 'kyc-levels'],
   },
 
   /**
@@ -152,5 +156,6 @@ export const queryKeys = {
     bonusBalance: () => ['rewards', 'bonus-balance'],
     rakeback: () => ['rewards', 'rakeback'],
     lossBonus: () => ['rewards', 'loss-bonus'],
+    wagerTasks: () => ['rewards', 'wager-tasks'],
   },
 };

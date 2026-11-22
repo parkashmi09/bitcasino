@@ -41,6 +41,8 @@ export const GATES = {
   // Weekly rakeback pages: the owner's 'Bonus and rakeback' feature (backend rakeback routes).
   rakeback: { feature: 'bonus', capability: 'promotions' },
   giftCards: { feature: 'gift_cards', capability: 'promotions' },
+  // Player-to-player tips (owner `tips`); an agent's player has no `tips` capability.
+  tips: { feature: 'tips', capability: 'tips' },
   casino: { flag: 'casino' },
   notifications: { feature: 'notifications' },
   kyc: { feature: 'kyc', notAgentPlayer: true },
@@ -110,7 +112,7 @@ export function gateOf(href) {
 const PROMO_GATES = new Set(['bonus', 'vip', 'affiliate', 'promotions', 'contest', 'wheel', 'quests', 'challenges', 'rewards', 'giftCards', 'rakeback']);
 
 /* An agent's player (and anyone signed out on /agent) has none of these. */
-const AGENT_OFF = new Set([...PROMO_GATES, 'deposit', 'withdraw', 'swap', 'vault', 'kyc', 'blog']);
+const AGENT_OFF = new Set([...PROMO_GATES, 'deposit', 'withdraw', 'swap', 'vault', 'tips', 'kyc', 'blog']);
 /* Pages about what those sections offer, which have no gate of their own: help on money, rewards, KYC
    and passwords, and Profile > Security (an agent's player never changes or resets their own password). */
 const AGENT_CLOSED =

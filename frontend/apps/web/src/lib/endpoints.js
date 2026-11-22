@@ -35,6 +35,8 @@ export const ENDPOINTS = {
   // Live TV on a match: `{ allowed, reason, message, minBalance, inactiveHours }` (Site config → Features → Live TV).
   liveTvAccess: `${USER}/live-tv/access`,
   sessions: `${USER}/auth/sessions`,
+  // Signs out one device (and the rows it was rotated from); 404 AUTH_DEVICE_NOT_FOUND for not yours.
+  sessionRevoke: `${USER}/auth/sessions/:sessionId`,
   changePassword: `${USER}/auth/change-password`,
   // Sign in with Google (`lib/googleAuth.js`). `googleStatus` is `{ enabled }` — the owner's
   // `google_signin` policy; `googleStart` is a browser navigation, not a fetch.
@@ -103,6 +105,16 @@ export const ENDPOINTS = {
   // a fresh one would re-open the door it closed. The player signs in.
   resetPassword: `${USER}/auth/reset-password`,
 
+  // Lost authenticator, public: `{identifier}` (email or username) mails a code to the account's
+  // address and answers `{requested: true}` whether or not one exists; confirm `{identifier, code}`
+  // answers `{reset: true}` and turns the second factor off (EMAIL_OTP_INVALID otherwise).
+  twoFactorReset: `${USER}/email/2fa/reset`,
+  twoFactorResetConfirm: `${USER}/email/2fa/reset/confirm`,
+  // The signed-in player's own address: request (no body) → `{requested}` or `{emailVerified: true}`;
+  // confirm `{code}` → `{emailVerified: true}`. Owner policy `deposit_email_verification` reads it.
+  emailVerifyRequest: `${USER}/email/verify/request`,
+  emailVerifyConfirm: `${USER}/email/verify/confirm`,
+
   // ── Profile ─────────────────────────────────────────────────────────
   // One path, two verbs: GET answers the player's own record, PUT edits it.
   // PUT is `.strict()` on the backend and accepts `username`, `country` and
@@ -132,6 +144,23 @@ export const ENDPOINTS = {
   // wrong against `kyc.constants.js`; the figures above are the code's.)
   // ═══════════════════════════════════════════════════════════════════
   kycSubmit: `${USER}/kyc/submit`,
+
+  // Verification levels 3 (Proof of Address) and 4 (Source of Income), after identity KYC:
+  // `{identity, levelsOn, levels: [{level, label, unlocked, status, rejectionReason, submittedAt}]}`.
+  // POST `/:level` is MULTIPART with one `document` file (JPEG/PNG/PDF, 5 MB).
+  kycLevels: `${USER}/kyc-levels`,
+  kycLevelSubmit: `${USER}/kyc-levels/:level`,
+
+  // ── Responsible gambling (no owner gate; the player's own) ──────────
+  // `{selfExclusions: [{id, selfExclusionType, createdAt, selfExclusionUntilAt,
+  // selfExclusionCooldownUntilAt}], limits: [{id, type, usdAmount, periodUnit, progressAmount,
+  // createdAt, expiredAt, resetsAt}]}`. A break is two steps: cooldown `{type}` (24h), then
+  // `{type, breakPeriod}`. A limit is `{type, usdAmount, periodUnit}`; remove keeps it 12 more hours.
+  responsible: `${USER}/responsible-gambling`,
+  responsibleCooldown: `${USER}/responsible-gambling/self-exclusions/cooldown`,
+  responsibleBreak: `${USER}/responsible-gambling/self-exclusions`,
+  responsibleLimits: `${USER}/responsible-gambling/limits`,
+  responsibleLimitRemove: `${USER}/responsible-gambling/limits/:id/remove`,
 
   // ── Two-factor authentication ───────────────────────────────────────
   // All four are `player`, and none of them takes a `uid` — legacy's did,
@@ -234,6 +263,17 @@ export const ENDPOINTS = {
   // sit under in the combined view.
   historyTransfers: `${USER}/history/transfers`,
 
+  // ── Tips (owner feature `tips`; sending refused to an agent's player) ─
+  // send `{toUsername, currency, amount, note?, requestId?}` → 201 `{tipId, toUsername, currency,
+  // amount, balance}`; users `?q=` → `[{id, name}]` (prefix, accepts tips); settings
+  // `{enabled, limits: {maxPerTipUsd, maxPerDayUsd, minWageredUsd, currency, usedTodayUsd}}`, PATCH
+  // `{enabled}`; history `?limit&offset` → `{rows: [{id, direction, counterparty: {name}, currency,
+  // amount, note, createdAt}], total}`.
+  tipSend: `${USER}/tip/send`,
+  tipUsers: `${USER}/tip/users`,
+  tipSettings: `${USER}/tip/settings`,
+  tipHistory: `${USER}/tip/history`,
+
   // Submitted crypto withdrawals and their aggregate. The list is the record
   // of what a player asked for; the socket event is how they ask.
   withdrawalsCrypto: `${USER}/withdrawals/crypto`,
@@ -242,6 +282,15 @@ export const ENDPOINTS = {
   withdrawalRequirements: `${USER}/withdrawals/requirements`,
   // A fiat (bank / UPI) payout request: `{amount, currency, accountHolderName, upiId | bankName+accountNumber+ifscCode}`.
   withdrawFiat: `${USER}/withdrawals/fiat`,
+  // GET the same path lists the player's own (`?status&limit&offset`, rows `{withdrawalId, amount,
+  // currency, status: 'In Queue'|…, requestedAt}`); cancel takes one still In Queue back to the balance.
+  withdrawFiatCancel: `${USER}/withdrawals/fiat/:withdrawalId/cancel`,
+  // Saved payout accounts: `[{id, method: bank|upi, accountHolderName, bankName,
+  // accountNumberMasked, ifscCode, upiId, isDefault}]`; POST `{method, accountHolderName, …,
+  // makeDefault?}`; the withdraw form sends `{bankAccountId}` in place of the details.
+  bankAccounts: `${USER}/bank-accounts`,
+  bankAccount: `${USER}/bank-accounts/:id`,
+  bankAccountDefault: `${USER}/bank-accounts/:id/default`,
   // The player's own payout addresses: `{whitelistOnly, addresses: [{id, label, currency,
   // network, address, memo}]}`. POST `{label, currency, network?, address, memo?}` (strict);
   // DELETE `/:id` (removing the last one switches enforcement off); PUT `enforcement`
@@ -283,6 +332,10 @@ export const ENDPOINTS = {
   // The automatic payout: `POST {provider, currency, amount, details, forfeitBonus?}` (`.strict()`); F2Pay's
   // BANK_INR `details` is `{account_name, account_number, bank_code}`. The amount is held; the callback settles or refunds it.
   paymentWithdrawals: `${USER}/payments/withdrawals`,
+  // The player's provider orders, rows `{provider, flow: payin|payout, reference, amount, currency,
+  // status: pending|success|failed, createdAt}`; refresh asks the provider and reports, never settles.
+  paymentOrders: `${USER}/payments/orders`,
+  paymentOrderRefresh: `${USER}/payments/orders/:provider/:reference/refresh`,
 
   // ── Swap and Vault ──────────────────────────────────────────────────
   // Both answer 403 NOT_ENTITLED outside the owner's plan and
@@ -298,6 +351,12 @@ export const ENDPOINTS = {
   vaultLockOptions: `${USER}/vault/lock-options`,
   vaultTransferIn: `${USER}/vault/transfer-in`,
   vaultTransferOut: `${USER}/vault/transfer-out`,
+  // Raw rows, offset-paged: swap `{id, from_currency, to_currency, from_amount, to_amount,
+  // fee_amount, created_at}`; vault `{id, coin, amount, type, createdAt}` and interest
+  // `{id, coin, interest, rate, createdAt}`. History stays readable for an agent's player.
+  swapHistory: `${USER}/swap/history`,
+  vaultTransactions: `${USER}/vault/transactions`,
+  vaultInterest: `${USER}/vault/interest`,
 
   // ── Player history ──────────────────────────────────────────────────
   // What the header's `Recents` panel lists. Rows are
@@ -556,6 +615,9 @@ export const ENDPOINTS = {
   bonusBalance: `${USER}/bonus-balance`,
   // Claims every gradual bonus's unlocked part at once.
   bonusBalanceClaim: `${USER}/bonus-balance/claim`,
+  // The deposit rollover, in USD: `{scope, multiplier, tasks: [{id, label, since, currency, basis,
+  // target, wagered, remaining, status: in_progress|complete}]}` (no task before a deposit).
+  wagerTasks: `${USER}/wager/tasks`,
   // The Super Admin's loss-bonus terms and the last window: `{enabled, welcome, percent, maxBonus,
   // wagerMultiplier, currency, netLoss, bonus, state, period, claimExpiresAt}`; claim pays it once.
   lossBonus: `${USER}/loss-bonus`,

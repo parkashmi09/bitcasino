@@ -149,3 +149,25 @@ export function useResetPassword() {
     retry: false,
   });
 }
+
+/**
+ * Lost authenticator. `{identifier}` mails a code to the account's address — the answer is the
+ * same `{requested: true}` whether or not the account exists or has 2FA, so the screen says what
+ * was done, not what was found.
+ */
+export function useRequestTwoFactorReset() {
+  return useMutation({
+    mutationFn: ({ identifier }) =>
+      api(ENDPOINTS.twoFactorReset, { method: 'POST', auth: false, body: { identifier: identifier.trim() } }),
+    retry: false,
+  });
+}
+
+/** `{identifier, code}` → `{reset: true}`: the second factor is off and the player signs in with the password. */
+export function useConfirmTwoFactorReset() {
+  return useMutation({
+    mutationFn: ({ identifier, code }) =>
+      api(ENDPOINTS.twoFactorResetConfirm, { method: 'POST', auth: false, body: { identifier: identifier.trim(), code } }),
+    retry: false,
+  });
+}

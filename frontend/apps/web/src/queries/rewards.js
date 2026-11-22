@@ -270,3 +270,16 @@ export function useClaimRakeback() {
     },
   });
 }
+
+/* ── Wagering (the deposit rollover) ─────────────────────────────────── */
+
+/** `{scope, multiplier, tasks}` — empty `tasks` before any deposit. Amounts are USD. */
+export function useWagerTasks({ enabled = true } = {}) {
+  const { status } = useAuth();
+  return useQuery({
+    queryKey: queryKeys.rewards.wagerTasks(),
+    queryFn: ({ signal }) => api(ENDPOINTS.wagerTasks, { signal }),
+    enabled: enabled && status === 'authenticated',
+    staleTime: 30 * 1000,
+  });
+}
