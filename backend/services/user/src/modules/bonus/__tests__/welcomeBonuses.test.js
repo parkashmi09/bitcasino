@@ -101,6 +101,8 @@ test('welcome bonuses', async (t) => {
   const baseDeps = {
     models,
     db: connection,
+    // Staff approvals check the player is in the caller's tree (M11); staff 1 is the root, which sees all.
+    clients: { admin: { get: async () => ({ ids: [1] }) } },
     logger,
     config: { SERVICE_NAME: 'user-service', DEPOSIT_STORAGE_DIR: '/tmp/ibitplay-test-fiat-deposits' },
   };

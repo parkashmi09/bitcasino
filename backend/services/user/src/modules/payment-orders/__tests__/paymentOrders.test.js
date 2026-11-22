@@ -210,7 +210,9 @@ test('payment orders', async (t) => {
     assert.equal(await balanceOf(uid), '1000.00000000', 'a rejected payout must not cost the player anything');
   });
 
-  await t.test('a gateway TIMEOUT refunds the held balance', async () => {
+  // Security (M1, f5f6ce3): a throw does not mean the payout was not sent, so a refund here
+  // could pay twice. The hold stays until the provider's callback or an operator settles it.
+  await t.test('a gateway TIMEOUT keeps the hold: the payout result is unknown', async () => {
     const uid = newUid();
     await seed(uid, '1000');
 
@@ -220,13 +222,16 @@ test('payment orders', async (t) => {
       throw error;
     });
 
-    await assert.rejects(() =>
-      service.createWithdrawal({
+    await assert.rejects(
+      () => service.createWithdrawal({
         userId: uid, provider: 'apay', currency: 'INR', amount: '300', details: BANK,
-      })
+      }),
+      (err) => err.code === 'PAYORDER_PROVIDER_UNREACHABLE' && err.status === 504
     );
 
-    assert.equal(await balanceOf(uid), '1000.00000000');
+    assert.equal(await balanceOf(uid), '700.00000000', 'no refund on an ambiguous gateway result');
+    const ledger = await connection.models.CreditsLedger.findAll({ where: { user_id: String(uid) }, raw: true });
+    assert.deepEqual(ledger.map((r) => money.toDecimalString(money.toMinor(r.amount))), ['-300.00000000'], 'the hold only, no refund row');
   });
 
   await t.test('the refund lands exactly once even if the failure path runs twice', async () => {

@@ -6,6 +6,7 @@ const test = require('node:test');
 const assert = require('node:assert');
 
 const db = require('@ibitplay/db');
+const { idBlock, purgeBlocks } = require('@ibitplay/db/src/testing');
 const { createLogger } = require('@ibitplay/common');
 const { hashPassword } = require('@ibitplay/auth');
 
@@ -27,12 +28,12 @@ const migration104 = require('../../../../../../packages/db/migrations/104-excha
 
 const TEST_DB = process.env.TEST_DB_NAME || 'ibitplay_test';
 const TXN = 'tracker txn password';
-const tag = `${process.pid % 100000}`;
+let tag; // from the staff/users id block: a leftover row cannot share it
 
 let connection;
-let nextStaffId = 1_250_000 + (process.pid % 1000) * 100;
+let nextStaffId; // a fresh block per run (idBlock), set once the database is reachable
 const newStaffId = () => (nextStaffId += 1);
-let nextUid = 860_000_000 + Math.floor(process.pid % 100_000) * 1000;
+let nextUid; // a fresh block per run (idBlock), set once the database is reachable
 const newUid = () => (nextUid += 1);
 
 test('system tracker', async (t) => {
@@ -56,6 +57,13 @@ test('system tracker', async (t) => {
     t.skip(`No test database reachable (${error.message})`);
     return;
   }
+
+  // Fixture ids from a sequence, never reused: a cut-off run or another site cannot have left a row on them.
+  const blocks = { staff: await idBlock(connection.sequelize, 'staff'), users: await idBlock(connection.sequelize, 'users') };
+  nextStaffId = blocks.staff;
+  nextUid = blocks.users;
+  tag = `q${(blocks.staff % 1e9) / 1000}`;
+  t.after(() => purgeBlocks(connection.sequelize, blocks));
   t.after(async () => {
     if (connection) await connection.close();
   });
@@ -106,7 +114,7 @@ test('system tracker', async (t) => {
   // Saaf player — agent ne Credit Amount 200 diya (point ledger entry ke saath).
   const accounts = new CreateAccountService(deps);
   const cleanName = `trk${tag}clean`;
-  await accounts.create({ ...agentActors, username: cleanName, password: 'Player1234', creditAmount: '200', userType: 'USER', transactionPassword: TXN });
+  await accounts.create({ ...agentActors, username: cleanName, password: 'Player1234', phone: '9876543210', creditAmount: '200', userType: 'USER', transactionPassword: TXN });
   const clean = await models.Users.findOne({ where: { name: cleanName }, raw: true });
 
   // Bigda player — all_point 50 par ledger me kuch nahi.

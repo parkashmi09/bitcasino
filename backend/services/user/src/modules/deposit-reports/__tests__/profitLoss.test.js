@@ -68,7 +68,7 @@ test('deposit reports: profit and loss', async (t) => {
 
   const seedStaff = async () => {
     await connection.sequelize.query(
-      `INSERT INTO roles (id, name, level) VALUES (:id, :name, 3) ON CONFLICT (id) DO NOTHING`,
+      `INSERT INTO roles (id, name, level) VALUES (:id, :name, 3) ON CONFLICT (id) DO UPDATE SET level = EXCLUDED.level`,
       { replacements: { id: 9900 + (process.pid % 100), name: `pl-role-${process.pid}` } }
     );
     await connection.sequelize.query(

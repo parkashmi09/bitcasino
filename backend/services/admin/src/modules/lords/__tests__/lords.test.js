@@ -113,7 +113,7 @@ test('admin account controls', async (t) => {
 
   const seedStaff = async (id, { inr = '0', parentId = null, txnPassword = TXN_PASSWORD } = {}) => {
     await connection.sequelize.query(
-      `INSERT INTO roles (id, name, level) VALUES (:roleId, :name, 3) ON CONFLICT (id) DO NOTHING`,
+      `INSERT INTO roles (id, name, level) VALUES (:roleId, :name, 3) ON CONFLICT (id) DO UPDATE SET level = EXCLUDED.level`,
       { replacements: { roleId, name: `lords-role-${roleId}` } }
     );
     const { Op } = require('sequelize');
@@ -211,7 +211,7 @@ test('admin account controls', async (t) => {
         transactionPassword: 'anything at all',
       }),
       (err) => err.code === 'TXN_PASSWORD_NOT_SET' && err.status === 403
-        && /ask an account above you/.test(err.message)
+        && /Set a transaction password under My account/.test(err.message)
     );
     await assert.rejects(
       () => service.setStatus({
@@ -412,7 +412,7 @@ test('admin account controls', async (t) => {
     const peer = await seedStaff(newStaffId(), { parentId: top });
     const saRole = roleId + 1;
     await connection.sequelize.query(
-      `INSERT INTO roles (id, name, level) VALUES (:saRole, :name, 1) ON CONFLICT (id) DO NOTHING`,
+      `INSERT INTO roles (id, name, level) VALUES (:saRole, :name, 1) ON CONFLICT (id) DO UPDATE SET level = EXCLUDED.level`,
       { replacements: { saRole, name: `lords-sa-role-${saRole}` } }
     );
     await connection.models.Staff.update({ role_id: saRole }, { where: { id: peer } });

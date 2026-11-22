@@ -130,6 +130,8 @@ test('player notifications', async (t) => {
   const baseDeps = {
     models,
     db: connection,
+    // Staff approvals check the player is in the caller's tree (M11); staff 1 is the root, which sees all.
+    clients: { admin: { get: async () => ({ ids: [1] }) } },
     logger,
     config: {
       SERVICE_NAME: 'user-service',
@@ -429,8 +431,9 @@ test('player notifications', async (t) => {
     await models.Team.destroy({ where: { membername: memberName } });
     await models.UnlockedRewards.destroy({ where: { uid: owner } });
     await models.Userwager.destroy({ where: { uid: member } });
-    await models.Userwager.create({ uid: member, wager: '1200' });
     await affiliate.joinTeam({ userId: member, referralCode: `NTF${owner}` });
+    // Security (B4): only wager made after joining counts toward a tier.
+    await models.Userwager.create({ uid: member, wager: '1200' });
 
     assert.equal((await affiliate.unlockFor({ memberName })).unlocked, true);
     await affiliate.unlockFor({ memberName }); // already unlocked: nothing new

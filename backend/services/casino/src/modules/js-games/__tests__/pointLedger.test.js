@@ -54,7 +54,7 @@ test('js games point ledger against a database', async (t) => {
     await q('DELETE FROM staff WHERE id = :s', { s: agentId });
   };
   await cleanup();
-  await q('INSERT INTO roles (id, name, level) VALUES (:id, :name, 6) ON CONFLICT (id) DO NOTHING', { id: roleId, name: `jp-agent-${roleId}` });
+  await q('INSERT INTO roles (id, name, level) VALUES (:id, :name, 6) ON CONFLICT (id) DO UPDATE SET level = EXCLUDED.level', { id: roleId, name: `jp-agent-${roleId}` });
   await q(
     `INSERT INTO staff (id, name, email, password, role_id, status) VALUES (:id, :name, :email, 'x', :role, 'active')`,
     { id: agentId, name: `jp-agent-${agentId}`, email: `jp-agent-${agentId}@test.invalid`, role: roleId }

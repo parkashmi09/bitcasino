@@ -6,6 +6,7 @@ const assert = require('node:assert');
 const express = require('express');
 
 const db = require('@ibitplay/db');
+const { idBlock, purgeBlocks } = require('@ibitplay/db/src/testing');
 const { createLogger, featureCatalogue, errorHandler, requestContext } = require('@ibitplay/common');
 
 const v = require('../features.validators');
@@ -381,11 +382,14 @@ test('features', async (t) => {
   await t.test('a notification goes out through OneSignal the moment keys are stored', async () => {
     calls.length = 0;
     const notifications = new NotificationsService({ models: connection.models, logger, config, fetchImpl });
-    const player = await connection.models.Users.findOne({ attributes: ['id'], raw: true });
-    if (!player) return t.skip('no player row in the test database');
+    // Its own direct player (the send's default channel), from a fresh id block, removed afterwards.
+    const block = { users: await idBlock(connection.sequelize, 'users') };
+    const player = { id: block.users + 1 };
+    await connection.models.Users.create({ id: player.id, name: `feat-${player.id}`, password: 'x', status: 'active' });
 
-    const out = await notifications.sendToUser({ staff: { id: 1, level: 1 }, userId: player.id, title: 'Welcome', body: 'Hello' }).catch((e) => e);
-    if (out instanceof Error) return t.skip(`visibility rules refused the fixture player: ${out.message}`);
+    const out = await notifications.sendToUser({ staff: { id: 1, level: 1 }, userId: player.id, title: 'Welcome', body: 'Hello' }).catch((e) => e)
+      .finally(() => purgeBlocks(connection.sequelize, block));
+    assert.ok(!(out instanceof Error), `the send was refused: ${out.message}`);
 
     assert.equal(out.provider, 'onesignal');
     assert.equal(calls.length, 1);

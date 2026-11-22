@@ -384,11 +384,14 @@ test('tips', async (t) => {
     assert.equal(paged.rows.length, 1);
     assert.equal(paged.total, 3);
 
-    // A sub-admin whose tree is just that staff row sees only the tip that touches B.
+    // A sub-admin whose tree is just that staff row sees only the tip that touches B; the sender is
+    // outside the tree, so its name neither matches a scoped search nor shows on the row (8d7b8e9).
     const scoped = new TipService({ ...deps, clients: { admin: { ...fakeAdmin, get: async () => ({ ids: [subAdmin] }) } } });
-    const mine = await scoped.adminList({ staff: { id: subAdmin }, limit: 50, offset: 0, search: a.name });
+    assert.equal((await scoped.adminList({ staff: { id: subAdmin }, limit: 50, offset: 0, search: a.name })).total, 0);
+    const mine = await scoped.adminList({ staff: { id: subAdmin }, limit: 50, offset: 0, search: b.name });
     assert.equal(mine.total, 1);
     assert.deepEqual(mine.rows[0].to, { id: b.id, name: b.name });
+    assert.deepEqual(mine.rows[0].from, { id: null, name: null });
 
     // An empty tree sees nothing.
     const none = new TipService({ ...deps, clients: { admin: { ...fakeAdmin, get: async () => ({ ids: [] }) } } });

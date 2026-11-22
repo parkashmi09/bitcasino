@@ -62,6 +62,8 @@ test('fiat deposit and withdrawal', async (t) => {
   const deps = {
     models: connection.models,
     db: connection,
+    // Staff approvals check the player is in the caller's tree (M11); staff 1 is the root, which sees all.
+    clients: { admin: { get: async () => ({ ids: [1] }) } },
     logger,
     config: {
       SERVICE_NAME: 'user-service',
