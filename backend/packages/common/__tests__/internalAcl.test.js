@@ -135,6 +135,9 @@ test('the internal ACL table', async (t) => {
       ['casino-service', '/internal/admin/staff-directory/verify-transaction-password'],
       ['sports-service', '/internal/user/wallet/rollback'],
       ['sports-service', '/internal/admin/site-config/sports'],
+      // The responsible-gambling check before every exchange stake; refused, every sports bet failed.
+      ['sports-service', '/internal/user/responsible-gambling/check'],
+      ['casino-service', '/internal/user/responsible-gambling/check'],
       ['user-service', '/internal/casino/bet-history/top-winners'],
       ['user-service', '/internal/sports/wager/turnover/42'],
       ['admin-service', '/internal/sports/bet-admin/net'],

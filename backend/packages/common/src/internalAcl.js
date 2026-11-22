@@ -221,6 +221,8 @@ const INTERNAL_ACL = Object.freeze({
     '/internal/user/wallet',
     /** Settled sports stakes count toward wager, VIP, affiliate and rakeback. */
     '/internal/user/wager',
+    /** A player's own breaks / limits, asked before every exchange stake (bets/responsibleStake.js). */
+    '/internal/user/responsible-gambling',
   ],
 });
 
