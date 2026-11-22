@@ -28,26 +28,26 @@ export const SITE_UI: Record<string, UiSupport> = {
   bonus: { status: 'toggle', variant: 'reward_hub', surfaces: '/profile/boosts, /profile/rewards, account menu rows' },
   affiliate: { status: 'toggle', variant: 'referral_hub', surfaces: '/profile/refer-a-friend, /ref/:code sign-up links' },
   races: { status: 'toggle', variant: 'daily_contest', surfaces: '/promotions/league-of-bitcasino, /tournaments' },
-  challenges: { status: 'toggle', variant: 'quest_hub', surfaces: 'no quest page in this UI yet; switches the backend' },
-  raffles: { status: 'absent', why: 'No raffle in this backend; the weekly raffle page is hidden.' },
+  challenges: { status: 'toggle', variant: 'quest_hub', surfaces: 'Daily quests block on /promotions' },
+  raffles: { status: 'toggle', variant: 'ticket_raffle', surfaces: '/promotions/weekly-raffle (also needs the site admin Lotto flag)' },
   vault: { status: 'toggle', variant: 'flat_balance', surfaces: 'wallet Vault tab, Vault and Vault interest tabs in /profile/transactions' },
   swap: { status: 'toggle', variant: 'swap_page', surfaces: 'wallet Swap tab, Swaps tab in /profile/transactions' },
   notifications: { status: 'toggle', variant: 'notice_centre', surfaces: '/profile/notifications' },
   kyc: { status: 'toggle', variant: 'document_cockpit', surfaces: 'identity verification and verification levels 3-4 in /profile/account' },
-  gift_cards: { status: 'toggle', variant: 'redeem_dialog', surfaces: 'redeem a code in Rewards' },
+  gift_cards: { status: 'toggle', variant: 'redeem_dialog', surfaces: 'redeem a code, gift card list and claimed history in /profile/rewards' },
   blog: { status: 'toggle', variant: 'category_feed', surfaces: '/blog, /blog/:slug and the links in the home copy' },
 
   casino_lobby: { status: 'fixed', variant: 'tabbed_themes', surfaces: 'the casino lobby is the site itself; use the Casino flag and the game-category flags' },
   banners: { status: 'fixed', variant: 'artwork_slides', surfaces: 'the home hero banners (artwork from the site admin banners)' },
 
-  spin_wheel: { status: 'absent', why: 'Kept off here; the wheel page follows the site admin Spin wheel flag.' },
+  spin_wheel: { status: 'toggle', variant: 'inline_wheel', surfaces: '/promotions/spin-the-wheel with My spins (also needs the site admin Spin wheel flag)' },
   tips: { status: 'toggle', variant: 'peer_to_peer', surfaces: 'Send a tip and the Tips tab in /profile/transactions, the receive-tips switch in /profile/settings' },
   chat: { status: 'absent', why: 'No chat screen in this UI.' },
   club_membership: { status: 'absent', why: 'No club screens in this UI.' },
   push_notifications: { status: 'absent', why: 'This UI does not load a push SDK.' },
   analytics: { status: 'absent', why: 'This UI does not load a Google tag.' },
   live_tv: { status: 'toggle', variant: 'gated', surfaces: 'the TV button on an exchange match (minimum balance and inactive hours under Settings)' },
-  bonus_centre: { status: 'absent', why: 'No bonus centre block in this UI.' }
+  bonus_centre: { status: 'toggle', variant: 'block', surfaces: 'Bonus centre block in /profile/boosts (needs Bonus on too)' }
 }
 
 /** Owner options that do nothing in this UI (their page does not exist here). Hidden, value kept. */
