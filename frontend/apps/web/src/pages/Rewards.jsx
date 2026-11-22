@@ -8,7 +8,7 @@ import { DepositDialog } from '@/components/layout/DepositDialog';
 import { ClaimRewardDialog } from '@/components/rewards/ClaimRewardDialog';
 import { useRewards } from '@/hooks/useRewards';
 import { useGates } from '@/hooks/useGates';
-import { useBonusBalance, useClaimLossBonus, useClaimUnlocked, useFirstDepositOffer, useLossBonus } from '@/queries/rewards';
+import { useBonusBalance, useClaimLossBonus, useClaimUnlocked, useFirstDepositOffer, useLossBonus, useWagerTasks } from '@/queries/rewards';
 import { compareDecimal, formatBalance } from '@/lib/format';
 import { cn } from '@/lib/cn';
 
@@ -93,6 +93,7 @@ export function Rewards() {
   const offer = useFirstDepositOffer();
   const balance = useBonusBalance();
   const loss = useLossBonus();
+  const wager = useWagerTasks();
   const [claimOpen, setClaimOpen] = useState(false);
   const [depositOpen, setDepositOpen] = useState(false);
 
@@ -102,7 +103,9 @@ export function Rewards() {
   const history = balance.data?.history ?? [];
   const loading = offer.isPending || balance.isPending;
   const lossOn = Boolean(loss.data?.enabled);
-  const empty = !offer.data && active.length === 0 && !lossOn;
+  // The deposit rollover: one task once anything is deposited, gone while nothing is.
+  const tasks = (wager.data?.tasks ?? []).filter((task) => task.status !== 'complete');
+  const empty = !offer.data && active.length === 0 && !lossOn && tasks.length === 0;
 
   return (
     <div className="grid gap-4">
@@ -165,6 +168,11 @@ export function Rewards() {
               <LossBonusCard loss={loss.data} />
             </li>
           )}
+          {tasks.map((task) => (
+            <li key={task.id}>
+              <WagerCard task={task} />
+            </li>
+          ))}
           {active.map((bonus) => (
             <li key={bonus.id}>
               <BonusCard bonus={bonus} />
@@ -307,6 +315,37 @@ function BonusCard({ bonus }) {
           {claim.error?.message || 'The claim was refused.'}
         </p>
       )}
+    </Card>
+  );
+}
+
+/** The deposit rollover (`GET /user/wager/tasks`): wagered against the target, in USD. */
+function WagerCard({ task }) {
+  const currency = task.currency ?? 'USD';
+  const target = Number(task.target) || 0;
+  const width = target > 0 ? Math.min(100, Math.max(0, (Number(task.wagered) / target) * 100)) : 100;
+
+  return (
+    <Card
+      title="Wagering"
+      description={task.label}
+      facts={[
+        ['Wagered:', `${formatBalance(task.wagered)} / ${formatBalance(task.target)} ${currency}`],
+        ['Left to wager:', `${formatBalance(task.remaining)} ${currency}`],
+        ['Since:', formatDate(task.since)],
+      ]}
+    >
+      <div
+        role="progressbar"
+        aria-label="Wagering progress"
+        aria-valuenow={Math.round(width)}
+        aria-valuemin={0}
+        aria-valuemax={100}
+        className="h-2 overflow-hidden rounded-full bg-goku"
+      >
+        <div className="h-full rounded-full bg-piccolo" style={{ width: `${width}%` }} />
+      </div>
+      <p className="text-sm text-trunks">Withdrawals open once this is complete.</p>
     </Card>
   );
 }

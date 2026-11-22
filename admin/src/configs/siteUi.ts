@@ -29,7 +29,7 @@ export const SITE_UI: Record<string, UiSupport> = {
   banners: { status: 'fixed', variant: 'artwork_slides', surfaces: 'the home hero carousel (artwork from the site admin banners)' },
 
   spin_wheel: { status: 'absent', why: 'The backend has it; this UI has no wheel screen.' },
-  tips: { status: 'absent', why: 'No tip-sending screen in this UI.' },
+  tips: { status: 'toggle', variant: 'peer_to_peer', surfaces: 'Send a tip and the Tips tab in /profile/transactions, the receive-tips switch in /profile/settings' },
   p2p: { status: 'absent', why: 'No P2P trading screen in this UI.' },
   chat: { status: 'absent', why: 'Chat is socket-only and this UI has no socket client.' },
   club_membership: { status: 'absent', why: 'No club screens in this UI.' },

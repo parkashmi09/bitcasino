@@ -19,6 +19,8 @@ import { currencyMeta, currencyNetworks } from '@/data/currencies';
 import QRCode from 'qrcode';
 import { compareDecimal, formatBalance, formatFiat, percentOf } from '@/lib/format';
 import {
+  useBankAccountAction,
+  useBankAccounts,
   useBankDetails,
   useDepositAddress,
   useSubmitWithdrawal,
@@ -1625,6 +1627,15 @@ function FiatWithdrawForm({ currency, balance, decimals, onDone }) {
   const [amount, setAmount] = useState('');
   const [confirming, setConfirming] = useState(false);
   const [done, setDone] = useState(false);
+  // A saved payout account (`/bank-accounts`) by id, or 'new' for the fields below. The saved
+  // formats are Indian (IFSC / UPI), so other fiat coins type their details each time.
+  const savedAccounts = useBankAccounts({ enabled: currency === 'INR' });
+  const accounts = currency === 'INR' && Array.isArray(savedAccounts.data) ? savedAccounts.data : [];
+  const [picked, setPicked] = useState(null);
+  const savedId = picked ?? (accounts.find((a) => a.isDefault) ?? accounts[0])?.id ?? 'new';
+  const saved = accounts.find((account) => account.id === savedId) ?? null;
+  const [keep, setKeep] = useState(true);
+  const accountAction = useBankAccountAction();
 
   const submit = useSubmitFiatWithdrawal();
   const requirements = useWithdrawalRequirements(currency);
@@ -1636,14 +1647,19 @@ function FiatWithdrawForm({ currency, balance, decimals, onDone }) {
   const positive = /[1-9]/.test(amount || '');
   const ready =
     positive && !overBalance && blockers.length === 0 && (!needsForfeit || forfeit) &&
-    fiatDestinationReady({ method, holder, upiId, bankName, accountNumber, ifsc }, currency);
-  const details =
+    (saved || fiatDestinationReady({ method, holder, upiId, bankName, accountNumber, ifsc }, currency));
+  const typed =
     method === 'upi'
       ? { accountHolderName: holder.trim(), upiId: upiId.trim() }
       : { accountHolderName: holder.trim(), bankName: bankName.trim(), accountNumber: accountNumber.trim(), ifscCode: ifsc.trim().toUpperCase() };
+  const details = saved ? { bankAccountId: saved.id } : typed;
 
   const send = async () => {
     try {
+      // Saving is a convenience: a refused save (10 accounts, a bad IFSC) never blocks the payout.
+      if (!saved && keep) {
+        await accountAction.mutateAsync({ kind: 'add', body: { method, ...typed } }).catch(() => null);
+      }
       await submit.mutateAsync({ currency, amount, details, forfeitBonus: needsForfeit && forfeit });
       setDone(true);
       onDone?.();
@@ -1677,6 +1693,18 @@ function FiatWithdrawForm({ currency, balance, decimals, onDone }) {
     >
       <WithdrawGate req={requirements.data} forfeit={forfeit} onForfeit={setForfeit} disabled={confirming} />
 
+      {accounts.length > 0 && (
+        <SavedAccounts
+          accounts={accounts}
+          value={savedId}
+          onChange={setPicked}
+          action={accountAction}
+          disabled={confirming}
+        />
+      )}
+
+      {!saved && (
+      <>
       {currency === 'INR' && (
         <div role="radiogroup" aria-label="Pay out to" className="grid grid-cols-2 gap-1 rounded-i-sm bg-beerus p-1">
           {[
@@ -1723,6 +1751,21 @@ function FiatWithdrawForm({ currency, balance, decimals, onDone }) {
         </>
       )}
 
+      {currency === 'INR' && (
+        <label className="flex cursor-pointer items-center gap-2 text-xs text-bulma select-none">
+          <input
+            type="checkbox"
+            checked={keep}
+            disabled={confirming}
+            onChange={(e) => setKeep(e.target.checked)}
+            className="size-4 cursor-pointer accent-piccolo"
+          />
+          Save this account for next time
+        </label>
+      )}
+      </>
+      )}
+
       <Field label="Amount" hint={`${formatBalance(balance, decimals)} ${currency} available`}>
         <input
           value={amount}
@@ -1742,7 +1785,7 @@ function FiatWithdrawForm({ currency, balance, decimals, onDone }) {
       {confirming && (
         <div className="grid gap-1 rounded-i-md bg-goku px-3 py-2.5 text-xs">
           <Row label="Sending" value={`${formatBalance(amount, decimals)} ${currency}`} />
-          <Row label="To" value={method === 'upi' ? `${holder.trim()} · ${upiId.trim()}` : `${holder.trim()} · ${bankName.trim()} · ${accountNumber.trim()} · ${ifsc.trim().toUpperCase()}`} />
+          <Row label="To" value={saved ? accountLine(saved) : method === 'upi' ? `${holder.trim()} · ${upiId.trim()}` : `${holder.trim()} · ${bankName.trim()} · ${accountNumber.trim()} · ${ifsc.trim().toUpperCase()}`} />
         </div>
       )}
 
@@ -1963,6 +2006,89 @@ function WithdrawGate({ req, forfeit, onForfeit, disabled }) {
         </label>
       )}
     </>
+  );
+}
+
+/** A saved account as one line: holder and the masked number or UPI id. */
+function accountLine(account) {
+  return account.method === 'upi'
+    ? `${account.accountHolderName} · ${account.upiId}`
+    : `${account.accountHolderName} · ${[account.bankName, account.accountNumberMasked, account.ifscCode].filter(Boolean).join(' · ')}`;
+}
+
+/**
+ * The saved payout accounts (`/bank-accounts`) as a radio list over the form: pick one, make it
+ * the default, remove it, or choose "New account" to type the details (and optionally save them).
+ */
+function SavedAccounts({ accounts, value, onChange, action, disabled }) {
+  return (
+    <div role="radiogroup" aria-label="Saved accounts" className="grid gap-1.5">
+      <span className="text-xs font-medium text-bulma">Saved accounts</span>
+      {accounts.map((account) => (
+        <div
+          key={account.id}
+          className={cn(
+            'flex items-center gap-2 rounded-i-sm border-[0.8px] bg-goku px-3 py-2',
+            value === account.id ? 'border-piccolo' : 'border-beerus',
+          )}
+        >
+          <button
+            type="button"
+            role="radio"
+            aria-checked={value === account.id}
+            disabled={disabled}
+            onClick={() => onChange(account.id)}
+            className="min-w-0 flex-1 cursor-pointer text-start"
+          >
+            <span className="block truncate text-xs text-bulma">{accountLine(account)}</span>
+            <span className="block text-[11px] text-trunks">
+              {account.method === 'upi' ? 'UPI' : 'Bank account'}
+              {account.isDefault && ' · Default'}
+            </span>
+          </button>
+          {!account.isDefault && (
+            <button
+              type="button"
+              disabled={disabled || action.isPending}
+              onClick={() => action.mutate({ kind: 'default', id: account.id })}
+              className="shrink-0 cursor-pointer text-[11px] text-piccolo hover:underline disabled:opacity-50"
+            >
+              Make default
+            </button>
+          )}
+          <button
+            type="button"
+            aria-label={`Remove ${accountLine(account)}`}
+            disabled={disabled || action.isPending}
+            onClick={() => {
+              if (value === account.id) onChange('new');
+              action.mutate({ kind: 'remove', id: account.id });
+            }}
+            className="grid size-6 shrink-0 cursor-pointer place-items-center rounded-i-xs text-trunks hover:bg-heles hover:text-bulma disabled:opacity-50"
+          >
+            <Icon name="close" size={14} />
+          </button>
+        </div>
+      ))}
+      <button
+        type="button"
+        role="radio"
+        aria-checked={value === 'new'}
+        disabled={disabled}
+        onClick={() => onChange('new')}
+        className={cn(
+          'h-9 cursor-pointer rounded-i-sm border-[0.8px] bg-goku px-3 text-start text-xs text-bulma',
+          value === 'new' ? 'border-piccolo' : 'border-beerus',
+        )}
+      >
+        New account
+      </button>
+      {action.isError && (
+        <p role="alert" className="text-[11px] text-dodoria">
+          {action.error?.message || 'That change was refused.'}
+        </p>
+      )}
+    </div>
   );
 }
 

@@ -30,10 +30,10 @@ export const SITE_UI: Record<string, UiSupport> = {
   races: { status: 'toggle', variant: 'daily_contest', surfaces: '/promotions/league-of-bitcasino, /tournaments' },
   challenges: { status: 'toggle', variant: 'quest_hub', surfaces: 'no quest page in this UI yet; switches the backend' },
   raffles: { status: 'absent', why: 'No raffle in this backend; the weekly raffle page is hidden.' },
-  vault: { status: 'toggle', variant: 'flat_balance', surfaces: 'wallet Vault tab' },
-  swap: { status: 'toggle', variant: 'swap_page', surfaces: 'wallet Swap tab' },
+  vault: { status: 'toggle', variant: 'flat_balance', surfaces: 'wallet Vault tab, Vault and Vault interest tabs in /profile/transactions' },
+  swap: { status: 'toggle', variant: 'swap_page', surfaces: 'wallet Swap tab, Swaps tab in /profile/transactions' },
   notifications: { status: 'toggle', variant: 'notice_centre', surfaces: '/profile/notifications' },
-  kyc: { status: 'toggle', variant: 'document_cockpit', surfaces: 'account verification in Settings' },
+  kyc: { status: 'toggle', variant: 'document_cockpit', surfaces: 'identity verification and verification levels 3-4 in /profile/account' },
   gift_cards: { status: 'toggle', variant: 'redeem_dialog', surfaces: 'redeem a code in Rewards' },
   blog: { status: 'toggle', variant: 'category_feed', surfaces: '/blog, /blog/:slug and the links in the home copy' },
 
@@ -41,7 +41,7 @@ export const SITE_UI: Record<string, UiSupport> = {
   banners: { status: 'fixed', variant: 'artwork_slides', surfaces: 'the home hero banners (artwork from the site admin banners)' },
 
   spin_wheel: { status: 'absent', why: 'Kept off here; the wheel page follows the site admin Spin wheel flag.' },
-  tips: { status: 'absent', why: 'No tip-sending screen in this UI.' },
+  tips: { status: 'toggle', variant: 'peer_to_peer', surfaces: 'Send a tip and the Tips tab in /profile/transactions, the receive-tips switch in /profile/settings' },
   chat: { status: 'absent', why: 'No chat screen in this UI.' },
   club_membership: { status: 'absent', why: 'No club screens in this UI.' },
   push_notifications: { status: 'absent', why: 'This UI does not load a push SDK.' },

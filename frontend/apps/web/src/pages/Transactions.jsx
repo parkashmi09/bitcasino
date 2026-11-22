@@ -1,8 +1,11 @@
 import { useState } from 'react';
+import { Button } from '@/components/ui/Button';
 import { Skeleton } from '@/components/ui/Skeleton';
 import { QueryError } from '@/components/ui/QueryState';
+import { TipDialog } from '@/components/account/TipDialog';
 import { useTransactionHistory, useTransfers } from '@/queries';
-import { useWalletLedger } from '@/queries/wallet';
+import { useTipHistory } from '@/queries/account';
+import { usePendingAction, useWalletLedger, useWalletList } from '@/queries/wallet';
 import { useGates } from '@/hooks/useGates';
 import { formatBalance } from '@/lib/format';
 import { currencyMeta } from '@/data/currencies';
@@ -45,11 +48,48 @@ import { cn } from '@/lib/cn';
  * total to divide into pages that would be honest for the view as a whole.
  */
 
+/* `gate`: shown only while that section is on (lib/gates.js). Pending is every rail's open requests. */
 const TABS = [
   { id: 'deposits', label: 'Deposits' },
   { id: 'withdrawals', label: 'Withdrawals' },
   { id: 'transfers', label: 'Transfers' },
+  { id: 'pending', label: 'Pending' },
+  { id: 'tips', label: 'Tips', gate: 'tips' },
+  { id: 'swaps', label: 'Swaps', gate: 'swap' },
+  { id: 'vault', label: 'Vault', gate: 'vault' },
+  { id: 'interest', label: 'Vault interest', gate: 'vault' },
 ];
+
+/* Raw rows of the extra lists, in the shape `Row` draws. */
+const asTip = (row) => ({
+  id: row.id,
+  createdAt: row.createdAt,
+  method: `Tip ${row.direction === 'sent' ? 'to' : 'from'} ${row.counterparty?.name ?? ''}`,
+  note: row.note,
+  amount: `${row.direction === 'sent' ? '-' : '+'}${row.amount}`,
+  currency: row.currency,
+  status: row.direction === 'sent' ? 'Sent' : 'Received',
+});
+const asSwap = (row) => ({
+  id: row.id,
+  createdAt: row.created_at,
+  method: `${row.from_currency} to ${row.to_currency}`,
+  note: `Paid ${formatBalance(row.from_amount ?? '0', currencyMeta(row.from_currency ?? 'USDT').decimals)} ${row.from_currency}`,
+  amount: row.to_amount,
+  currency: row.to_currency,
+  status: 'completed',
+});
+const asVault = (row) => ({ id: row.id, createdAt: row.createdAt, method: row.type, amount: row.amount, currency: row.coin, status: 'completed' });
+const asInterest = (row) => ({
+  id: row.id,
+  createdAt: row.createdAt,
+  method: 'Interest',
+  note: row.rate ? `Rate ${row.rate}` : null,
+  amount: row.interest,
+  currency: row.coin,
+  status: 'paid',
+});
+const LIST = { swaps: ['swapHistory', asSwap], vault: ['vaultTransactions', asVault], interest: ['vaultInterest', asInterest] };
 
 const PAGE = 25;
 
@@ -95,31 +135,41 @@ function AgentStatement() {
 }
 
 function PlayerTransactions() {
+  const gates = useGates();
   const [tab, setTab] = useState('deposits');
   const [page, setPage] = useState(0);
+  const [tipOpen, setTipOpen] = useState(false);
+  const tabs = TABS.filter((entry) => !entry.gate || gates.on(entry.gate));
 
   const offset = page * PAGE;
+  const combinedTab = tab === 'deposits' || tab === 'withdrawals';
 
   const combined = useTransactionHistory({
     limit: PAGE,
     offset,
-    enabled: tab !== 'transfers',
+    enabled: combinedTab,
   });
   const transfers = useTransfers({
     limit: PAGE,
     offset,
     enabled: tab === 'transfers',
   });
+  const tips = useTipHistory({ limit: PAGE, offset, enabled: tab === 'tips' });
+  const [listName, toRow] = LIST[tab] ?? [];
+  const list = useWalletList(listName ?? 'swapHistory', { limit: PAGE, offset, enabled: Boolean(listName) });
 
-  const active = tab === 'transfers' ? transfers : combined;
+  const active = tab === 'transfers' ? transfers : tab === 'tips' ? tips : listName ? list : combined;
 
   const rows =
     tab === 'transfers'
       ? (transfers.data ?? [])
-      : (combined.data?.[tab]?.rows ?? []);
+      : tab === 'tips'
+        ? (tips.data?.rows ?? []).map(asTip)
+        : listName
+          ? (Array.isArray(list.data) ? list.data : []).map(toRow)
+          : (combined.data?.[tab]?.rows ?? []);
 
-  const count =
-    tab === 'transfers' ? undefined : combined.data?.[tab]?.count;
+  const count = tab === 'tips' ? tips.data?.total : combinedTab ? combined.data?.[tab]?.count : undefined;
 
   const select = (next) => {
     setTab(next);
@@ -140,7 +190,7 @@ function PlayerTransactions() {
         aria-label="Transaction type"
         className="flex gap-1 overflow-x-auto rounded-i-md bg-gohan p-1"
       >
-        {TABS.map((entry) => (
+        {tabs.map((entry) => (
           <button
             key={entry.id}
             type="button"
@@ -159,26 +209,144 @@ function PlayerTransactions() {
         ))}
       </div>
 
-      <section className="rounded-i-md bg-gohan p-4">
-        {active.isPending ? (
-          <div className="grid gap-2">
-            {[0, 1, 2, 3, 4].map((row) => (
-              <Skeleton key={row} className="h-14 rounded-i-sm" />
-            ))}
-          </div>
-        ) : active.isError ? (
-          <QueryError
-            error={active.error}
-            onRetry={active.refetch}
-            title="Could not load your transactions"
-          />
-        ) : rows.length === 0 ? (
-          <Empty tab={tab} paged={page > 0} onBack={() => setPage(0)} />
-        ) : (
-          <RowsTable rows={rows} page={page} count={count} onPage={setPage} />
-        )}
-      </section>
+      {tab === 'tips' && gates.can('tips') && (
+        <div className="flex justify-end">
+          <Button onClick={() => setTipOpen(true)}>Send a tip</Button>
+        </div>
+      )}
+
+      {tab === 'pending' ? (
+        <PendingRequests />
+      ) : (
+        <section className="rounded-i-md bg-gohan p-4">
+          {active.isPending ? (
+            <div className="grid gap-2">
+              {[0, 1, 2, 3, 4].map((row) => (
+                <Skeleton key={row} className="h-14 rounded-i-sm" />
+              ))}
+            </div>
+          ) : active.isError ? (
+            <QueryError
+              error={active.error}
+              onRetry={active.refetch}
+              title="Could not load your transactions"
+            />
+          ) : rows.length === 0 ? (
+            <Empty tab={tab} paged={page > 0} onBack={() => setPage(0)} />
+          ) : (
+            <RowsTable rows={rows} page={page} count={count} onPage={setPage} />
+          )}
+        </section>
+      )}
+
+      {/* Mounted only while open: it reads the wallet. */}
+      {tipOpen && <TipDialog open onClose={() => setTipOpen(false)} />}
     </div>
+  );
+}
+
+/**
+ * Every request still waiting, on the three rails a player can have one on: a manual (bank)
+ * deposit awaiting staff, a fiat withdrawal In Queue (Cancel returns the held amount), and a
+ * provider order (Refresh asks the provider and reports; the provider's callback settles it).
+ */
+function PendingRequests() {
+  const deposits = useWalletList('fiatDeposits', { query: { status: 'pending' } });
+  const withdrawals = useWalletList('withdrawFiat', { query: { status: 'In Queue' } });
+  const orders = useWalletList('paymentOrders');
+  const action = usePendingAction();
+
+  const reads = [deposits, withdrawals, orders];
+  const list = (read) => (Array.isArray(read.data) ? read.data : []);
+  const rows = [
+    ...list(deposits).map((row) => ({
+      key: `d-${row.depositId}`,
+      kind: 'Bank deposit',
+      amount: row.claimedAmount ?? row.amount,
+      currency: row.currency,
+      at: row.createdAt,
+    })),
+    ...list(withdrawals).map((row) => ({
+      key: `w-${row.withdrawalId}`,
+      kind: 'Bank withdrawal',
+      amount: row.amount,
+      currency: row.currency,
+      at: row.requestedAt,
+      cancel: { withdrawalId: row.withdrawalId },
+    })),
+    ...list(orders)
+      .filter((row) => row.status === 'pending')
+      .map((row) => ({
+        key: `o-${row.provider}-${row.reference}`,
+        kind: `${label(row.provider)} ${row.flow === 'payout' ? 'withdrawal' : 'deposit'}`,
+        amount: row.amount,
+        currency: row.currency,
+        at: row.createdAt,
+        refresh: { provider: row.provider, reference: row.reference },
+      })),
+  ].sort((a, b) => String(b.at ?? '').localeCompare(String(a.at ?? '')));
+
+  const failed = reads.find((read) => read.isError);
+  const busy = (key) => action.isPending && action.variables?.key === key;
+  const report = action.isSuccess ? action.data?.providerView : null;
+
+  return (
+    <section className="grid gap-2 rounded-i-md bg-gohan p-4">
+      {reads.some((read) => read.isPending) ? (
+        [0, 1].map((row) => <Skeleton key={row} className="h-14 rounded-i-sm" />)
+      ) : rows.length === 0 && failed ? (
+        <QueryError error={failed.error} onRetry={failed.refetch} title="Could not load your requests" />
+      ) : rows.length === 0 ? (
+        <div className="grid justify-items-center gap-2 py-10 text-center">
+          <p className="text-sm text-bulma">Nothing pending.</p>
+          <p className="max-w-[380px] text-xs leading-relaxed text-trunks">
+            Deposits and withdrawals still waiting for approval or for the provider appear here.
+          </p>
+        </div>
+      ) : (
+        <ul className="grid gap-2">
+          {rows.map((row) => (
+            <li
+              key={row.key}
+              className="flex flex-wrap items-center justify-between gap-3 rounded-i-sm bg-goku px-3 py-2.5"
+            >
+              <span className="grid gap-0.5">
+                <span className="text-sm text-bulma">{row.kind}</span>
+                <span className="text-xs text-trunks tabular-nums">{formatDate(row.at)}</span>
+              </span>
+              <span className="flex items-center gap-3">
+                <span className="text-sm text-bulma tabular-nums">
+                  {formatBalance(row.amount ?? '0', currencyMeta(row.currency ?? 'USDT').decimals)} {row.currency}
+                </span>
+                {row.cancel || row.refresh ? (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={action.isPending}
+                    onClick={() => action.mutate({ ...(row.cancel ?? row.refresh), key: row.key })}
+                  >
+                    {row.cancel ? (busy(row.key) ? 'Cancelling…' : 'Cancel') : busy(row.key) ? 'Checking…' : 'Refresh'}
+                  </Button>
+                ) : (
+                  <StatusPill status="pending" />
+                )}
+              </span>
+            </li>
+          ))}
+        </ul>
+      )}
+      {action.isError && (
+        <p role="alert" className="text-sm text-chichi">
+          {action.error?.message || 'That request was refused.'}
+        </p>
+      )}
+      {report && (
+        <p className="text-xs text-trunks">
+          The provider reports: {String(report.status ?? report.state ?? 'no change yet')}. The
+          balance moves once the provider confirms.
+        </p>
+      )}
+    </section>
   );
 }
 
@@ -341,11 +509,11 @@ function Empty({ tab, paged, onBack }) {
 
   return (
     <div className="grid justify-items-center gap-2 py-10 text-center">
-      <p className="text-sm text-bulma">No {tab} yet.</p>
+      <p className="text-sm text-bulma">No {(TABS.find((entry) => entry.id === tab)?.label ?? tab).toLowerCase()} yet.</p>
       <p className="max-w-[380px] text-xs leading-relaxed text-trunks">
         {tab === 'transfers'
           ? 'Credits, transfers and tips to or from your account appear here.'
-          : `Your ${tab} will appear here once you have made one.`}
+          : `Your ${(TABS.find((entry) => entry.id === tab)?.label ?? tab).toLowerCase()} will appear here once you have made one.`}
       </p>
     </div>
   );
