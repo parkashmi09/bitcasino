@@ -11,6 +11,7 @@ import {
   useBeginTwoFactor,
   useCompleteTwoFactor,
   useDisableTwoFactor,
+  useRevokeSession,
   useSessions,
   useTwoFactorStatus,
 } from '@/queries';
@@ -210,10 +211,9 @@ function TwoFactorCard() {
  * Where the account is signed in.
  *
  * `GET /auth/sessions` answers every unrevoked, unexpired refresh session.
- * There is **no per-session revoke route** — `POST /auth/logout` takes a
- * `refreshToken` for one or `{allSessions: true}` for all, and nothing
- * addresses a session by id — so this offers the one action that exists and
- * does not draw a per-row button that could not work.
+ * Each row signs that one device out (`DELETE /auth/sessions/:id`); the
+ * button under the list signs every device out (`POST /auth/logout
+ * {allSessions: true}`).
  *
  * The current session is not marked, and cannot be: the list carries no
  * session id the client can match its own token against, and guessing from
@@ -225,6 +225,7 @@ function SessionsCard() {
   const { logout } = useAuth();
   const navigate = useNavigate();
   const { data, isPending, isError } = useSessions();
+  const revoke = useRevokeSession();
   const [busy, setBusy] = useState(false);
 
   const sessions = Array.isArray(data) ? data : [];
@@ -280,9 +281,20 @@ function SessionsCard() {
                     it is 120 characters of version numbers. */}
                 {session.device_label || 'Unrecognised device'}
               </span>
-              <span className="text-xs leading-4 text-trunks tabular-nums">
-                {session.ip_address ?? 'unknown IP'} · last used{' '}
-                {formatWhen(session.last_used_at ?? session.created_at)}
+              <span className="flex items-center gap-3">
+                <span className="text-xs leading-4 text-trunks tabular-nums">
+                  {session.ip_address ?? 'unknown IP'} · last used{' '}
+                  {formatWhen(session.last_used_at ?? session.created_at)}
+                </span>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => revoke.mutate(session.id)}
+                  disabled={revoke.isPending || busy}
+                  aria-label={`Sign out ${session.device_label || 'this device'}`}
+                >
+                  {revoke.isPending && revoke.variables === session.id ? 'Signing out…' : 'Sign out'}
+                </Button>
               </span>
             </li>
           ))}
@@ -300,8 +312,15 @@ function SessionsCard() {
         </Button>
       </Row>
 
+      {revoke.isError && (
+        <p role="alert" className="text-sm leading-5 text-chichi">
+          {revoke.error?.message || 'Could not sign that device out.'}
+        </p>
+      )}
+
       <p className="text-xs leading-4 text-trunks">
-        This signs out every device, including this one.
+        Sign out everywhere signs out every device, including this one. Signing out the row for
+        this browser ends this session too.
       </p>
     </Card>
   );
