@@ -381,11 +381,11 @@ test('features', async (t) => {
   await t.test('a notification goes out through OneSignal the moment keys are stored', async () => {
     calls.length = 0;
     const notifications = new NotificationsService({ models: connection.models, logger, config, fetchImpl });
-    const player = await connection.models.Users.findOne({ attributes: ['id'], raw: true });
+    const player = await connection.models.Users.findOne({ where: { parent_staff_id: null }, attributes: ['id'], raw: true }); // a direct player: the send's default channel
     if (!player) return t.skip('no player row in the test database');
 
     const out = await notifications.sendToUser({ staff: { id: 1, level: 1 }, userId: player.id, title: 'Welcome', body: 'Hello' }).catch((e) => e);
-    if (out instanceof Error) return t.skip(`visibility rules refused the fixture player: ${out.message}`);
+    assert.ok(!(out instanceof Error), `the send was refused: ${out.message}`);
 
     assert.equal(out.provider, 'onesignal');
     assert.equal(calls.length, 1);

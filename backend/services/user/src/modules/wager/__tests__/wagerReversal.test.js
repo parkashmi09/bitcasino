@@ -4,6 +4,7 @@ const test = require('node:test');
 const assert = require('node:assert');
 
 const db = require('@ibitplay/db');
+const { idBlock } = require('@ibitplay/db/src/testing');
 const { createLogger, money } = require('@ibitplay/common');
 
 const { WagerActivityService } = require('../wagerActivity.service');
@@ -18,7 +19,7 @@ const { backfill } = require('../../../../../../scripts/backfill-usd-wager');
  */
 
 const TEST_DB = process.env.TEST_DB_NAME || 'ibitplay_test';
-let nextUid = 970_000_000 + Math.floor(process.pid % 100_000) * 1000;
+let nextUid; // a fresh block per run (idBlock), set once the database is reachable
 const newUid = () => (nextUid += 1);
 let seq = 0;
 const ref = () => `wr-${process.pid}-${Date.now()}-${(seq += 1)}`;
@@ -44,6 +45,10 @@ test('wager reversal and the USD backfill', async (t) => {
     t.skip(`No test database reachable (${error.message})`);
     return;
   }
+
+  // Fixture ids from a sequence, never reused: a cut-off run or another site cannot have left a row on them.
+  const blocks = { users: await idBlock(connection.sequelize, 'users') };
+  nextUid = blocks.users;
 
   const { models, sequelize } = connection;
   const seeded = [];
