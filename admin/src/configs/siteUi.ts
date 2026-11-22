@@ -36,7 +36,8 @@ export const SITE_UI: Record<string, UiSupport> = {
   push_notifications: { status: 'absent', why: 'This UI does not load a push SDK.' },
   analytics: { status: 'absent', why: 'This UI does not load a Google tag.' },
   blog: { status: 'absent', why: "This UI's Blog row is a link to an off-site blog; there is no blog page." },
-  live_tv: { status: 'toggle', variant: 'gated', surfaces: 'the TV button on an exchange match (minimum balance and inactive hours under Settings)' }
+  live_tv: { status: 'toggle', variant: 'gated', surfaces: 'the TV button on an exchange match (minimum balance and inactive hours under Settings)' },
+  bonus_centre: { status: 'absent', why: 'No bonus centre block in this UI.' }
 }
 
 export const uiSupport = (feature: string): UiSupport | null => SITE_UI[feature] ?? null

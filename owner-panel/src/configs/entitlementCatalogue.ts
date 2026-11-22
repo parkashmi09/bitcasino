@@ -613,6 +613,16 @@ const CATALOGUE: FeatureEntry[] = [
       { key: 'open', label: 'Every signed-in player', description: 'The stream for every signed-in player, whatever the balance (as before).' },
       { key: 'none', label: 'Off', description: 'No live TV on any match.' }
     ]
+  },
+  {
+    key: 'bonus_centre',
+    label: 'Bonus centre block',
+    category: 'engagement',
+    flag: null,
+    variants: [
+      { key: 'block', label: 'Bonus centre block', description: "Rakeback, recurring bonuses with socket countdowns, the player's codes and recent events. Needs the Bonus feature on too." },
+      { key: 'none', label: 'Off', description: 'No bonus centre block; redeem codes and other bonus surfaces stay as the Bonus feature says.' }
+    ]
   }
 ]
 
