@@ -211,7 +211,7 @@ test('admin account controls', async (t) => {
         transactionPassword: 'anything at all',
       }),
       (err) => err.code === 'TXN_PASSWORD_NOT_SET' && err.status === 403
-        && /ask an account above you/.test(err.message)
+        && /Set a transaction password under My account/.test(err.message)
     );
     await assert.rejects(
       () => service.setStatus({

@@ -106,7 +106,7 @@ test('system tracker', async (t) => {
   // Saaf player — agent ne Credit Amount 200 diya (point ledger entry ke saath).
   const accounts = new CreateAccountService(deps);
   const cleanName = `trk${tag}clean`;
-  await accounts.create({ ...agentActors, username: cleanName, password: 'Player1234', creditAmount: '200', userType: 'USER', transactionPassword: TXN });
+  await accounts.create({ ...agentActors, username: cleanName, password: 'Player1234', phone: '9876543210', creditAmount: '200', userType: 'USER', transactionPassword: TXN });
   const clean = await models.Users.findOne({ where: { name: cleanName }, raw: true });
 
   // Bigda player — all_point 50 par ledger me kuch nahi.

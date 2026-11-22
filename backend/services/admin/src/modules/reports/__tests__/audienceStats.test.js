@@ -76,8 +76,8 @@ test('the house-only sections are guarded like their sibling routes', () => {
     const line = source.split('\n').find((l) => l.includes(`'/reward-stats/${section}'`));
     assert.doesNotMatch(line, /houseOnly/i, `${section} is tree-scoped, not house-only`);
   }
-  assert.match(source, /'\/players\/:userId\/stats', directOnly, canRead/);
-  assert.match(source, /'\/player-stats', directOnly, canRead/);
+  assert.match(source, /'\/players\/:userId\/stats', canRead/);
+  assert.match(source, /'\/player-stats', canRead/);
 });
 
 test('stats against a database', async (t) => {

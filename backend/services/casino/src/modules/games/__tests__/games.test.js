@@ -203,7 +203,8 @@ test('game catalogue', async (t) => {
     const provider = `${TAG}-Artwork`;
     const art = (n) => `https://cdn.example.com/${n}.png`;
     // Two "Bravo" rows with art: equal names, so the uuid decides and a page edge never moves.
-    await seedGame({ uuid: `${TAG}-art-b2`, provider, name: 'Bravo', image: art('b2') });
+    // Different types: same name+provider+type would be a twin, which the lobby lists once.
+    await seedGame({ uuid: `${TAG}-art-b2`, provider, name: 'Bravo', type: 'table', image: art('b2') });
     await seedGame({ uuid: `${TAG}-art-b1`, provider, name: 'Bravo', image: art('b1') });
     await seedGame({ uuid: `${TAG}-art-a0`, provider, name: 'Alpha bare' });
     await seedGame({ uuid: `${TAG}-art-a1`, provider, name: 'Alpha empty', image: '' });
