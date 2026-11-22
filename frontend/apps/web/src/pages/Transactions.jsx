@@ -651,7 +651,7 @@ function Empty({ tab, paged, onBack }) {
       <p className="max-w-[380px] text-xs leading-relaxed text-trunks">
         {tab === 'transfers'
           ? 'Credits, transfers and tips to or from your account appear here.'
-          : `Your ${(TABS.find((entry) => entry.id === tab)?.label ?? tab).toLowerCase()} will appear here once you have made one.`}
+          : `Your ${(TABS.find((entry) => entry.id === tab)?.label ?? tab).toLowerCase()} will appear here.`}
       </p>
     </div>
   );

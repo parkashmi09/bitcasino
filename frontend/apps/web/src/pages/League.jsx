@@ -273,7 +273,9 @@ function PastWinners({ type }) {
         blurb={last.data?.endsAt ? `${formatWindow(last.data.startsAt)} – ${formatWindow(last.data.endsAt)}` : undefined}
       >
         {rows.length === 0 ?
-          <p className="my-4 text-center text-base text-trunks">No race has finished yet.</p>
+          <p className="my-4 text-center text-base text-trunks">
+            {last.data?.endsAt ? 'Nobody placed in this race.' : 'No race has finished yet.'}
+          </p>
         : <PromoTable columns={['Position', 'Player', 'Points', `Prize (${currency})`]} widths={['16%', '38%', '23%', '23%']}>
             {rows.map((row) => (
               <tr key={row.rank}>

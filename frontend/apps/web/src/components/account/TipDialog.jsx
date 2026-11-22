@@ -123,6 +123,8 @@ export function TipDialog({ open, onClose }) {
                   <ul className="grid max-h-40 overflow-y-auto rounded-i-sm bg-goku p-1" aria-label="Matching players">
                     {search.isPending ? (
                       <li className="px-2 py-1.5 text-sm text-trunks">Searching…</li>
+                    ) : search.isError ? (
+                      <li className="px-2 py-1.5 text-sm text-chichi">{search.error?.message || 'Player search failed.'}</li>
                     ) : matches.length === 0 ? (
                       <li className="px-2 py-1.5 text-sm text-trunks">No player by that name accepts tips.</li>
                     ) : (

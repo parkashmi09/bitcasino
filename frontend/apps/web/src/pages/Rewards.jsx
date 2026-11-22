@@ -127,8 +127,13 @@ export function Rewards() {
   const tasks = (wager.data?.tasks ?? []).filter((task) => task.status !== 'complete');
   const programs = RELOAD_PROGRAMS.filter((program) => reload.data?.[program.key]?.enabled);
   // A claimed or lapsed card moves to the claimed history below; the rest can still be taken.
+  // A card past its end date that was never activated cannot be (the backend answers EXPIRED).
+  const now = Date.now();
   const cards = (gifts.data ?? []).filter(
-    (row) => row.usergiftcards?.status !== 'Claimed' && !row.usergiftcards?.expired,
+    (row) =>
+      row.usergiftcards?.status !== 'Claimed' &&
+      !row.usergiftcards?.expired &&
+      !(!row.usergiftcards && row.giftcards?.endDate && new Date(row.giftcards.endDate).getTime() < now),
   );
   const spins = freespins.data ?? [];
   const empty =
