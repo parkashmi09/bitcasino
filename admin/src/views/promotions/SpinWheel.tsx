@@ -32,6 +32,9 @@ import { useLocalList } from './useLocalList'
 
 const PALETTE = ['#22c55e', '#3b82f6', '#a855f7', '#f59e0b', '#ec4899', '#ef4444', '#14b8a6', '#64748b']
 
+// Unsaved segments get a negative id, so React keys stay unique beside the server's positive ids (the save sends no id).
+let newSliceId = 0
+
 const polar = (cx: number, cy: number, r: number, deg: number) => {
   const rad = ((deg - 90) * Math.PI) / 180
 
@@ -57,7 +60,7 @@ const Wheel = ({ slices }: { slices: SpinSlice[] }) => {
         const d = share >= 0.9999 ? 'M100,4 A96,96 0 1,1 99.99,4 Z' : `M100,100 L${a.x},${a.y} A96,96 0 ${large},1 ${b.x},${b.y} Z`
 
         return (
-          <g key={s.id ?? i}>
+          <g key={s.id}>
             <path d={d} fill={s.color || PALETTE[i % PALETTE.length]} stroke='white' strokeWidth='1.5' opacity={s.isBadLuck ? 0.55 : 1} />
             {share > 0.04 && (
               <text x={mid.x} y={mid.y} fontSize='8' fill='white' textAnchor='middle' dominantBaseline='middle' fontWeight='600'>
@@ -256,7 +259,7 @@ const Slices = ({ canWrite }: { canWrite: boolean }) => {
                   const pct = total ? (Math.max(0, s.weight) / total) * 100 : 0
 
                   return (
-                    <div key={i} className='flex items-center gap-2 text-xs'>
+                    <div key={s.id} className='flex items-center gap-2 text-xs'>
                       <span className='size-2.5 shrink-0 rounded-sm' style={{ background: s.color || PALETTE[i % PALETTE.length] }} />
                       <span className='w-20 truncate'>{s.label}</span>
                       <div className='bg-muted h-1.5 grow overflow-hidden rounded'>
@@ -273,7 +276,7 @@ const Slices = ({ canWrite }: { canWrite: boolean }) => {
                 <span>Label</span><span>Reward %</span><span>Weight</span><span>Colour</span><span>Bad luck</span><span />
               </div>
               {draft.map((s, i) => (
-                <div key={i} className='grid grid-cols-2 items-center gap-2 rounded-md border p-2 sm:grid-cols-[1fr_5.5rem_5rem_5rem_4.5rem_6rem] sm:border-0 sm:p-0'>
+                <div key={s.id} className='grid grid-cols-2 items-center gap-2 rounded-md border p-2 sm:grid-cols-[1fr_5.5rem_5rem_5rem_4.5rem_6rem] sm:border-0 sm:p-0'>
                   <Input value={s.label} maxLength={50} disabled={!canWrite} aria-invalid={rowErrors[i]?.includes('label') || undefined} onChange={e => update(i, { label: e.target.value })} />
                   <Input value={s.rewardPct} placeholder='0' disabled={!canWrite} aria-invalid={rowErrors[i]?.includes('reward') || undefined} onChange={e => update(i, { rewardPct: e.target.value })} />
                   <Input type='number' min={0} max={1000000} value={Number.isNaN(s.weight) ? '' : String(s.weight)} disabled={!canWrite} aria-invalid={rowErrors[i]?.includes('weight') || undefined} onChange={e => update(i, { weight: e.target.value === '' ? NaN : Number(e.target.value) })} />
@@ -292,7 +295,7 @@ const Slices = ({ canWrite }: { canWrite: boolean }) => {
               ))}
               {dirty && sliceProblem && <p role='alert' className='text-destructive text-sm'>{sliceProblem}</p>}
               <div className='mt-2 flex flex-wrap justify-between gap-2'>
-                <Button variant='outline' size='sm' disabled={!canWrite || draft.length >= 60} onClick={() => setDraft(d => [...(d ?? []), { label: 'New', rewardPct: '5', color: PALETTE[(d?.length ?? 0) % PALETTE.length], sortOrder: d?.length ?? 0, isBadLuck: false, weight: 10 }])}>
+                <Button variant='outline' size='sm' disabled={!canWrite || draft.length >= 60} onClick={() => setDraft(d => [...(d ?? []), { id: --newSliceId, label: 'New', rewardPct: '5', color: PALETTE[(d?.length ?? 0) % PALETTE.length], sortOrder: d?.length ?? 0, isBadLuck: false, weight: 10 }])}>
                   <PlusIcon /> Add segment
                 </Button>
                 <div className='flex gap-2'>

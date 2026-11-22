@@ -5,6 +5,7 @@ import { MESSAGES } from "../../../lib/constants/messages.mjs";
 import { StaffSportsLock_default } from "../../../models/admin/StaffSportsLock.mjs";
 import { UserSportsLock_default } from "../../../models/admin/UserSportsLock.mjs";
 import { OWNER_UPLINE_NO, uplineNo } from "../../../lib/helper/uplineLevelNo.mjs";
+import { LOCKED_BY_UPLINE, actorLevel, heldAbove, levelToRecord } from "../../../lib/helper/lockLevel.mjs";
 
 import { Op as Op5 } from "sequelize";
 var SportsLockController = {
@@ -56,6 +57,17 @@ var SportsLockController = {
         }
       }
       let lock;
+      const level = actorLevel(req);
+      // isLocked is stored as sent ("false" is false to Postgres), so the check reads it the same way.
+      const locking = [true, "true", 1, "1"].includes(isLocked);
+      // A lock row is lifted only by the level that set it or one above (lib/helper/lockLevel.mjs).
+      const applyTo = async (row) => {
+        if (!locking && heldAbove(row, level)) return false;
+        row.locked_level = locking ? levelToRecord(row, level) : null;
+        row.is_locked = isLocked;
+        await row.save();
+        return true;
+      };
       const sportIdStr = sportId ? String(sportId) : null;
       const seriesIdStr = seriesId ? String(seriesId) : null;
       const matchIdStr = matchId ? String(matchId) : null;
@@ -65,7 +77,8 @@ var SportsLockController = {
         series_id: seriesIdStr,
         match_id: matchIdStr,
         market_id: marketIdStr,
-        is_locked: isLocked
+        is_locked: isLocked,
+        locked_level: locking ? level : null
       };
       const uniqueWhere = {
         sport_id: sportIdStr,
@@ -78,8 +91,7 @@ var SportsLockController = {
         if (req.body.lockType) uniqueWhere.lock_type = req.body.lockType;
         lock = await UserSportsLock_default.findOne({ where: uniqueWhere });
         if (lock) {
-          lock.is_locked = isLocked;
-          await lock.save();
+          if (!await applyTo(lock)) return res.status(403).json({ success: false, message: LOCKED_BY_UPLINE });
         } else {
           lock = await UserSportsLock_default.create({
             ...lockData,
@@ -102,8 +114,7 @@ var SportsLockController = {
         if (req.body.lockType) uniqueWhere.lock_type = req.body.lockType;
         lock = await StaffSportsLock_default.findOne({ where: uniqueWhere });
         if (lock) {
-          lock.is_locked = isLocked;
-          await lock.save();
+          if (!await applyTo(lock)) return res.status(403).json({ success: false, message: LOCKED_BY_UPLINE });
         } else {
           lock = await StaffSportsLock_default.create({
             ...lockData,
@@ -226,7 +237,8 @@ var SportsLockController = {
       return { allowed: true };
     } catch (error) {
       console.error("\u274C checkSportsLock error:", error);
-      return { allowed: true };
+      // Fail closed: a lock that could not be read must not let the bet through (hash allows it; sites refuse).
+      return { allowed: false, message: MESSAGES.BET.LOCK_CHECK_UNAVAILABLE };
     }
   }
 };

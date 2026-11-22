@@ -29,6 +29,8 @@ module.exports = defineErrors('STAFF', {
 
   UNKNOWN_ROLE: { status: 422, message: 'No such role' },
 
+  PERCENTAGE_ABOVE_PARENT: { status: 422, message: 'The partnership percentage cannot be more than the parent account has' },
+
   PASSWORD_CHANGE_REQUIRED: {
     status: 403,
     message: 'Set a new password before doing anything else',

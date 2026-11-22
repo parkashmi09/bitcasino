@@ -266,7 +266,9 @@ test('exchange reports', async (t) => {
     assert.strictEqual(sheet.rows.length, 2);
     assert.strictEqual(sheet.rows[0][0], `rep-playerA-${base}`);
 
-    await assert.rejects(reports.statementBetDetail({ actor: agent, betId: betB }), /not in your tree/);
+    // Another tree's bet answers like a bet id that does not exist (no probing for bet ids).
+    await assert.rejects(reports.statementBetDetail({ actor: agent, betId: betB }), /No bets found for this entry/);
+    await assert.rejects(reports.statementBetDetail({ actor: agent, betId: 987654321987 }), /No bets found for this entry/);
   });
 
   await t.test('party win loss: staff rows at 0, players with their sport pts', async () => {

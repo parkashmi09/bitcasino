@@ -2,6 +2,7 @@
 
 const { Op } = require('@ibitplay/db');
 const { money } = require('@ibitplay/common');
+const { promotionsBlocked } = require('@ibitplay/auth');
 
 const errors = require('./challenges.errors');
 const { STATUS, IN_HOUSE_GAMES, RATES_TTL_MS, NAME_SHOWN } = require('./challenges.constants');
@@ -68,6 +69,8 @@ class ChallengeService {
         raw: true,
       });
       if (!open.length) return;
+      // A prize is a promotion: none for an agent's player or a demo account (or on a B2B site).
+      if (await promotionsBlocked(userId)) return;
 
       const multiplier = dec(money.divide(dec(money.add(String(amount), String(profit ?? '0'))), String(amount)));
       const betUsd = await this.#toUsd(String(amount), coin);

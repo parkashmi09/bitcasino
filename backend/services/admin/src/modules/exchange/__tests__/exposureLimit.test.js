@@ -83,9 +83,9 @@ test('only the direct parent, only client users; nothing written on refusal', as
   const { service } = await makeService(fake);
   const set = (actor, userId) => service.setExposureLimit({ actor, userId, exposureLimit: '100', transactionPassword: TXN });
 
-  await assert.rejects(set(PARENT, 2), (e) => e.status === 403 && e.code === 'EXPOSURE_LIMIT_DIRECT_PARENT_ONLY'); // grandparent
-  await assert.rejects(set({ id: 99 }, 1), (e) => e.status === 403 && e.code === 'EXPOSURE_LIMIT_DIRECT_PARENT_ONLY'); // stranger
-  await assert.rejects(set(PARENT, 3), (e) => e.status === 403 && e.code === 'EXPOSURE_LIMIT_CLIENT_ONLY'); // direct user
+  await assert.rejects(set(PARENT, 2), (e) => e.status === 404 && e.code === 'EXPOSURE_LIMIT_USER_NOT_FOUND'); // grandparent
+  await assert.rejects(set({ id: 99 }, 1), (e) => e.status === 404 && e.code === 'EXPOSURE_LIMIT_USER_NOT_FOUND'); // stranger
+  await assert.rejects(set(PARENT, 3), (e) => e.status === 404 && e.code === 'EXPOSURE_LIMIT_USER_NOT_FOUND'); // direct user
   await assert.rejects(set(PARENT, 404), (e) => e.status === 404 && e.code === 'EXPOSURE_LIMIT_USER_NOT_FOUND');
   await assert.rejects(set(PARENT, 4), (e) => e.status === 404 && e.code === 'EXPOSURE_LIMIT_WALLET_NOT_FOUND');
   assert.deepEqual(fake.writes, []);

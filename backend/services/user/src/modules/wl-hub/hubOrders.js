@@ -15,17 +15,58 @@ const chargeChanged = () => new AppError('The gateway charge for this whitelabel
 const select = (db, sql, replacements, transaction) => db.sequelize.query(sql, { replacements, type: QueryTypes.SELECT, transaction });
 
 /** Record a new pending order. 409 HUB_DUPLICATE_ORDER when the copy already sent this reference. */
-async function open(db, { whitelabelId, provider, flow, reference, copyReference, currency, amount, chargePct }) {
+async function open(db, { whitelabelId, provider, flow, reference, copyReference, currency, amount, chargePct }, transaction) {
   const [row] = await select(
     db,
     `INSERT INTO whitelabel_gateway_orders (whitelabel_id, provider, flow, reference, copy_reference, currency, amount, charge_pct)
      VALUES (:whitelabelId, :provider, :flow, :reference, :copyReference, :currency, :amount, :chargePct)
      ON CONFLICT (whitelabel_id, flow, copy_reference) DO NOTHING
      RETURNING id`,
-    { whitelabelId, provider, flow, reference, copyReference, currency: String(currency).toUpperCase(), amount, chargePct }
+    { whitelabelId, provider, flow, reference, copyReference, currency: String(currency).toUpperCase(), amount, chargePct },
+    transaction
   );
   if (!row) throw duplicate();
   return { id: Number(row.id) };
+}
+
+const balanceLow = (details) =>
+  new AppError('The whitelabel balance held here cannot cover this payout and its charge', 409, 'HUB_BALANCE_LOW', details);
+
+/* What this site holds for the copy, in INR (audit M2): transfers delivered to it, plus gateway
+   deposits it was credited (net of charge), minus every payout not failed (gross of charge). Coins
+   are counted at today's rates; a deposit without a rate counts nothing, a payout without one
+   fails closed. */
+const HELD_SQL = `
+  WITH r AS (SELECT UPPER(currency) AS currency, usd_rate FROM exchangerate),
+       inr AS (SELECT usd_rate FROM r WHERE currency = 'INR'),
+       o AS (
+         SELECT o.flow, o.status, COALESCE(o.settled_amount, o.amount) AS amount, o.charge_pct,
+                CASE WHEN o.currency = 'INR' THEN 1 ELSE r.usd_rate / NULLIF((SELECT usd_rate FROM inr), 0) END AS to_inr
+           FROM whitelabel_gateway_orders o LEFT JOIN r ON r.currency = o.currency
+          WHERE o.whitelabel_id = :whitelabelId)
+  SELECT
+    (SELECT COALESCE(SUM(amount), 0) FROM whitelabel_transfers WHERE whitelabel_id = :whitelabelId AND status = 'done')
+    + COALESCE((SELECT SUM(amount * to_inr * (1 - charge_pct / 100)) FROM o WHERE flow = 'deposit' AND status = 'success'), 0)
+    - COALESCE((SELECT SUM(amount * to_inr * (1 + charge_pct / 100)) FROM o WHERE flow = 'payout' AND status <> 'failed'), 0) AS held,
+    (SELECT COUNT(*) FROM o WHERE flow = 'payout' AND status <> 'failed' AND to_inr IS NULL) AS unpriced,
+    (SELECT CASE WHEN UPPER(:currency) = 'INR' THEN 1 ELSE (SELECT usd_rate FROM r WHERE currency = UPPER(:currency)) / NULLIF((SELECT usd_rate FROM inr), 0) END) AS this_to_inr`;
+
+/**
+ * A payout order, opened only when what this site holds for the copy covers it (audit M2): the
+ * copy's own word that its company balance was debited is not enough. The whitelabel row is locked
+ * for the check and the insert, so two payouts at once cannot both spend the same balance.
+ */
+async function openPayout(db, order) {
+  return db.transaction(async (transaction) => {
+    const [wl] = await select(db, 'SELECT id FROM whitelabels WHERE id = :id FOR UPDATE', { id: order.whitelabelId }, transaction);
+    if (!wl) throw balanceLow({ whitelabelId: order.whitelabelId });
+    const [row] = await select(db, HELD_SQL, { whitelabelId: order.whitelabelId, currency: order.currency }, transaction);
+    if (!row || Number(row.unpriced) > 0 || row.this_to_inr == null) throw balanceLow({ reason: 'unpriced' });
+    const needed = Number(order.amount) * Number(row.this_to_inr) * (1 + Number(order.chargePct ?? 0) / 100);
+    // shortcut: float compare of NUMERIC sums, fine at paisa scale; move to money.* if amounts reach 1e12.
+    if (!(Number(row.held) + 1e-6 >= needed)) throw balanceLow({ held: String(row.held), needed: needed.toFixed(2) });
+    return open(db, { ...order, flow: 'payout' }, transaction);
+  });
 }
 
 async function attach(db, id, providerReference) {
@@ -102,4 +143,4 @@ async function byCopyReference(db, whitelabelId, flow, copyReference) {
   return row ? { status: row.status, reference: row.reference, providerReference: row.provider_reference, amount: money.fromStored(row.amount), currency: row.currency } : null;
 }
 
-module.exports = { open, attach, failNow, forCallback, settle, receive, byCopyReference, chargeChanged };
+module.exports = { open, openPayout, attach, failNow, forCallback, settle, receive, byCopyReference, chargeChanged };

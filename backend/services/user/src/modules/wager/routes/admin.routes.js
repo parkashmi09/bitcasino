@@ -2,7 +2,7 @@
 
 const { Router } = require('express');
 const { validate, createActivityRecorder } = require('@ibitplay/common');
-const { PERMISSIONS } = require('@ibitplay/auth');
+const { PERMISSIONS, denyAgentTree } = require('@ibitplay/auth');
 
 const v = require('../wager.validators');
 const { WagerService } = require('../wager.service');
@@ -52,9 +52,11 @@ module.exports = function adminRoutes(deps) {
     ctrl.setLock
   );
 
+  // Writes every player on the site: house-only, the agent tree's users:write is for its own players.
   router.post(
     '/bulk/multiplier',
     auth.requirePermission(PERMISSIONS.USERS_WRITE),
+    denyAgentTree({ code: 'WAGER_BULK_HOUSE_ONLY', message: 'The site-wide wager multiplier is set by the Super Admin, not agent accounts' }),
     validate(v.setForAll),
     withActivity({
       action: 'wager.bulk-multiplier',

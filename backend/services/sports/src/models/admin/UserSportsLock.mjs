@@ -37,6 +37,11 @@ var UserSportsLock = db_default.define("UserSportsLock", {
   is_locked: {
     type: DataTypes28.BOOLEAN,
     defaultValue: true
+  },
+  // migration 192: the staff level that set the lock; only that level or above lifts it
+  locked_level: {
+    type: DataTypes28.SMALLINT,
+    allowNull: true
   }
 }, {
   tableName: "user_sports_lock",

@@ -2,6 +2,7 @@
 import { User_default } from "../../../models/user/User.mjs";
 import { Staff_default } from "../../../models/admin/Staff.mjs";
 import { UserEventMarketLocks_default } from "../../../models/admin/UserEventMarketLocks.mjs";
+import { LOCKED_BY_UPLINE, actorLevel, heldAbove, levelToRecord } from "../../../lib/helper/lockLevel.mjs";
 
 import { Op as Op14 } from "sequelize";
 var toBool = (value) => {
@@ -109,6 +110,7 @@ var toggleMarketLock = async (req, res) => {
       return errorResponse(res, "account_type must be 'staff' or 'user'", 400);
     }
     const lock = toBool(is_locked);
+    const level = actorLevel(req);
     const findWhere = {
       account_id,
       account_type,
@@ -121,15 +123,19 @@ var toggleMarketLock = async (req, res) => {
         defaults: {
           is_locked: true,
           locked_by: loggedInId,
+          locked_level: level,
           market_id: market_id ? String(market_id) : null,
           market_name: market_name || null
         }
       });
       if (!created) {
-        await record.update({ is_locked: true, locked_by: loggedInId });
+        const keep = levelToRecord(record, level);
+        await record.update({ is_locked: true, locked_level: keep, ...keep === level ? { locked_by: loggedInId } : {} });
       }
       return successResponse(res, "Market locked successfully", record);
     } else {
+      const held = await UserEventMarketLocks_default.findAll({ where: findWhere, raw: true });
+      if (held.some((l) => heldAbove(l, level))) return errorResponse(res, LOCKED_BY_UPLINE, 403);
       await UserEventMarketLocks_default.destroy({ where: findWhere });
       return successResponse(res, "Market unlocked successfully");
     }
@@ -150,28 +156,40 @@ var bulkToggleMarketLock = async (req, res) => {
       return errorResponse(res, "market_id or market_name is required", 400);
     }
     const lock = toBool(is_locked);
+    const level = actorLevel(req);
+    const whereOf = (acc) => ({
+      account_id: acc.account_id,
+      account_type: acc.account_type,
+      event_id: String(event_id),
+      ...market_id ? { market_id: String(market_id) } : { market_name }
+    });
+    // Checked for every account before any is touched, so a refused unlock changes nothing.
+    if (!lock) {
+      for (const acc of accounts) {
+        if (!acc?.account_id || !acc?.account_type) continue;
+        const held = await UserEventMarketLocks_default.findAll({ where: whereOf(acc), raw: true });
+        if (held.some((l) => heldAbove(l, level))) return errorResponse(res, LOCKED_BY_UPLINE, 403);
+      }
+    }
     let processed = 0;
     for (const acc of accounts) {
       const { account_id, account_type } = acc;
       if (!account_id || !account_type) continue;
-      const findWhere = {
-        account_id,
-        account_type,
-        event_id: String(event_id),
-        ...market_id ? { market_id: String(market_id) } : { market_name }
-      };
+      const findWhere = whereOf(acc);
       if (lock) {
         const [record, created] = await UserEventMarketLocks_default.findOrCreate({
           where: findWhere,
           defaults: {
             is_locked: true,
             locked_by: loggedInId,
+            locked_level: level,
             market_id: market_id ? String(market_id) : null,
             market_name: market_name || null
           }
         });
         if (!created) {
-          await record.update({ is_locked: true, locked_by: loggedInId });
+          const keep = levelToRecord(record, level);
+          await record.update({ is_locked: true, locked_level: keep, ...keep === level ? { locked_by: loggedInId } : {} });
         }
       } else {
         await UserEventMarketLocks_default.destroy({ where: findWhere });

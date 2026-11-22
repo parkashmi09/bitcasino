@@ -84,17 +84,50 @@ const ownOf = (column) =>
  * @param {Record<string, boolean>} changes lock column → locked; other keys ignored.
  * @returns {import('sequelize').Utils.Literal|null} null when no lock column changes.
  */
-function directSources(changes) {
+function directSources(changes, levels = {}) {
   const columns = Object.keys(changes).filter((c) => LOCK_COLUMNS.includes(c));
   if (!columns.length) return null;
 
   let expr = SOURCES;
   for (const column of columns) {
+    // `level`: the highest staff level (smallest number) that set this direct lock — see `upheldAbove`.
+    const level = Number.isInteger(levels[column]) ? `, 'level', ${levels[column]}` : '';
     expr = changes[column]
-      ? `jsonb_set(${expr}, '{${column}}', jsonb_build_object('own', true, 'by', ${byOf(column)}))`
+      ? `jsonb_set(${expr}, '{${column}}', jsonb_build_object('own', true, 'by', ${byOf(column)}${level}))`
       : `jsonb_set(${expr}, '{${column}}', '{"own": false, "by": []}'::jsonb)`;
   }
   return literal(expr);
+}
+
+/**
+ * A lock is lifted only by the level that set it, or one above (user, 2026-11-22). For a direct
+ * change on `row` by a caller at `actorLevel` whose tree is `tree` (staff ids):
+ *
+ *   blocked — columns being UNLOCKED that a higher level holds: a direct lock whose recorded
+ *             `level` is above the caller's, or a cascade from an agent outside the caller's tree
+ *             (an upline). A row from before `level` was recorded says nothing and is not blocked.
+ *   levels  — for columns being LOCKED, the level to record: an existing higher one is kept, so a
+ *             lower agent cannot re-lock to take ownership of its upline's lock.
+ */
+function upheldAbove(row, changes, actorLevel, tree) {
+  const sources = row?.lock_sources ?? {};
+  const inTree = new Set((tree ?? []).map(Number));
+  const blocked = [];
+  const levels = {};
+  for (const [column, locked] of Object.entries(changes)) {
+    if (!LOCK_COLUMNS.includes(column)) continue;
+    const entry = sources[column] ?? {};
+    const set = Boolean(row?.[column]);
+    const recorded = set && entry.own !== false && Number.isInteger(entry.level) ? entry.level : null;
+    if (locked) {
+      if (Number.isInteger(actorLevel)) levels[column] = recorded == null ? actorLevel : Math.min(recorded, actorLevel);
+      continue;
+    }
+    if (!set) continue;
+    const upline = (Array.isArray(entry.by) ? entry.by : []).some((key) => !inTree.has(Number(String(key).replace(/^suspend:/, ''))));
+    if ((recorded != null && Number.isInteger(actorLevel) && recorded < actorLevel) || upline) blocked.push(column);
+  }
+  return { blocked, levels };
 }
 
 /**
@@ -124,4 +157,4 @@ function cascadeUpdate(changes, agentId, { kind = CASCADE_KINDS.LOCK } = {}) {
   return set;
 }
 
-module.exports = { LOCK_COLUMNS, CASCADE_KINDS, directSources, cascadeUpdate };
+module.exports = { LOCK_COLUMNS, CASCADE_KINDS, directSources, cascadeUpdate, upheldAbove };

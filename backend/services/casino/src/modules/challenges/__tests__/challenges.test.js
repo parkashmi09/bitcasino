@@ -67,3 +67,17 @@ test('a player wins a challenge once, and the winner count caps it', async () =>
 test('names are masked on the public list', () => {
   assert.equal(maskName('demoplayer'), 'demo...');
 });
+
+test('an agent player or demo account wins nothing (promotionsBlocked)', async (t) => {
+  const { configureAgentPlayers, resetAgentPlayers } = require('@ibitplay/auth');
+  configureAgentPlayers({ isAgentPlayer: async (id) => String(id) === '8', isDemoPlayer: async (id) => String(id) === '9' });
+  t.after(resetAgentPlayers);
+  const { svc, winners, credits } = service({ challenge: base });
+  const big = { game: 'limbo', coin: 'INR', amount: '200', profit: '29800' };
+  await svc.onSettled({ ...big, userId: '8', betId: 'b1' });
+  await svc.onSettled({ ...big, userId: '9', betId: 'b2' });
+  assert.equal(winners.length, 0);
+  assert.equal(credits.length, 0);
+  await svc.onSettled({ ...big, userId: '7', betId: 'b3' });
+  assert.equal(winners.length, 1);
+});

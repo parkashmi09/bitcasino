@@ -16,7 +16,8 @@ const paging = z.object({
 const amount = z
   .string({ error: (iss) => (iss.code === 'invalid_type' && iss.input !== undefined ? 'send the amount as a string, not a number' : undefined) })
   .trim()
-  .regex(/^\d+(\.\d{1,8})?$/, 'must be a positive decimal with at most 8 decimal places')
+  // INR moves to the paisa: a sub-paisa amount drifts credits from the 2-decimal point ledger.
+  .regex(/^\d+(\.\d{1,2})?$/, 'must be a positive amount with at most 2 decimal places')
   .refine((v) => Number.parseFloat(v) > 0, 'amount must be greater than zero');
 
 /** A limit may be zero — that is how an operator switches one off. */

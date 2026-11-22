@@ -2,6 +2,9 @@
 
 const { Op, fn, col, literal } = require('sequelize');
 const { money } = require('@ibitplay/common');
+const { effectiveStaffLevel } = require('@ibitplay/auth');
+// The users/staff lock columns and their `lock_sources` record are admin-service's (locks module); one rule for both services.
+const { directSources, upheldAbove } = require('../../../../admin/src/modules/locks/lockSources');
 
 const errors = require('./betAdmin.errors');
 const { BET_STATUS } = require('./bets.constants');
@@ -265,8 +268,8 @@ class BetAdminService {
         attributes: ['id'],
         raw: true,
       });
-      if (!user) throw errors.USER_NOT_FOUND({ username });
-      if (!scope.includes(String(user.id))) throw errors.NOT_IN_YOUR_TREE({ username });
+      // One answer for "no such player" and "not yours": the code must not say which.
+      if (!user || !scope.includes(String(user.id))) throw errors.NOT_IN_YOUR_TREE({ username });
       scope = [String(user.id)];
     }
 
@@ -356,11 +359,16 @@ class BetAdminService {
     const visible = await this.#visibleUserIds(staff);
     if (!visible.map(String).includes(String(userId))) throw errors.NOT_IN_YOUR_TREE({ userId });
 
-    const [affected] = await this.models.Users.update(
-      { sports_betlocked: locked },
-      { where: { id: userId } }
-    );
-    if (!affected) throw errors.USER_NOT_FOUND({ userId });
+    // A lock is lifted only by the level that set it or one above (lockSources `upheldAbove`).
+    const changes = { sports_betlocked: Boolean(locked) };
+    const tree = (await this.#staffScope(staff)).filter((id) => Number(id) !== Number(staff.id));
+    await this.db.transaction(async (transaction) => {
+      const row = await this.models.Users.findOne({ where: { id: userId }, attributes: ['sports_betlocked', 'lock_sources'], transaction, lock: transaction.LOCK.UPDATE, raw: true });
+      if (!row) throw errors.USER_NOT_FOUND({ userId });
+      const { blocked, levels } = upheldAbove(row, changes, effectiveStaffLevel(staff), tree);
+      if (blocked.length) throw errors.LOCKED_BY_UPLINE({ userId });
+      await this.models.Users.update({ ...changes, lock_sources: directSources(changes, levels) }, { where: { id: userId }, transaction });
+    });
 
     this.logger?.warn(
       { userId, locked, staffId: staff?.id },
@@ -426,18 +434,7 @@ class BetAdminService {
   }
 
   async #visibleUserIds(staff) {
-    let staffIds;
-    try {
-      const result = await this.clients.admin.get(
-        `/internal/admin/staff-directory/staff/${staff.id}/descendants`
-      );
-      staffIds = result?.ids ?? result?.data?.ids;
-    } catch (error) {
-      this.logger?.error({ err: error, staffId: staff?.id }, 'Could not resolve the staff reporting scope');
-      throw errors.VISIBILITY_UNAVAILABLE();
-    }
-
-    if (!Array.isArray(staffIds) || !staffIds.length) throw errors.VISIBILITY_UNAVAILABLE();
+    const staffIds = await this.#staffScope(staff);
 
     // The platform owner also sees players with no assigned staff, which is
     // what the legacy `isSuperAdmin` branch did.
@@ -452,6 +449,23 @@ class BetAdminService {
     });
 
     return users.map((u) => u.id);
+  }
+
+  /** The staff ids in the caller's tree (the caller included). */
+  async #staffScope(staff) {
+    let staffIds;
+    try {
+      const result = await this.clients.admin.get(
+        `/internal/admin/staff-directory/staff/${staff.id}/descendants`
+      );
+      staffIds = result?.ids ?? result?.data?.ids;
+    } catch (error) {
+      this.logger?.error({ err: error, staffId: staff?.id }, 'Could not resolve the staff reporting scope');
+      throw errors.VISIBILITY_UNAVAILABLE();
+    }
+
+    if (!Array.isArray(staffIds) || !staffIds.length) throw errors.VISIBILITY_UNAVAILABLE();
+    return staffIds;
   }
 
   async #namesFor(ids) {

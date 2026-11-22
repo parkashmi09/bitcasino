@@ -445,7 +445,7 @@ export function saveEntitlements(
       ...(coins !== undefined ? { coins } : {})
     }
 
-    const entry: AuditEntry = { at: doc.updatedAt, user, version: doc.version, changes, ...(seededFrom ? { seededFrom } : {}) }
+    const entry: AuditEntry = { at: doc.updatedAt, user, version: doc.version, changes: wellFormed(changes), ...(seededFrom ? { seededFrom } : {}) }
 
     // `issuedAt` is inside the signed data, so a captured request goes stale instead of being
     // replayable later (the backend refuses one older than OWNER_MAX_AGE_SECONDS).
@@ -469,8 +469,14 @@ export function saveEntitlements(
 }
 
 export async function readAudit(limit = 500): Promise<AuditEntry[]> {
-  return (await ownerJson<{ entries: AuditEntry[] }>(`/audit?limit=${limit}`)).entries
+  const { entries } = await ownerJson<{ entries: AuditEntry[] }>(`/audit?limit=${limit}`)
+
+  return (entries ?? []).map(e => ({ ...e, changes: wellFormed(e.changes) }))
 }
+
+/** Only change objects with a string `key` and `kind`: a malformed row is dropped, never rendered or stored. */
+export const wellFormed = (changes: unknown): Change[] =>
+  Array.isArray(changes) ? (changes as Array<Partial<Record<'key' | 'kind', unknown>> | null>).filter(c => typeof c?.key === 'string' && typeof c.kind === 'string') as Change[] : []
 
 /** Contract §3: hex HMAC-SHA256 of JSON.stringify(data) with OWNER_SHARED_SECRET. */
 export function signDoc(doc: object) {

@@ -170,12 +170,14 @@ class AuthService {
     /* B2B and B2C sign in on their own side only (user, 2026-11-15): an agent's player (any
        `parent_staff_id`, the agentPlayers.js rule) on /agent, a direct player on the main site.
        Answered as a plain failed login (user, 2026-11-15): nothing says which side the account is on. */
-    if (site) {
+    {
+      // A missing `site` is the main site: leaving it out must not let an agent's player in there.
+      const side = site === 'agent' ? 'agent' : 'direct';
       const agentPlayer = user.parent_staff_id !== null && user.parent_staff_id !== undefined && user.parent_staff_id !== '';
-      if (site === 'agent' && !agentPlayer) {
+      if (side === 'agent' && !agentPlayer) {
         throw errors.INVALID_CREDENTIALS();
       }
-      if (site === 'direct' && agentPlayer) {
+      if (side === 'direct' && agentPlayer) {
         throw errors.INVALID_CREDENTIALS();
       }
     }

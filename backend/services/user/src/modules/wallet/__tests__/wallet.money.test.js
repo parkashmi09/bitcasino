@@ -393,7 +393,7 @@ test('wallet money guarantees', async (t) => {
     assert.equal(byCode.USDT.balanced, false);
     assert.equal(byCode.USDT.drift, '2.00000000');
     // Each entry keeps the single-currency shape.
-    assert.deepEqual(Object.keys(byCode.INR).sort(), ['balance', 'balanced', 'currency', 'drift', 'ledgerSum', 'userId']);
+    assert.deepEqual(Object.keys(byCode.INR).sort(), ['balance', 'balanced', 'currency', 'drift', 'ledgerSum', 'sportsSum', 'userId']);
 
     // The route's validator: no currency is accepted now, a junk one still a 422.
     assert.equal(v.adminReconcile.query.safeParse({}).success, true);

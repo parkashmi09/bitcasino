@@ -3,7 +3,7 @@
 const crypto = require('crypto');
 const { Op } = require('sequelize');
 
-const { AppError, featureCatalogue, featureOptions, regionPolicy, withdrawalCap, withdrawalDailyLimit, paymentMethods, whitelabelPlan } = require('@ibitplay/common');
+const { AppError, featureCatalogue, featureOptions, regionPolicy, withdrawalCap, withdrawalDailyLimit, paymentMethods, whitelabelPlan, DEFAULT_CURRENCY, REWARD_CURRENCY } = require('@ibitplay/common');
 const { cleanBranding } = require('../branding/branding.rules');
 
 /**
@@ -204,6 +204,25 @@ const refuse = (status, code, message) => new AppError(message, status, code);
  * @param {object}   options.db       the connection: `models.OwnerEntitlement`, `models.OwnerAudit`, `sequelize`
  * @param {Function} [options.onChange] called with `current()` on a new version
  */
+/* The owner panel's `Fiat currencies` flag group: every other coin sits under the crypto master. */
+const FIAT_COIN_FLAGS = new Set(['inr', 'mvr', 'aed', 'pkr', 'bdt', 'npr', 'eur', 'idr']);
+
+/**
+ * The default coin and the reward coin must be coins the plan offers (the owner panel's own save
+ * check, repeated here so a document from any panel is held to it): a switched-off coin would open
+ * every money screen, and value every promotion, in a currency players cannot hold. A missing
+ * variant is the catalogue default (USDT). Null = fine, else the refusal text.
+ */
+function switchedOffMoneyCoin({ flags = {}, variants }) {
+  const picks = { default_currency: DEFAULT_CURRENCY, reward_currency: REWARD_CURRENCY };
+  for (const [key, fallback] of Object.entries(picks)) {
+    const coin = String(variants?.[key] ?? fallback).toLowerCase();
+    const off = flags[coin] === false || (!FIAT_COIN_FLAGS.has(coin) && flags.cryptocoin === false);
+    if (off) return `${key} is ${coin.toUpperCase()}, but that coin is switched off in this document (${flags[coin] === false ? coin : 'cryptocoin'})`;
+  }
+  return null;
+}
+
 function createEntitlementsStore({ config, logger, db, onChange: initialOnChange }) {
   const secret = config.OWNER_SHARED_SECRET || null;
   const intervalMs = Math.max(1, Number(config.OWNER_POLL_SECONDS) || 15) * 1000;
@@ -293,6 +312,8 @@ function createEntitlementsStore({ config, logger, db, onChange: initialOnChange
     if (doc && next.version <= doc.version) throw refuse(409, 'VERSION_CONFLICT', `Version ${next.version} is not newer than the stored version ${doc.version}`);
     const site = expectedSite ?? doc?.site ?? null;
     if (site && next.site !== site) throw refuse(409, 'WRONG_SITE', `The document is for site "${next.site}", not "${site}"`);
+    const offCoin = switchedOffMoneyCoin(next);
+    if (offCoin) throw refuse(422, 'VALIDATION_ERROR', offCoin);
     return next;
   }
 
@@ -393,4 +414,4 @@ function createEntitlementsStore({ config, logger, db, onChange: initialOnChange
   };
 }
 
-module.exports = { createEntitlementsStore, verifySignature, sign };
+module.exports = { createEntitlementsStore, verifySignature, sign, switchedOffMoneyCoin };

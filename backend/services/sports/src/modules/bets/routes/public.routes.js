@@ -6,6 +6,7 @@ const { refuseCustomCurrencies } = require('@ibitplay/common');
 const { lazy } = require('../../../lib/mssports');
 const { sportsEnabled } = require('../../../lib/sportsEnabled');
 const { BetAdminService } = require('../../bet-admin/betAdmin.service');
+const { responsibleStake } = require('../responsibleStake');
 
 /**
  * mssports `api/bets.api.js`, route for route (same path, same middleware, same handler).
@@ -35,14 +36,16 @@ module.exports = function publicRoutes(deps) {
   const Exposure = (name) => lazy((m) => m.ExposureController[name]);
   const Cricket = (name) => lazy((m) => m.CricketController[name]);
   const enabled = sportsEnabled(deps);
+  // The player's own breaks / wager / loss limits, before any stake is taken (fancy rides /place too).
+  const responsible = responsibleStake(deps);
 
   router.use(refuseCustomCurrencies('SPORTS'));
 
   // ── place / cancel ──────────────────────────────────────────────────
-  router.post('/place', enabled, authMiddleware, lazy((m) => m.placeBetBuffered));
+  router.post('/place', enabled, authMiddleware, responsible, lazy((m) => m.placeBetBuffered));
   // What happened to a bet the page lost track of (reload mid-buffer).
   router.get('/bet-result/:client_ref', authMiddleware, lazy((m) => m.getBetResult));
-  router.post('/place-combined', enabled, authMiddleware, controller('placeCombinedBet'));
+  router.post('/place-combined', enabled, authMiddleware, responsible, controller('placeCombinedBet'));
   router.post('/cancel-bet', authMiddleware, controller('cancelBet'));
 
   /* These routes take `user_id` from the query/body (the TENEXCH shape the frontend sends). A

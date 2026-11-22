@@ -119,6 +119,7 @@ var MESSAGES = {
     NEED_SPECIAL_CHAR: "Password must contain at least one special character"
   },
   BET: {
+    LOCK_CHECK_UNAVAILABLE: "Could not check the market locks. Please try again.",
     // Bet lock on the player or any staff above them — sports
     // placeBet (services/BetLockService.js). Also the forceLogout toast.
     LOCKED_CONTACT_UPLINE: "Bet is locked. Please contact upper level 1.",

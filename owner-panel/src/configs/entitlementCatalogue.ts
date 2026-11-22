@@ -811,9 +811,10 @@ export const FLAG_LABELS: Record<string, string> = {
   home_promocards: 'Promo cards'
 }
 
-export const flagLabel = (key: string) => FLAG_LABELS[key] ?? key.replace(/^home_/, '').replace(/[_-]+/g, ' ').replace(/\b\w/g, c => c.toUpperCase())
+// An audit row from an older or foreign writer can lack `key`: a fallback label, never a throw.
+export const flagLabel = (key: string) => typeof key !== 'string' ? '(unknown)' : FLAG_LABELS[key] ?? key.replace(/^home_/, '').replace(/[_-]+/g, ' ').replace(/\b\w/g, c => c.toUpperCase())
 
-export const featureLabel = (key: string) => FEATURE_CATALOGUE.find(f => f.key === key)?.label ?? key
+export const featureLabel = (key: string) => (typeof key !== 'string' ? '(unknown)' : (FEATURE_CATALOGUE.find(f => f.key === key)?.label ?? key))
 
 export const featureByKey = (key: string) => FEATURE_CATALOGUE.find(f => f.key === key) ?? null
 
@@ -890,6 +891,7 @@ export const FEATURE_OPTIONS: Record<string, OptionEntry[]> = {
 export const optionsOf = (feature: string) => FEATURE_OPTIONS[feature] ?? []
 
 export const optionLabel = (key: string) => {
+  if (typeof key !== 'string') return '(unknown)'
   const [feature, option] = key.split('.')
 
   return `${featureLabel(feature)}: ${optionsOf(feature).find(o => o.key === option)?.label ?? option}`

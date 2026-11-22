@@ -124,7 +124,7 @@ class TwoFactorService {
     // cannot enrol the attacker's authenticator and lock the real owner out. `disable` already does this.
     const account = await this.models.Users.findByPk(userId);
     const passwordOk = account?.password ? await verifyPassword(password, account.password) : false;
-    if (!passwordOk) throw errors.PASSWORD_REQUIRED();
+    if (!passwordOk) throw errors.SETUP_PASSWORD_REQUIRED();
 
     const secret = this.#openSecret(row.secret_key);
     if (!secret) throw errors.NOT_INITIATED();

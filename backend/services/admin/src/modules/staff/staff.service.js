@@ -227,6 +227,15 @@ class StaffService {
       this.#assertLevelBelow(parentLevel, level, 'below the account it reports to');
     }
 
+    // A child's partnership share is carved out of its parent's: never more than the parent holds.
+    // A parent with no percentage sets no cap: null, or 0 (the column's default, the Super Admin's).
+    if (percentage != null) {
+      const above = await this.models.Staff.findByPk(parent, { attributes: ['percentage'], raw: true, transaction: outer });
+      if (Number(above?.percentage) > 0 && Number(percentage) > Number(above.percentage)) {
+        throw errors.PERCENTAGE_ABOVE_PARENT({ percentage: String(percentage), parentPercentage: String(above.percentage) });
+      }
+    }
+
     const existing = await this.models.Staff.findOne({ where: { email }, raw: true, transaction: outer });
     if (existing) throw errors.NOT_PERMITTED({ reason: 'that email is already in use' });
 
