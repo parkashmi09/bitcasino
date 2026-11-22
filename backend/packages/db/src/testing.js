@@ -28,6 +28,29 @@ async function idBlock(sequelize, kind) {
   return Number(row.id);
 }
 
+/**
+ * Run the deletes in their order. A foreign key between two dependent tables (gis_transactions →
+ * gis_sessions) can refuse one until the other has gone, so a refused delete is retried on the
+ * next pass, while any pass still makes progress.
+ */
+async function runDeletes(sequelize, steps) {
+  let pending = [...steps].sort((a, b) => a.order - b.order);
+  let failures = [];
+  while (pending.length) {
+    failures = [];
+    for (const step of pending) {
+      try {
+        await sequelize.query(step.sql, { replacements: { ids: step.ids } });
+      } catch (error) {
+        failures.push({ step, error });
+      }
+    }
+    if (failures.length === pending.length) break;
+    pending = failures.map((f) => f.step);
+  }
+  if (failures.length && failures.length === pending.length) throw failures[0].error;
+}
+
 /** Columns that hold a player's or a staff account's id, wherever a module keeps one. */
 const OWNER_COLUMNS = {
   users: ['uid', 'user_id', 'userid', 'from_user_id', 'to_user_id'],
@@ -75,11 +98,44 @@ async function purgeBlocks(sequelize, blocks) {
       }
       steps.push({ order: kind === 'users' ? 1 : 2, sql: `DELETE FROM "public"."${kind}" WHERE id::text IN (:ids)`, ids: owned[kind] });
     }
-    steps.sort((a, b) => a.order - b.order);
-    for (const { sql, ids: list } of steps) await sequelize.query(sql, { replacements: { ids: list } });
+    await runDeletes(sequelize, steps);
   } catch (error) {
     console.error(`purgeBlocks: fixtures left behind (${error.message})`);
   }
 }
 
-module.exports = { idBlock, purgeBlocks, BLOCK };
+/**
+ * Ids at or above these are fixtures in the TEST database (the only seeded rows are the platform
+ * root, staff 1, and a handful of low ids); every pid-based range and every block sits above them.
+ */
+const FIXTURE_FLOORS = { users: 1_000_000, staff: 100_000 };
+
+/**
+ * Before a suite run: delete every fixture row earlier runs left behind (cut-off runs, files that
+ * do not clean up, other sites' runs on the same database). Most files still derive ids from
+ * `process.pid`, so a leftover on one of those ids is what made a random handful of files fail
+ * each run. Refuses any database whose name does not say it is a test one.
+ */
+async function sweepFixtures(sequelize) {
+  const [[{ name }]] = await sequelize.query('SELECT current_database() AS name');
+  if (!/test/i.test(name)) throw new Error(`sweepFixtures: refusing to sweep "${name}", not a test database`);
+
+  const columns = await sequelize.query(COLUMNS_SQL, {
+    replacements: { cols: [...OWNER_COLUMNS.users, ...OWNER_COLUMNS.staff] },
+    type: 'SELECT',
+  });
+  const steps = [];
+  for (const kind of ['users', 'staff']) {
+    const floor = FIXTURE_FLOORS[kind];
+    for (const { s, t, col, type } of columns) {
+      if (!OWNER_COLUMNS[kind].includes(col)) continue;
+      // A text column can hold anything; only an all-digit value is cast.
+      const value = /char|text/.test(type) ? `(CASE WHEN "${col}" ~ '^[0-9]{1,19}$' THEN "${col}"::numeric END)` : `"${col}"`;
+      steps.push({ order: t === 'users' ? 1 : t === 'staff' ? 2 : 0, sql: `DELETE FROM "${s}"."${t}" WHERE ${value} >= ${floor}` });
+    }
+    steps.push({ order: kind === 'users' ? 1 : 2, sql: `DELETE FROM "public"."${kind}" WHERE id >= ${floor}` });
+  }
+  await runDeletes(sequelize, steps);
+}
+
+module.exports = { idBlock, purgeBlocks, sweepFixtures, BLOCK };

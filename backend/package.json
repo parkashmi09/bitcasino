@@ -29,7 +29,7 @@
     "staff:2fa:bootstrap": "node scripts/bootstrap-staff-2fa.js",
     "db:verify": "node packages/db/src/cli.js verify",
     "db:generate-models": "node packages/db/tools/generate-models.js",
-    "test": "node --env-file-if-exists=.env --test --test-concurrency=1 \"packages/*/__tests__/*.test.js\" \"services/*/src/modules/**/__tests__/*.test.js\" \"gateway/src/__tests__/*.test.js\" \"tools/__tests__/*.test.js\"",
+    "test": "node --env-file-if-exists=.env --test --test-concurrency=1 --test-global-setup=tools/test-global-setup.js \"packages/*/__tests__/*.test.js\" \"services/*/src/modules/**/__tests__/*.test.js\" \"gateway/src/__tests__/*.test.js\" \"tools/__tests__/*.test.js\"",
     "start:user": "node services/user/src/index.js",
     "start:admin": "node services/admin/src/index.js",
     "start:casino": "node services/casino/src/index.js",
