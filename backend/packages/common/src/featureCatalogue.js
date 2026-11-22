@@ -680,6 +680,23 @@ const LIVE_TV = {
 };
 
 /**
+ * The Bonus Centre block (rakeback, recurring bonuses with countdowns, the player's codes and recent events),
+ * a switch of its own so an owner can hide it while keeping `bonus` (redeem, VIP rewards) on (owner, 2026-11-22).
+ * Hand-written like LIVE_TV. On by default: migration 191 writes the row, so existing sites keep the block.
+ */
+const BONUS_CENTRE = {
+  key: 'bonus_centre',
+  label: 'Bonus centre block',
+  category: 'engagement',
+  flag: null,
+  defaultVariant: 'block',
+  variants: [
+    { key: 'block', label: 'Bonus centre block', description: "Rakeback, recurring bonuses with socket countdowns, the player's codes and recent events. Needs the Bonus feature on too." },
+    { key: 'none', label: 'Off', description: 'No bonus centre block; redeem codes and other bonus surfaces stay as the Bonus feature says.' },
+  ],
+};
+
+/**
  * Business policies — hand-written, like the integration above.
  *
  * `kind: 'policy'` means always in force: there is no on/off switch, only the
@@ -1051,7 +1068,7 @@ const GOOGLE_SIGNIN_POLICY = {
   ],
 };
 
-const FEATURES = Object.freeze([...POLICIES, REWARD_CURRENCY_POLICY, DEFAULT_CURRENCY_POLICY, REGION_RESTRICTION_POLICY, WITHDRAWAL_REQUIREMENTS_POLICY, CASINO_AGGREGATOR_POLICY, THEME_MODE_POLICY, ADMIN_THEME_POLICY, SLOTEGRATOR_INR_AS_PKR_POLICY, JSGAMES_INR_AS_PKR_POLICY, API_ENCRYPTION_POLICY, RATE_LIMIT_POLICY, BRANCH_MANAGEMENT_POLICY, WHITELABEL_POLICY, DEPOSIT_EMAIL_VERIFICATION_POLICY, GOOGLE_SIGNIN_POLICY, ...GENERATED, TIPS, P2P, PUSH_NOTIFICATIONS, ANALYTICS, LIVE_TV]);
+const FEATURES = Object.freeze([...POLICIES, REWARD_CURRENCY_POLICY, DEFAULT_CURRENCY_POLICY, REGION_RESTRICTION_POLICY, WITHDRAWAL_REQUIREMENTS_POLICY, CASINO_AGGREGATOR_POLICY, THEME_MODE_POLICY, ADMIN_THEME_POLICY, SLOTEGRATOR_INR_AS_PKR_POLICY, JSGAMES_INR_AS_PKR_POLICY, API_ENCRYPTION_POLICY, RATE_LIMIT_POLICY, BRANCH_MANAGEMENT_POLICY, WHITELABEL_POLICY, DEPOSIT_EMAIL_VERIFICATION_POLICY, GOOGLE_SIGNIN_POLICY, ...GENERATED, TIPS, P2P, PUSH_NOTIFICATIONS, ANALYTICS, LIVE_TV, BONUS_CENTRE]);
 
 /**
  * Site templates — the bundles the OWNER picks for a site (docs/OWNER-PANEL.md
