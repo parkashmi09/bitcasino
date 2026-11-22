@@ -17,6 +17,7 @@ const fs = require('fs');
 const path = require('path');
 const dotenv = require('dotenv');
 const { z } = require('zod');
+require('./zod3Compat'); // installs zod 3's messages as the zod 4 locale
 
 /** Walk up from `startDir` looking for the workspace root (the dir holding package.json with workspaces). */
 function findRepoRoot(startDir) {
@@ -95,7 +96,7 @@ const coercers = {
 
   secret: (minLength = 32) =>
     z
-      .string({ required_error: 'is required' })
+      .string({ error: (iss) => (iss.code === 'invalid_type' && iss.input === undefined ? 'is required' : undefined) })
       .min(minLength, `must be at least ${minLength} characters`),
 };
 

@@ -51,7 +51,7 @@ const content = {
   badgeUrl: mediaUrl.nullish(),
   url: clickUrl.nullish(),
   buttons: z.array(button).max(MAX_BUTTONS).default([]),
-  data: z.record(z.union([z.string().max(500), z.number(), z.boolean()])).nullish(),
+  data: z.record(z.string(), z.union([z.string().max(500), z.number(), z.boolean()])).nullish(),
   priority: z.enum(['normal', 'high']).default('normal'),
   ttlSeconds: z.number().int().min(0).max(2_419_200).nullish(),
   topic: z.string().trim().regex(/^[a-zA-Z0-9_-]{1,64}$/, 'topic: letters, digits, _ or -').nullish(),

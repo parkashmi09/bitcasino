@@ -22,7 +22,7 @@ const { SUPPORTED_CURRENCIES, KNOWN_CURRENCIES, REASON, isCustomCurrency } = req
 
 /** A positive decimal with at most 8 places. Rejects "1e5", "-5", "1.234567891", "". */
 const moneyAmount = z
-  .string({ required_error: 'amount is required', invalid_type_error: 'amount must be sent as a string' })
+  .string({ error: (iss) => (iss.code === 'invalid_type' ? (iss.input === undefined ? 'amount is required' : 'amount must be sent as a string') : undefined) })
   .trim()
   .regex(/^\d+(\.\d{1,8})?$/, 'amount must be a positive decimal with at most 8 decimal places')
   .refine((v) => Number.parseFloat(v) > 0, 'amount must be greater than zero');

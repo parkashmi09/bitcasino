@@ -25,10 +25,10 @@ const WALLET_CURRENCIES = Object.freeze([
  * coin other than the current reward currency (`SITE_CONFIG_REWARD_CURRENCY_FIXED`).
  */
 const rewardCurrency = z
-  .string({ invalid_type_error: 'send the currency as a string' })
+  .string({ error: (iss) => (iss.code === 'invalid_type' && iss.input !== undefined ? 'send the currency as a string' : undefined) })
   .trim()
   .transform((v) => v.toUpperCase())
-  .pipe(z.enum(REWARD_CURRENCY_CHOICES, { errorMap: () => ({ message: 'not a reward currency the wallet can credit' }) }));
+  .pipe(z.enum(REWARD_CURRENCY_CHOICES, { error: 'not a reward currency the wallet can credit' }));
 
 /**
  * A decimal that may be zero, carried as a string.
@@ -39,7 +39,7 @@ const rewardCurrency = z
  * float. `parseFloat`, which is what legacy used, accepts `1e9` and `Infinity`.
  */
 const rate = z
-  .string({ invalid_type_error: 'send this as a string, not a number' })
+  .string({ error: (iss) => (iss.code === 'invalid_type' && iss.input !== undefined ? 'send this as a string, not a number' : undefined) })
   .trim()
   .regex(/^\d+(\.\d{1,8})?$/, 'must be a non-negative decimal with at most 8 decimal places');
 
@@ -166,7 +166,7 @@ const unlockAmountString = rate.refine((v) => v.split('.')[0].length <= 12, 'at 
 const unlockTier = z
   .object({
     level: z
-      .string({ invalid_type_error: 'send the level as a string' })
+      .string({ error: (iss) => (iss.code === 'invalid_type' && iss.input !== undefined ? 'send the level as a string' : undefined) })
       .transform((v) => v.replace(/\s+/g, ' ').trim())
       .pipe(z.string().min(1, 'give the level a name').max(40, 'at most 40 characters')),
     totalWager: unlockAmountString,
@@ -199,7 +199,7 @@ const updateReferralUnlockSettings = {
  * A patch, but it must name at least one field.
  */
 const usdLimit = z
-  .string({ invalid_type_error: 'send this as a string, not a number' })
+  .string({ error: (iss) => (iss.code === 'invalid_type' && iss.input !== undefined ? 'send this as a string, not a number' : undefined) })
   .trim()
   .transform((v) => (v === '' ? '0' : v))
   .pipe(
@@ -299,7 +299,7 @@ const updateGlobalSettings = {
       Object.fromEntries(
         OPERATOR_FLAGS.map((name) => [
           name,
-          z.boolean({ invalid_type_error: 'a flag is true or false, not a string' }).optional(),
+          z.boolean({ error: (iss) => (iss.code === 'invalid_type' && iss.input !== undefined ? 'a flag is true or false, not a string' : undefined) }).optional(),
         ])
       )
     )

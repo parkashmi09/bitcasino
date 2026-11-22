@@ -14,7 +14,7 @@ const paging = z.object({
 
 /** Money as a string. Legacy did `Number(amount)` and compared it to a NUMERIC. */
 const amount = z
-  .string({ invalid_type_error: 'send the amount as a string, not a number' })
+  .string({ error: (iss) => (iss.code === 'invalid_type' && iss.input !== undefined ? 'send the amount as a string, not a number' : undefined) })
   .trim()
   .regex(/^\d+(\.\d{1,8})?$/, 'must be a positive decimal with at most 8 decimal places')
   .refine((v) => Number.parseFloat(v) > 0, 'amount must be greater than zero');

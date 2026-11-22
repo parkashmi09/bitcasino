@@ -9,7 +9,7 @@ const { SUPPORTED_CURRENCIES, KNOWN_CURRENCIES, isCustomCurrency } = require('..
  * in the eighth decimal place moves real money at volume.
  */
 const rate = z
-  .string({ required_error: 'usdRate is required', invalid_type_error: 'usdRate must be sent as a string' })
+  .string({ error: (iss) => (iss.code === 'invalid_type' ? (iss.input === undefined ? 'usdRate is required' : 'usdRate must be sent as a string') : undefined) })
   .trim()
   .regex(/^\d+(\.\d{1,8})?$/, 'usdRate must be a positive decimal with at most 8 decimal places')
   .refine((v) => Number.parseFloat(v) > 0, 'usdRate must be greater than zero');

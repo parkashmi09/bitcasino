@@ -94,7 +94,7 @@ module.exports = {
           transaction_type: z.enum(Object.values(TRANSACTION_TYPE)),
           amount: providerAmount,
           currency_code: z.string().trim().max(20).optional(),
-          round_finished: z.coerce.boolean(),
+          round_finished: z.coerce.boolean().default(false), // zod 3 read a missing key as Boolean(undefined)
           game_id: z.union([z.string().trim().max(120), z.number()]).optional(),
           reason: z.string().trim().max(500).optional(),
           transaction_timestamp: z.string().trim().max(40).optional(),

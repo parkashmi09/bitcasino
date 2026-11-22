@@ -13,7 +13,7 @@ const { z } = require('@ibitplay/common');
  * case-CHECKSUMMED, so normalising the case can invalidate a correct address.
  */
 const address = z
-  .string({ required_error: 'address is required' })
+  .string({ error: (iss) => (iss.code === 'invalid_type' && iss.input === undefined ? 'address is required' : undefined) })
   .trim()
   .min(4, 'address is too short')
   .max(190, 'address is too long')

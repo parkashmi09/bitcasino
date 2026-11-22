@@ -95,7 +95,7 @@ const createPlayerBody = z
     // Lower-case like the site's sign-up: the player login looks an email up in lower case.
     email: z.string().trim().toLowerCase().email().max(255).optional(),
     // Mandatory (user, 2026-11-15): digits only, 10–15 — the same rule as Sports Exchange Create Account.
-    phone: z.string({ required_error: 'The Mobile Number field is required' }).trim().regex(/^\d{10,15}$/, 'The Mobile Number field must be 10 to 15 digits'),
+    phone: z.string({ error: (iss) => (iss.code === 'invalid_type' && iss.input === undefined ? 'The Mobile Number field is required' : undefined) }).trim().regex(/^\d{10,15}$/, 'The Mobile Number field must be 10 to 15 digits'),
   })
   .strict();
 

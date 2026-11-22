@@ -9,7 +9,7 @@ const { z } = require('@ibitplay/common');
  * which cannot hold 2.5 — see wager.service.js.
  */
 const multiplier = z
-  .string({ required_error: 'multiplier is required' })
+  .string({ error: (iss) => (iss.code === 'invalid_type' && iss.input === undefined ? 'multiplier is required' : undefined) })
   .trim()
   .regex(/^\d+(\.\d{1,4})?$/, 'multiplier must be a positive decimal')
   .refine((v) => Number.parseFloat(v) > 0 && Number.parseFloat(v) <= 100, 'multiplier must be between 0 and 100');
@@ -25,7 +25,7 @@ const setForAll = { body: z.object({ multiplier }).strict() };
 
 const setLock = {
   params: z.object({ userId: z.coerce.number().int().positive() }),
-  body: z.object({ locked: z.coerce.boolean() }).strict(),
+  body: z.object({ locked: z.coerce.boolean().default(false) }).strict(), // zod 3 read a missing key as Boolean(undefined)
 };
 
 /**

@@ -19,7 +19,7 @@
     "multer": "^2.2.0",
     "sequelize": "^6.37.5",
     "socket.io": "^4.8.1",
-    "zod": "^3.24.1"
+    "zod": "^4.6.7"
   },
   "devDependencies": {
     "socket.io-client": "^4.8.1"

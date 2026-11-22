@@ -17,27 +17,28 @@ const window = {
 /** Admin ka Direct Users / Agent Users tab. Na ho = sab (pehle jaisa). */
 const channel = z.enum(['direct', 'agent']).optional();
 
+const listingQuery = z
+  .object({
+    ...paging,
+    ...window,
+    search: z.string().trim().max(120).optional(),
+    userId: z.coerce.number().int().positive().optional(),
+    source: z.enum(SOURCE_KEYS).optional(),
+    channel,
+  })
+  .strict();
+
 const listing = {
-  query: z
-    .object({
-      ...paging,
-      ...window,
-      search: z.string().trim().max(120).optional(),
-      userId: z.coerce.number().int().positive().optional(),
-      source: z.enum(SOURCE_KEYS).optional(),
-      channel,
-    })
-    .strict()
-    .refine((v) => !v.from || !v.to || v.to >= v.from, {
-      message: 'to must not be before from',
-      path: ['to'],
-    }),
+  query: listingQuery.refine((v) => !v.from || !v.to || v.to >= v.from, {
+    message: 'to must not be before from',
+    path: ['to'],
+  }),
 };
 
 /** A staff member asking about one player. The id is checked against their tree. */
 const userListing = {
   params: z.object({ userId: z.coerce.number().int().positive() }),
-  query: listing.query.innerType().omit({ userId: true }),
+  query: listingQuery.omit({ userId: true }),
 };
 
 const stats = {

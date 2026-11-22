@@ -48,7 +48,8 @@ const create = {
 
 const update = {
   params: z.object({ coin_type: coinType, id: z.coerce.number().int().positive() }),
-  body: detailBody.partial().refine(inRange, RANGE_MESSAGE),
+  // zod 4 keeps .default(true) under .partial(): without the override every edit would re-activate the row.
+  body: detailBody.partial().extend({ isActive: detailBody.shape.isActive.unwrap().optional() }).refine(inRange, RANGE_MESSAGE),
 };
 
 const remove = {

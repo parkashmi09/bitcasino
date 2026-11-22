@@ -51,7 +51,8 @@ const sidebarIcon = z
   .refine((v) => !v || SIDEBAR_ICONS.includes(v), 'Unknown sidebar icon');
 const sidebarLabel = z.string().trim().max(512);
 const sidebarCounter = z.string().trim().max(32);
-const sidebarSort = z.coerce.number().int().min(0).max(9999).default(0);
+// No .default(): zod 4 applies it under .optional(), and a PATCH would reset the sort to 0 (create defaults it in the service).
+const sidebarSort = z.coerce.number().int().min(0).max(9999);
 
 const sidebarList = { query: z.object({}).strict() };
 

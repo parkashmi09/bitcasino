@@ -15,7 +15,7 @@ const { username } = require('../profile/profile.validators');
  * character-class requirement, which is both stronger and kinder.
  */
 const password = z
-  .string({ required_error: 'password is required' })
+  .string({ error: (iss) => (iss.code === 'invalid_type' && iss.input === undefined ? 'password is required' : undefined) })
   .min(8, 'password must be at least 8 characters')
   .max(200, 'password must be at most 200 characters');
 
