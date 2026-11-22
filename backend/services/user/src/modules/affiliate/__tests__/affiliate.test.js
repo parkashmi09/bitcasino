@@ -73,6 +73,9 @@ test('affiliate', async (t) => {
     return { uid, name, code: `REF${uid}` };
   };
 
+  /** Security (B4): only wager made after joining counts, so tests wager once on the team. */
+  const wagerAfterJoin = (uid, wager) => connection.models.Userwager.create({ uid, wager });
+
   /** Affiliate rewards pay in USDT (`REWARD_CURRENCY`) — BJB is retired. */
   const bonusBalance = async (uid) => {
     const row = await connection.models.Credits.findOne({ where: { uid }, raw: true });
@@ -92,9 +95,11 @@ test('affiliate', async (t) => {
     // There is no parameter for the amount here, so the only way to reach a
     // tier is to have actually wagered.
     const owner = await seed(newUid());
-    const member = await seed(newUid(), { wager: '1200' });
+    const member = await seed(newUid());
 
     await service.joinTeam({ userId: member.uid, referralCode: owner.code });
+
+    await wagerAfterJoin(member.uid, '1200');
 
     const result = await service.unlockFor({ memberName: member.name });
 
@@ -107,8 +112,9 @@ test('affiliate', async (t) => {
 
   await t.test('a member below the first tier unlocks nothing', async () => {
     const owner = await seed(newUid());
-    const member = await seed(newUid(), { wager: '999' });
+    const member = await seed(newUid());
     await service.joinTeam({ userId: member.uid, referralCode: owner.code });
+    await wagerAfterJoin(member.uid, '999');
 
     const result = await service.unlockFor({ memberName: member.name });
     assert.equal(result.unlocked, false);
@@ -122,8 +128,9 @@ test('affiliate', async (t) => {
     const admin = new AffiliateService({ models: connection.models, db: connection, logger, config: { SERVICE_NAME: 'user-service' } });
     admin.settings = { read: async () => ({ unlockTiers: [{ level: 'Bronze I', wager: '50', reward: '0.50' }] }) };
     const owner = await seed(newUid());
-    const member = await seed(newUid(), { wager: '60' });
+    const member = await seed(newUid());
     await service.joinTeam({ userId: member.uid, referralCode: owner.code });
+    await wagerAfterJoin(member.uid, '60');
 
     const result = await admin.unlockFor({ memberName: member.name });
     assert.equal(result.unlocked, true);
@@ -132,8 +139,9 @@ test('affiliate', async (t) => {
 
   await t.test('the same tier cannot be unlocked twice', async () => {
     const owner = await seed(newUid());
-    const member = await seed(newUid(), { wager: '6000' });
+    const member = await seed(newUid());
     await service.joinTeam({ userId: member.uid, referralCode: owner.code });
+    await wagerAfterJoin(member.uid, '6000');
 
     const first = await service.unlockFor({ memberName: member.name });
     const second = await service.unlockFor({ memberName: member.name });
@@ -148,8 +156,9 @@ test('affiliate', async (t) => {
 
   await t.test('reaching a HIGHER tier unlocks again', async () => {
     const owner = await seed(newUid());
-    const member = await seed(newUid(), { wager: '1500' });
+    const member = await seed(newUid());
     await service.joinTeam({ userId: member.uid, referralCode: owner.code });
+    await wagerAfterJoin(member.uid, '1500');
 
     await service.unlockFor({ memberName: member.name });
     await connection.models.Userwager.update({ wager: '20000' }, { where: { uid: member.uid } });
@@ -164,8 +173,9 @@ test('affiliate', async (t) => {
 
   await t.test('a wager with thousands separators still finds the right tier', async () => {
     const owner = await seed(newUid());
-    const member = await seed(newUid(), { wager: '50,000' });
+    const member = await seed(newUid());
     await service.joinTeam({ userId: member.uid, referralCode: owner.code });
+    await wagerAfterJoin(member.uid, '50,000');
 
     const result = await service.unlockFor({ memberName: member.name });
     assert.equal(result.tier, '30000');
@@ -173,8 +183,9 @@ test('affiliate', async (t) => {
 
   await t.test('a friend who jumps levels pays every step, and the rest stays locked (hash.game $1,000)', async () => {
     const owner = await seed(newUid());
-    const member = await seed(newUid(), { wager: '30000' });
+    const member = await seed(newUid());
     await service.joinTeam({ userId: member.uid, referralCode: owner.code });
+    await wagerAfterJoin(member.uid, '30000');
 
     const result = await service.unlockFor({ memberName: member.name });
     // Bronze I 0.50 + Bronze II 2.50 + Bronze IV 5 + Silver I 12 = 20 of the 1,000.
@@ -191,8 +202,9 @@ test('affiliate', async (t) => {
 
   const withReward = async (amount = '25.00') => {
     const owner = await seed(newUid());
-    const member = await seed(newUid(), { wager: '200000' });
+    const member = await seed(newUid());
     await service.joinTeam({ userId: member.uid, referralCode: owner.code });
+    await wagerAfterJoin(member.uid, '200000');
 
     const reward = await connection.models.UnlockedRewards.create({
       uid: owner.uid, ownername: owner.name, membername: member.name,
@@ -445,8 +457,9 @@ test('affiliate', async (t) => {
 
   await t.test('on-wager unlocks tiers for players on a team', async () => {
     const owner = await seed(newUid());
-    const member = await seed(newUid(), { wager: '1500' });
+    const member = await seed(newUid());
     await service.joinTeam({ userId: member.uid, referralCode: owner.code });
+    await wagerAfterJoin(member.uid, '1500');
 
     const result = await service.onWager({
       userId: member.uid,
