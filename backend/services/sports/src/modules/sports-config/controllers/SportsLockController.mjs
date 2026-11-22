@@ -237,7 +237,8 @@ var SportsLockController = {
       return { allowed: true };
     } catch (error) {
       console.error("\u274C checkSportsLock error:", error);
-      return { allowed: true };
+      // Fail closed: a lock that could not be read must not let the bet through (hash allows it; sites refuse).
+      return { allowed: false, message: MESSAGES.BET.LOCK_CHECK_UNAVAILABLE };
     }
   }
 };
