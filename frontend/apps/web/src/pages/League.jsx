@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import {
   PromoCell,
@@ -20,7 +21,8 @@ import {
 } from '@/data/league';
 import { formatBalance } from '@/lib/format';
 import { cn } from '@/lib/cn';
-import { raceTitle, useClaimRaceReward, useRaceBoards, useRaceRewards, useRaces } from '@/queries';
+import { raceTitle, useClaimRaceReward, useRaceBoards, useRaceHistory, useRaceRewards, useRaces } from '@/queries';
+import { useRaceLast } from '@/queries/promotions';
 import { withBrand } from '@/lib/branding';
 import { useSiteName } from '@/queries/siteConfig';
 
@@ -44,6 +46,7 @@ export function League() {
   const wanted = params.get('race');
   const config = configs.find((race) => race.type === wanted) ?? configs[0];
   const [board] = useRaceBoards(config ? [config.type] : []);
+  const [view, setView] = useState('live');
 
   return (
     <PromoPage promo={withBrand(LEAGUE, site)}>
@@ -70,7 +73,32 @@ export function League() {
         </div>
       )}
 
-      {races.isPending || board?.isPending ?
+      {config && (
+        <div role="tablist" aria-label="Race view" className="flex justify-center gap-2">
+          {[
+            ['live', 'Leaderboard'],
+            ['past', 'Past winners'],
+          ].map(([id, label]) => (
+            <button
+              key={id}
+              type="button"
+              role="tab"
+              aria-selected={view === id}
+              onClick={() => setView(id)}
+              className={cn(
+                'h-10 cursor-pointer rounded-i-sm px-4 text-base',
+                view === id ? 'bg-piccolo text-on-piccolo' : 'bg-hit text-bulma',
+              )}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {config && view === 'past' ?
+        <PastWinners type={config.type} />
+      : races.isPending || board?.isPending ?
         <Skeleton className="h-64 rounded" />
       : !config || !board?.data ?
         <p className="text-center text-base text-trunks">
@@ -222,6 +250,61 @@ function Board({ board }) {
         }
       </p>
     </PromoSection>
+  );
+}
+
+/** The last settled board of this race type, then the earlier podiums (`/race/:type/last`, `/race/history`). */
+function PastWinners({ type }) {
+  const last = useRaceLast(type);
+  const history = useRaceHistory();
+  const rows = last.data?.leaderboard ?? [];
+  const currency = last.data?.payoutCurrency ?? '';
+  const earlier = (history.data ?? []).filter((race) => race.type === type && race.raceId !== last.data?.raceId);
+
+  if (last.isPending) return <Skeleton className="h-64 rounded" />;
+  if (last.isError) {
+    return <p className="text-center text-base text-trunks">Past winners could not be loaded.</p>;
+  }
+
+  return (
+    <>
+      <PromoSection
+        heading={`Last ${raceTitle(type).toLowerCase()}`}
+        blurb={last.data?.endsAt ? `${formatWindow(last.data.startsAt)} – ${formatWindow(last.data.endsAt)}` : undefined}
+      >
+        {rows.length === 0 ?
+          <p className="my-4 text-center text-base text-trunks">No race has finished yet.</p>
+        : <PromoTable columns={['Position', 'Player', 'Points', `Prize (${currency})`]} widths={['16%', '38%', '23%', '23%']}>
+            {rows.map((row) => (
+              <tr key={row.rank}>
+                <PromoCell className="tabular-nums">{row.rank}</PromoCell>
+                <PromoCell>{row.name ?? '—'}</PromoCell>
+                <PromoCell className="tabular-nums">{formatBalance(row.points)}</PromoCell>
+                <PromoCell className="tabular-nums">{formatBalance(row.payout)}</PromoCell>
+              </tr>
+            ))}
+          </PromoTable>
+        }
+      </PromoSection>
+
+      {earlier.length > 0 && (
+        <PromoSection heading="Earlier podiums">
+          <PromoTable columns={['Race', 'Winners', 'Prize pool']} widths={['30%', '45%', '25%']}>
+            {earlier.map((race) => (
+              <tr key={race.raceId}>
+                <PromoCell className="tabular-nums">{formatWindow(race.endsAt)}</PromoCell>
+                <PromoCell>
+                  {(race.winners ?? []).map((w) => `#${w.rank} ${w.name ?? '—'}`).join(', ') || '—'}
+                </PromoCell>
+                <PromoCell className="tabular-nums">
+                  {formatBalance(race.prizePool)} {race.currency}
+                </PromoCell>
+              </tr>
+            ))}
+          </PromoTable>
+        </PromoSection>
+      )}
+    </>
   );
 }
 

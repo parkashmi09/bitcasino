@@ -58,6 +58,7 @@ import { useGates } from '@/hooks/useGates';
 const TABS = [
   { label: 'Loyalty', to: '/loyalty' },
   { label: 'Rewards', to: '/profile/rewards' },
+  { label: 'Medals', to: '/profile/medals' },
   { label: 'Tournaments', to: '/tournaments' },
   { label: 'Boosts', to: '/profile/boosts' },
   { label: 'Account', to: '/profile/account' },

@@ -1,6 +1,7 @@
 import { useSearchParams } from 'react-router-dom';
 import { Breadcrumb } from '@/components/ui/Breadcrumb';
 import { PromotionRows, PromotionTabs } from '@/components/sections/PromotionList';
+import { DailyQuests } from '@/components/sections/DailyQuests';
 import { PROMOTIONS } from '@/data/catalog';
 import { withBrand } from '@/lib/branding';
 import { PROMO_PAGES } from '@/data/promotionPages';
@@ -69,6 +70,8 @@ export function Promotions() {
       <h1 className="sr-only">Promotions</h1>
 
       <PromotionTabs />
+
+      {gates.on('quests') && <DailyQuests />}
 
       <PromotionRows promotions={promotions} />
 

@@ -8,7 +8,22 @@ import { DepositDialog } from '@/components/layout/DepositDialog';
 import { ClaimRewardDialog } from '@/components/rewards/ClaimRewardDialog';
 import { useRewards } from '@/hooks/useRewards';
 import { useGates } from '@/hooks/useGates';
-import { useBonusBalance, useClaimLossBonus, useClaimUnlocked, useFirstDepositOffer, useLossBonus, useWagerTasks } from '@/queries/rewards';
+import {
+  useBonusBalance,
+  useClaimLossBonus,
+  useClaimReload,
+  useClaimUnlocked,
+  useFirstDepositOffer,
+  useGiftCardAction,
+  useGiftCards,
+  useGiftCardsClaimed,
+  useLossBonus,
+  useMyFreespins,
+  useReloadCalendar,
+  useReloadRewards,
+  useReloadSummary,
+  useWagerTasks,
+} from '@/queries/rewards';
 import { compareDecimal, formatBalance } from '@/lib/format';
 import { cn } from '@/lib/cn';
 
@@ -94,6 +109,11 @@ export function Rewards() {
   const balance = useBonusBalance();
   const loss = useLossBonus();
   const wager = useWagerTasks();
+  const bonusOn = gates.on('bonus');
+  const giftOn = gates.on('giftCards');
+  const reload = useReloadRewards({ enabled: bonusOn });
+  const gifts = useGiftCards({ enabled: giftOn });
+  const freespins = useMyFreespins({ enabled: gates.on('casino') });
   const [claimOpen, setClaimOpen] = useState(false);
   const [depositOpen, setDepositOpen] = useState(false);
 
@@ -105,7 +125,15 @@ export function Rewards() {
   const lossOn = Boolean(loss.data?.enabled);
   // The deposit rollover: one task once anything is deposited, gone while nothing is.
   const tasks = (wager.data?.tasks ?? []).filter((task) => task.status !== 'complete');
-  const empty = !offer.data && active.length === 0 && !lossOn && tasks.length === 0;
+  const programs = RELOAD_PROGRAMS.filter((program) => reload.data?.[program.key]?.enabled);
+  // A claimed or lapsed card moves to the claimed history below; the rest can still be taken.
+  const cards = (gifts.data ?? []).filter(
+    (row) => row.usergiftcards?.status !== 'Claimed' && !row.usergiftcards?.expired,
+  );
+  const spins = freespins.data ?? [];
+  const empty =
+    !offer.data && active.length === 0 && !lossOn && tasks.length === 0 &&
+    programs.length === 0 && cards.length === 0 && spins.length === 0;
 
   return (
     <div className="grid gap-4">
@@ -178,10 +206,27 @@ export function Rewards() {
               <BonusCard bonus={bonus} />
             </li>
           ))}
+          {programs.map((program) => (
+            <li key={program.key}>
+              <ReloadCard program={program} state={reload.data[program.key]} />
+            </li>
+          ))}
+          {cards.map((row) => (
+            <li key={row.giftcards?.id}>
+              <GiftCard row={row} />
+            </li>
+          ))}
+          {spins.map((spin) => (
+            <li key={spin.id}>
+              <FreeSpinsCard spin={spin} />
+            </li>
+          ))}
         </ul>
       )}
 
+      {bonusOn && <RewardTotals />}
       {history.length > 0 && <History rows={history} />}
+      {giftOn && <GiftCardHistory />}
 
       {canRedeem && (
         <ClaimRewardDialog
@@ -413,6 +458,169 @@ function LossBonusCard({ loss }) {
           </div>
         </div>
       </Dialog>
+    </Card>
+  );
+}
+
+/** The two reload programs the backend runs (`reload-rewards`). */
+const RELOAD_PROGRAMS = [
+  { key: 'DAILY_RELOAD', title: 'Daily reload', text: (p) => `${Number(p)}% of what you wagered yesterday, back every day.` },
+  { key: 'PRE_MONTHLY', title: 'Pre-monthly reload', text: (p) => `${Number(p)}% of what you wager from the 1st to the 14th, claimable from the 15th.` },
+];
+
+/** The calendar's first three days are the only ones with an amount (backend `calendar`). */
+const RELOAD_DAYS = ['Yesterday:', 'Today:', 'Tomorrow:'];
+const DAY_STATE = { claimed: 'claimed', claimable: 'ready', missed: 'missed', none: 'nothing earned', building: 'building', upcoming: 'upcoming' };
+
+/** One reload program: what this period has earned and its claim; the Daily one shows its three live days. */
+function ReloadCard({ program, state }) {
+  const claim = useClaimReload();
+  const daily = program.key === 'DAILY_RELOAD';
+  const calendar = useReloadCalendar({ enabled: daily });
+  const days = calendar.data?.days ?? [];
+  const money = `${formatBalance(String(state.amount ?? '0'))} ${state.currency ?? ''}`.trim();
+  const label = state.claimed
+    ? 'Claimed'
+    : !state.eligible
+      ? `Unlocks at VIP level ${state.minVipLevel}`
+      : !state.open && state.opensAt
+        ? `Opens ${formatDate(state.opensAt)}`
+        : state.claimable
+          ? claim.isPending ? 'Claiming…' : `Claim ${money}`
+          : 'Nothing to claim yet';
+
+  return (
+    <Card
+      title={program.title}
+      description={program.text(state.percent)}
+      facts={[
+        ['VIP level needed:', String(state.minVipLevel ?? 0)],
+        ...(daily
+          ? RELOAD_DAYS.map((day, i) => [
+              day,
+              days[i] && `${formatBalance(days[i].earnedUsd)} USD · ${DAY_STATE[days[i].state] ?? days[i].state}`,
+            ])
+          : []),
+      ]}
+      reward={money}
+    >
+      <Button size="lg" disabled={!state.claimable || claim.isPending} onClick={() => claim.mutate(program.key)}>
+        {label}
+      </Button>
+      {claim.isError && (
+        <p role="alert" className="text-sm text-chichi">
+          {claim.error?.message || 'The reload could not be claimed.'}
+        </p>
+      )}
+    </Card>
+  );
+}
+
+/** What every reward has paid this account so far, in USD (`reload-rewards/summary`). */
+function RewardTotals() {
+  const { data } = useReloadSummary();
+  if (!data || compareDecimal(String(data.total ?? '0'), '0') <= 0) return null;
+  const rows = [
+    ['Daily', data.daily],
+    ['Weekly', data.weekly],
+    ['Monthly', data.monthly],
+    ['Pre-monthly', data.preMonthly],
+    ['Rakeback', data.rakeback],
+    ['Level-ups', data.ranks],
+    ['Other', data.other],
+  ].filter(([, value]) => compareDecimal(String(value ?? '0'), '0') > 0);
+
+  return (
+    <section className="grid max-w-[750px] gap-2 pt-4">
+      <h2 className="text-base font-medium text-bulma">
+        Total rewards received: {formatBalance(String(data.total))} USD
+      </h2>
+      <dl className="grid gap-2 rounded-i-sm bg-gohan px-4 py-3 text-sm">
+        {rows.map(([label, value]) => (
+          <div key={label} className="flex items-baseline justify-between gap-3">
+            <dt className="text-trunks">{label}</dt>
+            <dd className="text-bulma tabular-nums">{formatBalance(String(value))} USD</dd>
+          </div>
+        ))}
+      </dl>
+    </section>
+  );
+}
+
+/** A gift card on offer: Activate starts its clock, Claim pays it once its deposit and wager conditions are met. */
+function GiftCard({ row }) {
+  const action = useGiftCardAction();
+  const card = row.giftcards ?? {};
+  const activated = row.usergiftcards?.status === 'Activated';
+  const wager = row.wager ?? {};
+  const go = (kind) => action.mutate({ action: kind, giftCardId: card.id });
+
+  return (
+    <Card
+      title="Gift card"
+      description={card.description}
+      facts={[
+        ['Deposit:', card.depositStatus && (row.deposit?.status ? 'Done' : `${formatBalance(String(card.depositAmount ?? 0))} USD in one deposit`)],
+        ['Wagered:', card.wagerStatus && `${formatBalance(String(wager.totalUsdWager ?? 0))} / ${formatBalance(String(wager.requiredWagerUSD ?? 0))} USD`],
+        ['Ends:', formatDate(card.endDate)],
+      ]}
+      reward={formatBalance(String(card.amount ?? 0))}
+    >
+      <Button size="lg" disabled={action.isPending} onClick={() => go(activated ? 'claim' : 'activate')}>
+        {action.isPending ? 'Please wait…' : activated ? 'Claim' : 'Activate'}
+      </Button>
+      {!activated && (
+        <p className="text-sm text-trunks">Activating starts the card: deposits and bets count from then.</p>
+      )}
+      {action.isError && (
+        <p role="alert" className="text-sm text-chichi">
+          {action.error?.message || 'The gift card was refused.'}
+        </p>
+      )}
+    </Card>
+  );
+}
+
+/** Gift cards already paid out. */
+function GiftCardHistory() {
+  const { data } = useGiftCardsClaimed();
+  if (!data?.length) return null;
+
+  return (
+    <section className="grid max-w-[750px] gap-2 pt-4">
+      <h2 className="text-base font-medium text-bulma">Claimed gift cards</h2>
+      <ul className="grid gap-2">
+        {data.map((row) => (
+          <li
+            key={row.id}
+            className="flex items-baseline justify-between gap-3 rounded-i-sm bg-gohan px-4 py-3 text-sm"
+          >
+            <span className="min-w-0 truncate text-bulma">{row.card?.description || 'Gift card'}</span>
+            <span className="text-end text-bulma tabular-nums">
+              {formatBalance(row.card?.amount ?? '0')} {row.card?.currency}
+              <span className="block text-xs text-trunks">{formatDate(row.startDate)}</span>
+            </span>
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+}
+
+/** An active free-spin campaign on a casino game (GIS). */
+function FreeSpinsCard({ spin }) {
+  return (
+    <Card
+      title="Free spins"
+      description={spin.game?.name ? `On ${spin.game.name}.` : undefined}
+      facts={[
+        ['Spins left:', `${spin.quantityLeft ?? spin.quantity} / ${spin.quantity}`],
+        ['Valid until:', formatDate(spin.validUntil)],
+      ]}
+    >
+      {spin.game?.image && (
+        <img src={spin.game.image} alt="" className="aspect-[4/3] w-full rounded-i-sm object-cover" />
+      )}
     </Card>
   );
 }
