@@ -63,7 +63,7 @@ export function HeaderIconButton({ icon, label, open, dot = false, className, ..
  * `as` is the same escape hatch `Button.jsx` uses, so the caller passes
  * `NavLink` and this file does not import the router.
  */
-export function HeaderIconLink({ as: As = 'a', icon, label, dot = false, className, ...props }) {
+export function HeaderIconLink({ as: As = 'a', icon, label, dot = false, count = 0, className, ...props }) {
   return (
     <As
       aria-label={label}
@@ -71,7 +71,7 @@ export function HeaderIconLink({ as: As = 'a', icon, label, dot = false, classNa
       {...props}
     >
       <Icon name={icon} size={18} />
-      {dot && <HeaderDot />}
+      {count > 0 ? <HeaderCount count={count} /> : dot && <HeaderDot />}
     </As>
   );
 }
@@ -88,6 +88,18 @@ function HeaderDot() {
       aria-hidden="true"
       className="absolute end-[11px] top-[11px] size-2 rounded-full border border-goku bg-piccolo"
     />
+  );
+}
+
+/** The pip grown into a count: same corner, same `piccolo` and ring, 99+ past two digits. */
+function HeaderCount({ count }) {
+  return (
+    <span
+      aria-hidden="true"
+      className="absolute end-1 top-1 grid h-4 min-w-4 place-items-center rounded-full border border-goku bg-piccolo px-1 text-[10px] leading-none font-semibold text-on-piccolo tabular-nums"
+    >
+      {count > 99 ? '99+' : count}
+    </span>
   );
 }
 

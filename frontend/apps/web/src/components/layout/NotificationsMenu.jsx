@@ -36,7 +36,7 @@ export function NotificationsMenu({ className }) {
       to="/profile/notifications"
       icon="bell"
       label={unread > 0 ? `Notifications, ${unread} unread` : 'Notifications'}
-      dot={unread > 0}
+      count={unread}
       className={className}
     />
   );

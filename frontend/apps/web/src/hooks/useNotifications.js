@@ -3,6 +3,7 @@ import { useAuth } from '@/auth/AuthProvider';
 import { useGates } from '@/hooks/useGates';
 import { useNotificationFeed } from '@/queries/live';
 import { useInbox, useMarkInboxRead } from '@/queries/notifications';
+import { useUnreadCount } from '@/queries/account';
 
 /**
  * The announcement feed, plus which of it has been read.
@@ -95,7 +96,10 @@ export function useNotifications() {
   const readIds = useSyncExternalStore(readStore.subscribe, readStore.get, readStore.get);
   const feed = useNotificationFeed();
   // Not on a temporary password (every call 403s) nor with the owner's notifications feature off.
-  const inbox = useInbox({ enabled: Boolean(user) && status === 'authenticated' && gates.on('notifications') });
+  const inboxOn = Boolean(user) && status === 'authenticated' && gates.on('notifications');
+  const inbox = useInbox({ enabled: inboxOn });
+  // The server's count covers the whole inbox; the list is only its newest 50.
+  const serverUnread = useUnreadCount({ enabled: inboxOn });
   const markInbox = useMarkInboxRead();
 
   // Memoised so a not-yet-loaded feed does not hand `markAllRead` a new `[]` every render.
@@ -125,7 +129,9 @@ export function useNotifications() {
   const items = [...inboxRows, ...rows.map((item) => ({ ...item, read: readIds.includes(item.id) }))].sort(
     (a, b) => (Date.parse(b.at) || 0) - (Date.parse(a.at) || 0),
   );
-  const unread = items.reduce((count, item) => count + (item.read ? 0 : 1), 0);
+  const feedUnread = items.reduce((count, item) => count + (item.read || item.serverId ? 0 : 1), 0);
+  const inboxUnreadLoaded = inboxRows.reduce((count, row) => count + (row.read ? 0 : 1), 0);
+  const unread = feedUnread + Math.max(serverUnread.data ?? 0, inboxUnreadLoaded);
 
   /* The page tells loading, failed and empty apart; the bell only needs `unread`. One source
      answering is enough to show a list. */

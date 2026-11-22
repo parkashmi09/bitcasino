@@ -59,6 +59,7 @@ import { GatesProvider } from '@/hooks/useGates';
 import { Toaster } from '@/components/ui/Toaster';
 import { IdleLogout } from '@/components/layout/IdleLogout';
 import CookieConsent from '@/components/cookieConsent/CookieConsent';
+import { RegionNotice } from '@/components/layout/RegionNotice';
 import { AGENT_AUTH_CLOSED, AGENT_BASE, AGENT_SITE } from '@/lib/agentBase';
 
 /**
@@ -355,6 +356,7 @@ export default function App() {
         <IdleLogout />
         <GatesProvider>
           <AppRoutes />
+          <RegionNotice />
         </GatesProvider>
       </AuthProvider>
     </BrowserRouter>

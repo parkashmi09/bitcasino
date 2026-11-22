@@ -29,6 +29,7 @@ import {
 } from '../../../hooks/exchange';
 import {
   getScoreUrl,
+  getScoreCardUrl,
   reconcilePendingBets,
   announceBetPlaced,
   saveStakeButtons,
@@ -210,9 +211,11 @@ export default function ExchangeMatchPage() {
     if (!wantScoreUrl) return undefined;
     let alive = true;
     const fallback = !isCricket && SCORECARD_BASE ? `${SCORECARD_BASE}?etid=${sid}&gmid=${gmid}` : null;
-    getScoreUrl(gmid, sid).then((url) => {
-      if (alive) setScore({ key: scoreKey, url: url || fallback });
-    });
+    getScoreUrl(gmid, sid)
+      .then((url) => url || getScoreCardUrl(gmid, sid))
+      .then((url) => {
+        if (alive) setScore({ key: scoreKey, url: url || fallback });
+      });
     return () => {
       alive = false;
     };

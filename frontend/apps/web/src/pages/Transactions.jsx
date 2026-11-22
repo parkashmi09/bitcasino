@@ -4,7 +4,8 @@ import { Skeleton } from '@/components/ui/Skeleton';
 import { QueryError } from '@/components/ui/QueryState';
 import { TipDialog } from '@/components/account/TipDialog';
 import { useTransactionHistory, useTransfers } from '@/queries';
-import { useTipHistory } from '@/queries/account';
+import { useBetRank, useBetStats, useTipHistory } from '@/queries/account';
+import { useBetHistory } from '@/queries/play';
 import { usePendingAction, useWalletLedger, useWalletList } from '@/queries/wallet';
 import { useGates } from '@/hooks/useGates';
 import { formatBalance } from '@/lib/format';
@@ -54,6 +55,7 @@ const TABS = [
   { id: 'withdrawals', label: 'Withdrawals' },
   { id: 'transfers', label: 'Transfers' },
   { id: 'pending', label: 'Pending' },
+  { id: 'bets', label: 'Casino bets', gate: 'casino' },
   { id: 'tips', label: 'Tips', gate: 'tips' },
   { id: 'swaps', label: 'Swaps', gate: 'swap' },
   { id: 'vault', label: 'Vault', gate: 'vault' },
@@ -158,7 +160,7 @@ function PlayerTransactions() {
   const [listName, toRow] = LIST[tab] ?? [];
   const list = useWalletList(listName ?? 'swapHistory', { limit: PAGE, offset, enabled: Boolean(listName) });
 
-  const active = tab === 'transfers' ? transfers : tab === 'tips' ? tips : listName ? list : combined;
+  const active = tab === 'bets' ? {} : tab === 'transfers' ? transfers : tab === 'tips' ? tips : listName ? list : combined;
 
   const rows =
     tab === 'transfers'
@@ -217,6 +219,8 @@ function PlayerTransactions() {
 
       {tab === 'pending' ? (
         <PendingRequests />
+      ) : tab === 'bets' ? (
+        <CasinoBets />
       ) : (
         <section className="rounded-i-md bg-gohan p-4">
           {active.isPending ? (
@@ -347,6 +351,140 @@ function PendingRequests() {
         </p>
       )}
     </section>
+  );
+}
+
+const PERIODS = [
+  { id: 'daily', label: 'Today' },
+  { id: 'weekly', label: 'This week' },
+  { id: 'monthly', label: 'This month' },
+];
+
+/**
+ * The casino rounds tab: lifetime counts (`/bet-history/stats`), the player's place on the
+ * contest board for a period (`/leaderboard/me`), then the rounds themselves, page-based.
+ */
+function CasinoBets() {
+  const [page, setPage] = useState(0);
+  const [period, setPeriod] = useState('weekly');
+  const stats = useBetStats();
+  const rank = useBetRank(period);
+  const history = useBetHistory({ limit: PAGE, page: page + 1 });
+  const rows = Array.isArray(history.data?.data) ? history.data.data : [];
+  const total = history.data?.meta?.pagination?.total;
+  const winRate = stats.data?.bets ? `${((stats.data.wins / stats.data.bets) * 100).toFixed(1)}%` : '—';
+
+  return (
+    <>
+      <section className="grid gap-3 rounded-i-md bg-gohan p-4 sm:grid-cols-[1fr_auto] sm:items-center">
+        <div className="grid grid-cols-3 gap-2">
+          {[
+            ['Bets', stats.data?.bets],
+            ['Wins', stats.data?.wins],
+            ['Win rate', stats.data ? winRate : undefined],
+          ].map(([name, value]) => (
+            <div key={name} className="grid gap-0.5 rounded-i-sm bg-goku px-3 py-2">
+              <span className="text-xs text-trunks">{name}</span>
+              {stats.isPending ? (
+                <Skeleton className="h-6 w-12 rounded-i-xs" />
+              ) : (
+                <span className="text-base font-semibold text-bulma tabular-nums">
+                  {stats.isError ? '—' : (value ?? 0).toLocaleString()}
+                </span>
+              )}
+            </div>
+          ))}
+        </div>
+
+        <div className="grid gap-2 rounded-i-sm bg-goku px-3 py-2">
+          <div role="tablist" aria-label="Rank period" className="flex gap-1">
+            {PERIODS.map((entry) => (
+              <button
+                key={entry.id}
+                type="button"
+                role="tab"
+                aria-selected={period === entry.id}
+                onClick={() => setPeriod(entry.id)}
+                className={cn(
+                  'h-7 shrink-0 cursor-pointer rounded-i-sm px-2.5 text-xs font-medium transition-colors',
+                  period === entry.id ? 'bg-gohan text-bulma' : 'text-trunks hover:bg-heles hover:text-bulma',
+                )}
+              >
+                {entry.label}
+              </button>
+            ))}
+          </div>
+          {rank.isPending ? (
+            <Skeleton className="h-6 w-28 rounded-i-xs" />
+          ) : rank.isError ? (
+            <span className="text-sm text-trunks">Rank unavailable</span>
+          ) : rank.data?.rank ? (
+            <span className="text-sm text-trunks">
+              Your rank{' '}
+              <span className="text-base font-semibold text-bulma tabular-nums">#{rank.data.rank}</span> of{' '}
+              {rank.data.total} · {rank.data.bets} bets
+            </span>
+          ) : (
+            <span className="text-sm text-trunks">No bets in this period yet</span>
+          )}
+        </div>
+      </section>
+
+      <section className="rounded-i-md bg-gohan p-4">
+        {history.isPending ? (
+          <div className="grid gap-2">
+            {[0, 1, 2, 3, 4].map((row) => (
+              <Skeleton key={row} className="h-14 rounded-i-sm" />
+            ))}
+          </div>
+        ) : history.isError ? (
+          <QueryError error={history.error} onRetry={history.refetch} title="Could not load your bets" />
+        ) : rows.length === 0 ? (
+          <Empty tab="bets" paged={page > 0} onBack={() => setPage(0)} />
+        ) : (
+          <>
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[560px] border-collapse text-sm">
+                <thead>
+                  <tr className="text-start text-xs text-trunks">
+                    <Th>Date</Th>
+                    <Th>Game</Th>
+                    <Th align="end">Amount</Th>
+                    <Th align="end">Profit</Th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {rows.map((row, index) => (
+                    <tr key={`${row.source_key ?? ''}-${row.transaction_id ?? index}`} className="border-t border-beerus">
+                      <Td>
+                        <span className="text-trunks tabular-nums">{formatDate(row.transaction_timestamp)}</span>
+                      </Td>
+                      <Td>
+                        <span className="grid">
+                          <span className="text-bulma">{row.game_title}</span>
+                          <span className="text-xs text-trunks">{label(String(row.transaction_type ?? '').toLowerCase())}</span>
+                        </span>
+                      </Td>
+                      <Td align="end">
+                        <span className="text-bulma tabular-nums">
+                          {row.amount} {row.currency_code}
+                        </span>
+                      </Td>
+                      <Td align="end">
+                        <span className={cn('tabular-nums', row.outcome === 'win' ? 'text-roshi' : 'text-trunks')}>
+                          {row.profit}
+                        </span>
+                      </Td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <Pager page={page} rows={rows.length} count={total} onChange={setPage} />
+          </>
+        )}
+      </section>
+    </>
   );
 }
 
