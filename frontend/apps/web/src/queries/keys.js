@@ -103,6 +103,13 @@ export const queryKeys = {
     /** `viewer` is in the key because a signed-in board carries the caller's own `me` row. */
     raceBoard: (type, viewer) => ['promotions', 'race', type, viewer],
     raceHistory: (limit, viewer) => ['promotions', 'race-history', limit, viewer],
+    raceLast: (type) => ['promotions', 'race-last', type],
+    quests: () => ['promotions', 'quests'],
+    raffle: () => ['promotions', 'raffle'],
+    raffleMe: () => ['promotions', 'raffle', 'me'],
+    raffleDraw: (number) => ['promotions', 'raffle', 'draw', number],
+    spinClaims: () => ['promotions', 'spin', 'claims'],
+    bonusHistory: () => ['promotions', 'bonus-history'],
   },
 
   account: {
@@ -157,5 +164,13 @@ export const queryKeys = {
     rakeback: () => ['rewards', 'rakeback'],
     lossBonus: () => ['rewards', 'loss-bonus'],
     wagerTasks: () => ['rewards', 'wager-tasks'],
+    reload: () => ['rewards', 'reload'],
+    reloadCalendar: () => ['rewards', 'reload', 'calendar'],
+    reloadSummary: () => ['rewards', 'reload', 'summary'],
+    medals: () => ['rewards', 'medals'],
+    giftCards: () => ['rewards', 'gift-cards'],
+    giftCardsClaimed: () => ['rewards', 'gift-cards', 'claimed'],
+    freespins: () => ['rewards', 'freespins'],
+    jackpots: () => ['rewards', 'jackpots'],
   },
 };

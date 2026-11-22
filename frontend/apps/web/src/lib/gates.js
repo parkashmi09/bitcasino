@@ -33,7 +33,11 @@ export const GATES = {
   // League and tournaments are the backend's wager races.
   contest: { feature: 'races', capability: 'promotions' },
   // Spin the wheel: the site admin's `wheelspin` flag (hash has no wheel surface).
-  wheel: { flag: 'wheelspin', capability: 'promotions' },
+  wheel: { flag: 'wheelspin', feature: 'spin_wheel', capability: 'promotions' },
+  // The weekly ticket raffle (owner `raffles`, site admin `lotto` flag).
+  raffle: { flag: 'lotto', feature: 'raffles', capability: 'promotions' },
+  // The Bonus centre block on /profile/boosts: its own owner switch on top of `bonus`.
+  bonusCentre: { flag: 'bonus', feature: 'bonus_centre', capability: 'promotions' },
   quests: { feature: 'challenges', capability: 'promotions' },
   // Casino challenges on /tournaments (casino `challenges`, owner feature of the same name).
   challenges: { feature: 'challenges', capability: 'promotions' },
@@ -61,6 +65,7 @@ export const ROUTES = [
   ['/promotions/league-of-bitcasino', 'contest'],
   ['/promotions/league', 'contest'],
   ['/promotions/spin-the-wheel', 'wheel'],
+  ['/promotions/weekly-raffle', 'raffle'],
   ['/promotions/weekly-rakeback-2026', 'rakeback'],
   ['/promotions/weekly-rakeback', 'rakeback'],
   ['/promotions', 'promotions'],
@@ -109,7 +114,7 @@ export function gateOf(href) {
 
 /* On a B2B site (`business_model: b2b`, agents only) every promotion section is off for everyone,
    as the backend refuses them (PROMOTIONS_DISABLED_B2B). */
-const PROMO_GATES = new Set(['bonus', 'vip', 'affiliate', 'promotions', 'contest', 'wheel', 'quests', 'challenges', 'rewards', 'giftCards', 'rakeback']);
+const PROMO_GATES = new Set(['bonus', 'vip', 'affiliate', 'promotions', 'contest', 'wheel', 'quests', 'challenges', 'rewards', 'giftCards', 'rakeback', 'raffle', 'bonusCentre']);
 
 /* An agent's player (and anyone signed out on /agent) has none of these. */
 const AGENT_OFF = new Set([...PROMO_GATES, 'deposit', 'withdraw', 'swap', 'vault', 'tips', 'kyc', 'blog']);

@@ -593,6 +593,48 @@ export const ENDPOINTS = {
   raceRewards: `${USER}/race/rewards`,
   raceRewardClaim: `${USER}/race/rewards/:rewardId/claim`,
 
+  // The settled board of one race type: `{raceId, type, startsAt, endsAt, payoutCurrency, leaderboard}`.
+  raceLast: `${USER}/race/:type/last`,
+
+  // ── Group 2: quests, raffle, bonus centre, reload, medals, gift cards, free spins ─
+  // `challenges` feature. `{dailyQuest: {first: {endsAt, quests: [{key, title, description, unit, target,
+  // progress, completed}]}}}`. No reward and no claim route on the platform.
+  quests: `${USER}/quests`,
+  // `raffles` feature. current (public) `{enabled, number, drawAt, status, prizePoolUsd, winners, prizeUsd,
+  // wagerPerTicketUsd, latestDrawn}`; me `{number, tickets: [{ticket, source, createdAt}], freeClaimed,
+  // wageredUsd, nextTicketInUsd}`; claim (no body) → 201 ticket; draw → `{…draw, winners: [{ticket, player,
+  // count, prizeUsd}], myTickets}`. `:number` is a draw number; drawn ones count down from `latestDrawn`.
+  raffleCurrent: `${USER}/raffle/current`,
+  raffleMe: `${USER}/raffle/me`,
+  raffleClaim: `${USER}/raffle/claim`,
+  raffleDraw: `${USER}/raffle/draws/:number`,
+  // `bonus` feature, paged `limit/offset`: `[{id, type, amount, amountCurrency, claimed, unclaimable, deadline,
+  // claimedAt, createdAt}]` — the periodic-bonus awards.
+  bonusHistory: `${USER}/bonus/history`,
+  // `bonus` feature. overview `{vipLevel, DAILY_RELOAD, PRE_MONTHLY}` each `{enabled, percent, minVipLevel,
+  // eligible, open, opensAt, amount, currency, claimed, claimable}`; calendar `{enabled, eligible, today,
+  // percent, days: [{date, earnedUsd, claimedUsd, state}]}`; summary `{daily, …, total}` in USD; claim
+  // `POST /:program/claim` → `{program, currency, amount, balance}`.
+  reloadRewards: `${USER}/reload-rewards`,
+  reloadCalendar: `${USER}/reload-rewards/calendar`,
+  reloadSummary: `${USER}/reload-rewards/summary`,
+  reloadClaim: `${USER}/reload-rewards/:program/claim`,
+  // No feature gate, open to agent players (cosmetic). `{medalCount, total, medals: [{key, title, rule,
+  // available, unavailableReason, unlocked, unlockedAt, progress: {current, target}, holders}]}`.
+  medals: `${USER}/medals`,
+  // The caller's own spins, paged: `[{id, sliceLabel, rewardAmount, redeemCode, claimedAt}]`.
+  spinClaims: `${USER}/spin-wheel/claims`,
+  // `gift_cards` feature. list `[{giftcards: {id, description, amount, endDate, depositStatus, depositAmount,
+  // wagerStatus, wagerTimes}, usergiftcards: {status, expired} | null, deposit, wager}]`; claimed (paged)
+  // `[{id, startDate, card: {description, amount, currency}}]`; activate `{giftCardId}`.
+  giftCards: `${USER}/gift-cards`,
+  giftCardsClaimed: `${USER}/gift-cards/claimed`,
+  giftCardActivate: `${USER}/gift-cards/activate`,
+  // GIS. mine `{total, freespins: [{id, game: {name, image}, currency, quantity, quantityLeft, validUntil}]}`;
+  // jackpots is the aggregator's own answer, passed through (503 GIS_NOT_CONFIGURED without a merchant).
+  gisFreespinsMine: `${CASINO}/gis/freespins/mine`,
+  gisJackpots: `${CASINO}/gis/jackpots`,
+
   // ── Operator promotions (owner feature `promotions`) ────────────────
   // Public, on ADMIN-service. The list carries no body; the slug read does
   // (`description`/`termsHtml` are HTML). Slugs are unique per segment.
