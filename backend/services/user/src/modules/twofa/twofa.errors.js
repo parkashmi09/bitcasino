@@ -42,4 +42,9 @@ module.exports = defineErrors('TWOFA', {
     status: 403,
     message: 'Your account password is required to disable two-factor authentication',
   },
+  SETUP_PASSWORD_REQUIRED: {
+    // Enabling needs the password too (audit A18), with its own message: "disable" read wrong here.
+    status: 403,
+    message: 'Your account password is required to turn on two-factor authentication',
+  },
 });

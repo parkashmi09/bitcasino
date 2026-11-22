@@ -49,3 +49,11 @@ test('a missing key reads as its default; unknown keys and non-booleans are drop
 test('an option has a readable label for the change list', () => {
   assert.equal(optionLabel('spin_wheel.grant_on_registration'), 'Spin wheel: Free spin on registration')
 })
+
+test('a change with no key (an old or bad audit row) gets a fallback label, never a throw', async () => {
+  const { featureLabel, flagLabel } = await import('../src/configs/entitlementCatalogue.ts')
+  for (const label of [flagLabel, featureLabel, optionLabel]) {
+    assert.equal(label(undefined), '(unknown)')
+    assert.equal(label(42), '(unknown)')
+  }
+})

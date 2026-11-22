@@ -801,18 +801,23 @@ class WalletService {
    * a reconciliation job rather than discovered by a player complaint.
    */
   async reconcile({ userId, currency }) {
-    const [balance, ledgerSum] = await Promise.all([
+    // Sports exchange bets move credits.inr outside this ledger; their own ledger and open
+    // exposure are counted, so a sports bettor is not reported unbalanced for betting.
+    const isInr = String(currency).toUpperCase() === 'INR';
+    const [balance, ledgerSum, sportsSum] = await Promise.all([
       this.getBalance(userId, currency),
       this.repo.sumLedger({ userId, currency }),
+      isInr ? this.repo.sumSportsInr(userId) : '0',
     ]);
 
-    const drift = money.subtract(balance, ledgerSum);
+    const drift = money.subtract(money.subtract(balance, ledgerSum), sportsSum);
 
     return {
       userId,
       currency,
       balance,
       ledgerSum: money.toDecimalString(money.toMinor(ledgerSum)),
+      ...(isInr ? { sportsSum: money.toDecimalString(money.toMinor(sportsSum)) } : {}),
       drift: money.toDecimalString(drift),
       balanced: drift === 0n,
     };

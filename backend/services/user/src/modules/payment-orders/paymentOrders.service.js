@@ -460,10 +460,9 @@ class PaymentOrdersService {
     if (!validation.ok) throw errors.INVALID_PAYOUT_DETAILS({ fields: validation.fields, paymentSystem: method });
 
     const reference = this.#reference('WD');
-    const order = await hubOrders.open(this.db, {
+    const order = await hubOrders.openPayout(this.db, {
       whitelabelId: whitelabel.id,
       provider: providerName,
-      flow: 'payout',
       reference,
       copyReference,
       currency,
@@ -520,10 +519,9 @@ class PaymentOrdersService {
     if (!coinId) throw errors.CURRENCY_NOT_SUPPORTED({ provider: 'ccpayment', currency });
 
     const reference = this.#reference('CWD');
-    const order = await hubOrders.open(this.db, {
+    const order = await hubOrders.openPayout(this.db, {
       whitelabelId: whitelabel.id,
       provider: 'ccpayment',
-      flow: 'payout',
       reference,
       copyReference,
       currency,

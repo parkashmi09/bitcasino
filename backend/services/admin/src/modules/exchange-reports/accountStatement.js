@@ -2,7 +2,7 @@
 
 const { QueryTypes } = require('sequelize');
 
-const { findClient, playersUnder, walletIdOf, notInTree } = require('./reportScope');
+const { findClient, playersUnder, walletIdOf } = require('./reportScope');
 const { sportName, sportsNet, loadFanSettlementNet, fanMarketName, isKhadoBet } = require('./sportsNet');
 
 /**
@@ -110,7 +110,9 @@ function transactionRow(r, walletId) {
   const delta = parseFloat(r.delta || 0);
   const iAmParent = Number(r.settled_with_wallet_id) === walletId && Number(r.wallet_id) !== walletId;
   const closing = iAmParent ? (r.closing_inr_balance_parent ?? r.closing_inr_balance) : r.closing_inr_balance;
-  const credited = iAmParent ? delta < 0 : delta > 0;
+  // A 0.00 row (sub-paisa, from before amounts were held to 2 decimals) takes its side from the event.
+  const sign = delta !== 0 ? Math.sign(delta) : (/^(Debit|Bank Withdraw)$/.test(String(r.event_type)) ? -1 : 1);
+  const credited = iAmParent ? sign < 0 : sign > 0;
   const [description, fromto] = String(r.remark || '').split('#');
 
   return {
@@ -226,9 +228,10 @@ async function rowBets(sequelize, tree, { betId }) {
   });
   if (!bet) return null;
 
-  // Bet lagane wala mere tree me hai ya nahi.
+  // Bet lagane wala mere tree me hai ya nahi. Out of tree answers as "no bets", the same as a bet id
+  // that does not exist, so another tree's bet ids cannot be probed.
   const players = await playersUnder(sequelize, tree.staffIds, tree.withDirectUsers);
-  if (!players.includes(String(bet.user_id))) throw notInTree();
+  if (!players.includes(String(bet.user_id))) return null;
 
   const fancy = String(bet.game_type || '').toUpperCase() === 'FAN' ? fanMarketName(bet) : null;
   const bets = await sequelize.query(
@@ -379,4 +382,4 @@ async function betExport(sequelize, tree, params) {
   return { filename, columns: BET_EXPORT_COLUMNS, rows };
 }
 
-module.exports = { statement, betDetail, betExport, STATEMENT_FILTERS };
+module.exports = { statement, betDetail, betExport, STATEMENT_FILTERS, transactionRow };

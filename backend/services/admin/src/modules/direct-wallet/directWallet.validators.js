@@ -33,7 +33,9 @@ const adjust = {
       note: z.string().trim().max(200).optional(),
       transactionPassword: z.string().min(1).max(200),
     })
-    .strict(),
+    .strict()
+    // INR to the paisa (crypto keeps 8 decimals).
+    .refine((b) => b.currency !== 'INR' || /^\d+(\.\d{1,2})?$/.test(b.amount), { path: ['amount'], message: 'INR amounts have at most 2 decimal places' }),
 };
 
 /** GET /direct-wallet/users/:userId/history */

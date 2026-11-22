@@ -183,7 +183,8 @@ test('withdraw lock against a database', async (t) => {
 
     const row = await models.Users.findByPk(player, { raw: true });
     assert.equal(row.withdraw_locked, true);
-    assert.deepEqual(row.lock_sources.withdraw_locked, { own: true, by: [] });
+    // `level`: the setter's staff level, so only that level or above lifts it (lockSources `upheldAbove`).
+    assert.deepEqual(row.lock_sources.withdraw_locked, { own: true, by: [], level: 6 });
 
     const logs = await models.AdminActivityLogs.findAll({
       where: { staff_id: root, action: 'account.lock', target_type: 'USER', target_id: String(player) },

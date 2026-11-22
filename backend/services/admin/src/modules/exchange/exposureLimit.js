@@ -14,11 +14,6 @@ const { money, AppError } = require('@ibitplay/common');
 
 const notFound = () => new AppError('User not found', 404, 'EXPOSURE_LIMIT_USER_NOT_FOUND');
 const walletNotFound = () => new AppError('Wallet not found', 404, 'EXPOSURE_LIMIT_WALLET_NOT_FOUND');
-const clientOnly = () =>
-  new AppError('Exposure limit is only for client users', 403, 'EXPOSURE_LIMIT_CLIENT_ONLY');
-const directParentOnly = () =>
-  new AppError('You can only set the exposure limit of your own direct downline', 403, 'EXPOSURE_LIMIT_DIRECT_PARENT_ONLY');
-
 const show = (value) => money.fromStored(value ?? '0', { field: 'balance' });
 
 /**
@@ -31,9 +26,9 @@ async function setUserExposureLimit(sequelize, { actor, userId, exposureLimit },
     type: QueryTypes.SELECT,
     transaction,
   });
-  if (!user) throw notFound();
-  if (user.parent_staff_id == null) throw clientOnly();
-  if (String(user.parent_staff_id) !== String(actor.id)) throw directParentOnly();
+  // One answer for missing, a direct user and another parent's player: the code must not tell a
+  // caller from another tree which of the three an id is.
+  if (!user || user.parent_staff_id == null || String(user.parent_staff_id) !== String(actor.id)) throw notFound();
 
   const [wallet] = await sequelize.query('SELECT exposure_limit FROM credits WHERE uid = :userId FOR UPDATE', {
     replacements: { userId },

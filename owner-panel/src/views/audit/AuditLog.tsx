@@ -70,7 +70,7 @@ const AuditLog = () => {
                         </Badge>
                       </TableCell>
                       <TableCell className='whitespace-normal'>
-                        <ChangeList changes={row.changes} labelOf={c => (c.kind === 'feature' ? featureLabel(c.key) : flagLabel(c.key))} />
+                        <ChangeList changes={row.changes} labelOf={c => (typeof c.key !== 'string' ? String(c.kind ?? '(unknown)') : c.kind === 'feature' ? featureLabel(c.key) : flagLabel(c.key))} />
                       </TableCell>
                     </TableRow>
                   ))}

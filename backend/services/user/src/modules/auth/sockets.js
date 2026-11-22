@@ -97,11 +97,12 @@ function register({ on, deps }) {
     // event, and legacy metered it nowhere.
     limit: { windowMs: 60_000, max: 10 },
     handle: async (payload, context) => {
-      const { username, password, twoFactorCode } = payload ?? {};
+      const { username, password, twoFactorCode, site } = payload ?? {};
 
       try {
         const session = await service.login(
-          { identifier: String(username ?? ''), password: String(password ?? ''), twoFactorCode },
+          // No `site` = the main site, as on the HTTP login.
+          { identifier: String(username ?? ''), password: String(password ?? ''), twoFactorCode, site: site === 'agent' ? 'agent' : 'direct' },
           { ip: context.ip, userAgent: context.userAgent, deviceLabel: 'socket' }
         );
 

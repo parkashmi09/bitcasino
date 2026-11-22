@@ -194,7 +194,7 @@ test('admin account controls', async (t) => {
         actor: actorFor(staff), accountId: player, amount: '100',
         transactionPassword: 'not it',
       }),
-      (err) => err.code === 'ACCOUNTS_TRANSACTION_PASSWORD_REQUIRED' && err.status === 403
+      (err) => err.code === 'TXN_PASSWORD_INVALID' && err.status === 403
     );
 
     assert.equal(await playerBalance(player), '0.00000000');

@@ -2,11 +2,15 @@
 
 const { Op } = require('sequelize');
 const { money } = require('@ibitplay/common');
+const { effectiveStaffLevel } = require('@ibitplay/auth');
 
 const errors = require('./locks.errors');
 const { LOCK_FIELDS } = require('./locks.constants');
-const { directSources, cascadeUpdate } = require('./lockSources');
+const { directSources, cascadeUpdate, upheldAbove } = require('./lockSources');
 const { descendantIds, visibleStaffIds } = require('../staff-directory/staffDirectory.service');
+
+// A cascade held by the caller's own account was set from above it (nobody locks themselves).
+const belowSelf = (tree, actor) => tree.filter((id) => Number(id) !== Number(actor.id));
 
 /**
  * Locks, and the public referral lookup.
@@ -52,16 +56,19 @@ class LocksService {
    */
   async #lockPlayer({ actor, userId, changes, tree, transaction }) {
     const seesUnassigned = tree.map(Number).includes(1);
+    const where = {
+      id: userId,
+      ...(seesUnassigned
+        ? { [Op.or]: [{ parent_staff_id: tree }, { parent_staff_id: null, is_demo: false }] }
+        : { parent_staff_id: tree }),
+    };
 
-    const [affected] = await this.models.Users.update({ ...changes, lock_sources: directSources(changes) }, {
-      where: {
-        id: userId,
-        ...(seesUnassigned
-          ? { [Op.or]: [{ parent_staff_id: tree }, { parent_staff_id: null, is_demo: false }] }
-          : { parent_staff_id: tree }),
-      },
-      transaction,
-    });
+    const row = await this.models.Users.findOne({ where, attributes: [...Object.keys(changes), 'lock_sources'], transaction, lock: transaction.LOCK.UPDATE, raw: true });
+    if (!row) throw errors.NOT_IN_YOUR_TREE({ userId });
+    const { blocked, levels } = upheldAbove(row, changes, effectiveStaffLevel(actor), belowSelf(tree, actor));
+    if (blocked.length) throw errors.LOCKED_BY_UPLINE({ userId, locks: blocked });
+
+    const [affected] = await this.models.Users.update({ ...changes, lock_sources: directSources(changes, levels) }, { where, transaction });
 
     /**
      * The row count is the answer.
@@ -105,8 +112,12 @@ class LocksService {
      * unlocking it lifts only the locks it imposed, never one set on a child
      * directly or held by another ancestor. See `lockSources.js`.
      */
+    const target = await this.models.Staff.findOne({ where: { id: staffId }, attributes: [...Object.keys(changes), 'lock_sources'], transaction, lock: transaction.LOCK.UPDATE, raw: true });
+    const { blocked, levels } = upheldAbove(target, changes, effectiveStaffLevel(actor), belowSelf(tree, actor));
+    if (blocked.length) throw errors.LOCKED_BY_UPLINE({ staffId, locks: blocked });
+
     const [self] = await this.models.Staff.update(
-      { ...changes, lock_sources: directSources(changes) },
+      { ...changes, lock_sources: directSources(changes, levels) },
       { where: { id: staffId }, transaction }
     );
 

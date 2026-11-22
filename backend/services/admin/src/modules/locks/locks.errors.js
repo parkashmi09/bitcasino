@@ -31,5 +31,11 @@ module.exports = defineErrors('LOCKS', {
     message: 'You cannot lock your own account through this route',
   },
 
+  LOCKED_BY_UPLINE: {
+    status: 403,
+    // A lock is lifted by the level that set it or one above, never by a lower agent.
+    message: 'This lock was set by an account above you',
+  },
+
   UNKNOWN_REFERRAL: { status: 404, message: 'Unknown referral code' },
 });

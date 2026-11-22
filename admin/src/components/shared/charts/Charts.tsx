@@ -130,7 +130,9 @@ export const TimeSeriesChart = ({
         : kind === 'area'
           ? areaGradient
           : { opacity: 1 },
-      plotOptions: { bar: { borderRadius: 4, borderRadiusApplication: 'end', columnWidth: '45%' } },
+
+      // Rounded bars in a bar + line chart draw NaN paths in Apex 3.53 and its morph animation throws.
+      plotOptions: { bar: { columnWidth: '45%', ...(mixed ? {} : { borderRadius: 4, borderRadiusApplication: 'end' as const }) } },
       markers: { ...base.markers, size: categories.length === 1 ? 5 : 0, hover: { size: 6 } },
       legend: { ...base.legend, show: series.length > 1 },
       xaxis: {

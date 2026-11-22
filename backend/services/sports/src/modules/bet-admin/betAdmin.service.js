@@ -265,8 +265,8 @@ class BetAdminService {
         attributes: ['id'],
         raw: true,
       });
-      if (!user) throw errors.USER_NOT_FOUND({ username });
-      if (!scope.includes(String(user.id))) throw errors.NOT_IN_YOUR_TREE({ username });
+      // One answer for "no such player" and "not yours": the code must not say which.
+      if (!user || !scope.includes(String(user.id))) throw errors.NOT_IN_YOUR_TREE({ username });
       scope = [String(user.id)];
     }
 

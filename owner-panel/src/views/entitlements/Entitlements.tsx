@@ -788,7 +788,6 @@ const Entitlements = () => {
       return next
     })
 
-  const invalidProblem = Object.values(invalid)[0] ?? null
 
   const reset = () => {
     setEdits(null)
@@ -798,6 +797,20 @@ const Entitlements = () => {
 
   // Pinned to this UI the way the save pins it (store.ts), so the screen shows what will be stored.
   const draft: Draft | null = doc ? (d => ({ ...d, ...pinToUi(d.features, d.variants) }))(buildDraft(doc, edits)) : null
+
+  // The save refuses a default / reward coin that Site flags switch off (store.ts): say so here and block it.
+  const coinProblem =
+    draft &&
+    (['default_currency', 'reward_currency'] as const)
+      .map(key => {
+        const coin = String(draft.variants[key] ?? '').toLowerCase()
+        const off = coin && (draft.flags[coin] === false || (!FIAT_COIN_FLAGS.has(coin) && draft.flags.cryptocoin === false))
+
+        return off ? `${featureByKey(key)?.label ?? key} is ${coin.toUpperCase()}, but ${draft.flags[coin] === false ? `${coin.toUpperCase()} is` : 'Crypto wallets (master) is'} switched off under Site flags` : null
+      })
+      .find(Boolean)
+
+  const invalidProblem = Object.values(invalid)[0] ?? coinProblem ?? null
 
   const changes = doc && draft ? diffDocs(doc, draft) : []
   const changed = new Set(changes.map(c => `${c.kind === 'variant' ? 'feature' : c.kind}:${c.key}`))

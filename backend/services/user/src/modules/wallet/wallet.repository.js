@@ -599,6 +599,28 @@ class WalletRepository {
     return String(row?.total ?? '0');
   }
 
+  /**
+   * What the sports exchange did to `credits.inr` without a wallet ledger row: it debits and pays
+   * credits itself. Settled P&L (agent player: `point_ledger` BET_SETTLEMENT on its credits wallet;
+   * direct player: `point_ledger_direct` SPORTS BET_SETTLEMENT) plus the liability still held on
+   * open bets (`total_exposures`, negative). A schema without sports answers 0.
+   */
+  async sumSportsInr(userId) {
+    const sequelize = this.models.CreditsLedger.sequelize;
+    const [hasSports] = await sequelize.query(`SELECT to_regclass('mssports.total_exposures') IS NOT NULL AS ok`, { type: 'SELECT' });
+    if (!hasSports?.ok) return '0';
+    const [row] = await sequelize.query(
+      `SELECT
+         COALESCE((SELECT SUM(p.delta) FROM mssports.point_ledger p JOIN credits c ON c.id = p.wallet_id
+                    WHERE c.uid = :uid AND p.event_type = 'BET_SETTLEMENT'), 0)
+       + COALESCE((SELECT SUM(delta) FROM mssports.point_ledger_direct
+                    WHERE user_id = :uid AND currency = 'INR' AND category = 'SPORTS' AND event_type = 'BET_SETTLEMENT'), 0)
+       + COALESCE((SELECT total_exposure FROM mssports.total_exposures WHERE user_id = :uid), 0) AS total`,
+      { replacements: { uid: String(userId) }, type: 'SELECT' }
+    );
+    return String(row?.total ?? '0');
+  }
+
   /** Every currency this player has a ledger row in, so a reconcile sees a coin the balance read hides. */
   async ledgerCurrencies(userId) {
     const rows = await this.models.CreditsLedger.findAll({

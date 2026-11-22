@@ -6,8 +6,9 @@ const { hashPassword, canActOn, effectiveStaffLevel, STAFF_LEVELS } = require('@
 
 const errors = require('./lords.errors');
 const { ACCOUNT_TYPE, PASSWORD_ROUNDS } = require('./lords.constants');
-const { manageableStaffIds, verifyTransactionPassword } = require('../staff-directory/staffDirectory.service');
-const { directSources } = require('../locks/lockSources');
+const { manageableStaffIds, verifyTransactionPassword, visibleStaffIds } = require('../staff-directory/staffDirectory.service');
+const { directSources, upheldAbove } = require('../locks/lockSources');
+const lockErrors = require('../locks/locks.errors');
 const { cascadeSuspension } = require('../locks/suspendCascade');
 const {
   assertTransactionPassword,
@@ -161,11 +162,21 @@ class LordsService {
     const model = isStaff ? this.models.Staff : this.models.Users;
     // A lock set or lifted HERE is a direct one — recorded as such, so a later
     // unlock of the parent agent does not undo it. See `locks/lockSources.js`.
-    const sources = directSources(patch);
     await this.db.transaction(async (transaction) => {
       const before = isStaff && patch.status !== undefined
         ? await this.models.Staff.findByPk(accountId, { attributes: ['id', 'status'], transaction, raw: true })
         : null;
+      // Only the level that set a lock, or one above, lifts it (locks/lockSources.js `upheldAbove`).
+      const lockCols = Object.keys(patch).filter((c) => c !== 'status' && c !== 'bet_status');
+      let levels = {};
+      if (lockCols.length) {
+        const row = await model.findOne({ where: { id: accountId }, attributes: [...lockCols, 'lock_sources'], transaction, lock: transaction.LOCK.UPDATE, raw: true });
+        const tree = (await visibleStaffIds(this.models, actor.id, { logger: this.logger })).filter((id) => Number(id) !== Number(actor.id));
+        const held = upheldAbove(row, patch, effectiveStaffLevel(actor), tree);
+        if (held.blocked.length) throw lockErrors.LOCKED_BY_UPLINE({ accountId, locks: held.blocked });
+        levels = held.levels;
+      }
+      const sources = directSources(patch, levels);
       const [affected] = await model.update(
         sources ? { ...patch, lock_sources: sources } : patch,
         { where: { id: accountId }, transaction }
@@ -1016,7 +1027,7 @@ class LordsService {
     const ok = await verifyTransactionPassword(this.models, actor.id, transactionPassword, {
       executiveId: actor.executiveId ?? null,
     });
-    if (!ok) throw errors.TRANSACTION_PASSWORD_REQUIRED({ reason: 'not valid' });
+    if (!ok) throw txnErrors.INVALID();
   }
 
   /**

@@ -5,6 +5,7 @@ const { Router } = require('express');
 const { PERMISSIONS } = require('@ibitplay/auth');
 
 const { lazy } = require('../../../lib/mssports');
+const { standardEnvelope } = require('../../../lib/standardEnvelope');
 
 /**
  * mssports `api/settlementStatement.api.js` → `manualSettleRouter`, route for route.
@@ -21,8 +22,10 @@ const { lazy } = require('../../../lib/mssports');
  *  POST /void-bet-after-settlement    🔑  reverse a settled bet      (needs transaction password)
  *  POST /void-market-after-settlement 🔑  reverse a settled market   (needs transaction password)
  */
-module.exports = function adminRoutes({ auth }) {
+module.exports = function adminRoutes({ auth, logger }) {
   const router = Router();
+  // Failures in the platform's standard envelope, like every other admin route.
+  router.use(standardEnvelope({ logger }));
   // Platform permissions first, so a Super Admin executive can be given exactly these (user, 2026-10-17).
   const canSettle = auth.requirePermission(PERMISSIONS.SPORTS_SETTLE);
   const canVoidSettled = auth.requirePermission(PERMISSIONS.SPORTS_VOID_SETTLED);
