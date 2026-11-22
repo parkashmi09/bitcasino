@@ -32,7 +32,7 @@ export const SITE_UI: Record<string, UiSupport> = {
   raffles: { status: 'toggle', variant: 'ticket_raffle', surfaces: '/promotions/weekly-raffle (also needs the site admin Lotto flag)' },
   vault: { status: 'toggle', variant: 'flat_balance', surfaces: 'wallet Vault tab, Vault and Vault interest tabs in /profile/transactions' },
   swap: { status: 'toggle', variant: 'swap_page', surfaces: 'wallet Swap tab, Swaps tab in /profile/transactions' },
-  notifications: { status: 'toggle', variant: 'notice_centre', surfaces: '/profile/notifications' },
+  notifications: { status: 'toggle', variant: 'notice_centre', surfaces: '/profile/notifications and the unread count on the header bell' },
   kyc: { status: 'toggle', variant: 'document_cockpit', surfaces: 'identity verification and verification levels 3-4 in /profile/account' },
   gift_cards: { status: 'toggle', variant: 'redeem_dialog', surfaces: 'redeem a code, gift card list and claimed history in /profile/rewards' },
   blog: { status: 'toggle', variant: 'category_feed', surfaces: '/blog, /blog/:slug and the links in the home copy' },
