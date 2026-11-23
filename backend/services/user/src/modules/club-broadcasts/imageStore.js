@@ -40,7 +40,8 @@ class BannerImageStore {
   constructor({ root, logger }) {
     // Resolved once, at construction. Comparing against a relative root is how
     // a containment check silently stops containing anything.
-    this.root = path.resolve(root);
+    // The user-service config default; dev-mono's merged config has no CLUB_BANNER_STORAGE_DIR.
+    this.root = path.resolve(root ?? path.resolve(__dirname, '../../../../../storage/club-banners'));
     this.logger = logger;
   }
 
