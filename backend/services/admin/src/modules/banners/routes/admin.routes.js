@@ -1,7 +1,7 @@
 'use strict';
 
 const { Router } = require('express');
-const { validate, createActivityRecorder } = require('@ibitplay/common');
+const { validate, noBody, createActivityRecorder } = require('@ibitplay/common');
 const { PERMISSIONS } = require('@ibitplay/auth');
 
 const v = require('../banners.validators');
@@ -87,6 +87,7 @@ module.exports = function adminRoutes(deps) {
   router.delete(
     '/:type',
     canWrite,
+    noBody(),
     validate(v.remove),
     withActivity({
       action: 'banner.remove',
