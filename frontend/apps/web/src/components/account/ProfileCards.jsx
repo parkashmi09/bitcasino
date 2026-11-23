@@ -274,7 +274,7 @@ export function PlayerCardDialog({ open, onClose, userId }) {
       ) : (
         <div className="grid gap-4">
           <div className="flex items-center gap-3">
-            <Avatar src={data.avatar} name={data.username ?? ''} className="size-14 text-xl" />
+            <Avatar src={data.avatar} name={data.username || '?'} className="size-14 text-xl" />
             <div className="grid min-w-0">
               {/* `usernameHidden`: the player keeps the name private and the server sends null. */}
               <span className="truncate text-lg leading-7 font-semibold text-bulma">
