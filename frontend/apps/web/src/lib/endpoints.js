@@ -35,6 +35,8 @@ export const ENDPOINTS = {
   // Live TV on a match: `{ allowed, reason, message, minBalance, inactiveHours }` (Site config → Features → Live TV).
   liveTvAccess: `${USER}/live-tv/access`,
   sessions: `${USER}/auth/sessions`,
+  // Signs out one device (and the rows it was rotated from); 404 AUTH_DEVICE_NOT_FOUND for not yours.
+  sessionRevoke: `${USER}/auth/sessions/:sessionId`,
   changePassword: `${USER}/auth/change-password`,
   // Sign in with Google (`lib/googleAuth.js`). `googleStatus` is `{ enabled }` — the owner's
   // `google_signin` policy; `googleStart` is a browser navigation, not a fetch.
@@ -103,6 +105,16 @@ export const ENDPOINTS = {
   // a fresh one would re-open the door it closed. The player signs in.
   resetPassword: `${USER}/auth/reset-password`,
 
+  // Lost authenticator, public: `{identifier}` (email or username) mails a code to the account's
+  // address and answers `{requested: true}` whether or not one exists; confirm `{identifier, code}`
+  // answers `{reset: true}` and turns the second factor off (EMAIL_OTP_INVALID otherwise).
+  twoFactorReset: `${USER}/email/2fa/reset`,
+  twoFactorResetConfirm: `${USER}/email/2fa/reset/confirm`,
+  // The signed-in player's own address: request (no body) → `{requested}` or `{emailVerified: true}`;
+  // confirm `{code}` → `{emailVerified: true}`. Owner policy `deposit_email_verification` reads it.
+  emailVerifyRequest: `${USER}/email/verify/request`,
+  emailVerifyConfirm: `${USER}/email/verify/confirm`,
+
   // ── Profile ─────────────────────────────────────────────────────────
   // One path, two verbs: GET answers the player's own record, PUT edits it.
   // PUT is `.strict()` on the backend and accepts `username`, `country` and
@@ -110,6 +122,18 @@ export const ENDPOINTS = {
   // is why `useProfile` splits the account form's fields rather than posting
   // the whole thing.
   profile: `${USER}/profile`,
+  // Lifetime play `{bets, wins, winRate, wagered: {usd}, biggestWin, favouriteGames, …}` (cached 60 s).
+  profileStats: `${USER}/profile/stats`,
+  // `{avatarId}` — one of Admin → Avatars' pictures; 403 AVATAR_LOCKED above the player's VIP level.
+  profileAvatar: `${USER}/profile/avatar`,
+  // `{email, code, password}`: the code is a `change-email` OTP sent to the NEW address (`emailOtp`).
+  profileChangeEmail: `${USER}/profile/change-email`,
+  // Public: `{userId, username, avatar, joinedAt, level, levelName, badgeUrl, bets, wins, statisticsHidden}`.
+  publicProfile: `${USER}/profile/:userId/public`,
+  // Public: the Edit Avatar grid `[{id, url, minLevel, sort}]`.
+  avatarsPublic: `${ADMIN}/avatars/public`,
+  // Public: `{restricted, mode: off|notice|block, areaCode, ip, rayId}` for this visitor.
+  region: `${USER}/region`,
 
   // The player's own KYC state: `NotSubmitted` until they apply, then
   // `Pending` / `Verified` / `Rejected`. What the account page's identity
@@ -132,6 +156,23 @@ export const ENDPOINTS = {
   // wrong against `kyc.constants.js`; the figures above are the code's.)
   // ═══════════════════════════════════════════════════════════════════
   kycSubmit: `${USER}/kyc/submit`,
+
+  // Verification levels 3 (Proof of Address) and 4 (Source of Income), after identity KYC:
+  // `{identity, levelsOn, levels: [{level, label, unlocked, status, rejectionReason, submittedAt}]}`.
+  // POST `/:level` is MULTIPART with one `document` file (JPEG/PNG/PDF, 5 MB).
+  kycLevels: `${USER}/kyc-levels`,
+  kycLevelSubmit: `${USER}/kyc-levels/:level`,
+
+  // ── Responsible gambling (no owner gate; the player's own) ──────────
+  // `{selfExclusions: [{id, selfExclusionType, createdAt, selfExclusionUntilAt,
+  // selfExclusionCooldownUntilAt}], limits: [{id, type, usdAmount, periodUnit, progressAmount,
+  // createdAt, expiredAt, resetsAt}]}`. A break is two steps: cooldown `{type}` (24h), then
+  // `{type, breakPeriod}`. A limit is `{type, usdAmount, periodUnit}`; remove keeps it 12 more hours.
+  responsible: `${USER}/responsible-gambling`,
+  responsibleCooldown: `${USER}/responsible-gambling/self-exclusions/cooldown`,
+  responsibleBreak: `${USER}/responsible-gambling/self-exclusions`,
+  responsibleLimits: `${USER}/responsible-gambling/limits`,
+  responsibleLimitRemove: `${USER}/responsible-gambling/limits/:id/remove`,
 
   // ── Two-factor authentication ───────────────────────────────────────
   // All four are `player`, and none of them takes a `uid` — legacy's did,
@@ -188,6 +229,8 @@ export const ENDPOINTS = {
   notifications: `${USER}/notifications`,
   notificationRead: `${USER}/notifications/:id/read`,
   notificationsReadAll: `${USER}/notifications/read-all`,
+  // `{unread, byCategory}` over the whole inbox (the bell's count; the list above is capped at 50).
+  notificationsUnread: `${USER}/notifications/unread-count`,
 
   // ── Preferences ─────────────────────────────────────────────────────
   // `userconfig`: theme, language, and the two notification switches. GET
@@ -234,6 +277,17 @@ export const ENDPOINTS = {
   // sit under in the combined view.
   historyTransfers: `${USER}/history/transfers`,
 
+  // ── Tips (owner feature `tips`; sending refused to an agent's player) ─
+  // send `{toUsername, currency, amount, note?, requestId?}` → 201 `{tipId, toUsername, currency,
+  // amount, balance}`; users `?q=` → `[{id, name}]` (prefix, accepts tips); settings
+  // `{enabled, limits: {maxPerTipUsd, maxPerDayUsd, minWageredUsd, currency, usedTodayUsd}}`, PATCH
+  // `{enabled}`; history `?limit&offset` → `{rows: [{id, direction, counterparty: {name}, currency,
+  // amount, note, createdAt}], total}`.
+  tipSend: `${USER}/tip/send`,
+  tipUsers: `${USER}/tip/users`,
+  tipSettings: `${USER}/tip/settings`,
+  tipHistory: `${USER}/tip/history`,
+
   // Submitted crypto withdrawals and their aggregate. The list is the record
   // of what a player asked for; the socket event is how they ask.
   withdrawalsCrypto: `${USER}/withdrawals/crypto`,
@@ -242,10 +296,20 @@ export const ENDPOINTS = {
   withdrawalRequirements: `${USER}/withdrawals/requirements`,
   // A fiat (bank / UPI) payout request: `{amount, currency, accountHolderName, upiId | bankName+accountNumber+ifscCode}`.
   withdrawFiat: `${USER}/withdrawals/fiat`,
-  // The player's own payout addresses: `{whitelistOnly, addresses: [{id, label, currency,
-  // network, address, memo}]}`. POST `{label, currency, network?, address, memo?}` (strict);
-  // DELETE `/:id` (removing the last one switches enforcement off); PUT `enforcement`
-  // `{enabled}` (refused on an empty list: WHITELIST_EMPTY_WHITELIST).
+  // GET the same path lists the player's own (`?status&limit&offset`, rows `{withdrawalId, amount,
+  // currency, status: 'In Queue'|…, requestedAt}`); cancel takes one still In Queue back to the balance.
+  withdrawFiatCancel: `${USER}/withdrawals/fiat/:withdrawalId/cancel`,
+  // Saved payout accounts: `[{id, method: bank|upi, accountHolderName, bankName,
+  // accountNumberMasked, ifscCode, upiId, isDefault}]`; POST `{method, accountHolderName, …,
+  // makeDefault?}`; the withdraw form sends `{bankAccountId}` in place of the details.
+  bankAccounts: `${USER}/bank-accounts`,
+  bankAccount: `${USER}/bank-accounts/:id`,
+  bankAccountDefault: `${USER}/bank-accounts/:id/default`,
+  // The player's own payout addresses: `{whitelistOnly, offAt, addresses: [{id, label, currency,
+  // network, address, memo, activeAt}]}` (an address is usable from `activeAt`, 24h after adding).
+  // POST `{label, currency, network?, address, memo?, password, code?}`; DELETE `/:id` `{password,
+  // code?}` → `{removed, remaining, whitelistOnly, offAt}`; PUT `enforcement` `{enabled}` (+ password
+  // and code to switch off, which lands at `offAt`, 24h later; switching on clears it).
   withdrawWhitelist: `${USER}/withdrawals/whitelist`,
   withdrawWhitelistItem: `${USER}/withdrawals/whitelist/:id`,
   withdrawWhitelistEnforcement: `${USER}/withdrawals/whitelist/enforcement`,
@@ -283,6 +347,10 @@ export const ENDPOINTS = {
   // The automatic payout: `POST {provider, currency, amount, details, forfeitBonus?}` (`.strict()`); F2Pay's
   // BANK_INR `details` is `{account_name, account_number, bank_code}`. The amount is held; the callback settles or refunds it.
   paymentWithdrawals: `${USER}/payments/withdrawals`,
+  // The player's provider orders, rows `{provider, flow: payin|payout, reference, amount, currency,
+  // status: pending|success|failed, createdAt}`; refresh asks the provider and reports, never settles.
+  paymentOrders: `${USER}/payments/orders`,
+  paymentOrderRefresh: `${USER}/payments/orders/:provider/:reference/refresh`,
 
   // ── Swap and Vault ──────────────────────────────────────────────────
   // Both answer 403 NOT_ENTITLED outside the owner's plan and
@@ -298,6 +366,12 @@ export const ENDPOINTS = {
   vaultLockOptions: `${USER}/vault/lock-options`,
   vaultTransferIn: `${USER}/vault/transfer-in`,
   vaultTransferOut: `${USER}/vault/transfer-out`,
+  // Raw rows, offset-paged: swap `{id, from_currency, to_currency, from_amount, to_amount,
+  // fee_amount, created_at}`; vault `{id, coin, amount, type, createdAt}` and interest
+  // `{id, coin, interest, rate, createdAt}`. History stays readable for an agent's player.
+  swapHistory: `${USER}/swap/history`,
+  vaultTransactions: `${USER}/vault/transactions`,
+  vaultInterest: `${USER}/vault/interest`,
 
   // ── Player history ──────────────────────────────────────────────────
   // What the header's `Recents` panel lists. Rows are
@@ -325,6 +399,10 @@ export const ENDPOINTS = {
   // win, `transaction_type` is `ROUND`. A provider row is a movement, so a
   // bet and its win are two rows sharing a `round_id`.
   betHistory: `${CASINO}/bet-history`,
+  // The caller's own casino `{bets, wins, bySource}` (no money: the sources hold different coins).
+  betStats: `${CASINO}/bet-history/stats`,
+  // `?period=daily|weekly|monthly` → `{period, rank (null = no bets), total, bets, wagered, won}`.
+  betRankMe: `${CASINO}/bet-history/leaderboard/me`,
 
   // ── Catalogue ───────────────────────────────────────────────────────
   // All public. Every one of these is `.strict()` on its query, and the
@@ -534,6 +612,50 @@ export const ENDPOINTS = {
   raceRewards: `${USER}/race/rewards`,
   raceRewardClaim: `${USER}/race/rewards/:rewardId/claim`,
 
+  // The settled board of one race type: `{raceId, type, startsAt, endsAt, payoutCurrency, leaderboard}`.
+  raceLast: `${USER}/race/:type/last`,
+
+  // ── Group 2: quests, raffle, bonus centre, reload, medals, gift cards, free spins ─
+  // `challenges` feature. `{dailyQuest: {first: {endsAt, quests: [{key, title, description, unit, target,
+  // progress, completed, rewardUsd, claimed}]}}}`. claim `:key` (dailyWager|dailyBets) → `{key, claimed,
+  // rewardUsd, amount, currency, endsAt}`; 422 NOT_COMPLETED/NO_REWARD, 409 ALREADY_CLAIMED, 403 NOT_ELIGIBLE.
+  quests: `${USER}/quests`,
+  questClaim: `${USER}/quests/:key/claim`,
+  // `raffles` feature. current (public) `{enabled, number, drawAt, status, prizePoolUsd, winners, prizeUsd,
+  // wagerPerTicketUsd, latestDrawn}`; me `{number, tickets: [{ticket, source, createdAt}], freeClaimed,
+  // wageredUsd, nextTicketInUsd}`; claim (no body) → 201 ticket; draw → `{…draw, winners: [{ticket, player,
+  // count, prizeUsd}], myTickets}`. `:number` is a draw number; drawn ones count down from `latestDrawn`.
+  raffleCurrent: `${USER}/raffle/current`,
+  raffleMe: `${USER}/raffle/me`,
+  raffleClaim: `${USER}/raffle/claim`,
+  raffleDraw: `${USER}/raffle/draws/:number`,
+  // `bonus` feature, paged `limit/offset`: `[{id, type, amount, amountCurrency, claimed, unclaimable, deadline,
+  // claimedAt, createdAt}]` — the periodic-bonus awards.
+  bonusHistory: `${USER}/bonus/history`,
+  // `bonus` feature. overview `{vipLevel, DAILY_RELOAD, PRE_MONTHLY}` each `{enabled, percent, minVipLevel,
+  // eligible, open, opensAt, amount, currency, claimed, claimable}`; calendar `{enabled, eligible, today,
+  // percent, days: [{date, earnedUsd, claimedUsd, state}]}`; summary `{daily, …, total}` in USD; claim
+  // `POST /:program/claim` → `{program, currency, amount, balance}`.
+  reloadRewards: `${USER}/reload-rewards`,
+  reloadCalendar: `${USER}/reload-rewards/calendar`,
+  reloadSummary: `${USER}/reload-rewards/summary`,
+  reloadClaim: `${USER}/reload-rewards/:program/claim`,
+  // No feature gate, open to agent players (cosmetic). `{medalCount, total, medals: [{key, title, rule,
+  // available, unavailableReason, unlocked, unlockedAt, progress: {current, target}, holders}]}`.
+  medals: `${USER}/medals`,
+  // The caller's own spins, paged: `[{id, sliceLabel, rewardAmount, redeemCode, claimedAt}]`.
+  spinClaims: `${USER}/spin-wheel/claims`,
+  // `gift_cards` feature. list `[{giftcards: {id, description, amount, endDate, depositStatus, depositAmount,
+  // wagerStatus, wagerTimes}, usergiftcards: {status, expired} | null, deposit, wager}]`; claimed (paged)
+  // `[{id, startDate, card: {description, amount, currency}}]`; activate `{giftCardId}`.
+  giftCards: `${USER}/gift-cards`,
+  giftCardsClaimed: `${USER}/gift-cards/claimed`,
+  giftCardActivate: `${USER}/gift-cards/activate`,
+  // GIS. mine `{total, freespins: [{id, game: {name, image}, currency, quantity, quantityLeft, validUntil}]}`;
+  // jackpots is the aggregator's own answer, passed through (503 GIS_NOT_CONFIGURED without a merchant).
+  gisFreespinsMine: `${CASINO}/gis/freespins/mine`,
+  gisJackpots: `${CASINO}/gis/jackpots`,
+
   // ── Operator promotions (owner feature `promotions`) ────────────────
   // Public, on ADMIN-service. The list carries no body; the slug read does
   // (`description`/`termsHtml` are HTML). Slugs are unique per segment.
@@ -556,6 +678,9 @@ export const ENDPOINTS = {
   bonusBalance: `${USER}/bonus-balance`,
   // Claims every gradual bonus's unlocked part at once.
   bonusBalanceClaim: `${USER}/bonus-balance/claim`,
+  // The deposit rollover, in USD: `{scope, multiplier, tasks: [{id, label, since, currency, basis,
+  // target, wagered, remaining, status: in_progress|complete}]}` (no task before a deposit).
+  wagerTasks: `${USER}/wager/tasks`,
   // The Super Admin's loss-bonus terms and the last window: `{enabled, welcome, percent, maxBonus,
   // wagerMultiplier, currency, netLoss, bonus, state, period, claimExpiresAt}`; claim pays it once.
   lossBonus: `${USER}/loss-bonus`,

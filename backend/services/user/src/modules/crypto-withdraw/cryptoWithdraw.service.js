@@ -17,6 +17,7 @@ const { networksFor } = require('../crypto/crypto.networks');
 const { PlayerBonusService } = require('../player-bonuses/playerBonus.service');
 const { createWithdrawRequirements } = require('../withdraw-requirements/withdrawRequirements');
 const { withChannel } = require('../directory/playerScope');
+const { WhitelistService } = require('../withdrawal-whitelist/whitelist.service');
 const { ccpaymentCall, plainAmount, withdrawalOutcome } = require('../crypto/ccpaymentApi');
 const { ccpaymentCoinId, ccpaymentChain, refreshCcpaymentCoinIds } = require('../payment-orders/gateways');
 const { createHttpClient } = require('../psp/providers/http');
@@ -49,6 +50,7 @@ class CryptoWithdrawService {
     this.minimum = config?.WITHDRAW_MINIMUM ?? '1';
     // The owner's `withdrawal_requirements` policy (KYC / wagering), with WITHDRAW_REQUIRE_KYC.
     this.requirements = deps.withdrawRequirements ?? createWithdrawRequirements({ ...deps, playerBonuses: this.playerBonuses });
+    this.whitelist = new WhitelistService(deps);
     this.deps = deps;
     this.http = deps.http ?? createHttpClient({ logger, timeoutMs: Number(config?.PSP_TIMEOUT_MS ?? 10_000) });
   }
@@ -154,6 +156,11 @@ class CryptoWithdrawService {
           replacements: { key: idempotencyKey },
           transaction,
         });
+
+        // Whitelist-only withdrawals: checked in this transaction, so removing the address cannot race the hold.
+        if (!(await this.whitelist.isAllowed(userId, { currency, address }, { transaction }))) {
+          throw errors.ADDRESS_NOT_WHITELISTED({ coin: currency });
+        }
 
         // The deposit cap again, under a per-player lock: two requests at once cannot both fit.
         await this.requirements.assertCapInTransaction(userId, { amount: decimal, currency, transaction, applied });

@@ -15,11 +15,11 @@ function createControllers({ service }) {
     ),
 
     remove: asyncHandler(async (req, res) =>
-      response.ok(res, await service.remove(req.user.id, req.params.id))
+      response.ok(res, await service.remove(req.user.id, req.params.id, req.body ?? {}))
     ),
 
     setEnforcement: asyncHandler(async (req, res) =>
-      response.ok(res, await service.setEnforcement(req.user.id, req.body.enabled))
+      response.ok(res, await service.setEnforcement(req.user.id, req.body.enabled, req.body))
     ),
   };
 }

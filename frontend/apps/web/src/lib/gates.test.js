@@ -33,6 +33,18 @@ describe('gates', () => {
     expect(agent.routeOn('/vip')).toBe(false);
     expect(agent.routeOn('/blog')).toBe(false);
     expect(agent.on('kyc')).toBe(false);
+    expect(agent.on('tips')).toBe(false);
+    // Tips follow the owner's plan for a direct player.
+    expect(makeGates({ features: [{ feature: 'tips' }] }).on('tips')).toBe(true);
+    expect(makeGates({ features: [] }).on('tips')).toBe(false);
+    // Raffle and Bonus centre: their own owner rows; never for an agent's player; medals stay open.
+    expect(gateOf('/promotions/weekly-raffle')).toBe('raffle');
+    expect(makeGates({ features: [{ feature: 'promotions' }] }).routeOn('/promotions/weekly-raffle')).toBe(false);
+    expect(makeGates({ features: [{ feature: 'promotions' }, { feature: 'raffles' }] }).routeOn('/promotions/weekly-raffle')).toBe(true);
+    expect(makeGates({ features: [{ feature: 'bonus' }] }).on('bonusCentre')).toBe(false);
+    expect(agent.on('raffle')).toBe(false);
+    expect(agent.on('bonusCentre')).toBe(false);
+    expect(agent.routeOn('/profile/medals')).toBe(true);
   });
 
   it('treats a visitor on /agent as an agent player, and a signed-in player by their own capabilities', () => {

@@ -55,3 +55,22 @@ export function payoutError(error) {
   const message = error?.message || 'The withdrawal was refused.';
   return named ? `${message}: ${named}` : message;
 }
+
+/**
+ * A refused deposit, in words. The player's own deposit limit (Settings, Responsible gambling)
+ * says how much is left and when it resets; `RESPONSIBLE_DEPOSIT_NO_RATE` is a coin with no USD rate.
+ */
+export function depositError(error, fallback = 'The deposit was refused.') {
+  if (error?.code === 'RESPONSIBLE_DEPOSIT_LIMIT_REACHED') {
+    const { limitUsd, usedUsd, resetsAt } = error.details ?? {};
+    const left = Math.max(0, Number(limitUsd) - Number(usedUsd));
+    const when = resetsAt ? ` It resets ${new Date(resetsAt).toLocaleString()}.` : '';
+    return Number.isFinite(left)
+      ? `This goes over your deposit limit: ${left.toFixed(2)} of ${Number(limitUsd).toFixed(2)} USD left.${when}`
+      : `This goes over your deposit limit.${when}`;
+  }
+  if (error?.code === 'RESPONSIBLE_DEPOSIT_NO_RATE') {
+    return 'This coin has no USD rate right now, so your deposit limit cannot be checked. Try another coin.';
+  }
+  return error?.message || fallback;
+}

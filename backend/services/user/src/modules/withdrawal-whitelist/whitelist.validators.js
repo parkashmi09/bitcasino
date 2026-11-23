@@ -21,6 +21,12 @@ const address = z
 
 const label = z.string().trim().min(1, 'label is required').max(60);
 
+/** Step-up for the loosening writes; the service checks them (PASSWORD_REQUIRED / TWOFA_INVALID_CODE). */
+const reauth = {
+  password: z.string().max(200).optional(),
+  code: z.string().trim().max(10).optional(),
+};
+
 const create = {
   body: z
     .object({
@@ -29,6 +35,7 @@ const create = {
       network: z.string().trim().max(40).optional(),
       address,
       memo: z.string().trim().max(120).optional(),
+      ...reauth,
     })
     .strict(),
 };
@@ -43,6 +50,9 @@ const idParam = {
   params: z.object({ id: z.string().trim().regex(/^\d+$/, 'id must be numeric') }),
 };
 
+/** DELETE carries the step-up in its body. */
+const remove = { ...idParam, body: z.preprocess((b) => b ?? {}, z.object(reauth).strict()) };
+
 /**
  * `z.enum` and not `z.coerce.boolean()`, which maps every non-empty string —
  * `"false"` included — to `true`. This one decides whether withdrawals are
@@ -54,8 +64,9 @@ const enforcement = {
   body: z
     .object({
       enabled: z.union([z.boolean(), z.enum(['true', 'false']).transform((v) => v === 'true')]),
+      ...reauth,
     })
     .strict(),
 };
 
-module.exports = { create, rename, idParam, enforcement };
+module.exports = { create, rename, idParam, remove, enforcement };

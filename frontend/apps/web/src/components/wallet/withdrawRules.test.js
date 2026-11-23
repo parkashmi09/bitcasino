@@ -52,6 +52,14 @@ describe('savedFor', () => {
     expect(savedFor(rows, 'USDT').map((r) => r.id)).toEqual(['1', '2']);
     expect(savedFor(rows, 'USDT', 'trc20').map((r) => r.id)).toEqual(['1']);
     expect(savedFor(rows, 'BTC', 'BTC').map((r) => r.id)).toEqual(['3']);
+  });
+  it('leaves out an address that is not usable yet', () => {
+    const now = Date.parse('2026-11-23T12:00:00Z');
+    const fresh = [
+      { id: 'a', currency: 'BTC', address: 'bc1a', activeAt: '2026-11-24T00:00:00Z' },
+      { id: 'b', currency: 'BTC', address: 'bc1b', activeAt: '2026-11-22T00:00:00Z' },
+    ];
+    expect(savedFor(fresh, 'BTC', null, now).map((r) => r.id)).toEqual(['b']);
     expect(savedFor(undefined, 'BTC')).toEqual([]);
   });
 });

@@ -92,6 +92,7 @@ export function useSpin() {
     onSuccess: () => {
       // The cooldown started, so the eligibility answer is now wrong.
       client.invalidateQueries({ queryKey: queryKeys.promotions.spinEligibility() });
+      client.invalidateQueries({ queryKey: queryKeys.promotions.spinClaims() });
     },
   });
 }
@@ -496,5 +497,115 @@ export function useChallenges({ enabled = true } = {}) {
     enabled,
     staleTime: 30 * 1000,
     retry: false,
+  });
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+ * Quests, the weekly raffle, spin history, race last board, bonus awards
+ * ═══════════════════════════════════════════════════════════════════════ */
+
+const signedIn = (status, enabled) => enabled && status === 'authenticated';
+
+/** Today's quests with the caller's progress: `[{key, title, description, unit, target, progress, completed, rewardUsd, claimed}]`. */
+export function useQuests({ enabled = true } = {}) {
+  const { status } = useAuth();
+  return useQuery({
+    queryKey: queryKeys.promotions.quests(),
+    queryFn: ({ signal }) => api(ENDPOINTS.quests, { signal }),
+    select: (data) => ({ endsAt: data?.dailyQuest?.first?.endsAt ?? null, quests: data?.dailyQuest?.first?.quests ?? [] }),
+    enabled: signedIn(status, enabled),
+    staleTime: 60 * 1000,
+  });
+}
+
+/** Pay out a finished quest's reward into the wallet: `POST /quests/:key/claim`. */
+export function useClaimQuest() {
+  const client = useQueryClient();
+  return useMutation({
+    meta: { success: (data) => `Quest reward claimed: ${formatBalance(String(data?.amount ?? 0))} ${data?.currency ?? ''}`.trim() },
+    mutationFn: (key) => api(path(ENDPOINTS.questClaim, { key }), { method: 'POST' }),
+    retry: false,
+    onSettled: () => {
+      client.invalidateQueries({ queryKey: queryKeys.promotions.quests() });
+      refreshBalances();
+    },
+  });
+}
+
+/** The running draw and its rules. Public. */
+export function useRaffle({ enabled = true } = {}) {
+  return useQuery({
+    queryKey: queryKeys.promotions.raffle(),
+    queryFn: ({ signal }) => api(ENDPOINTS.raffleCurrent, { auth: false, signal }),
+    enabled,
+    staleTime: 60 * 1000,
+  });
+}
+
+/** The caller's tickets in the running draw. */
+export function useMyRaffle({ enabled = true } = {}) {
+  const { status } = useAuth();
+  return useQuery({
+    queryKey: queryKeys.promotions.raffleMe(),
+    queryFn: ({ signal }) => api(ENDPOINTS.raffleMe, { signal }),
+    enabled: signedIn(status, enabled),
+    staleTime: 30 * 1000,
+  });
+}
+
+/** The one free ticket per draw. */
+export function useClaimRaffleTicket() {
+  const client = useQueryClient();
+  return useMutation({
+    meta: { success: 'Free ticket added.' },
+    mutationFn: () => api(ENDPOINTS.raffleClaim, { method: 'POST' }),
+    retry: false,
+    onSuccess: () => client.invalidateQueries({ queryKey: queryKeys.promotions.raffleMe() }),
+    onError: claimFailed,
+  });
+}
+
+/** One drawn draw's winners and the caller's own tickets in it. */
+export function useRaffleDraw(number) {
+  const { status } = useAuth();
+  return useQuery({
+    queryKey: queryKeys.promotions.raffleDraw(number),
+    queryFn: ({ signal }) => api(path(ENDPOINTS.raffleDraw, { number }), { signal }),
+    enabled: status === 'authenticated' && Number(number) > 0,
+    staleTime: 10 * 60 * 1000,
+  });
+}
+
+/** The caller's last spins: `[{id, sliceLabel, rewardAmount, redeemCode, claimedAt}]`. */
+export function useSpinClaims({ enabled = true } = {}) {
+  const { status } = useAuth();
+  return useQuery({
+    queryKey: queryKeys.promotions.spinClaims(),
+    queryFn: ({ signal }) => api(ENDPOINTS.spinClaims, { query: { limit: 20 }, signal }),
+    select: (rows) => (Array.isArray(rows) ? rows : []),
+    enabled: signedIn(status, enabled),
+    staleTime: 30 * 1000,
+  });
+}
+
+/** The last settled board of one race type (its full paid standings). */
+export function useRaceLast(type, { enabled = true } = {}) {
+  return useQuery({
+    queryKey: queryKeys.promotions.raceLast(type),
+    queryFn: ({ signal }) => api(path(ENDPOINTS.raceLast, { type }), { auth: false, signal }),
+    enabled: enabled && Boolean(type),
+    staleTime: 5 * 60 * 1000,
+  });
+}
+
+/** The periodic-bonus awards, newest first. */
+export function useBonusHistory({ enabled = true } = {}) {
+  const { status } = useAuth();
+  return useQuery({
+    queryKey: queryKeys.promotions.bonusHistory(),
+    queryFn: ({ signal }) => api(ENDPOINTS.bonusHistory, { query: { limit: 20 }, signal }),
+    select: (rows) => (Array.isArray(rows) ? rows : []),
+    enabled: signedIn(status, enabled),
+    staleTime: 60 * 1000,
   });
 }

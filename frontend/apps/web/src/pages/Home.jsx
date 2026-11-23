@@ -5,6 +5,7 @@ import { CatalogueRail } from '@/components/sections/CatalogueRail';
 import { ThemeRail } from '@/components/sections/ThemeRail';
 import { TrustSection } from '@/components/sections/TrustSection';
 import { ProviderRail } from '@/components/sections/ProviderRail';
+import { JackpotTicker } from '@/components/sections/JackpotTicker';
 import { useHomeSlides, useLobbyCategories, useSiteConfig } from '@/queries';
 import { HOME_RAILS, THEME_RAIL_INDEX, lobbyRail } from '@/data/homeRails';
 import { OriginalsRail } from '@/components/sections/OriginalsRail';
@@ -127,6 +128,7 @@ export function Home() {
       {status === 'loading' && <AboveTheFoldSkeleton />}
 
       {signedOut && casinoOn && <ProviderRail />}
+      {status === 'authenticated' && casinoOn && !agentPlayer && <JackpotTicker />}
 
       {/* Renders nothing until a round settles — see `LatestWins`. It sits
           above the rails because that is where the reference puts it, and it

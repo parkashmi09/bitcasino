@@ -1,7 +1,7 @@
 import { useEffect } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api';
-import { ENDPOINTS } from '@/lib/endpoints';
+import { ENDPOINTS, path } from '@/lib/endpoints';
 import { queryKeys } from '@/queries/keys';
 import { refreshBalances } from '@/hooks/useWallet';
 import { useAuth } from '@/auth/AuthProvider';
@@ -269,4 +269,167 @@ export function useClaimRakeback() {
       refreshBalances();
     },
   });
+}
+
+/* ── Wagering (the deposit rollover) ─────────────────────────────────── */
+
+/** `{scope, multiplier, tasks}` — empty `tasks` before any deposit. Amounts are USD. */
+export function useWagerTasks({ enabled = true } = {}) {
+  const { status } = useAuth();
+  return useQuery({
+    queryKey: queryKeys.rewards.wagerTasks(),
+    queryFn: ({ signal }) => api(ENDPOINTS.wagerTasks, { signal }),
+    enabled: enabled && status === 'authenticated',
+    staleTime: 30 * 1000,
+  });
+}
+
+/* ── Reload rewards ──────────────────────────────────────────────────── */
+
+const authed = (status, enabled) => enabled && status === 'authenticated';
+
+/** `{vipLevel, DAILY_RELOAD, PRE_MONTHLY}` — each program's state for this player. `bonus` gate. */
+export function useReloadRewards({ enabled = true } = {}) {
+  const { status } = useAuth();
+  return useQuery({
+    queryKey: queryKeys.rewards.reload(),
+    queryFn: ({ signal }) => api(ENDPOINTS.reloadRewards, { signal }),
+    enabled: authed(status, enabled),
+    staleTime: 30 * 1000,
+  });
+}
+
+/** The Daily Reload day by day: `{days: [{date, earnedUsd, state}], today}`. */
+export function useReloadCalendar({ enabled = true } = {}) {
+  const { status } = useAuth();
+  return useQuery({
+    queryKey: queryKeys.rewards.reloadCalendar(),
+    queryFn: ({ signal }) => api(ENDPOINTS.reloadCalendar, { signal }),
+    enabled: authed(status, enabled),
+    staleTime: 60 * 1000,
+  });
+}
+
+/** Everything received, per kind, in USD: `{daily, weekly, …, total}`. */
+export function useReloadSummary({ enabled = true } = {}) {
+  const { status } = useAuth();
+  return useQuery({
+    queryKey: queryKeys.rewards.reloadSummary(),
+    queryFn: ({ signal }) => api(ENDPOINTS.reloadSummary, { signal }),
+    enabled: authed(status, enabled),
+    staleTime: 60 * 1000,
+  });
+}
+
+export function useClaimReload() {
+  const client = useQueryClient();
+  return useMutation({
+    meta: { success: 'Reload claimed.' },
+    mutationFn: (program) => api(path(ENDPOINTS.reloadClaim, { program }), { method: 'POST' }),
+    retry: false,
+    onSuccess: () => {
+      client.invalidateQueries({ queryKey: queryKeys.rewards.reload() });
+      client.invalidateQueries({ queryKey: queryKeys.rewards.reloadSummary() });
+      refreshBalances();
+    },
+  });
+}
+
+/* ── Medals (cosmetic, open to every player) ─────────────────────────── */
+
+export function useMedals() {
+  const { status } = useAuth();
+  return useQuery({
+    queryKey: queryKeys.rewards.medals(),
+    queryFn: ({ signal }) => api(ENDPOINTS.medals, { signal }),
+    enabled: status === 'authenticated',
+    staleTime: 60 * 1000,
+  });
+}
+
+/* ── Gift cards ──────────────────────────────────────────────────────── */
+
+/** Every card this player can see, with their standing on it. `giftCards` gate. */
+export function useGiftCards({ enabled = true } = {}) {
+  const { status } = useAuth();
+  return useQuery({
+    queryKey: queryKeys.rewards.giftCards(),
+    queryFn: ({ signal }) => api(ENDPOINTS.giftCards, { signal }),
+    select: (rows) => (Array.isArray(rows) ? rows : []),
+    enabled: authed(status, enabled),
+    staleTime: 30 * 1000,
+  });
+}
+
+export function useGiftCardsClaimed({ enabled = true } = {}) {
+  const { status } = useAuth();
+  return useQuery({
+    queryKey: queryKeys.rewards.giftCardsClaimed(),
+    queryFn: ({ signal }) => api(ENDPOINTS.giftCardsClaimed, { query: { limit: 20 }, signal }),
+    select: (rows) => (Array.isArray(rows) ? rows : []),
+    enabled: authed(status, enabled),
+    staleTime: 60 * 1000,
+  });
+}
+
+/** `activate` starts the card's clock; `claim` pays it once its conditions are met. */
+export function useGiftCardAction() {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: ({ action, giftCardId }) =>
+      api(action === 'claim' ? ENDPOINTS.giftCardClaim : ENDPOINTS.giftCardActivate, { method: 'POST', body: { giftCardId } }),
+    retry: false,
+    onSuccess: (_data, { action }) => {
+      client.invalidateQueries({ queryKey: queryKeys.rewards.giftCards() });
+      if (action === 'claim') {
+        client.invalidateQueries({ queryKey: queryKeys.rewards.giftCardsClaimed() });
+        refreshBalances();
+      }
+    },
+  });
+}
+
+/* ── Casino free spins and jackpots (GIS) ────────────────────────────── */
+
+/** The caller's active free-spin campaigns: `[{id, game, currency, quantity, quantityLeft, validUntil}]`. */
+export function useMyFreespins({ enabled = true } = {}) {
+  const { status } = useAuth();
+  return useQuery({
+    queryKey: queryKeys.rewards.freespins(),
+    queryFn: ({ signal }) => api(ENDPOINTS.gisFreespinsMine, { signal }),
+    select: (data) => (Array.isArray(data?.freespins) ? data.freespins : []),
+    enabled: authed(status, enabled),
+    retry: false,
+    staleTime: 60 * 1000,
+  });
+}
+
+/** The aggregator's jackpots (503 without a GIS merchant, which the ticker shows as nothing). */
+export function useJackpots({ enabled = true } = {}) {
+  const { status } = useAuth();
+  return useQuery({
+    queryKey: queryKeys.rewards.jackpots(),
+    queryFn: ({ signal }) => api(ENDPOINTS.gisJackpots, { signal }),
+    select: toJackpots,
+    enabled: authed(status, enabled),
+    retry: false,
+    staleTime: 60 * 1000,
+    refetchInterval: 60 * 1000,
+  });
+}
+
+/**
+ * The server shapes it as `[{name, amount (decimal string), currency, gameId?, raw}]`; the older
+ * wrapped forms (`{items|jackpots|data}`) are still read so a stale gateway shows the same ticker.
+ */
+export function toJackpots(data) {
+  const rows = Array.isArray(data) ? data : (data?.items ?? data?.jackpots ?? data?.data ?? []);
+  return (Array.isArray(rows) ? rows : [])
+    .map((row, index) => ({
+      id: String(row?.id ?? row?.jackpot_id ?? index),
+      name: String(row?.name ?? row?.title ?? 'Jackpot'),
+      amount: row?.amount ?? row?.value ?? row?.balance ?? null,
+      currency: String(row?.currency ?? ''),
+    }))
+    .filter((row) => row.amount != null && Number.isFinite(Number(row.amount)));
 }

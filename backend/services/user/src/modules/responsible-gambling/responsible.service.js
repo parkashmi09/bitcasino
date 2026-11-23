@@ -178,7 +178,7 @@ class ResponsibleService {
     const stakeUsd = await this.rewardMoney.toUsd(String(amount), currency);
     if (stakeUsd == null) throw errors.NO_RATE({ currency });
 
-    for (const limit of limits) {
+    for (const limit of limits.filter((l) => l.type !== LIMIT_TYPE.DEPOSIT_LIMIT)) {
       const since = windowStart(limit.created_at, limit.period_unit, now);
       const used = await this.#usage(userId, since);
       const usedUsd = limit.type === LIMIT_TYPE.WAGER_LIMIT ? used.wagered : used.lost;
@@ -192,6 +192,35 @@ class ResponsibleService {
         };
         throw limit.type === LIMIT_TYPE.WAGER_LIMIT ? errors.WAGER_LIMIT_REACHED(details) : errors.LOSS_LIMIT_REACHED(details);
       }
+    }
+  }
+
+  // ══ The deposit check (fiat request, gateway order) ═══════════════════
+
+  /**
+   * Refuse a deposit that would take the window's deposits over the player's DEPOSIT_LIMIT.
+   * Pending requests count (`#depositedUsd`), so a stack of open requests cannot pass the limit.
+   * Not checked on an on-chain credit (crypto webhook): that money is already sent.
+   * One read for a player with no limit.
+   */
+  async assertMayDeposit({ userId, currency, amount }) {
+    const now = new Date();
+    const limit = (await this.#liveLimits(userId, now)).find((row) => row.type === LIMIT_TYPE.DEPOSIT_LIMIT);
+    if (!limit) return;
+
+    const depositUsd = await this.rewardMoney.toUsd(String(amount), currency);
+    if (depositUsd == null) throw errors.DEPOSIT_NO_RATE({ currency });
+
+    const since = windowStart(limit.created_at, limit.period_unit, now);
+    const usedUsd = await this.#depositedUsd(userId, since);
+    if (money.gt(dec(money.add(usedUsd, depositUsd)), String(limit.usd_amount))) {
+      throw errors.DEPOSIT_LIMIT_REACHED({
+        type: limit.type,
+        limitUsd: String(limit.usd_amount),
+        usedUsd,
+        depositUsd,
+        resetsAt: iso(windowEnd(since, limit.period_unit)),
+      });
     }
   }
 
@@ -237,18 +266,47 @@ class ResponsibleService {
   /** A limit as the player site reads it, with the current window's use. */
   async #shapeLimit(row, now) {
     const since = windowStart(row.created_at, row.period_unit, now);
-    const used = await this.#usage(row.user_id, since);
+    const progressAmount =
+      row.type === LIMIT_TYPE.DEPOSIT_LIMIT
+        ? await this.#depositedUsd(row.user_id, since)
+        : (await this.#usage(row.user_id, since))[row.type === LIMIT_TYPE.WAGER_LIMIT ? 'wagered' : 'lost'];
     return {
       id: String(row.id),
       type: row.type,
       usdAmount: String(row.usd_amount),
       periodUnit: row.period_unit,
       period: 1,
-      progressAmount: row.type === LIMIT_TYPE.WAGER_LIMIT ? used.wagered : used.lost,
+      progressAmount,
       createdAt: iso(row.created_at),
       expiredAt: iso(row.expires_at),
       resetsAt: iso(windowEnd(since, row.period_unit)),
     };
+  }
+
+  /**
+   * USD deposited since `since`: credited deposits (gateway / fiat `DEPOSIT`, P2P buy releases) plus
+   * fiat requests and P2P buy orders still open. A coin with no rate is left out.
+   */
+  async #depositedUsd(userId, since) {
+    const rows = await this.db.sequelize.query(
+      `SELECT currency, SUM(amount)::text AS amount FROM (
+         SELECT currency, amount FROM credits_ledger
+          WHERE user_id = :uid AND reason IN ('DEPOSIT', 'p2p_buy_release') AND created_at >= :since
+         UNION ALL
+         SELECT currency, amount FROM fiat_deposits
+          WHERE user_id = :uid AND status = 'pending' AND created_at >= :since
+         UNION ALL
+         SELECT coin, crypto_amount FROM p2p_orders
+          WHERE user_id = :uid AND status IN ('PENDING', 'PAID') AND created_at >= :since
+       ) d GROUP BY currency`,
+      { replacements: { uid: String(userId), since }, type: this.db.sequelize.QueryTypes.SELECT }
+    );
+    let total = '0';
+    for (const row of rows) {
+      const usd = await this.rewardMoney.toUsd(dec(money.abs(String(row.amount))), row.currency);
+      if (usd != null) total = dec(money.add(total, usd));
+    }
+    return total;
   }
 
   /** What the player staked and lost since `since`, in USD (`lib/betUsage`). */

@@ -5,7 +5,7 @@
 
 const { Model, DataTypes } = require('sequelize');
 
-/** One loss or wager limit a player set on themselves — see migration 163. */
+/** One loss, wager or deposit limit a player set on themselves — see migration 163. */
 class PlayerGamblingLimit extends Model {}
 
 module.exports = (sequelize) => {
@@ -13,8 +13,8 @@ module.exports = (sequelize) => {
     {
       id: { type: DataTypes.BIGINT, autoIncrement: true, primaryKey: true, allowNull: false, field: 'id' },
       user_id: { type: DataTypes.BIGINT, allowNull: false, field: 'user_id' },
-      /** LOSS_LIMIT | WAGER_LIMIT. */
-      type: { type: DataTypes.STRING(12), allowNull: false, field: 'type' },
+      /** LOSS_LIMIT | WAGER_LIMIT | DEPOSIT_LIMIT (widened by migration 193). */
+      type: { type: DataTypes.STRING(16), allowNull: false, field: 'type' },
       usd_amount: { type: DataTypes.DECIMAL(20, 2), allowNull: false, field: 'usd_amount' },
       /** DAYS | WEEKS | MONTHS. */
       period_unit: { type: DataTypes.STRING(6), allowNull: false, field: 'period_unit' },

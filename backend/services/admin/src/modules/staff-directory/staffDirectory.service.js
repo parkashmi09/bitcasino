@@ -649,6 +649,12 @@ async function setBetLock(models, { staffId, locked, actorStaffId }, { logger } 
 
 
 /**
+ * Every staff <-> player transfer moves `credits.inr` and writes an INR `credits_ledger` row
+ * (players, lords, staff, exchange/pointsSettle), so the rows carry INR.
+ */
+const TRANSFER_CURRENCY = 'INR';
+
+/**
  * Money moved between a player and staff.
  *
  * `staff_transfers` is admin-owned, so user-service asks rather than reading a
@@ -670,8 +676,10 @@ async function setBetLock(models, { staffId, locked, actorStaffId }, { logger } 
  * row that matches neither side is reported as `unknown` rather than trusting a
  * second source that may disagree.
  */
-async function transfersForUser(models, userId, { limit = 50, offset = 0 } = {}) {
+async function transfersForUser(models, userId, { limit = 50, offset = 0, currency } = {}) {
   const { StaffTransfers } = models;
+  // `staff_transfers` has no currency column: only INR moves this way (another coin has none).
+  if (currency && String(currency).toUpperCase() !== TRANSFER_CURRENCY) return { total: 0, rows: [] };
 
   const { rows, count } = await StaffTransfers.findAndCountAll({
     where: {
@@ -691,6 +699,7 @@ async function transfersForUser(models, userId, { limit = 50, offset = 0 } = {})
     rows: rows.map((r) => ({
       id: r.id,
       amount: String(r.amount ?? '0'),
+      currency: TRANSFER_CURRENCY,
       // Derived, never read from the stored `direction` column.
       direction:
         r.to_type === 'user' && String(r.to_id) === String(userId)

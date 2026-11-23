@@ -1,11 +1,12 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { PromoPage, PromoParagraph, PromoSection } from '@/components/sections/PromoLayout';
+import { PromoCell, PromoPage, PromoParagraph, PromoSection, PromoTable } from '@/components/sections/PromoLayout';
 import { Button } from '@/components/ui/Button';
 import { Icon } from '@/components/ui/Icon';
 import { Skeleton } from '@/components/ui/Skeleton';
 import { useAuth } from '@/auth/AuthProvider';
 import { useSpin, useSpinEligibility, useSpinSlices } from '@/queries';
+import { useSpinClaims } from '@/queries/promotions';
 import { SPIN_WHEEL } from '@/data/spinWheel';
 import { cn } from '@/lib/cn';
 
@@ -59,6 +60,8 @@ export function SpinWheel() {
         <Wheel />
       </PromoSection>
 
+      <MySpins />
+
       <PromoSection heading="What you win">
         <PromoParagraph lead="A redeem code, not a balance." block>
           A spin issues a code carrying a percentage. Apply it to your next
@@ -73,6 +76,35 @@ export function SpinWheel() {
         </PromoParagraph>
       </PromoSection>
     </PromoPage>
+  );
+}
+
+/** The signed-in player's own spins (`GET /user/spin-wheel/claims`), newest first. */
+function MySpins() {
+  const { status } = useAuth();
+  const { data, isPending, isError } = useSpinClaims();
+  if (status !== 'authenticated') return null;
+
+  return (
+    <PromoSection heading="My spins">
+      {isPending ? (
+        <Skeleton className="h-24 rounded" />
+      ) : isError ? (
+        <p className="my-4 text-center text-sm text-trunks">Your spins could not be loaded.</p>
+      ) : data.length === 0 ? (
+        <p className="my-4 text-center text-sm text-trunks">You have not spun yet.</p>
+      ) : (
+        <PromoTable columns={['Date', 'Result', 'Code']} widths={['30%', '35%', '35%']}>
+          {data.map((row) => (
+            <tr key={row.id}>
+              <PromoCell className="tabular-nums">{formatWhen(row.claimedAt)}</PromoCell>
+              <PromoCell>{row.sliceLabel || '—'}</PromoCell>
+              <PromoCell className="font-mono text-sm break-all">{row.redeemCode || '—'}</PromoCell>
+            </tr>
+          ))}
+        </PromoTable>
+      )}
+    </PromoSection>
   );
 }
 

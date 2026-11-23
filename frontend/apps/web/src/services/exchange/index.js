@@ -8,6 +8,7 @@ export {
   getMatchMarkets,
   getMatchHeader,
   getScoreUrl,
+  getScoreCardUrl,
   getVirtualEventMedia,
   isGoneBody,
 } from './feed';

@@ -1,7 +1,7 @@
 'use strict';
 
 const { Router } = require('express');
-const { validate, noBody, noQuery } = require('@ibitplay/common');
+const { validate, noQuery } = require('@ibitplay/common');
 const { denyAgentPlayer } = require('@ibitplay/auth');
 
 const v = require('../whitelist.validators');
@@ -32,7 +32,7 @@ module.exports = function userRoutes(deps) {
   router.put('/enforcement', noWithdraw, validate(v.enforcement), ctrl.setEnforcement);
 
   router.patch('/:id', noWithdraw, validate(v.rename), ctrl.rename);
-  router.delete('/:id', noBody(), noWithdraw, validate(v.idParam), ctrl.remove);
+  router.delete('/:id', noWithdraw, validate(v.remove), ctrl.remove);
 
   return router;
 };

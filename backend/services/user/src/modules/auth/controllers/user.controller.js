@@ -33,7 +33,7 @@ function createUserController({ service }) {
     }),
 
     sessions: asyncHandler(async (req, res) => {
-      return response.ok(res, await service.listSessions(req.user.id));
+      return response.ok(res, await service.listSessions(req.user.id, req.user.sessionId));
     }),
 
     /**

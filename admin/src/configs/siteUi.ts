@@ -17,19 +17,19 @@ export const SITE_UI: Record<string, UiSupport> = {
   bonus: { status: 'toggle', variant: 'reward_hub', surfaces: '/bonus, sidebar and account menu rows' },
   affiliate: { status: 'toggle', variant: 'referral_hub', surfaces: '/referral, /referral-exhibition' },
   races: { status: 'toggle', variant: 'daily_contest', surfaces: '/promotions/daily-contest' },
-  challenges: { status: 'toggle', variant: 'quest_hub', surfaces: '/quests' },
-  raffles: { status: 'absent', why: 'No raffle in this backend; the weekly raffle page is hidden.' },
+  challenges: { status: 'toggle', variant: 'quest_hub', surfaces: 'Daily quests block on /promotions' },
+  raffles: { status: 'toggle', variant: 'ticket_raffle', surfaces: '/promotions/weekly-raffle (also needs the site admin Lotto flag)' },
   vault: { status: 'toggle', variant: 'flat_balance', surfaces: 'wallet Vault Pro tab, /wallet/vault' },
   swap: { status: 'toggle', variant: 'swap_page', surfaces: 'wallet Swap tab, /wallet/swap' },
-  notifications: { status: 'toggle', variant: 'notice_centre', surfaces: '/notification' },
+  notifications: { status: 'toggle', variant: 'notice_centre', surfaces: '/profile/notifications and the unread count on the header bell' },
   kyc: { status: 'toggle', variant: 'document_cockpit', surfaces: '/settings/verify' },
-  gift_cards: { status: 'toggle', variant: 'redeem_dialog', surfaces: 'sidebar Gift Card card and redeem dialog' },
+  gift_cards: { status: 'toggle', variant: 'redeem_dialog', surfaces: 'redeem a code, gift card list and claimed history in /profile/rewards' },
 
   casino_lobby: { status: 'fixed', variant: 'tabbed_themes', surfaces: 'the casino lobby is the site itself; use the Casino flag and the game-category flags' },
   banners: { status: 'fixed', variant: 'artwork_slides', surfaces: 'the home hero carousel (artwork from the site admin banners)' },
 
-  spin_wheel: { status: 'absent', why: 'The backend has it; this UI has no wheel screen.' },
-  tips: { status: 'absent', why: 'No tip-sending screen in this UI.' },
+  spin_wheel: { status: 'toggle', variant: 'inline_wheel', surfaces: '/promotions/spin-the-wheel with My spins (also needs the site admin Spin wheel flag)' },
+  tips: { status: 'toggle', variant: 'peer_to_peer', surfaces: 'Send a tip and the Tips tab in /profile/transactions, the receive-tips switch in /profile/settings' },
   p2p: { status: 'absent', why: 'No P2P trading screen in this UI.' },
   chat: { status: 'absent', why: 'Chat is socket-only and this UI has no socket client.' },
   club_membership: { status: 'absent', why: 'No club screens in this UI.' },
@@ -37,7 +37,7 @@ export const SITE_UI: Record<string, UiSupport> = {
   analytics: { status: 'absent', why: 'This UI does not load a Google tag.' },
   blog: { status: 'absent', why: "This UI's Blog row is a link to an off-site blog; there is no blog page." },
   live_tv: { status: 'toggle', variant: 'gated', surfaces: 'the TV button on an exchange match (minimum balance and inactive hours under Settings)' },
-  bonus_centre: { status: 'absent', why: 'No bonus centre block in this UI.' }
+  bonus_centre: { status: 'toggle', variant: 'block', surfaces: 'Bonus centre block in /profile/boosts (needs Bonus on too)' }
 }
 
 export const uiSupport = (feature: string): UiSupport | null => SITE_UI[feature] ?? null

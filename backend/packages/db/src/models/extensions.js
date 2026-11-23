@@ -75,6 +75,8 @@ const EXTENSIONS = {
       defaultValue: false,
       field: 'withdraw_whitelist_only',
     },
+    // ── migration 194-whitelist-cooldowns: a pending "enforcement off", effective at this time.
+    withdraw_whitelist_off_at: { type: DataTypes.DATE, allowNull: true, field: 'withdraw_whitelist_off_at' },
     // ── migration 044-withdraw-cooldown-after-password-change ──────────
     // The 24-hour withdrawal freeze that follows a self-service password
     // change. Declared here for the same reason the line above it is: an

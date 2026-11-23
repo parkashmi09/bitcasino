@@ -40,6 +40,16 @@ module.exports = defineErrors('WHITELIST', {
     message: 'Add an address before turning whitelist-only withdrawals on',
   },
 
+  /**
+   * Adding or removing an address, or switching enforcement off, without the
+   * right account password. The same 403 as TWOFA_PASSWORD_REQUIRED; a wrong
+   * or missing 2FA code answers TWOFA_INVALID_CODE.
+   */
+  PASSWORD_REQUIRED: {
+    status: 403,
+    message: 'Your account password is required to change your withdrawal whitelist',
+  },
+
   /** A soft cap, so one account cannot fill the table. */
   TOO_MANY_ADDRESSES: {
     status: 422,

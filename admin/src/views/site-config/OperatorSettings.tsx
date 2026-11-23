@@ -82,6 +82,11 @@ const GROUPS: { title: string; hint: string; keys: string[] }[] = [
       'loss_bonus_claim_hours',
       'loss_bonus_wager_multiplier'
     ]
+  },
+  {
+    title: 'Quests',
+    hint: 'What each completed daily quest pays, in USD, credited once per day as cash in the reward currency. 0 = the quest shows progress but pays nothing.',
+    keys: ['quest_daily_wager_reward', 'quest_daily_bets_reward']
   }
 ]
 

@@ -103,6 +103,13 @@ export const queryKeys = {
     /** `viewer` is in the key because a signed-in board carries the caller's own `me` row. */
     raceBoard: (type, viewer) => ['promotions', 'race', type, viewer],
     raceHistory: (limit, viewer) => ['promotions', 'race-history', limit, viewer],
+    raceLast: (type) => ['promotions', 'race-last', type],
+    quests: () => ['promotions', 'quests'],
+    raffle: () => ['promotions', 'raffle'],
+    raffleMe: () => ['promotions', 'raffle', 'me'],
+    raffleDraw: (number) => ['promotions', 'raffle', 'draw', number],
+    spinClaims: () => ['promotions', 'spin', 'claims'],
+    bonusHistory: () => ['promotions', 'bonus-history'],
   },
 
   account: {
@@ -115,6 +122,14 @@ export const queryKeys = {
     notifications: () => ['account', 'notifications'],
     affiliateUnclaimed: () => ['account', 'affiliate-unclaimed'],
     raceRewards: () => ['account', 'race-rewards'],
+    tips: (limit, offset) => ['account', 'tips', limit, offset],
+    tipSettings: () => ['account', 'tip-settings'],
+    responsible: () => ['account', 'responsible'],
+    kycLevels: () => ['account', 'kyc-levels'],
+    unread: () => ['account', 'notifications', 'unread'],
+    profileStats: () => ['account', 'profile-stats'],
+    betStats: () => ['account', 'bet-stats'],
+    betRank: (period) => ['account', 'bet-rank', period],
   },
 
   /**
@@ -131,6 +146,7 @@ export const queryKeys = {
     betsByGame: (game) => ['live', 'bets', 'game', game],
     topWinners: () => ['live', 'top-winners'],
     notifications: () => ['live', 'notifications'],
+    player: (userId) => ['live', 'player', String(userId)],
   },
 
   site: {
@@ -141,6 +157,8 @@ export const queryKeys = {
     sportsbook: () => ['site', 'sportsbook'],
     currencies: () => ['site', 'currencies'],
     googleLogin: () => ['site', 'google-login'],
+    avatars: () => ['site', 'avatars'],
+    region: () => ['site', 'region'],
   },
 
   /** Rewards, rakeback and VIP. `vipLevels` is public; `firstDeposit` differs signed in and out. */
@@ -152,5 +170,14 @@ export const queryKeys = {
     bonusBalance: () => ['rewards', 'bonus-balance'],
     rakeback: () => ['rewards', 'rakeback'],
     lossBonus: () => ['rewards', 'loss-bonus'],
+    wagerTasks: () => ['rewards', 'wager-tasks'],
+    reload: () => ['rewards', 'reload'],
+    reloadCalendar: () => ['rewards', 'reload', 'calendar'],
+    reloadSummary: () => ['rewards', 'reload', 'summary'],
+    medals: () => ['rewards', 'medals'],
+    giftCards: () => ['rewards', 'gift-cards'],
+    giftCardsClaimed: () => ['rewards', 'gift-cards', 'claimed'],
+    freespins: () => ['rewards', 'freespins'],
+    jackpots: () => ['rewards', 'jackpots'],
   },
 };

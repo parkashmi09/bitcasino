@@ -3,6 +3,8 @@ import { Button } from '@/components/ui/Button';
 import { Skeleton } from '@/components/ui/Skeleton';
 import { BoostArt } from '@/components/ui/BoostArt';
 import { useBonus, useClaimBonus } from '@/queries';
+import { BonusCentre } from '@/components/rewards/BonusCentre';
+import { useGates } from '@/hooks/useGates';
 import { formatBalance } from '@/lib/format';
 import { cn } from '@/lib/cn';
 
@@ -42,11 +44,19 @@ const TYPES = [
 
 export function Boosts() {
   const { data, isPending, isError } = useBonus();
+  const centre = useGates().on('bonusCentre');
 
   if (isPending) return <Skeleton className="h-44 rounded-i-md" />;
 
   const items = TYPES.filter((type) => data?.types?.[type.id]);
-  if (isError || items.length === 0) return <EmptyBoosts />;
+  if (isError || items.length === 0) {
+    return (
+      <div className="grid gap-4">
+        <EmptyBoosts />
+        {centre && <BonusCentre bonus={data} />}
+      </div>
+    );
+  }
 
   return (
     <div className="grid gap-4">
@@ -68,6 +78,8 @@ export function Boosts() {
           </li>
         ))}
       </ul>
+
+      {centre && <BonusCentre bonus={data} />}
     </div>
   );
 }

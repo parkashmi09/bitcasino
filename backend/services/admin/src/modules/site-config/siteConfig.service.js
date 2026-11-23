@@ -185,6 +185,11 @@ const OPERATOR_SETTINGS = Object.freeze({
   loss_bonus_claim_hours: { env: 'LOSS_BONUS_CLAIM_HOURS', kind: 'number', min: 0, max: 720, default: 48, label: 'Hours to claim after settlement (0 = no expiry)' },
   loss_bonus_wager_multiplier: { env: 'LOSS_BONUS_WAGER_MULTIPLIER', kind: 'decimal', min: 0, max: 100, default: '0', label: 'Wager before the bonus becomes cash (× bonus; 0 = cash at once)' },
 
+  // Quest Hub daily quests (user-service modules/quests): what each completed quest pays, in USD,
+  // credited once per day in the reward currency. 0 = the quest shows progress but pays nothing.
+  quest_daily_wager_reward: { env: 'QUEST_DAILY_WAGER_REWARD', kind: 'decimal', min: 0, max: 1000, default: '0', label: 'Quest reward: Daily Wager (USD; 0 = no reward)' },
+  quest_daily_bets_reward: { env: 'QUEST_DAILY_BETS_REWARD', kind: 'decimal', min: 0, max: 1000, default: '0', label: 'Quest reward: Daily Bets (USD; 0 = no reward)' },
+
   // The floating chat buttons (Site config → Branding), shown only where the owner allows them
   // (owner panel → Branding). A link is a number with country code or the app's own https link.
   whatsapp_enabled: { env: 'CHAT_WHATSAPP_ENABLED', kind: 'boolean', default: false, label: 'WhatsApp button' },

@@ -4,6 +4,7 @@
 import { LEAGUE } from './league.js';
 import { SPIN_WHEEL } from './spinWheel.js';
 import { WEEKLY_RAKEBACK } from './weeklyRakeback.js';
+import { RAFFLE } from './raffle.js';
 
 /**
  * The promotions that have a page of their own.
@@ -23,7 +24,7 @@ import { WEEKLY_RAKEBACK } from './weeklyRakeback.js';
  * Anything added here needs a route in `App.jsx` under the same slug —
  * `promotions/:slug` redirects everything else to the index.
  */
-export const PROMO_PAGES = [LEAGUE, WEEKLY_RAKEBACK, SPIN_WHEEL].map((promo) => ({
+export const PROMO_PAGES = [LEAGUE, WEEKLY_RAKEBACK, SPIN_WHEEL, RAFFLE].map((promo) => ({
   slug: promo.slug,
   title: promo.title,
   blurb: promo.blurb,

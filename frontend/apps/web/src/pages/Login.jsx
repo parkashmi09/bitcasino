@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { Button } from '@/components/ui/Button';
+import { LostTwoFactorDialog } from '@/components/account/LostTwoFactorDialog';
 import {
   AuthShell,
   AuthField,
@@ -84,6 +85,7 @@ export function Login() {
   // Bumped on every rejection so `AuthError` remounts and replays its shake —
   // the same wrong password twice has to look like two rejections.
   const [attempt, setAttempt] = useState(0);
+  const [lostOpen, setLostOpen] = useState(false);
 
   const codeRef = useRef(null);
 
@@ -239,6 +241,15 @@ export function Login() {
                 disabled={busy}
                 ref={codeRef}
               />
+              {!AGENT_SITE && (
+                <button
+                  type="button"
+                  onClick={() => setLostOpen(true)}
+                  className="mt-2 cursor-pointer text-sm leading-5 text-piccolo hover:underline"
+                >
+                  Lost access to your authenticator?
+                </button>
+              )}
             </div>
           </div>
         </div>
@@ -262,6 +273,9 @@ export function Login() {
           </Button>
         )}
       </form>
+      {!AGENT_SITE && (
+        <LostTwoFactorDialog open={lostOpen} onClose={() => setLostOpen(false)} identifier={identifier} />
+      )}
     </AuthShell>
   );
 }

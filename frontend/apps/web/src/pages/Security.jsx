@@ -11,6 +11,7 @@ import {
   useBeginTwoFactor,
   useCompleteTwoFactor,
   useDisableTwoFactor,
+  useRevokeSession,
   useSessions,
   useTwoFactorStatus,
 } from '@/queries';
@@ -210,22 +211,20 @@ function TwoFactorCard() {
  * Where the account is signed in.
  *
  * `GET /auth/sessions` answers every unrevoked, unexpired refresh session.
- * There is **no per-session revoke route** — `POST /auth/logout` takes a
- * `refreshToken` for one or `{allSessions: true}` for all, and nothing
- * addresses a session by id — so this offers the one action that exists and
- * does not draw a per-row button that could not work.
+ * Each row signs that one device out (`DELETE /auth/sessions/:id`); the
+ * button under the list signs every device out (`POST /auth/logout
+ * {allSessions: true}`).
  *
- * The current session is not marked, and cannot be: the list carries no
- * session id the client can match its own token against, and guessing from
- * the user-agent would mark every tab in the same browser. Rather than
- * labelling the wrong row, the button says plainly that it signs this device
- * out too.
+ * The server marks this device's own row (`isCurrent`); signing that one
+ * out asks first, since it ends the session the player is using.
  */
 function SessionsCard() {
   const { logout } = useAuth();
   const navigate = useNavigate();
   const { data, isPending, isError } = useSessions();
+  const revoke = useRevokeSession();
   const [busy, setBusy] = useState(false);
+  const [armed, setArmed] = useState(null);
 
   const sessions = Array.isArray(data) ? data : [];
 
@@ -279,11 +278,38 @@ function SessionsCard() {
                     such as curl. The raw agent is not printed in its place —
                     it is 120 characters of version numbers. */}
                 {session.device_label || 'Unrecognised device'}
+                {session.isCurrent && <span className="ml-2 text-xs leading-4 text-piccolo">This device</span>}
               </span>
-              <span className="text-xs leading-4 text-trunks tabular-nums">
-                {session.ip_address ?? 'unknown IP'} · last used{' '}
-                {formatWhen(session.last_used_at ?? session.created_at)}
+              <span className="flex items-center gap-3">
+                <span className="text-xs leading-4 text-trunks tabular-nums">
+                  {session.ip_address ?? 'unknown IP'} · last used{' '}
+                  {formatWhen(session.last_used_at ?? session.created_at)}
+                </span>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    // Own row: the first press arms it, the second signs out here too.
+                    if (session.isCurrent && armed !== session.id) return setArmed(session.id);
+                    revoke.mutate(session.id, {
+                      onSuccess: session.isCurrent ? () => logout().then(() => navigate('/login', { replace: true })) : undefined,
+                    });
+                  }}
+                  disabled={revoke.isPending || busy}
+                  aria-label={`Sign out ${session.device_label || 'this device'}`}
+                >
+                  {revoke.isPending && revoke.variables === session.id
+                    ? 'Signing out…'
+                    : armed === session.id
+                      ? 'Confirm sign out'
+                      : 'Sign out'}
+                </Button>
               </span>
+              {armed === session.id && (
+                <span role="alert" className="w-full text-xs leading-4 text-dodoria">
+                  This is the device you are using. Signing it out ends this session.
+                </span>
+              )}
             </li>
           ))}
         </ul>
@@ -300,8 +326,15 @@ function SessionsCard() {
         </Button>
       </Row>
 
+      {revoke.isError && (
+        <p role="alert" className="text-sm leading-5 text-chichi">
+          {revoke.error?.message || 'Could not sign that device out.'}
+        </p>
+      )}
+
       <p className="text-xs leading-4 text-trunks">
-        This signs out every device, including this one.
+        Sign out everywhere signs out every device, including this one. Signing out the row for
+        this browser ends this session too.
       </p>
     </Card>
   );

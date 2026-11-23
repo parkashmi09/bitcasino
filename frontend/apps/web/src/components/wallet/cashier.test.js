@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { makeGates } from '@/lib/gates';
-import { cashierTabs, payoutError, shownRail, walletCoins } from './cashier';
+import { cashierTabs, depositError, payoutError, shownRail, walletCoins } from './cashier';
 
 const AGENT_CAPS = { promotions: false, vault: false, deposit: false, swap: false, withdraw: false };
 const policy = (key, variant) => ({ feature: key, kind: 'policy', variant });
@@ -63,5 +63,16 @@ describe('withdraw rails', () => {
     expect(payoutError({ message: 'Invalid payout details', details: { fields: { bank_code: 'must be a valid IFSC code' } } }))
       .toBe('Invalid payout details: IFSC code must be a valid IFSC code');
     expect(payoutError({ message: 'Nope' })).toBe('Nope');
+  });
+});
+
+describe('depositError', () => {
+  it('says how much of the deposit limit is left', () => {
+    const error = { code: 'RESPONSIBLE_DEPOSIT_LIMIT_REACHED', details: { limitUsd: '100', usedUsd: '80', depositUsd: '50' } };
+    expect(depositError(error)).toBe('This goes over your deposit limit: 20.00 of 100.00 USD left.');
+  });
+  it('falls back to the message, then the default', () => {
+    expect(depositError({ code: 'X', message: 'Nope' })).toBe('Nope');
+    expect(depositError(null)).toBe('The deposit was refused.');
   });
 });

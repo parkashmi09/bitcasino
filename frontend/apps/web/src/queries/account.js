@@ -1,7 +1,8 @@
 import { useEffect } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api';
-import { ENDPOINTS } from '@/lib/endpoints';
+import { ENDPOINTS, path } from '@/lib/endpoints';
+import { refreshBalances } from '@/hooks/useWallet';
 import { subscribe } from '@/lib/socket';
 import { queryKeys } from '@/queries/keys';
 import { useAuth } from '@/auth/AuthProvider';
@@ -125,10 +126,9 @@ export function useDisableTwoFactor() {
  * user-agent ("Chrome on Windows") and is null for a client it cannot
  * summarise, such as curl.
  *
- * **There is no per-session revoke route.** `POST /auth/logout` takes
- * `{refreshToken}` for one session or `{allSessions: true}` for every one,
- * and nothing addresses a session by id. So the card offers "sign out
- * everywhere" and does not draw a per-row button that could not work.
+ * One device is signed out by id with `useRevokeSession` below
+ * (`DELETE /auth/sessions/:id`); every device at once is `POST /auth/logout
+ * {allSessions: true}`.
  */
 export function useSessions() {
   const { status } = useAuth();
@@ -295,5 +295,255 @@ export function useTransfers({ limit = 25, offset = 0, enabled = true } = {}) {
       api(ENDPOINTS.historyTransfers, { query: { limit, offset }, signal }),
     enabled: enabled && status === 'authenticated',
     staleTime: 30 * 1000,
+  });
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+ * Sessions, one at a time
+ * ═══════════════════════════════════════════════════════════════════════ */
+
+/** `DELETE /auth/sessions/:id`. Revoking this device's own row signs it out at the next refresh. */
+export function useRevokeSession() {
+  const client = useQueryClient();
+  return useMutation({
+    meta: { success: 'Device signed out.' },
+    mutationFn: (sessionId) => api(path(ENDPOINTS.sessionRevoke, { sessionId }), { method: 'DELETE' }),
+    retry: false,
+    onSettled: () => client.invalidateQueries({ queryKey: queryKeys.account.sessions() }),
+  });
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+ * Email verification (the account's own address)
+ * ═══════════════════════════════════════════════════════════════════════ */
+
+/** Sends a code to the address on the account. `{requested}` or `{emailVerified: true}`. */
+export function useRequestEmailVerification() {
+  return useMutation({
+    mutationFn: () => api(ENDPOINTS.emailVerifyRequest, { method: 'POST' }),
+    retry: false,
+  });
+}
+
+export function useConfirmEmailVerification() {
+  return useMutation({
+    meta: { success: 'Email verified.' },
+    mutationFn: (code) => api(ENDPOINTS.emailVerifyConfirm, { method: 'POST', body: { code } }),
+    retry: false,
+  });
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+ * KYC levels 3 and 4
+ * ═══════════════════════════════════════════════════════════════════════ */
+
+/** `{identity, levelsOn, levels}`. Behind the owner's `kyc` feature, like the identity status. */
+export function useKycLevels({ enabled = true } = {}) {
+  const { status } = useAuth();
+  return useQuery({
+    queryKey: queryKeys.account.kycLevels(),
+    queryFn: ({ signal }) => api(ENDPOINTS.kycLevels, { signal }),
+    enabled: enabled && status === 'authenticated',
+    staleTime: 60 * 1000,
+  });
+}
+
+/** One `document` file for a level. MULTIPART: `api.js` leaves the content-type to the browser. */
+export function useSubmitKycLevel() {
+  const client = useQueryClient();
+  return useMutation({
+    meta: { success: 'Document submitted for review.' },
+    mutationFn: ({ level, file }) => {
+      const form = new FormData();
+      form.append('document', file);
+      return api(path(ENDPOINTS.kycLevelSubmit, { level }), { method: 'POST', body: form });
+    },
+    retry: false,
+    onSuccess: () => client.invalidateQueries({ queryKey: queryKeys.account.kycLevels() }),
+  });
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+ * Responsible gambling
+ * ═══════════════════════════════════════════════════════════════════════ */
+
+/** `{selfExclusions, limits}` — only what is live now. */
+export function useResponsibleGambling({ enabled = true } = {}) {
+  const { status } = useAuth();
+  return useQuery({
+    queryKey: queryKeys.account.responsible(),
+    queryFn: ({ signal }) => api(ENDPOINTS.responsible, { signal }),
+    enabled: enabled && status === 'authenticated',
+    staleTime: 0,
+  });
+}
+
+/**
+ * Every write here only makes the account safer, so each is one mutation re-reading the overview.
+ * `kind`: cooldown `{type}`, break `{type, breakPeriod}`, limit `{type, usdAmount, periodUnit}`,
+ * remove `{id}`.
+ */
+export function useResponsibleAction() {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: ({ kind, id, ...body }) => {
+      if (kind === 'remove') return api(path(ENDPOINTS.responsibleLimitRemove, { id }), { method: 'POST' });
+      const url = { cooldown: ENDPOINTS.responsibleCooldown, break: ENDPOINTS.responsibleBreak, limit: ENDPOINTS.responsibleLimits }[kind];
+      return api(url, { method: 'POST', body });
+    },
+    retry: false,
+    onSuccess: () => client.invalidateQueries({ queryKey: queryKeys.account.responsible() }),
+  });
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+ * Tips
+ * ═══════════════════════════════════════════════════════════════════════ */
+
+/** `{rows, total}`, sent and received, newest first. History stays readable for everyone. */
+export function useTipHistory({ limit = 25, offset = 0, enabled = true } = {}) {
+  const { status } = useAuth();
+  return useQuery({
+    queryKey: queryKeys.account.tips(limit, offset),
+    queryFn: ({ signal }) => api(ENDPOINTS.tipHistory, { query: { limit, offset }, signal }),
+    enabled: enabled && status === 'authenticated',
+    staleTime: 30 * 1000,
+  });
+}
+
+/** `{enabled, limits}` — the receive switch and the operator's USD limits. */
+export function useTipSettings({ enabled = true } = {}) {
+  const { status } = useAuth();
+  return useQuery({
+    queryKey: queryKeys.account.tipSettings(),
+    queryFn: ({ signal }) => api(ENDPOINTS.tipSettings, { signal }),
+    enabled: enabled && status === 'authenticated',
+    staleTime: 30 * 1000,
+  });
+}
+
+export function useUpdateTipSettings() {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: (enabled) => api(ENDPOINTS.tipSettings, { method: 'PATCH', body: { enabled } }),
+    onSuccess: () => client.invalidateQueries({ queryKey: queryKeys.account.tipSettings() }),
+  });
+}
+
+/** Recipient search: players whose name starts with `q` and who accept tips. */
+export function useTipUserSearch(q) {
+  const { status } = useAuth();
+  const term = String(q ?? '').trim();
+  return useQuery({
+    queryKey: ['account', 'tip-users', term],
+    queryFn: ({ signal }) => api(ENDPOINTS.tipUsers, { query: { q: term }, signal }),
+    enabled: status === 'authenticated' && term.length >= 2,
+    staleTime: 30 * 1000,
+  });
+}
+
+/** `requestId` is minted once per dialog, so a retried send is the same tip, not a second one. */
+export function useSendTip() {
+  const client = useQueryClient();
+  return useMutation({
+    meta: { success: (tip) => `Tip sent to ${tip?.toUsername ?? 'the player'}.` },
+    mutationFn: (body) => api(ENDPOINTS.tipSend, { method: 'POST', body }),
+    retry: false,
+    onSuccess: () => {
+      client.invalidateQueries({ queryKey: ['account', 'tips'] });
+      client.invalidateQueries({ queryKey: queryKeys.account.tipSettings() });
+      refreshBalances();
+    },
+  });
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+ * Profile: lifetime stats, avatar, email change, public card
+ * ═══════════════════════════════════════════════════════════════════════ */
+
+/** `{bets, wins, winRate, wagered: {usd}, biggestWin, favouriteGames, firstBetAt, lastBetAt}`. */
+export function useProfileStats() {
+  const { status } = useAuth();
+  return useQuery({
+    queryKey: queryKeys.account.profileStats(),
+    queryFn: ({ signal }) => api(ENDPOINTS.profileStats, { signal }),
+    enabled: status === 'authenticated',
+    staleTime: 60 * 1000,
+  });
+}
+
+/** Answers the updated profile; `AVATAR_LOCKED` carries the level it needs. */
+export function useSetAvatar() {
+  return useMutation({
+    meta: { success: 'Avatar updated.' },
+    mutationFn: (avatarId) => api(ENDPOINTS.profileAvatar, { method: 'POST', body: { avatarId } }),
+    retry: false,
+  });
+}
+
+/** Step one: a `change-email` code to the NEW address (public OTP route, 5 a minute). */
+export function useRequestEmailChangeCode() {
+  return useMutation({
+    mutationFn: (email) => api(ENDPOINTS.emailOtp, { method: 'POST', body: { email, purpose: 'change-email' } }),
+    retry: false,
+  });
+}
+
+/** Step two: `{email, code, password}` → the updated profile. */
+export function useChangeEmail() {
+  return useMutation({
+    meta: { success: 'Email changed.' },
+    mutationFn: (body) => api(ENDPOINTS.profileChangeEmail, { method: 'POST', body }),
+    retry: false,
+  });
+}
+
+/** Any player's public card. Public route, on its own rate limit. */
+export function usePublicProfile(userId, { enabled = true } = {}) {
+  return useQuery({
+    queryKey: queryKeys.live.player(userId),
+    queryFn: ({ signal }) => api(path(ENDPOINTS.publicProfile, { userId }), { auth: false, signal }),
+    enabled: enabled && Boolean(userId),
+    staleTime: 60 * 1000,
+    retry: false,
+  });
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+ * Casino bets: counts, board position, the unread bell
+ * ═══════════════════════════════════════════════════════════════════════ */
+
+/** `{bets, wins, bySource}` — counts only. */
+export function useBetStats({ enabled = true } = {}) {
+  const { status } = useAuth();
+  return useQuery({
+    queryKey: queryKeys.account.betStats(),
+    queryFn: ({ signal }) => api(ENDPOINTS.betStats, { signal }),
+    enabled: enabled && status === 'authenticated',
+    staleTime: 30 * 1000,
+  });
+}
+
+/** `{period, rank, total, bets}`; `rank` null = no bets in the window (not last place). */
+export function useBetRank(period, { enabled = true } = {}) {
+  const { status } = useAuth();
+  return useQuery({
+    queryKey: queryKeys.account.betRank(period),
+    queryFn: ({ signal }) => api(ENDPOINTS.betRankMe, { query: { period }, signal }),
+    enabled: enabled && status === 'authenticated',
+    staleTime: 30 * 1000,
+  });
+}
+
+/** The whole inbox's unread total (`{unread}`); the list itself stops at 50 rows. */
+export function useUnreadCount({ enabled = true } = {}) {
+  return useQuery({
+    queryKey: queryKeys.account.unread(),
+    queryFn: ({ signal }) => api(ENDPOINTS.notificationsUnread, { signal }),
+    select: (body) => Number(body?.unread) || 0,
+    enabled,
+    staleTime: 60 * 1000,
+    refetchInterval: enabled ? 60 * 1000 : false,
+    retry: false,
   });
 }

@@ -63,6 +63,7 @@ export {
   useCompleteTwoFactor,
   useDisableTwoFactor,
   useSessions,
+  useRevokeSession,
   useKycStatus,
   useSubmitKyc,
   useTransactionHistory,

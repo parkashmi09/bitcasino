@@ -87,3 +87,45 @@ test('limit windows restart on the anniversary of the limit', () => {
   assert.equal(windowStart(created, 'MONTHS', new Date('2026-03-09T00:00:00Z')).toISOString(), '2026-02-10T14:00:00.000Z');
   assert.equal(windowStart(created, 'MONTHS', new Date('2026-03-10T15:00:00Z')).toISOString(), '2026-03-10T14:00:00.000Z');
 });
+
+// ── DEPOSIT_LIMIT ─────────────────────────────────────────────────────────
+
+const depositLimit = (over = {}) => [
+  { id: 9, user_id: 1, type: 'DEPOSIT_LIMIT', usd_amount: '100.00', period_unit: 'DAYS', created_at: ago(HOUR), expires_at: null, ...over },
+];
+
+test('a deposit limit refuses the deposit that would pass it, counting credited and pending deposits', async () => {
+  // The deposit sum answers `{ currency, amount }`: 60 credited + 30 pending in one coin = 90.
+  const svc = service({ limits: depositLimit(), ledger: [{ currency: 'USDT', amount: '90' }] });
+  await svc.assertMayDeposit({ userId: 1, currency: 'USDT', amount: '10' });
+  await assert.rejects(svc.assertMayDeposit({ userId: 1, currency: 'USDT', amount: '10.01' }), (e) => e.code === 'RESPONSIBLE_DEPOSIT_LIMIT_REACHED' && e.details.usedUsd === '90.00000000');
+});
+
+test('no deposit limit: deposits are not summed at all', async () => {
+  const svc = service({ limits: [{ id: 1, user_id: 1, type: 'WAGER_LIMIT', usd_amount: '1.00', period_unit: 'DAYS', created_at: ago(HOUR), expires_at: null }] });
+  svc.db = { sequelize: { query: async () => assert.fail('no deposit limit, no ledger read') } };
+  await svc.assertMayDeposit({ userId: 1, currency: 'USDT', amount: '1000000' });
+});
+
+test('a deposit limit does not limit stakes, and wager / loss limits do not limit deposits', async () => {
+  const svc = service({ limits: depositLimit({ usd_amount: '1.00' }), ledger: [] });
+  await svc.assertMayStake({ userId: 1, currency: 'USDT', amount: '500', sports: false });
+});
+
+test('a deposit limit asked to go still applies for its cooling period', async () => {
+  const pending = service({ limits: depositLimit({ usd_amount: '1.00', expires_at: ahead(HOUR) }) });
+  await assert.rejects(pending.assertMayDeposit({ userId: 1, currency: 'USDT', amount: '2' }), (e) => e.code === 'RESPONSIBLE_DEPOSIT_LIMIT_REACHED');
+  const gone = service({ limits: depositLimit({ usd_amount: '1.00', expires_at: ago(HOUR) }) });
+  await gone.assertMayDeposit({ userId: 1, currency: 'USDT', amount: '2' });
+});
+
+test('an unpriced deposit is refused while a deposit limit applies', async () => {
+  const svc = service({ limits: depositLimit() });
+  svc.rewardMoney = { toUsd: async () => null };
+  await assert.rejects(svc.assertMayDeposit({ userId: 1, currency: 'XYZ', amount: '1' }), (e) => e.code === 'RESPONSIBLE_DEPOSIT_NO_RATE');
+});
+
+test('a second live deposit limit is refused (raise = remove, wait, set again)', async () => {
+  const svc = service({ limits: depositLimit() });
+  await assert.rejects(svc.createLimit(1, { type: 'DEPOSIT_LIMIT', usdAmount: 500, periodUnit: 'DAYS' }), (e) => e.code === 'RESPONSIBLE_LIMIT_EXISTS');
+});

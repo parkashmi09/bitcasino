@@ -1,11 +1,20 @@
 import { useEffect, useId, useState } from 'react';
 import { KycDialog } from '@/components/account/KycDialog';
+import { EmailVerifyCard, KycLevelsCard } from '@/components/account/VerificationCards';
+import {
+  Avatar,
+  AvatarDialog,
+  ChangeEmailDialog,
+  PlayerCardDialog,
+  ProfileStatsCard,
+} from '@/components/account/ProfileCards';
 import { COUNTRIES } from '@/data/countries';
 import { useProfile } from '@/hooks/useProfile';
 import { useGates } from '@/hooks/useGates';
 import { useAuth } from '@/auth/AuthProvider';
 import { useKycStatus } from '@/queries';
 import { cn } from '@/lib/cn';
+import { Button } from '@/components/ui/Button';
 
 /**
  * `/profile/account`.
@@ -67,22 +76,30 @@ import { cn } from '@/lib/cn';
  *
  * Everything shown comes from `GET /user/profile`: username, email, phone
  * (read-only) and country, which `PUT /user/profile` saves. Fields the platform
- * has no column for (birthday, names, address, Telegram…) are not drawn, and
- * neither is an email-verification notice — no route reports or resends one.
+ * has no column for (birthday, names, address, Telegram…) are not drawn. An
+ * unverified address gets the Verify Email card (`/user/email/verify/*`), and
+ * the verification levels 3-4 sit under the identity card.
  * The identity card is driven by `GET /user/kyc/status`; `Start verification`
  * opens the real multipart submission (`components/account/KycDialog.jsx`).
  */
 export function Account() {
-  const { profile, status, save, saving } = useProfile();
+  const { profile, status, save, saving, reload } = useProfile();
   const { data: kyc, isSuccess: kycRead } = useKycStatus();
   // An agent's player: read-only, no email or contact fields — the site admin edits
   // their profile (backend PROFILE_EDIT_NOT_FOR_AGENT_USERS).
   const gates = useGates();
   const { agentPlayer } = gates;
-  const { user } = useAuth();
+  const { user, refreshUser } = useAuth();
 
   const [form, setForm] = useState(null);
   const [result, setResult] = useState(null);
+  // 'avatar' | 'email' | 'card' | null — one dialog at a time.
+  const [dialog, setDialog] = useState(null);
+  const closeDialog = () => setDialog(null);
+  const changed = () => {
+    reload();
+    refreshUser?.();
+  };
 
   /**
    * Seed the form once the record lands, and again if it is reloaded.
@@ -116,6 +133,7 @@ export function Account() {
           <Fact label="Username" value={profile?.username ?? user?.name ?? '—'} />
           <Fact label="ID" value={user?.id ?? '—'} />
         </div>
+        <ProfileStatsCard />
       </div>
     );
   }
@@ -135,23 +153,63 @@ export function Account() {
           {gates.on('kyc') && kycRead && kyc?.status !== 'Verified' && (
             <IdentityCard kyc={kyc} />
           )}
+          {profile?.email && profile.emailVerified === false && (
+            <EmailVerifyCard
+              email={profile.email}
+              onVerified={() => {
+                reload();
+                refreshUser?.();
+              }}
+            />
+          )}
+          {gates.on('kyc') && <KycLevelsCard />}
+          <ProfileStatsCard />
         </div>
 
         <div className="grid h-max gap-4 rounded-i-md bg-gohan p-4 [@media(min-width:1500px)]:order-1">
           <div className="grid gap-4">
-            <div>
-              {/* `h2`, not `h3`: the page's `h1` is the only heading above it.
-                  The reference uses an `h3` under an `h1` with no `h2`, which
-                  is a gap in its outline rather than something to copy. */}
-              <h2 className="truncate font-primary text-2xl leading-8 font-normal tracking-normal text-bulma">
-                {profile?.username ?? <Placeholder w="10ch" />}
-              </h2>
+            <div className="flex items-center gap-3">
+              {/* The avatar opens the picker; `profileEdit` off (an agent's player) leaves it a picture. */}
+              {profile && gates.can('profileEdit') ? (
+                <button
+                  type="button"
+                  onClick={() => setDialog('avatar')}
+                  aria-label="Change avatar"
+                  className="cursor-pointer rounded-full ring-piccolo transition-shadow hover:ring-2"
+                >
+                  <Avatar src={profile.avatar} name={profile.username} className="size-12 text-lg" />
+                </button>
+              ) : (
+                <Avatar src={profile?.avatar} name={profile?.username} className="size-12 text-lg" />
+              )}
+              <div className="grid min-w-0 flex-1">
+                {/* `h2`, not `h3`: the page's `h1` is the only heading above it.
+                    The reference uses an `h3` under an `h1` with no `h2`, which
+                    is a gap in its outline rather than something to copy. */}
+                <h2 className="truncate font-primary text-2xl leading-8 font-normal tracking-normal text-bulma">
+                  {profile?.username ?? <Placeholder w="10ch" />}
+                </h2>
+              </div>
+              {profile?.id && (
+                <Button variant="outline" size="sm" onClick={() => setDialog('card')}>
+                  Public profile
+                </Button>
+              )}
             </div>
 
             <div className="flex items-center gap-2">
               <span className="truncate text-sm leading-6 text-trunks">
                 {profile?.email ?? <Placeholder w="18ch" />}
               </span>
+              {profile && (
+                <button
+                  type="button"
+                  onClick={() => setDialog('email')}
+                  className="shrink-0 cursor-pointer text-sm font-medium text-piccolo hover:underline"
+                >
+                  Change
+                </button>
+              )}
             </div>
           </div>
 
@@ -221,6 +279,11 @@ export function Account() {
           )}
         </div>
       </div>
+
+      {/* Mounted only while open: each reads on open. */}
+      {dialog === 'avatar' && <AvatarDialog open onClose={closeDialog} profile={profile} onChanged={changed} />}
+      {dialog === 'email' && <ChangeEmailDialog open onClose={closeDialog} onChanged={changed} />}
+      {dialog === 'card' && <PlayerCardDialog open onClose={closeDialog} userId={profile?.id} />}
     </div>
   );
 }

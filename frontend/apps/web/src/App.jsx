@@ -32,6 +32,8 @@ import { League } from '@/pages/League';
 import { PromotionDetail } from '@/pages/PromotionDetail';
 import { WeeklyRakeback } from '@/pages/WeeklyRakeback';
 import { SpinWheel } from '@/pages/SpinWheel';
+import { Raffle } from '@/pages/Raffle';
+import { Medals } from '@/pages/Medals';
 import { Vip } from '@/pages/Vip';
 import { Tournaments } from '@/pages/Tournaments';
 import { TournamentList } from '@/pages/TournamentList';
@@ -57,6 +59,7 @@ import { GatesProvider } from '@/hooks/useGates';
 import { Toaster } from '@/components/ui/Toaster';
 import { IdleLogout } from '@/components/layout/IdleLogout';
 import CookieConsent from '@/components/cookieConsent/CookieConsent';
+import { RegionNotice } from '@/components/layout/RegionNotice';
 import { AGENT_AUTH_CLOSED, AGENT_BASE, AGENT_SITE } from '@/lib/agentBase';
 
 /**
@@ -243,6 +246,7 @@ function AppRoutes() {
               <Route index element={<Navigate to="/profile/notifications" replace />} />
               <Route path="notifications" element={<Notifications />} />
               <Route path="rewards" element={<Rewards />} />
+              <Route path="medals" element={<Medals />} />
               <Route path="account" element={<Account />} />
               <Route path="boosts" element={<Boosts />} />
               <Route path="security" element={<Security />} />
@@ -265,6 +269,7 @@ function AppRoutes() {
             <Route path="promotions/league-of-bitcasino" element={<League />} />
             <Route path="promotions/weekly-rakeback-2026" element={<WeeklyRakeback />} />
             <Route path="promotions/spin-the-wheel" element={<SpinWheel />} />
+            <Route path="promotions/weekly-raffle" element={<Raffle />} />
             {/* The slugs those links carried before the pages existed, and the
                 year-less form of the rakeback one. Kept so anything already
                 pointing at them — a bookmark, an old build — lands on the page
@@ -351,6 +356,7 @@ export default function App() {
         <IdleLogout />
         <GatesProvider>
           <AppRoutes />
+          <RegionNotice />
         </GatesProvider>
       </AuthProvider>
     </BrowserRouter>

@@ -4,7 +4,7 @@
 const EXCLUSION_TYPE = Object.freeze({ CASINO: 'CASINO', SPORTS: 'SPORTS', PLATFORM: 'PLATFORM' });
 
 /** The two limits a player may hold — at most one live of each. */
-const LIMIT_TYPE = Object.freeze({ LOSS_LIMIT: 'LOSS_LIMIT', WAGER_LIMIT: 'WAGER_LIMIT' });
+const LIMIT_TYPE = Object.freeze({ LOSS_LIMIT: 'LOSS_LIMIT', WAGER_LIMIT: 'WAGER_LIMIT', DEPOSIT_LIMIT: 'DEPOSIT_LIMIT' });
 
 /** The window a limit is measured over; it restarts on the anniversary of the limit's creation. */
 const PERIOD_UNIT = Object.freeze({ DAYS: 'DAYS', WEEKS: 'WEEKS', MONTHS: 'MONTHS' });

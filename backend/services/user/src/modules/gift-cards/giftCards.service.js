@@ -254,6 +254,7 @@ class GiftCardsService {
    * changing a number.
    */
   async listForUser({ userId }) {
+    await this.#primeCurrency();
     const [cards, mine] = await Promise.all([
       this.models.GiftCards.findAll({ where: { is_active: true }, order: [['id', 'DESC']], raw: true }),
       this.models.UserGiftCards.findAll({ where: { user_id: userId }, raw: true }),
@@ -804,6 +805,8 @@ class GiftCardsService {
       allUserStatus: Boolean(card.all_user_status),
       isActive: Boolean(card.is_active),
       amount: this.#num(card.amount ?? '0'),
+      // The site's reward currency (`#primeCurrency`), as claimed rows and the claim response carry.
+      currency: this.currencyLabel ?? 'USDT',
     };
   }
 
