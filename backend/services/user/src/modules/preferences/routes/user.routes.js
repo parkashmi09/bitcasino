@@ -3,6 +3,8 @@
 const { Router } = require('express');
 const { validate, z, response, asyncHandler, noQuery } = require('@ibitplay/common');
 
+const { LITERAL_EVENTS, encode, roomForUser } = require('@ibitplay/socket');
+
 const { PreferencesService } = require('../preferences.service');
 const { THEMES, LANGUAGES } = require('../preferences.constants');
 
@@ -49,7 +51,13 @@ module.exports = function userRoutes(deps) {
   router.patch(
     '/',
     validate(update),
-    asyncHandler(async (req, res) => response.ok(res, await service.update({ userId: req.user.id, ...req.body })))
+    asyncHandler(async (req, res) => {
+      const config = await service.update({ userId: req.user.id, ...req.body });
+      // Every open tab of this player (the header's hide-balance, theme…) gets the new config at once. Both
+      // rooms: every signed-in socket is in user:<id>, IDENTIFY also joins the legacy room:user:<id>.
+      deps.io?.to([roomForUser(String(req.user.id)), `room:user:${req.user.id}`]).emit(LITERAL_EVENTS.USER_CONFIG_UPDATED, encode(config));
+      return response.ok(res, config);
+    })
   );
 
   return router;
