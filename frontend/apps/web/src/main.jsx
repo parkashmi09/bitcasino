@@ -41,3 +41,5 @@ createRoot(container).render(
     </QueryClientProvider>
   </StrictMode>,
 );
+// The admin's loading picture (index.html #start-up), if any, goes once the app has painted.
+requestAnimationFrame(() => requestAnimationFrame(() => document.getElementById('start-up')?.remove()));

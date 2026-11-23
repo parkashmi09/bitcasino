@@ -78,6 +78,11 @@ const STEPS = ['email', 'code', 'password'];
 export function ForgotPassword() {
   const navigate = useNavigate();
   const gates = useGates();
+  // A B2B site's players are all agent players, whose agent resets their logins: Log in instead, as /agent.
+  const b2b = gates.policy('business_model') === 'b2b';
+  useEffect(() => {
+    if (b2b) navigate('/login', { replace: true });
+  }, [b2b, navigate]);
 
   const [step, setStep] = useState('email');
   const [email, setEmail] = useState('');

@@ -7,6 +7,7 @@ import { useAuth } from '@/auth/AuthProvider';
 import { formatBalance } from '@/lib/format';
 import { toast } from '@/lib/toast';
 import { AGENT_SITE } from '@/lib/agentBase';
+import { AGENT_DEFAULT_SLIDES } from '@/data/catalog';
 
 /**
  * The promotions surfaces: the spin wheel, the VIP standing, the player's
@@ -440,7 +441,7 @@ const versioned = (url, at) => (at ? `${url}${url.includes('?') ? '&' : '?'}v=${
 
 export function toSlides(rows, placement = SLIDE_PLACEMENT) {
   return (Array.isArray(rows) ? rows : [])
-    .filter((row) => placement.test(row?.type ?? '') && row.active !== false)
+    .filter((row) => placement.test(row?.type ?? '') && row.active !== false && row.hasImage !== false)
     .sort(
       (a, b) =>
         (a.sortOrder ?? 0) - (b.sortOrder ?? 0) ||
@@ -461,7 +462,7 @@ export function useSidebarBanner() {
   return useQuery({
     queryKey: queryKeys.content.slides(),
     queryFn: ({ signal }) =>
-      api(ENDPOINTS.banners, { query: { mode: 'direct' }, auth: false, signal }),
+      api(ENDPOINTS.banners, { query: { withHidden: true, mode: 'direct' }, auth: false, signal }),
     select: (rows) => {
       const row = (Array.isArray(rows) ? rows : []).find((r) => r?.type === 'sidebar' && r.active !== false);
       if (!row) return null;
@@ -475,13 +476,28 @@ export function useSidebarBanner() {
   });
 }
 
-const toAgentSlides = (rows) => toSlides(rows, AGENT_SLIDE_PLACEMENT);
+/**
+ * /agent's strip, slot by slot (hash 5dca56ef): an upload to `agent-slider-<n>` replaces built-in slide n
+ * only, a placement the admin hid (`withHidden` row, `active: false`) drops it, every other built-in stays.
+ */
+export function toAgentSlides(rows) {
+  const list = Array.isArray(rows) ? rows : [];
+  const uploaded = toSlides(list, AGENT_SLIDE_PLACEMENT);
+  const hidden = new Set(list.filter((row) => row?.active === false).map((row) => row.type));
+  const taken = new Set(uploaded.map((slide) => slide.id));
+  const order = new Map(list.map((row) => [row?.type, row?.sortOrder ?? 0]));
+  const slot = (id) => Number(id.slice('agent-slider-'.length));
+  return [...uploaded, ...AGENT_DEFAULT_SLIDES.filter((slide) => !taken.has(slide.id) && !hidden.has(slide.id))].sort(
+    (a, b) => (order.get(a.id) ?? 0) - (order.get(b.id) ?? 0) || slot(a.id) - slot(b.id),
+  );
+}
 
 export function useHomeSlides({ enabled = true } = {}) {
   return useQuery({
     queryKey: AGENT_SITE ? queryKeys.content.agentSlides() : queryKeys.content.slides(),
     queryFn: ({ signal }) =>
-      api(ENDPOINTS.banners, { query: { mode: AGENT_SITE ? 'agent' : 'direct' }, auth: false, signal }),
+      // `withHidden`: a placement the site admin hid comes back as `{type, mode, active: false}` only.
+      api(ENDPOINTS.banners, { query: { withHidden: true, mode: AGENT_SITE ? 'agent' : 'direct' }, auth: false, signal }),
     select: AGENT_SITE ? toAgentSlides : toSlides,
     enabled,
     staleTime: 10 * 60 * 1000,

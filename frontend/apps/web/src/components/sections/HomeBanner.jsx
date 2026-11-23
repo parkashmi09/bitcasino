@@ -99,7 +99,8 @@ export function HomeBanner() {
   const { data: slides } = useHomeSlides({ enabled: show });
   const site = useSiteName();
   const { data: offer } = useFirstDepositOffer();
-  const banners = (slides?.length ? slides : AGENT_SITE ? AGENT_DEFAULT_SLIDES : withBrand(HOME_BANNERS, site))
+  // /agent: the built-ins are already merged slot by slot (toAgentSlides); every slot hidden draws none.
+  const banners = (AGENT_SITE ? (slides ?? AGENT_DEFAULT_SLIDES) : slides?.length ? slides : withBrand(HOME_BANNERS, site))
     // The built-in welcome-bonus banner only while the first-deposit bonus is on; Tournaments otherwise.
     .map((banner) => (banner.id === 'banner-deposit-rewards' && !offer ? TOURNAMENTS_BANNER : banner))
     .filter((banner) => !banner.href || routeOn(banner.href));
