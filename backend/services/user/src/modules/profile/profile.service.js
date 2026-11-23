@@ -109,13 +109,16 @@ class ProfileService {
 
     // Either switch hides the counts: rainbet's "Display Statistics on Profile" (show_statistics, migration 169)
     // or hash's "Hide my gaming data on profile" (hide_gaming_data, migration 177). No counts leave the server.
-    const prefs = await this.models.Userconfig.findOne({ where: { uid: userId }, attributes: ['show_statistics', 'hide_gaming_data'], raw: true })
+    const prefs = await this.models.Userconfig.findOne({ where: { uid: userId }, attributes: ['show_statistics', 'hide_gaming_data', 'show_bets_publicly', 'hide_username'], raw: true })
       .catch(() => null);
     const hidden = prefs?.show_statistics === false || Boolean(prefs?.hide_gaming_data);
+    // The same switches as the public bets feed (casino #withPublicNames): either one hides the name, null = "Hidden".
+    const usernameHidden = prefs?.show_bets_publicly === false || Boolean(prefs?.hide_username);
 
     return {
       userId: String(user.id),
-      username: user.name,
+      username: usernameHidden ? null : user.name,
+      usernameHidden,
       avatar: user.avatar,
       joinedAt: user.created,
       gamingDataHidden: hidden,
