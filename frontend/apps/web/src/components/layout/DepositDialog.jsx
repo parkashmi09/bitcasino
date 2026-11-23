@@ -24,6 +24,7 @@ import {
   useBankDetails,
   useDepositAddress,
   useSubmitWithdrawal,
+  useCryptoNetworks,
   useSubmitFiatWithdrawal,
   usePaymentMethods,
   usePayoutCurrencies,
@@ -138,7 +139,11 @@ export function DepositDialog({ open, onClose }) {
   const actions = TABS.filter((entry) => tabs.includes(entry.value));
   const coins = useWalletCoins(balances, status);
 
-  const networks = useMemo(() => currencyNetworks(currency), [currency]);
+  const liveNetworks = useCryptoNetworks().data;
+  const networks = useMemo(
+    () => currencyNetworks(currency, Array.isArray(liveNetworks) ? liveNetworks.find((row) => row.coin === currency)?.networks : undefined),
+    [currency, liveNetworks],
+  );
   const [network, setNetwork] = useState(null);
   const [pickingNetwork, setPickingNetwork] = useState(false);
   /* The method a withdrawal is going out over: `null` shows the withdraw
@@ -1029,7 +1034,7 @@ function NetworkMark({ currency, short, size = 40 }) {
  * ═════════════════════════════════════════════════════════════════════════
  */
 /* Admin Bank details name a network as free text ('TRC20', 'Tron', 'BEP20'…): matched to a chain id. */
-const HOUSE_NETWORK = { TRC20: 'TRX', TRON: 'TRX', TRX: 'TRX', ERC20: 'ETH', ETH: 'ETH', ETHEREUM: 'ETH', BEP20: 'BSC', BSC: 'BSC', BNB: 'BSC', POLYGON: 'MATIC', MATIC: 'MATIC' };
+const HOUSE_NETWORK = { TRC20: 'TRC20', TRON: 'TRC20', TRX: 'TRC20', ERC20: 'ERC20', ETH: 'ERC20', ETHEREUM: 'ERC20', BEP20: 'BEP20', BSC: 'BEP20', BNB: 'BEP20', POLYGON: 'POLYGON', MATIC: 'POLYGON' };
 const houseChain = (network) => HOUSE_NETWORK[String(network ?? '').toUpperCase().replace(/[^A-Z0-9]/g, '')] ?? null;
 
 function AddressPanel({ currency, chain: _chain, networks }) {

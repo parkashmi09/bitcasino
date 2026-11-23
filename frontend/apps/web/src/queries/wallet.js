@@ -40,6 +40,7 @@ export const walletKeys = {
   withdrawals: (limit, offset) => ['wallet', 'withdrawals', limit, offset],
   deposits: (limit, offset) => ['wallet', 'deposits', limit, offset],
   coins: () => ['wallet', 'coins'],
+  networks: () => ['wallet', 'networks'],
   swapQuote: (from, to, amount) => ['wallet', 'swap-quote', from, to, amount],
   vault: () => ['wallet', 'vault'],
   vaultTerms: () => ['wallet', 'vault-terms'],
@@ -123,6 +124,19 @@ export function useCryptoCoins() {
     queryKey: walletKeys.coins(),
     queryFn: ({ signal }) => api(ENDPOINTS.cryptoCoins, { auth: false, signal }),
     staleTime: 60 * 60 * 1000,
+  });
+}
+
+/**
+ * Per coin, the networks a deposit / withdrawal may name in `chain`, by backend
+ * key (`[{ coin, networks: [{ key, name }] }]`), switched-off ones left out.
+ * Public. Until it answers (or if it fails) `currencyNetworks` uses its fallback.
+ */
+export function useCryptoNetworks() {
+  return useQuery({
+    queryKey: walletKeys.networks(),
+    queryFn: ({ signal }) => api(ENDPOINTS.cryptoNetworks, { auth: false, signal }),
+    staleTime: 5 * 60 * 1000,
   });
 }
 

@@ -330,6 +330,8 @@ export const ENDPOINTS = {
   // up, which is what the reference's footer does with them.
   cryptoCoins: `${USER}/crypto/coins`,
   cryptoChains: `${USER}/crypto/chains`,
+  /** Per coin, the networks that are on, by backend key: `[{ coin, networks: [{ key, name }] }]`. Public. */
+  cryptoNetworks: `${USER}/crypto/networks`,
 
   // ── Payment providers (PSP deposits) ────────────────────────────────
   // The outbound half of the provider integrations, from the `payment-orders`
