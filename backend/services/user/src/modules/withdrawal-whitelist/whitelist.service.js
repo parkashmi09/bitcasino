@@ -178,23 +178,26 @@ class WhitelistService {
    * they accept a destination. It answers `true` when enforcement is off, so a
    * caller needs no branch of its own.
    *
-   * NOT WIRED INTO A WITHDRAW PATH YET, and that is stated rather than hidden:
-   * `crypto-withdraw` builds its request from a provider that is unconfigured
-   * on this delivery, so there is no reachable flow to enforce against and
-   * wiring it would be untestable. The check is here, correct and covered, for
-   * the rail to call when a provider exists.
+   * Wired into `CryptoWithdrawService.request`, inside its transaction: the
+   * matching row is read FOR SHARE, so deleting that address waits for the
+   * withdrawal to commit instead of racing it. The fiat rail pays bank/UPI
+   * details, not addresses, so it has nothing to check.
    */
-  async isAllowed(userId, { currency, address }) {
+  async isAllowed(userId, { currency, address }, { transaction } = {}) {
     const user = await this.models.Users.findByPk(userId, {
       attributes: ['withdraw_whitelist_only'],
       raw: true,
+      transaction,
     });
     if (!user?.withdraw_whitelist_only) return true;
 
-    const match = await this.models.UserWithdrawalWhitelist.count({
+    const match = await this.models.UserWithdrawalWhitelist.findOne({
+      attributes: ['id'],
       where: { user_id: userId, currency: String(currency).toUpperCase(), address },
+      transaction,
+      ...(transaction ? { lock: transaction.LOCK.SHARE } : {}),
     });
-    return match > 0;
+    return Boolean(match);
   }
 
   #present(row) {

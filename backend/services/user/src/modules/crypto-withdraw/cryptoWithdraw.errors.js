@@ -50,6 +50,12 @@ module.exports = defineErrors('CRYPTO_WITHDRAW', {
     message: 'Enter a wallet address'
   },
 
+  /** The player turned on whitelist-only withdrawals and this address is not on the list. */
+  ADDRESS_NOT_WHITELISTED: {
+    status: 403,
+    message: 'That address is not on your withdrawal whitelist',
+  },
+
   PLAYER_NOT_FOUND: { status: 404, message: 'Player not found' },
 
   PASSWORD_INCORRECT: { status: 401, message: 'Your password is wrong' },
