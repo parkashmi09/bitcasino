@@ -583,6 +583,19 @@ class WhitelabelsService {
     return { maintenance: result?.maintenance === true };
   }
 
+  /** The copy's Recent Big Wins coin, read from the copy itself (null = each viewer's own currency). */
+  async bigWinsCurrency(id) {
+    const row = await this.#live(id);
+    const result = await this.link(row, 'GET', '/big-wins-currency');
+    return { currency: result?.currency ?? null };
+  }
+
+  async setBigWinsCurrency(id, currency) {
+    const row = await this.#live(id);
+    const result = await this.link(row, 'PUT', '/big-wins-currency', { currency: currency ? currency.toUpperCase() : null });
+    return { currency: result?.currency ?? null };
+  }
+
   async setPalette(id, palette) {
     const row = await this.#row(id);
     if (row.status === 'live') await this.link(row, 'PUT', '/palette', { palette });

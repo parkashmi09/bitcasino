@@ -18,10 +18,12 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { useApi, useApiMutation } from '@/hooks/use-api'
 import { api } from '@/lib/api/client'
 import { check } from '@/lib/validate'
 import { TxnPasswordLabel } from '@/views/finance/StaffFloat'
+import { useCurrencyCodes } from '@/views/finance/useCurrencyCodes'
 
 import AdminColours from './AdminColours'
 import ImageField, { POSTER, type PickedImage } from './ImageField'
@@ -270,6 +272,63 @@ const Poster = ({ wl, invalidate }: { wl: Detail; invalidate: string[][] }) => {
         <ImageField label='Desktop' hint='About 1276×270, at most 2 MB.' value={desktop} onChange={setDesktop} onError={setError} current={stored('poster')} {...POSTER} />
         <ImageField label='Phone' hint='About 372×215. Without one: the desktop poster.' value={mobile} onChange={setMobile} onError={setError} current={stored('poster_mobile')} {...POSTER} />
         {error && <span className='text-destructive text-sm sm:col-span-2'>{error}</span>}
+      </CardContent>
+    </Card>
+  )
+}
+
+/** The whitelabel's Recent Big Wins coin: its own operator setting `big_wins_currency`, read and set through the link. */
+const VIEWER_CURRENCY = '__viewer__'
+
+const BigWinsCurrency = ({ wl }: { wl: Detail }) => {
+  const path = `admin/whitelabels/${wl.id}/big-wins-currency`
+  const coins = useCurrencyCodes()
+  const q = useApi<{ currency: string | null }>(path)
+  const [draft, setDraft] = useState<string | undefined>(undefined)
+  const current = q.data ? (q.data.currency ?? VIEWER_CURRENCY) : undefined
+  const picked = draft ?? current
+
+  const save = useApiMutation({
+    fn: () => api.put(path, { currency: picked === VIEWER_CURRENCY ? null : picked }),
+    invalidate: [['api', path]],
+    success: 'Saved — the whitelabel home page shows Recent Big Wins in this currency',
+    onSuccess: () => setDraft(undefined)
+  })
+
+  // A coin set earlier and since switched off here still shows, so the picker never reads blank.
+  const options = picked && picked !== VIEWER_CURRENCY && !coins.includes(picked) ? [...coins, picked] : coins
+
+  return (
+    <Card>
+      <CardHeader className='flex flex-row items-start justify-between gap-4'>
+        <div>
+          <CardTitle>Recent Big Wins currency</CardTitle>
+          <CardDescription>
+            The coin every Recent Big Wins amount on the whitelabel&apos;s home page is shown in, converted at its rates. &quot;Player&apos;s selected currency&quot; follows each visitor&apos;s wallet. This site&apos;s own setting is under Limits and policy.
+          </CardDescription>
+        </div>
+        <Button size='sm' disabled={save.isPending || draft === undefined || draft === current} onClick={() => save.mutate()}>
+          {save.isPending && <Loader2Icon className='animate-spin' />} Save
+        </Button>
+      </CardHeader>
+      <CardContent>
+        {q.error ? (
+          <span className='text-destructive text-sm'>Could not read it from the whitelabel: {q.error.message}</span>
+        ) : (
+          <Select value={picked ?? ''} disabled={!q.data} onValueChange={v => v && setDraft(String(v))}>
+            <SelectTrigger className='w-56'>
+              <SelectValue placeholder='Loading…' />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value={VIEWER_CURRENCY}>Player&apos;s selected currency</SelectItem>
+              {options.map(code => (
+                <SelectItem key={code} value={code}>
+                  {code}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        )}
       </CardContent>
     </Card>
   )
@@ -658,6 +717,7 @@ const WhitelabelDetail = ({ id }: { id: string }) => {
       {wl.status !== 'deleting' && <GatewayPayments wl={wl} invalidate={invalidate} />}
       {wl.status !== 'deleting' && <TermsCard key={`terms-${wl.updatedAt}`} wl={wl} invalidate={invalidate} />}
       {!['creating', 'deleting'].includes(wl.status) && <Poster wl={wl} invalidate={invalidate} />}
+      {live && <BigWinsCurrency wl={wl} />}
       {wl.status !== 'deleting' && <Colours key={wl.updatedAt} wl={wl} invalidate={invalidate} />}
       {wl.status !== 'deleting' && <AdminColours key={`admin-${wl.updatedAt}`} wl={wl} invalidate={invalidate} />}
     </div>

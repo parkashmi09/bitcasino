@@ -7,6 +7,7 @@ const { z, validate, noBody, response, asyncHandler, createRateLimiter, Unauthor
 const { WhitelabelLinkService, paletteShape, adminThemeSchema } = require('../whitelabelLink.service');
 const { brandingStore } = require('../../branding/branding.store');
 const { BannersService } = require('../../banners/banners.service');
+const { SiteConfigService } = require('../../site-config/siteConfig.service');
 
 /** Constant-time, like the owner key (modules/owner). Unset secret = never matches. */
 function keyMatches(given, secret) {
@@ -57,6 +58,8 @@ const schemas = {
   },
   password: { body: z.object({ password: z.string().min(8).max(200) }).strict() },
   maintenance: { body: z.object({ on: z.boolean() }).strict() },
+  // The Recent Big Wins coin (operator setting `big_wins_currency`); null = each viewer's own currency.
+  bigWinsCurrency: { body: z.object({ currency: z.string().trim().regex(/^[A-Za-z0-9]{2,10}$/).nullable() }).strict() },
   // The home-page poster: banner placements `home` / `home_mobile` (the player site's hero art),
   // at most 2 MB (≈2.8 MB as base64, inside this service's ADMIN_BODY_LIMIT).
   poster: {
@@ -186,6 +189,20 @@ function publicRoutes(deps) {
   router.put('/palette', validate(schemas.palette), asyncHandler(async (req, res) => response.ok(res, await service.setPalette(req.body.palette))));
   router.put('/admin-theme', validate(schemas.adminTheme), asyncHandler(async (req, res) => response.ok(res, await service.setAdminTheme(req.body.adminTheme))));
   router.put('/maintenance', validate(schemas.maintenance), asyncHandler(async (req, res) => response.ok(res, await service.setMaintenance(req.body.on))));
+  const bigWinsCurrency = async () => {
+    const settings = await new SiteConfigService(deps).operatorSettings();
+    const row = settings.find((s) => s.key === 'big_wins_currency');
+    return { currency: row?.value ? String(row.value).toUpperCase() : null };
+  };
+  router.get('/big-wins-currency', asyncHandler(async (_req, res) => response.ok(res, await bigWinsCurrency())));
+  router.put(
+    '/big-wins-currency',
+    validate(schemas.bigWinsCurrency),
+    asyncHandler(async (req, res) => {
+      await new SiteConfigService(deps).updateOperatorSettings({ patch: { big_wins_currency: req.body.currency }, staffId: null });
+      return response.ok(res, await bigWinsCurrency());
+    })
+  );
   router.post('/preview', noBody(), asyncHandler(async (_req, res) => response.ok(res, await service.preview())));
 
   return router;

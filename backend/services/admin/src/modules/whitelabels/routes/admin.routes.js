@@ -22,6 +22,8 @@ const { WhitelabelsService } = require('../whitelabels.service');
  *   POST   /admin/whitelabels/:id/transfers/retry    send every pending transfer again
  *   PUT    /admin/whitelabels/:id/company-password   { password } (company signed out)
  *   PUT    /admin/whitelabels/:id/maintenance        { on }  off = maintenance on the copy
+ *   GET    /admin/whitelabels/:id/big-wins-currency  the copy's Recent Big Wins coin
+ *   PUT    /admin/whitelabels/:id/big-wins-currency  { currency }  null = each viewer's own currency
  *   PUT    /admin/whitelabels/:id/palette            { palette | null }
  *   PUT    /admin/whitelabels/:id/admin-theme        { adminTheme | null }  (null = follow the player site)
  *   PUT    /admin/whitelabels/:id/plan               { plan } products, features, payments
@@ -142,6 +144,14 @@ module.exports = function adminRoutes(deps) {
     validate(v.password),
     audited('whitelabel.company-password'),
     asyncHandler(async (req, res) => response.ok(res, await service.setCompanyPassword(id(req), req.body.password)))
+  );
+  router.get('/:id/big-wins-currency', canRead, validate(v.byId), asyncHandler(async (req, res) => response.ok(res, await service.bigWinsCurrency(id(req)))));
+  router.put(
+    '/:id/big-wins-currency',
+    canWrite,
+    validate(v.bigWinsCurrency),
+    audited('whitelabel.big-wins-currency'),
+    asyncHandler(async (req, res) => response.ok(res, await service.setBigWinsCurrency(id(req), req.body.currency)))
   );
   router.put('/:id/maintenance', canWrite, validate(v.maintenance), audited('whitelabel.maintenance'), asyncHandler(async (req, res) => response.ok(res, await service.setMaintenance(id(req), req.body.on))));
   router.put('/:id/palette', canWrite, validate(v.palette), audited('whitelabel.palette'), asyncHandler(async (req, res) => response.ok(res, await service.setPalette(id(req), req.body.palette))));

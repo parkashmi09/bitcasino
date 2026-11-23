@@ -119,6 +119,7 @@ module.exports = {
   },
   password: { ...params, body: z.object({ password }).strict() },
   maintenance: { ...params, body: z.object({ on: z.boolean() }).strict() },
+  bigWinsCurrency: { ...params, body: z.object({ currency: z.string().trim().regex(/^[A-Za-z0-9]{2,10}$/).nullable() }).strict() },
   palette: { ...params, body: z.object({ palette: palette.nullable() }).strict() },
   adminTheme: { ...params, body: z.object({ adminTheme: adminThemeSchema(z) }).strict() },
   plan: { ...params, body: z.object({ plan: planSchema() }).strict() },
