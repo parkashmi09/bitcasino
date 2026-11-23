@@ -36,10 +36,9 @@ const modeOf = (type) => (String(type).startsWith(AGENT_PREFIX) ? 'agent' : 'dir
 
 /**
  * The placements the player site draws BUILT-IN art for while nothing is uploaded: agent mode's
- * four game slides (frontend-next spa/hooks/useHeroSlides.js, /brand/agent/slide-<n>.webp). Each
+ * four game slides (frontend apps/web/src/data/catalog.js AGENT_DEFAULT_SLIDES, /brand/agent/slide-<n>.webp). Each
  * is its own slot: an upload replaces only that one, and a built-in can be hidden on its own — a
- * row with no image and `is_active = false` is that "hidden" marker. Stake's direct site has no
- * built-in hero art, so no direct placement is listed (admin Banners.tsx BUILTINS must match).
+ * row with no image and `is_active = false` is that "hidden" marker. The direct site's fallback art (home banner set) is not listed (admin Banners.tsx BUILTINS must match).
  */
 const BUILTIN_PLACEMENTS = Object.freeze([
   'agent-slider-1',
