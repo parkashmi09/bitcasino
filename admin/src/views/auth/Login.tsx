@@ -122,12 +122,15 @@ const Login = () => {
         token: string
         firstLogin?: boolean
         mustChangePassword?: boolean
-        actor?: { name?: string }
+        actor?: { name?: string; executiveUsername?: string | null }
       }>(`/api/gw${path}`, { raw: true, method: 'POST', body: payload })
 
       await request('/api/auth/session', { raw: true, method: 'POST', body: { token: data.token } })
 
-      toast.success(`Signed in${data?.actor?.name ? ` as ${data.actor.name}` : ''}`)
+      // An executive acts for its parent account, so `actor.name` is the parent's: name the executive itself.
+      const who = data?.actor?.executiveUsername ? `${data.actor.executiveUsername} (executive)` : data?.actor?.name
+
+      toast.success(`Signed in${who ? ` as ${who}` : ''}`)
 
       /* A FULL PAGE LOAD, not a client-side route change.
          `/api/auth/me` 401s on the login screen and that failure sits in the
