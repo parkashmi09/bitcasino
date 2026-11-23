@@ -10,6 +10,7 @@ const { addChildGamePoints } = require('../js-games/pointLedger');
 const { responseIdFor } = require('./responseId');
 const { chosenAggregator, LIVE, PARKED } = require('../games/catalogueSwitch');
 const { pkrPerInr } = require('../games/pkrPerInr');
+const { normaliseJackpots } = require('../catalogue/jackpots');
 const {
   ERROR_CODE,
   ACTION,
@@ -853,9 +854,9 @@ class GisService {
     return this.#upstream(() => this.provider.get('/limits/freespin'));
   }
 
-  /** @legacy GET /api/gis/jackpots */
-  jackpots() {
-    return this.#upstream(() => this.provider.get('/jackpots'));
+  /** @legacy GET /api/gis/jackpots — `[{ name, amount, currency, gameId?, raw }]` (catalogue/jackpots). */
+  async jackpots() {
+    return normaliseJackpots(await this.#upstream(() => this.provider.get('/jackpots')));
   }
 
   /** @legacy GET /api/gis/game-tags — 500 on every request; `pag` is not defined. */

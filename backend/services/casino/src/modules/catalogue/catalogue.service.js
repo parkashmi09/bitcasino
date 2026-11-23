@@ -4,6 +4,7 @@ const { Op, fn, col, where: sqlWhere } = require('sequelize');
 
 const errors = require('./catalogue.errors');
 const { CatalogueClient } = require('./catalogueClient');
+const { normaliseJackpots } = require('./jackpots');
 const { FEATURED_VENDORS, DEFAULT_PROVIDER } = require('./catalogue.constants');
 
 /**
@@ -128,7 +129,8 @@ class CatalogueService {
 
   /** @legacy GET /api/casino/jackpots */
   async jackpots({ currency }) {
-    return this.client.hubJackpots(currency);
+    // `[{ name, amount, currency, gameId?, raw }]` — see ./jackpots.
+    return normaliseJackpots(await this.client.hubJackpots(currency), { currency });
   }
 
   /**
