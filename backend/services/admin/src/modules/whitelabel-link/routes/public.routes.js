@@ -57,10 +57,11 @@ const schemas = {
   },
   password: { body: z.object({ password: z.string().min(8).max(200) }).strict() },
   maintenance: { body: z.object({ on: z.boolean() }).strict() },
-  // The home-page poster: banner placements `home` / `home_mobile` (the player site's hero art).
+  // The home-page poster: banner placements `home` / `home_mobile` (the player site's hero art),
+  // at most 2 MB (≈2.8 MB as base64, inside this service's ADMIN_BODY_LIMIT).
   poster: {
     body: z
-      .object({ placement: z.enum(['home', 'home_mobile']), type: z.enum(['image/png', 'image/jpeg', 'image/webp']), data: z.string().min(1).max(820_000) })
+      .object({ placement: z.enum(['home', 'home_mobile']), type: z.enum(['image/png', 'image/jpeg', 'image/webp']), data: z.string().min(1).max(2_800_000) })
       .strict(),
   },
   // The logo or the square mark (favicon), base64; the branding store checks the bytes.

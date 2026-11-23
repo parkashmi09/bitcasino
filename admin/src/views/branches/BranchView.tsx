@@ -372,8 +372,8 @@ const Balances = ({ value }: { value: Record<string, string> }) => {
   )
 }
 
-/** The branch's players; a row opens the player's page (`playerHref`). */
-export const BranchPlayers = ({ base, playerHref }: { base: string; playerHref: (id: string) => string }) => {
+/** The branch's players; a row opens the player's page (`playerHref`). The password change is the Super Admin's only. */
+export const BranchPlayers = ({ base, playerHref, canChangePassword = false }: { base: string; playerHref: (id: string) => string; canChangePassword?: boolean }) => {
   const { state, set, query } = useListState()
   const list = usePagedApi<Player>(`${base}/players`, { limit: query.limit, page: query.page, search: query.search })
 
@@ -390,7 +390,7 @@ export const BranchPlayers = ({ base, playerHref }: { base: string; playerHref: 
       align: 'right',
       cell: r => (
         <div className='flex justify-end gap-2'>
-          <PlayerPassword base={base} player={r} />
+          {canChangePassword && <PlayerPassword base={base} player={r} />}
           <Button variant='outline' size='sm' nativeButton={false} render={<Link href={playerHref(r.id)} />}>
             View
           </Button>
@@ -711,7 +711,7 @@ const ReportTabs = ({ base, userId, players }: { base: string; userId?: string; 
 export const BranchDetail = ({ base, actions, playerHref }: { base: string; actions?: ReactNode; playerHref: (id: string) => string }) => (
   <div className='grid gap-6'>
     <BranchDashboard base={base} actions={actions} />
-    <ReportTabs base={base} players={<BranchPlayers base={base} playerHref={playerHref} />} />
+    <ReportTabs base={base} players={<BranchPlayers base={base} playerHref={playerHref} canChangePassword />} />
   </div>
 )
 

@@ -267,7 +267,7 @@ const Poster = ({ wl, invalidate }: { wl: Detail; invalidate: string[][] }) => {
         </Button>
       </CardHeader>
       <CardContent className='grid gap-4 sm:grid-cols-2'>
-        <ImageField label='Desktop' hint='About 1276×270, at most 600 KB.' value={desktop} onChange={setDesktop} onError={setError} current={stored('poster')} {...POSTER} />
+        <ImageField label='Desktop' hint='About 1276×270, at most 2 MB.' value={desktop} onChange={setDesktop} onError={setError} current={stored('poster')} {...POSTER} />
         <ImageField label='Phone' hint='About 372×215. Without one: the desktop poster.' value={mobile} onChange={setMobile} onError={setError} current={stored('poster_mobile')} {...POSTER} />
         {error && <span className='text-destructive text-sm sm:col-span-2'>{error}</span>}
       </CardContent>

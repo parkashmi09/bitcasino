@@ -127,7 +127,6 @@ module.exports = {
   portalCreatePlayer: { body: createPlayerBody },
   portalStatement: { query: statementQuery },
   portalPlayer: { params: z.object({ userId: playerParam }).strict() },
-  portalPlayerPassword: { params: z.object({ userId: playerParam }).strict(), body: z.object({ password }).strict() },
   portalMoney: { query: moneyQuery },
   portalBets: { query: betsQuery },
 };

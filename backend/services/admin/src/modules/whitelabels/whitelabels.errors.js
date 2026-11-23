@@ -19,7 +19,7 @@ module.exports = defineErrors('WHITELABEL', {
 
   BAD_ICON: { status: 422, message: 'The icon must be a PNG, WebP or safe SVG of at most 256 KB' },
 
-  BAD_POSTER: { status: 422, message: 'The poster must be a PNG, JPEG or WebP of at most 600 KB' },
+  BAD_POSTER: { status: 422, message: 'The poster must be a PNG, JPEG or WebP of at most 2 MB' },
 
   NOT_LIVE: { status: 409, message: 'This whitelabel is not running yet' },
 

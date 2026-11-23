@@ -39,7 +39,7 @@ function decodeImage(input, slot) {
   return bytes;
 }
 
-const POSTER_MAX_BYTES = 600 * 1024;
+const POSTER_MAX_BYTES = 2 * 1024 * 1024;
 const PLACEMENT = { poster: 'home', poster_mobile: 'home_mobile' };
 
 /** A poster's bytes, checked by signature (PNG / JPEG / WebP) and size; null when absent. */

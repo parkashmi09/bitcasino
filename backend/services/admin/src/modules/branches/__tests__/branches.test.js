@@ -51,7 +51,7 @@ test('branch validators', () => {
   assert.equal(v.playerPassword.body.safeParse({ password: 'short' }).success, false);
   assert.equal(v.playerPassword.body.safeParse({ password: 'longenough', status: 'active' }).success, false);
   assert.equal(v.playerPassword.body.safeParse({ password: 'longenough' }).success, true);
-  assert.equal(v.portalPlayerPassword.params.safeParse({ userId: 'abc' }).success, false);
+  assert.equal(v.playerPassword.params.safeParse({ branchId: '1', userId: 'abc' }).success, false);
 });
 
 test('branches against a database', async (t) => {

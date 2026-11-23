@@ -36,8 +36,9 @@ const palette = z
   .strict();
 
 const image = z.object({ type: z.enum(['image/png', 'image/webp', 'image/svg+xml']), data: z.string().max(360_000) }).strict();
-// A poster is a photo: PNG, JPEG or WebP, at most 600 KB (as base64 it stays inside the 1 MB body).
-const poster = z.object({ type: z.enum(['image/png', 'image/jpeg', 'image/webp']), data: z.string().max(820_000) }).strict();
+// A poster is a photo: PNG, JPEG or WebP, at most 2 MB (≈2.8 MB as base64; two of them stay inside
+// the admin service's 6 MB body, ADMIN_BODY_LIMIT).
+const poster = z.object({ type: z.enum(['image/png', 'image/jpeg', 'image/webp']), data: z.string().max(2_800_000) }).strict();
 
 /** A percentage: 0–100, at most 2 decimals, as a string (no float rounding on the way). */
 const percent = z
