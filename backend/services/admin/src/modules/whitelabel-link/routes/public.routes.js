@@ -70,8 +70,10 @@ const schemas = {
   // The logo or the square mark (favicon), base64; the branding store checks the bytes.
   branding: {
     body: z
-      .object({ slot: z.enum(['logo', 'mark']), type: z.enum(['image/png', 'image/webp', 'image/svg+xml']), data: z.string().min(1).max(360_000) })
-      .strict(),
+      .object({ slot: z.enum(['logo', 'mark', 'loader']), type: z.enum(['image/png', 'image/webp', 'image/svg+xml']), data: z.string().min(1).max(1_400_000) })
+      .strict()
+      // The loading picture may be up to 1 MB; logo and icon stay at 256 KB (≈350 KB base64).
+      .refine((b) => b.slot === 'loader' || b.data.length <= 360_000, { path: ['data'], message: 'at most 256 KB' }),
   },
   // Products and features the parent sold this copy; at least one product.
   plan: { body: z.object({ plan: planSchema() }).strict() },
@@ -164,6 +166,17 @@ function publicRoutes(deps) {
       return response.ok(res, await store.setSite(req.body.slot, Buffer.from(req.body.data, 'base64'), { staff: null, ownerBranding }));
     })
   );
+  // The loading picture: what the copy shows now (its public asset path, or null), and back to the default.
+  router.get('/branding/loader', asyncHandler(async (_req, res) => {
+    const store = deps.brandingStore ?? brandingStore(deps);
+    const current = deps.entitlementsStore?.current() ?? {};
+    return response.ok(res, { path: store.view(current.branding ?? null, current.version ?? 0).loaderUrl ?? null });
+  }));
+  router.delete('/branding/loader', noBody(), asyncHandler(async (_req, res) => {
+    const store = deps.brandingStore ?? brandingStore(deps);
+    await store.clearSite('loader', { ownerBranding: deps.entitlementsStore?.current()?.branding ?? null });
+    return response.ok(res, { path: null });
+  }));
   router.put(
     '/poster',
     validate(schemas.poster),

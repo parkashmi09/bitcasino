@@ -435,6 +435,29 @@ class WhitelabelsService {
     return view(await this.#row(id));
   }
 
+  /** The copy's loading picture: an https URL on its API domain, or null (the default art). */
+  async loader(id) {
+    const row = await this.#live(id);
+    const result = await this.link(row, 'GET', '/branding/loader');
+    return { url: result?.path ? `https://${row.api_domain}${result.path}` : null };
+  }
+
+  /** A new loading picture, put straight on the live copy (its branding store checks the bytes). */
+  async setLoader(id, image) {
+    const row = await this.#live(id);
+    const bytes = Buffer.from(image.data, 'base64');
+    if (imageProblem(bytes, `loader.${EXT[image.type]}`, 'loader')) throw errors.BAD_LOADER();
+    await this.link(row, 'PUT', '/branding', { slot: 'loader', type: image.type, data: image.data });
+    return this.loader(id);
+  }
+
+  /** Back to the copy's default loading picture. */
+  async clearLoader(id) {
+    const row = await this.#live(id);
+    await this.link(row, 'DELETE', '/branding/loader');
+    return { url: null };
+  }
+
   // ══════════════════════════════════════════════════════════════════════
   //  Money: the Super Admin's Direct balance → the company's Direct balance
   // ══════════════════════════════════════════════════════════════════════

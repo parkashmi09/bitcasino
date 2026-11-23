@@ -6,7 +6,7 @@ const { ValidationError, imageUpload } = require('@ibitplay/common');
 const { SLOTS, ASSET_FILE_RE, CONTENT_TYPES, imageProblem, cleanBranding, chatLink } = require('./branding.rules');
 
 /** The slots the Super Admin may set (site admin → Branding). */
-const SITE_SLOTS = Object.freeze(['logo', 'mark']);
+const SITE_SLOTS = Object.freeze(['logo', 'mark', 'loader']);
 
 /** The name and metadata fields the Super Admin may set too (site admin → Branding). */
 const META_KEYS = Object.freeze(['siteName', 'title', 'titleTemplate', 'description', 'keywords', 'ogTitle', 'ogDescription', 'themeColor']);
@@ -183,6 +183,7 @@ function createBrandingStore({ logger, models }) {
         logoUrl: null,
         markUrl: null,
         ogImageUrl: null,
+        loaderUrl: null,
         whatsapp: { ...chat('whatsapp'), message: null },
         telegram: chat('telegram'),
         sportsbook: { tabName: null, gameUid: null },
@@ -204,6 +205,7 @@ function createBrandingStore({ logger, models }) {
       logoUrl: url(branding.logo),
       markUrl: url(branding.mark),
       ogImageUrl: url(branding.ogImage),
+      loaderUrl: url(branding.loader),
       // WhatsApp: hash's chat button (owner allows, site admin switches + link), with the owner's own link / opening
       // message (owner panel → Branding) when the admin set none.
       whatsapp: (() => { const c = chat('whatsapp'); return { ...c, link: c.link || orNull(branding.whatsappLink), message: orNull(branding.whatsappMessage) }; })(),

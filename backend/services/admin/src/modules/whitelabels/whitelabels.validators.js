@@ -119,6 +119,8 @@ module.exports = {
   },
   password: { ...params, body: z.object({ password }).strict() },
   maintenance: { ...params, body: z.object({ on: z.boolean() }).strict() },
+  // The loading picture: up to 1 MB (≈1.4 MB as base64); the service checks the bytes.
+  loader: { ...params, body: z.object({ type: z.enum(['image/png', 'image/webp', 'image/svg+xml']), data: z.string().min(1).max(1_400_000) }).strict() },
   bigWinsCurrency: { ...params, body: z.object({ currency: z.string().trim().regex(/^[A-Za-z0-9]{2,10}$/).nullable() }).strict() },
   palette: { ...params, body: z.object({ palette: palette.nullable() }).strict() },
   adminTheme: { ...params, body: z.object({ adminTheme: adminThemeSchema(z) }).strict() },

@@ -10,8 +10,8 @@ const assetParams = z.object({ file: z.string().regex(/^[0-9a-f]{64}\.(png|webp|
 /** The reads take no query string at all. */
 const emptyQuery = z.preprocess((v) => v ?? {}, z.object({}).strict());
 
-/** The slots the Super Admin sets: the header logo and the square icon. */
-const siteSlot = z.object({ slot: z.enum(['logo', 'mark']) }).strict();
+/** The slots the Super Admin sets: the header logo, the square icon and the loading picture. */
+const siteSlot = z.object({ slot: z.enum(['logo', 'mark', 'loader']) }).strict();
 
 /** One text field: the owner panel's limits (branding.rules.js), no `<`, `>` or control characters. */
 const text = (max) => z.string().trim().max(max).refine((v) => !BAD_TEXT.test(v), 'No < > or control characters').default('');

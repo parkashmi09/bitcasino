@@ -334,6 +334,52 @@ const BigWinsCurrency = ({ wl }: { wl: Detail }) => {
   )
 }
 
+/** The whitelabel's loading picture (its branding slot `loader`), put straight on the live copy. */
+const LoaderPicture = ({ wl }: { wl: Detail }) => {
+  const path = `admin/whitelabels/${wl.id}/loader`
+  const q = useApi<{ url: string | null }>(path)
+  const [picked, setPicked] = useState<PickedImage | null>(null)
+  const [error, setError] = useState('')
+
+  const save = useApiMutation({
+    fn: () => api.put(path, { type: picked?.type, data: picked?.data }),
+    invalidate: [['api', path]],
+    success: 'Loading picture saved — players see it on their next visit',
+    onSuccess: () => setPicked(null)
+  })
+
+  const reset = useApiMutation({ fn: () => api.delete(path), invalidate: [['api', path]], success: "Back to the site's own loading picture" })
+
+  return (
+    <Card>
+      <CardHeader className='flex flex-row items-start justify-between gap-4'>
+        <div>
+          <CardTitle>Loading picture</CardTitle>
+          <CardDescription>The pulsing picture players see while the whitelabel&apos;s site starts. Without one it shows the site&apos;s own.</CardDescription>
+        </div>
+        <div className='flex gap-2'>
+          {q.data?.url && (
+            <Button size='sm' variant='ghost' disabled={reset.isPending} onClick={() => reset.mutate()}>
+              <RotateCwIcon /> Reset
+            </Button>
+          )}
+          <Button size='sm' disabled={save.isPending || !picked} onClick={() => save.mutate()}>
+            {save.isPending && <Loader2Icon className='animate-spin' />} Save picture
+          </Button>
+        </div>
+      </CardHeader>
+      <CardContent className='grid gap-2'>
+        {q.error ? (
+          <span className='text-destructive text-sm'>Could not read it from the whitelabel: {q.error.message}</span>
+        ) : (
+          <ImageField label='Picture' hint='Square, transparent (512×512 is sharp). PNG, WebP or SVG, at most 1 MB.' value={picked} onChange={setPicked} onError={setError} current={q.data?.url ?? null} maxBytes={1024 * 1024} />
+        )}
+        {error && <span className='text-destructive text-sm'>{error}</span>}
+      </CardContent>
+    </Card>
+  )
+}
+
 const PlanCard = ({ wl, invalidate }: { wl: Detail; invalidate: string[][] }) => {
   const [plan, setPlan] = useState<Plan>(() => wl.plan ?? EMPTY_PLAN)
   const error = planError(plan)
@@ -718,6 +764,7 @@ const WhitelabelDetail = ({ id }: { id: string }) => {
       {wl.status !== 'deleting' && <TermsCard key={`terms-${wl.updatedAt}`} wl={wl} invalidate={invalidate} />}
       {!['creating', 'deleting'].includes(wl.status) && <Poster wl={wl} invalidate={invalidate} />}
       {live && <BigWinsCurrency wl={wl} />}
+      {live && <LoaderPicture wl={wl} />}
       {wl.status !== 'deleting' && <Colours key={wl.updatedAt} wl={wl} invalidate={invalidate} />}
       {wl.status !== 'deleting' && <AdminColours key={`admin-${wl.updatedAt}`} wl={wl} invalidate={invalidate} />}
     </div>
