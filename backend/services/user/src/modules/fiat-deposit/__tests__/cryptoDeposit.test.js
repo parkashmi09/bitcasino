@@ -12,12 +12,13 @@ const REGISTRY = [
   { code: 'USDT', kind: 'crypto', enabled: true, networks: [{ key: 'TRC20', name: 'TRC20', enabled: true }, { key: 'ERC20', name: 'ERC20', enabled: false }] },
 ];
 
-function service(created) {
+function service(created, limits = []) {
   const sequelize = { query: async () => [[], 0] };
   const models = {
     Users: { sequelize },
     SiteFeature: { findByPk: async () => null },
     CurrencyPaymentDetails: { findAll: async () => [] },
+    PlayerGamblingLimit: { findAll: async () => limits },
     FiatDeposits: {
       findOne: async () => null,
       create: async (row) => (created.push(row), { get: () => ({ ...row, deposit_id: 9 }) }),
@@ -53,4 +54,20 @@ test('a crypto deposit needs an enabled network but no screenshot', async (t) =>
   assert.equal(out.network, 'TRC20');
 
   await assert.rejects(svc.create({ userId: 1, details: { ...base, currency: 'INR', network: 'TRC20' }, screenshot: null }), { code: 'FIAT_DEPOSIT_SCREENSHOT_REQUIRED' }, 'fiat still needs proof');
+});
+
+test("the player's own deposit limit refuses a request before anything is stored", async (t) => {
+  configureCurrencyRegistry({ read: async () => REGISTRY, config: { CURRENCY_REGISTRY_TTL_MS: 0 } });
+  t.after(() => resetCurrencyRegistry());
+  const created = [];
+  const limit = { id: 1, user_id: 1, type: 'DEPOSIT_LIMIT', usd_amount: '5.00', period_unit: 'DAYS', created_at: new Date(Date.now() - 1000), expires_at: null };
+  const svc = service(created, [limit]);
+  svc.responsible = new (require('../../responsible-gambling/responsible.service').ResponsibleService)({
+    models: { PlayerGamblingLimit: { findAll: async () => [limit] } },
+    db: { sequelize: { QueryTypes: { SELECT: 'SELECT' }, query: async () => [] } },
+    rewardMoney: { toUsd: async (amount) => amount },
+  });
+  const details = { amount: '10', currency: 'USDT', transactionId: 'tx2', network: 'TRC20', walletAddress: 'TQ5NxSuvQgTr8gp8DJEkH2vpVzUp9YzJ3m' };
+  await assert.rejects(svc.create({ userId: 1, details, screenshot: null }), { code: 'RESPONSIBLE_DEPOSIT_LIMIT_REACHED' });
+  assert.equal(created.length, 0);
 });

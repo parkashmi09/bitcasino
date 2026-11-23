@@ -133,6 +133,10 @@ class PaymentOrdersService {
 
     // The deployment's min / max is an INR figure (1 / 10L), so a ccpayment coin deposit has none.
     if (providerName !== 'ccpayment') await this.#assertWithinLimits(amount, currency, FLOW.PAY_IN);
+    // The player's own DEPOSIT_LIMIT (responsible-gambling), before the order is recorded.
+    const { ResponsibleService } = require('../responsible-gambling/responsible.service');
+    this.responsible ??= new ResponsibleService(this.deps);
+    await this.responsible.assertMayDeposit({ userId, currency, amount });
 
     // F2Pay: an on method in an on currency (`#methods`), checked before the order is recorded.
     // No conversion: F2Pay collects what the wallet is credited.

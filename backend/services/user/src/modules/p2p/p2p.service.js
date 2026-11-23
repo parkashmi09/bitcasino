@@ -239,6 +239,10 @@ class P2pService {
       if (offer.status !== OFFER_STATUS.ACTIVE) throw errors.OFFER_INACTIVE({ offerId });
 
       this.#checkLimits(offer, cryptoAmount);
+      // The player's own DEPOSIT_LIMIT (responsible-gambling): a P2P buy is a deposit.
+      const { ResponsibleService } = require('../responsible-gambling/responsible.service');
+      this.responsible ??= new ResponsibleService(this.deps);
+      await this.responsible.assertMayDeposit({ userId, currency: offer.coin, amount: cryptoAmount });
 
       if (money.lt(offer.available_amount ?? '0', cryptoAmount)) {
         throw errors.OFFER_EXHAUSTED({ offerId, available: String(offer.available_amount ?? '0') });

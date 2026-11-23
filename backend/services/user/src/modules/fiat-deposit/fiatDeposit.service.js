@@ -109,6 +109,8 @@ class FiatDepositService {
     }
 
     await this.#assertWithinMethodLimits(details);
+    // The player's own DEPOSIT_LIMIT (responsible-gambling), checked before anything is stored.
+    await this.#responsible().assertMayDeposit({ userId, currency: details.currency, amount: details.amount });
 
     // A bank reference identifies one real transfer. Two deposits claiming the
     // same one is either a double submission or an attempt to be credited twice
@@ -144,6 +146,13 @@ class FiatDepositService {
     );
 
     return this.#present(row.get({ plain: true }));
+  }
+
+  /** Lazy: responsible-gambling reaches the wallet's helpers, so it is built on first use. */
+  #responsible() {
+    const { ResponsibleService } = require('../responsible-gambling/responsible.service');
+    this.responsible ??= new ResponsibleService(this.deps);
+    return this.responsible;
   }
 
   /** @legacy GET /api/deposits/user-deposits */

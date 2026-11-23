@@ -21,6 +21,12 @@ module.exports = defineErrors('RESPONSIBLE', {
     message: 'This bet could go over your loss limit',
   },
 
+  /** details `{ type, limitUsd, usedUsd, depositUsd, resetsAt }` */
+  DEPOSIT_LIMIT_REACHED: {
+    status: 403,
+    message: 'This deposit would go over your deposit limit',
+  },
+
   /** A second live limit of a kind the player already holds. */
   LIMIT_EXISTS: {
     status: 409,
@@ -43,5 +49,11 @@ module.exports = defineErrors('RESPONSIBLE', {
   NO_RATE: {
     status: 400,
     message: 'Bets in this currency are not available right now',
+  },
+
+  /** A deposit whose USD value cannot be worked out while a deposit limit applies. */
+  DEPOSIT_NO_RATE: {
+    status: 400,
+    message: 'Deposits in this currency are not available right now',
   },
 });
