@@ -109,6 +109,9 @@ class AuditService {
     const { rows, count } = await AdminActivityLogs.findAndCountAll({
       where: {
         staff_id: scope,
+        // An executive signs in AS its parent account, so the tree above is the parent's: it reads
+        // only what it did itself, never the parent's (e.g. the Super Admin's) own trail.
+        ...(actor.executiveId ? { executive_id: actor.executiveId } : {}),
         // Exact, as legacy had it: the screen sends a key from a fixed list,
         // and a substring match makes `user.lock` also answer `user.lock.x`.
         ...(action ? { action } : {}),

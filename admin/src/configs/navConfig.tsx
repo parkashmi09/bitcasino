@@ -314,7 +314,7 @@ export const navItems: NavItem[] = [
 
       // Zip ke Main jaisa: Redeem Codes (Promotions se yahan) aur Turnover Report (direct users ka wager vs target).
       { icon: 'Ticket', label: 'Redeem Codes', href: '/redeem-codes', permission: 'reports:read', promotions: true, model: 'b2c' },
-      { icon: 'Activity', label: 'Turnover Report', href: '/turnover-report', permission: 'reports:read', promotions: true, direct: true, model: 'b2c' }
+      { icon: 'Activity', label: 'Turnover Report', href: '/turnover-report', permission: 'wallet:adjust', promotions: true, direct: true, model: 'b2c' }
     ]
   },
   {
