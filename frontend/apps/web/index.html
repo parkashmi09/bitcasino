@@ -24,7 +24,7 @@
     <!-- The site admin's loading picture (branding/public loaderUrl, cached by lib/branding.js rememberLoader):
          shown until the app's first paint (main.jsx), on the theme's own background. Only an http(s) URL or a
          same-origin path. No picture set: no loader. -->
-    <script>try{var u=localStorage.getItem("bc.loaderUrl");if(u&&/^(https?:\/\/[^\s"'<>]+|\/[^\/\s"'<>][^\s"'<>]*)$/.test(u)){var d=document.createElement("div"),i=document.createElement("img");d.id="start-up";d.style.cssText="position:fixed;inset:0;z-index:2147483647;display:flex;align-items:center;justify-content:center;background:var(--color-goku)";i.src=u;i.alt="";i.style.cssText="max-width:min(320px,60vw);max-height:40vh";d.appendChild(i);document.body.appendChild(d);setTimeout(function(){d.remove()},10000)}}catch(e){}</script>
+    <script>try{var u=localStorage.getItem("bc.loaderUrl");if(u&&/^(https?:\/\/[^\s"'<>]+|\/[^\/\s"'<>][^\s"'<>]*)$/.test(u)){var d=document.createElement("div"),i=document.createElement("img");d.id="start-up";d.style.cssText="position:fixed;inset:0;z-index:2147483647;display:flex;align-items:center;justify-content:center;background:var(--color-goku)";i.onerror=function(){d.remove();try{localStorage.removeItem("bc.loaderUrl")}catch(e){}};i.src=u;i.alt="";i.style.cssText="max-width:min(320px,60vw);max-height:40vh";d.appendChild(i);document.body.appendChild(d);setTimeout(function(){d.remove()},10000)}}catch(e){}</script>
     <div id="root"></div>
     <script type="module" src="/src/main.jsx"></script>
   </body>
