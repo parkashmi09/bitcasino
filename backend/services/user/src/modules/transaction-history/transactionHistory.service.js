@@ -50,10 +50,11 @@ class TransactionHistoryService {
    * the SPORTS BETTING router, keyed on a `uuid` in the URL with no
    * authentication, so any uuid returned that player's transfer history.
    */
-  async staffTransfers({ userId, limit = 50, offset = 0 }) {
+  async staffTransfers({ userId, currency, limit = 50, offset = 0 }) {
+    // Rows carry `currency` (INR: the only coin staff transfers move); another coin lists none.
     const result = await this.clients.admin.get(
       `/internal/admin/staff-directory/transfers/user/${userId}`,
-      { query: { limit, offset } }
+      { query: { limit, offset, ...(currency ? { currency } : {}) } }
     );
     const body = result?.data ?? result;
     return { total: body?.total ?? 0, rows: body?.rows ?? [] };
