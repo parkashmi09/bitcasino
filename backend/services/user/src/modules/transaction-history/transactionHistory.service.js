@@ -110,12 +110,22 @@ class TransactionHistoryService {
     };
   }
 
-  /** @legacy GET /user/crypto/stats/:userId */
+  /**
+   * @legacy GET /user/crypto/stats/:userId
+   *
+   * From `ccdeposit`, which the crypto deposit flow writes (`modules/crypto`); legacy's
+   * `deposits` table has had no writer since the port. `amount` is what arrived, and only
+   * `Success` counts — `Risky` is held for staff, not credited.
+   */
   async cryptoStats({ userId, currency }) {
-    return this.#sumBy(this.models.Deposits, {
-      where: { ...(userId ? { uid: userId } : {}), ...(currency ? { coin: currency } : {}) },
+    const coinId = currency ? ccpaymentCoinId(currency, this.config) : null;
+    if (currency && coinId == null) return [];
+    return this.#sumBy(this.models.Ccdeposit, {
+      where: { ...(userId ? { userid: String(userId) } : {}), ...(coinId != null ? { coinid: coinId } : {}) },
       amountColumn: 'amount',
-      groupColumn: 'coin',
+      groupColumn: 'coinid',
+      counted: ['Success'],
+      currencyOf: (id) => ccpaymentTicker(id, this.config) ?? (id == null ? null : String(id)),
     });
   }
 
@@ -163,13 +173,13 @@ class TransactionHistoryService {
       where: {
         ...(userId ? { user_id: userId } : {}),
         ...(currency ? { currency } : {}),
-        // Only approved deposits are money that actually arrived. Legacy summed
-        // every row regardless of status, so a pending or rejected request
-        // inflated the total.
-        status: 'approved',
       },
       amountColumn: 'amount',
       groupColumn: 'currency',
+      // Only approved deposits are money that actually arrived. Legacy summed
+      // every row regardless of status, so a pending or rejected request
+      // inflated the total. The others still show in `byStatus`.
+      counted: ['approved'],
     });
   }
 
@@ -204,6 +214,8 @@ class TransactionHistoryService {
       where: { ...(userId ? { uid: userId } : {}), ...(currency ? { currency } : {}) },
       amountColumn: 'amount',
       groupColumn: 'currency',
+      // Approved (payout owed) and Paid; In Queue, Rejected and Cancelled are not money out.
+      counted: ['Approved', 'Paid'],
     });
   }
 
@@ -426,23 +438,46 @@ class TransactionHistoryService {
    *
    * Grouped rather than summed into one figure: adding BTC to INR produces a
    * number that means nothing, which is what legacy's single `SUM(amount)` did.
+   *
+   * `count` / `total` take only the `counted` statuses (settled money); every
+   * status, as `normaliseStatus` spells it, is in `byStatus` from the same query.
    */
-  async #sumBy(model, { where, amountColumn, groupColumn }) {
+  async #sumBy(model, { where, amountColumn, groupColumn, counted, currencyOf = (v) => v }) {
     const rows = await model.findAll({
       attributes: [
         groupColumn,
-        [fn('COUNT', col(amountColumn)), 'count'],
+        'status',
+        [fn('COUNT', literal('*')), 'count'],
         [fn('COALESCE', fn('SUM', col(amountColumn)), 0), 'total'],
       ],
       where,
-      group: [groupColumn],
+      group: [groupColumn, 'status'],
       raw: true,
     });
 
-    return rows.map((r) => ({
-      currency: r[groupColumn],
-      count: Number.parseInt(r.count, 10) || 0,
-      total: money.toDecimalString(money.toMinor(r.total ?? '0')),
+    const byCurrency = new Map();
+    for (const r of rows) {
+      const currency = currencyOf(r[groupColumn]);
+      const entry = byCurrency.get(currency) ?? { currency, count: 0, total: 0n, byStatus: {} };
+      const count = Number.parseInt(r.count, 10) || 0;
+      const total = money.toMinor(r.total ?? '0');
+      const status = normaliseStatus(r.status);
+      const bucket = entry.byStatus[status] ?? { count: 0, total: 0n };
+      bucket.count += count;
+      bucket.total += total;
+      entry.byStatus[status] = bucket;
+      if (counted.includes(r.status)) {
+        entry.count += count;
+        entry.total += total;
+      }
+      byCurrency.set(currency, entry);
+    }
+
+    const decimal = (b) => ({ count: b.count, total: money.toDecimalString(b.total) });
+    return [...byCurrency.values()].map((e) => ({
+      currency: e.currency,
+      ...decimal(e),
+      byStatus: Object.fromEntries(Object.entries(e.byStatus).map(([k, b]) => [k, decimal(b)])),
     }));
   }
 
