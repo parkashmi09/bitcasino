@@ -2,13 +2,12 @@ import { Icon } from '@/components/ui/Icon';
 import { useCountdown } from '@/hooks/useCountdown';
 import { formatBalance } from '@/lib/format';
 import { cn } from '@/lib/cn';
-import { useQuests } from '@/queries/promotions';
+import { useClaimQuest, useQuests } from '@/queries/promotions';
 
 /**
  * Today's quests on `/promotions` (`GET /user/quests`, owner `challenges`, gate `quests`).
  *
- * Progress only: the platform's quests carry no reward and have no claim route, so a
- * finished quest reads "Completed" rather than offering a button that has nothing to pay.
+ * A finished quest with a reward (`rewardUsd > 0`) offers Claim; one without reads "Completed".
  * Signed-out and on error it renders nothing, like the rest of the index's optional rows.
  */
 export function DailyQuests() {
@@ -42,6 +41,8 @@ function EndsIn({ at }) {
 }
 
 function Quest({ quest }) {
+  const claim = useClaimQuest();
+  const reward = Number(quest.rewardUsd) || 0;
   const usd = quest.unit === 'usd';
   const target = Number(quest.target) || 0;
   const width = target > 0 ? Math.min(100, (Number(quest.progress) / target) * 100) : 100;
@@ -57,6 +58,30 @@ function Quest({ quest }) {
         </span>
       </div>
       <p className="text-sm text-trunks">{quest.description}</p>
+      {reward > 0 && (
+        <div className="flex items-center justify-between gap-2">
+          <span className="text-sm text-trunks tabular-nums">Reward {formatBalance(String(quest.rewardUsd))} USD</span>
+          {quest.claimed ? (
+            <span className="text-sm text-roshi">Claimed</span>
+          ) : (
+            quest.completed && (
+              <button
+                type="button"
+                disabled={claim.isPending}
+                onClick={() => claim.mutate(quest.key)}
+                className="h-8 rounded-i-sm bg-piccolo px-4 text-sm font-medium text-on-piccolo disabled:opacity-50"
+              >
+                {claim.isPending ? 'Claiming…' : 'Claim'}
+              </button>
+            )
+          )}
+        </div>
+      )}
+      {claim.isError && (
+        <p role="alert" className="rounded-i-sm bg-dodoria/10 px-3 py-2 text-xs text-bulma">
+          {claim.error?.message || 'The reward could not be claimed.'}
+        </p>
+      )}
       <div
         role="progressbar"
         aria-label={`${quest.title} progress`}

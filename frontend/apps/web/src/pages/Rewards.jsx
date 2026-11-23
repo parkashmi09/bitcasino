@@ -569,7 +569,7 @@ function GiftCard({ row }) {
         ['Wagered:', card.wagerStatus && `${formatBalance(String(wager.totalUsdWager ?? 0))} / ${formatBalance(String(wager.requiredWagerUSD ?? 0))} USD`],
         ['Ends:', formatDate(card.endDate)],
       ]}
-      reward={formatBalance(String(card.amount ?? 0))}
+      reward={`${formatBalance(String(card.amount ?? 0))} ${card.currency ?? row.currency ?? ''}`.trim()}
     >
       <Button size="lg" disabled={action.isPending} onClick={() => go(activated ? 'claim' : 'activate')}>
         {action.isPending ? 'Please wait…' : activated ? 'Claim' : 'Activate'}

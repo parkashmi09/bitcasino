@@ -448,7 +448,7 @@ export function useWithdrawalRequirements(currency, { enabled = true } = {}) {
   });
 }
 
-/** The player's saved payout addresses: `{whitelistOnly, addresses}`. */
+/** The player's saved payout addresses: `{whitelistOnly, offAt, addresses: [{…, activeAt}]}`. */
 export function useWhitelist({ enabled = true } = {}) {
   return useQuery({
     queryKey: ['wallet', 'whitelist'],
@@ -457,14 +457,18 @@ export function useWhitelist({ enabled = true } = {}) {
   });
 }
 
-/** Add / remove an address, or switch "withdraw only to saved addresses". */
+/**
+ * Add / remove an address, or switch "withdraw only to saved addresses". Every change but switching
+ * it on carries `auth` `{password, code?}` (code only with 2FA on): 403 WHITELIST_PASSWORD_REQUIRED,
+ * TWOFA_INVALID_CODE otherwise.
+ */
 export function useWhitelistChange() {
   const client = useQueryClient();
   return useMutation({
-    mutationFn: ({ action, id, entry, enabled }) => {
-      if (action === 'add') return api(ENDPOINTS.withdrawWhitelist, { method: 'POST', body: entry });
-      if (action === 'remove') return api(path(ENDPOINTS.withdrawWhitelistItem, { id }), { method: 'DELETE' });
-      return api(ENDPOINTS.withdrawWhitelistEnforcement, { method: 'PUT', body: { enabled } });
+    mutationFn: ({ action, id, entry, enabled, auth }) => {
+      if (action === 'add') return api(ENDPOINTS.withdrawWhitelist, { method: 'POST', body: { ...entry, ...auth } });
+      if (action === 'remove') return api(path(ENDPOINTS.withdrawWhitelistItem, { id }), { method: 'DELETE', body: auth });
+      return api(ENDPOINTS.withdrawWhitelistEnforcement, { method: 'PUT', body: { enabled, ...(enabled ? {} : auth) } });
     },
     onSuccess: () => client.invalidateQueries({ queryKey: ['wallet', 'whitelist'] }),
   });

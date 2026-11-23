@@ -3,6 +3,7 @@ import { Icon } from '@/components/ui/Icon';
 import { useQueryClient } from '@tanstack/react-query';
 import { bankDetailsQuery, useBankDetails, useSubmitFiatDeposit } from '@/queries/wallet';
 import { manualDepositFields } from './withdrawRules';
+import { depositError } from './cashier';
 import { cn } from '@/lib/cn';
 import { ENDPOINTS, path } from '@/lib/endpoints';
 import { tokenStore } from '@/auth/tokenStore';
@@ -191,7 +192,7 @@ export function ManualDepositPanel({ currency, crypto = false, quiet = false }) 
                 accept="image/png,image/jpeg,image/webp"
                 onChange={(e) => setFile(e.target.files?.[0] ?? null)}
               />
-              {submit.isError && <Notice tone="error">{submit.error?.message || 'The deposit was refused.'}</Notice>}
+              {submit.isError && <Notice tone="error">{depositError(submit.error)}</Notice>}
               <button type="submit" className={BUTTON} disabled={!ready}>
                 {submit.isPending ? 'Submitting…' : 'Submit deposit'}
               </button>

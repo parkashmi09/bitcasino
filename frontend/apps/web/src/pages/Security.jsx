@@ -215,11 +215,8 @@ function TwoFactorCard() {
  * button under the list signs every device out (`POST /auth/logout
  * {allSessions: true}`).
  *
- * The current session is not marked, and cannot be: the list carries no
- * session id the client can match its own token against, and guessing from
- * the user-agent would mark every tab in the same browser. Rather than
- * labelling the wrong row, the button says plainly that it signs this device
- * out too.
+ * The server marks this device's own row (`isCurrent`); signing that one
+ * out asks first, since it ends the session the player is using.
  */
 function SessionsCard() {
   const { logout } = useAuth();
@@ -227,6 +224,7 @@ function SessionsCard() {
   const { data, isPending, isError } = useSessions();
   const revoke = useRevokeSession();
   const [busy, setBusy] = useState(false);
+  const [armed, setArmed] = useState(null);
 
   const sessions = Array.isArray(data) ? data : [];
 
@@ -280,6 +278,7 @@ function SessionsCard() {
                     such as curl. The raw agent is not printed in its place —
                     it is 120 characters of version numbers. */}
                 {session.device_label || 'Unrecognised device'}
+                {session.isCurrent && <span className="ml-2 text-xs leading-4 text-piccolo">This device</span>}
               </span>
               <span className="flex items-center gap-3">
                 <span className="text-xs leading-4 text-trunks tabular-nums">
@@ -289,13 +288,28 @@ function SessionsCard() {
                 <Button
                   variant="outline"
                   size="sm"
-                  onClick={() => revoke.mutate(session.id)}
+                  onClick={() => {
+                    // Own row: the first press arms it, the second signs out here too.
+                    if (session.isCurrent && armed !== session.id) return setArmed(session.id);
+                    revoke.mutate(session.id, {
+                      onSuccess: session.isCurrent ? () => logout().then(() => navigate('/login', { replace: true })) : undefined,
+                    });
+                  }}
                   disabled={revoke.isPending || busy}
                   aria-label={`Sign out ${session.device_label || 'this device'}`}
                 >
-                  {revoke.isPending && revoke.variables === session.id ? 'Signing out…' : 'Sign out'}
+                  {revoke.isPending && revoke.variables === session.id
+                    ? 'Signing out…'
+                    : armed === session.id
+                      ? 'Confirm sign out'
+                      : 'Sign out'}
                 </Button>
               </span>
+              {armed === session.id && (
+                <span role="alert" className="w-full text-xs leading-4 text-dodoria">
+                  This is the device you are using. Signing it out ends this session.
+                </span>
+              )}
             </li>
           ))}
         </ul>

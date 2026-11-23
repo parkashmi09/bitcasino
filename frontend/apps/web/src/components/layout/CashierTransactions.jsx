@@ -90,13 +90,13 @@ function paymentRow(kind, row) {
 }
 
 /**
- * A player-to-player tip. The transfers endpoint gives it no currency, so it
- * is drawn with the `gift` disc rather than a coin the platform cannot name.
+ * A player-to-player tip. Rows now carry their coin; one without it keeps the
+ * `gift` disc rather than a coin the platform cannot name.
  */
 function transferRow(row) {
   return {
     key: `transfer-${row.id ?? 'row'}`,
-    icon: null,
+    icon: row.currency ?? null,
     title: row.direction === 'credit' ? 'Transfer received' : 'Transfer sent',
     date: row.createdAt,
     amount: row.amount ?? '0',

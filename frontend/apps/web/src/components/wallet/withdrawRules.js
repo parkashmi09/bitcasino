@@ -45,12 +45,19 @@ export function forfeitNotice(req) {
   return (req.wager?.bonus?.bonuses ?? []).map((b) => fmt(b.amount, b.currency)).join(', ');
 }
 
-/** The saved addresses a withdrawal of `currency` (on `network`, when set) may go to. */
-export function savedFor(addresses, currency, network) {
+/**
+ * The saved addresses a withdrawal of `currency` (on `network`, when set) may go to. One saved
+ * under 24 hours ago (`activeAt` still ahead) is left out: the server refuses it
+ * (CRYPTO_WITHDRAW_ADDRESS_NOT_WHITELISTED) until then.
+ */
+export function savedFor(addresses, currency, network, now = Date.now()) {
   const coin = String(currency).toUpperCase();
   const chain = network ? String(network).toUpperCase() : null;
   return (Array.isArray(addresses) ? addresses : []).filter(
-    (row) => String(row.currency).toUpperCase() === coin && (!chain || !row.network || String(row.network).toUpperCase() === chain),
+    (row) =>
+      String(row.currency).toUpperCase() === coin &&
+      (!chain || !row.network || String(row.network).toUpperCase() === chain) &&
+      !(row.activeAt && new Date(row.activeAt).getTime() > now),
   );
 }
 

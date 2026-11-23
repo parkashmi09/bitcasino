@@ -10,7 +10,7 @@ import { ClaimRewardDialog } from '@/components/rewards/ClaimRewardDialog';
 import { useBalances, useDisplayCurrency, useFiatCurrency, useWalletCoins } from '@/hooks/useWallet';
 import { useGates } from '@/hooks/useGates';
 import { useAuth } from '@/auth/AuthProvider';
-import { AUTO_PAYOUT_MAX, AUTO_PAYOUT_MIN, cashierTabs, payoutError, shownRail } from '@/components/wallet/cashier';
+import { AUTO_PAYOUT_MAX, AUTO_PAYOUT_MIN, cashierTabs, depositError, payoutError, shownRail } from '@/components/wallet/cashier';
 import { SwapPanel } from '@/components/wallet/SwapPanel';
 import { VaultPanel } from '@/components/wallet/VaultPanel';
 import { useExchangeRates } from '@/hooks/usePreferences';
@@ -891,7 +891,7 @@ function F2PayPanel({ currency }) {
 
         {create.isError && (
           <p role="alert" className="rounded-i-sm bg-dodoria/10 px-3 py-2 text-xs text-bulma">
-            {create.error?.message || 'Could not start the deposit.'}
+            {depositError(create.error, 'Could not start the deposit.')}
           </p>
         )}
 

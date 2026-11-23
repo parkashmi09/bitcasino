@@ -506,7 +506,7 @@ export function useChallenges({ enabled = true } = {}) {
 
 const signedIn = (status, enabled) => enabled && status === 'authenticated';
 
-/** Today's quests with the caller's progress: `[{key, title, description, unit, target, progress, completed}]`. */
+/** Today's quests with the caller's progress: `[{key, title, description, unit, target, progress, completed, rewardUsd, claimed}]`. */
 export function useQuests({ enabled = true } = {}) {
   const { status } = useAuth();
   return useQuery({
@@ -515,6 +515,20 @@ export function useQuests({ enabled = true } = {}) {
     select: (data) => ({ endsAt: data?.dailyQuest?.first?.endsAt ?? null, quests: data?.dailyQuest?.first?.quests ?? [] }),
     enabled: signedIn(status, enabled),
     staleTime: 60 * 1000,
+  });
+}
+
+/** Pay out a finished quest's reward into the wallet: `POST /quests/:key/claim`. */
+export function useClaimQuest() {
+  const client = useQueryClient();
+  return useMutation({
+    meta: { success: (data) => `Quest reward claimed: ${formatBalance(String(data?.amount ?? 0))} ${data?.currency ?? ''}`.trim() },
+    mutationFn: (key) => api(path(ENDPOINTS.questClaim, { key }), { method: 'POST' }),
+    retry: false,
+    onSettled: () => {
+      client.invalidateQueries({ queryKey: queryKeys.promotions.quests() });
+      refreshBalances();
+    },
   });
 }
 

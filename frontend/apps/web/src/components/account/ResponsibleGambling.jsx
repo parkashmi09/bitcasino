@@ -28,6 +28,7 @@ const BREAKS = ['1 day', '1 week', '1 month', '6 months', '1 year', '2 years', '
 const LIMITS = [
   ['LOSS_LIMIT', 'Loss limit'],
   ['WAGER_LIMIT', 'Wager limit'],
+  ['DEPOSIT_LIMIT', 'Deposit limit'],
 ];
 const LIMIT_LABEL = Object.fromEntries(LIMITS);
 const PERIODS = [

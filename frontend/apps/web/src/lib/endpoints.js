@@ -305,10 +305,11 @@ export const ENDPOINTS = {
   bankAccounts: `${USER}/bank-accounts`,
   bankAccount: `${USER}/bank-accounts/:id`,
   bankAccountDefault: `${USER}/bank-accounts/:id/default`,
-  // The player's own payout addresses: `{whitelistOnly, addresses: [{id, label, currency,
-  // network, address, memo}]}`. POST `{label, currency, network?, address, memo?}` (strict);
-  // DELETE `/:id` (removing the last one switches enforcement off); PUT `enforcement`
-  // `{enabled}` (refused on an empty list: WHITELIST_EMPTY_WHITELIST).
+  // The player's own payout addresses: `{whitelistOnly, offAt, addresses: [{id, label, currency,
+  // network, address, memo, activeAt}]}` (an address is usable from `activeAt`, 24h after adding).
+  // POST `{label, currency, network?, address, memo?, password, code?}`; DELETE `/:id` `{password,
+  // code?}` → `{removed, remaining, whitelistOnly, offAt}`; PUT `enforcement` `{enabled}` (+ password
+  // and code to switch off, which lands at `offAt`, 24h later; switching on clears it).
   withdrawWhitelist: `${USER}/withdrawals/whitelist`,
   withdrawWhitelistItem: `${USER}/withdrawals/whitelist/:id`,
   withdrawWhitelistEnforcement: `${USER}/withdrawals/whitelist/enforcement`,
@@ -616,8 +617,10 @@ export const ENDPOINTS = {
 
   // ── Group 2: quests, raffle, bonus centre, reload, medals, gift cards, free spins ─
   // `challenges` feature. `{dailyQuest: {first: {endsAt, quests: [{key, title, description, unit, target,
-  // progress, completed}]}}}`. No reward and no claim route on the platform.
+  // progress, completed, rewardUsd, claimed}]}}}`. claim `:key` (dailyWager|dailyBets) → `{key, claimed,
+  // rewardUsd, amount, currency, endsAt}`; 422 NOT_COMPLETED/NO_REWARD, 409 ALREADY_CLAIMED, 403 NOT_ELIGIBLE.
   quests: `${USER}/quests`,
+  questClaim: `${USER}/quests/:key/claim`,
   // `raffles` feature. current (public) `{enabled, number, drawAt, status, prizePoolUsd, winners, prizeUsd,
   // wagerPerTicketUsd, latestDrawn}`; me `{number, tickets: [{ticket, source, createdAt}], freeClaimed,
   // wageredUsd, nextTicketInUsd}`; claim (no body) → 201 ticket; draw → `{…draw, winners: [{ticket, player,

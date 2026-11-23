@@ -419,8 +419,8 @@ export function useJackpots({ enabled = true } = {}) {
 }
 
 /**
- * shortcut: the provider's jackpot body is passed through unshaped, so this reads it loosely (a list,
- * or `{items|jackpots|data}`, of rows with a name and an amount); shape it in gis.service when a merchant is live.
+ * The server shapes it as `[{name, amount (decimal string), currency, gameId?, raw}]`; the older
+ * wrapped forms (`{items|jackpots|data}`) are still read so a stale gateway shows the same ticker.
  */
 export function toJackpots(data) {
   const rows = Array.isArray(data) ? data : (data?.items ?? data?.jackpots ?? data?.data ?? []);
