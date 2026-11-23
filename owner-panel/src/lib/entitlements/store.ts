@@ -17,7 +17,7 @@ import { cleanWithdrawalCap, withdrawalCapProblem, type WithdrawalCap } from './
 import { cleanWithdrawalDailyLimit, withdrawalDailyLimitProblem, type WithdrawalDailyLimit } from './withdrawalDailyLimit'
 import { cleanPaymentMethods, paymentMethodsProblem, type PaymentMethods } from './paymentMethods'
 import { cleanPalettes, type OwnerPalette } from './palettes'
-import { diffDocs, type AuditEntry, type Change, type CoinDefinition, type EditableDoc, type EntitlementsDoc, type VariantsSeed } from './types'
+import { diffDocs, type AuditClient, type AuditEntry, type Change, type CoinDefinition, type EditableDoc, type EntitlementsDoc, type VariantsSeed } from './types'
 
 /**
  * The entitlements document and its audit trail live in the site database (owner_entitlements,
@@ -273,7 +273,8 @@ export function saveEntitlements(
     branding?: Partial<Branding>
     palettes?: OwnerPalette[]
   },
-  user: string
+  user: string,
+  client?: AuditClient
 ) {
   const run = async (): Promise<{ doc: EntitlementsDoc; changes: Change[] }> => {
     // Diffed against what the screen showed, so filling an older document's variants is not
@@ -445,7 +446,7 @@ export function saveEntitlements(
       ...(coins !== undefined ? { coins } : {})
     }
 
-    const entry: AuditEntry = { at: doc.updatedAt, user, version: doc.version, changes: wellFormed(changes), ...(seededFrom ? { seededFrom } : {}) }
+    const entry: AuditEntry = { at: doc.updatedAt, user, version: doc.version, changes: wellFormed(changes), ...(seededFrom ? { seededFrom } : {}), ...(client ? { client } : {}) }
 
     // `issuedAt` is inside the signed data, so a captured request goes stale instead of being
     // replayable later (the backend refuses one older than OWNER_MAX_AGE_SECONDS).

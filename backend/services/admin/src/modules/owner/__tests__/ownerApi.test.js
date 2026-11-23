@@ -133,7 +133,9 @@ test('owner API over owner_entitlements', async (t) => {
   await t.test('a good document is stored with its audit row, applied, and pushed down the sockets', async () => {
     const data = doc(1);
     const audit = { at: data.updatedAt, user: 'owner', version: 1, changes: [{ kind: 'feature', key: 'vault', from: true, to: false }] };
-    const res = await call('PUT', '/entitlements', { body: { ...signed(data), audit, updatedBy: 'owner' } });
+    // The panel's browser details are kept (known fields only); a body-supplied `caller` is replaced by what the server saw.
+    const client = { ip: '203.0.113.7', userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)', platform: 'Windows', mobile: false, junk: 'dropped' };
+    const res = await call('PUT', '/entitlements', { body: { ...signed(data), audit: { ...audit, client, caller: { ip: '1.2.3.4' } }, updatedBy: 'owner' } });
     assert.equal(res.status, 200);
     assert.deepEqual(res.body.data, { version: 1, source: 'owner' });
 
@@ -149,7 +151,13 @@ test('owner API over owner_entitlements', async (t) => {
     assert.deepEqual((await call('GET', '/entitlements')).body.data, { version: 1, doc: data });
     const trail = (await call('GET', '/audit?limit=10')).body.data;
     assert.equal(trail.entries.length, 1);
-    assert.deepEqual(trail.entries[0], audit);
+    const { client: savedClient, caller, ...rest } = trail.entries[0];
+    assert.deepEqual(rest, audit);
+    assert.deepEqual(savedClient, { ip: '203.0.113.7', userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)', platform: 'Windows', mobile: false });
+    assert.equal(caller.method, 'PUT');
+    assert.match(caller.path, /\/entitlements$/);
+    assert.notEqual(caller.ip, '1.2.3.4', 'caller is what the server saw, not the body');
+    assert.equal(typeof caller.local, 'boolean');
   });
 
   await t.test('the same or an older version is refused (409), the stored one stands', async () => {

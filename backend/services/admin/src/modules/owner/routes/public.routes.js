@@ -24,6 +24,39 @@ function keyMatches(given, secret) {
   return crypto.timingSafeEqual(a, b);
 }
 
+const short = (v, max) => (typeof v === 'string' && v ? v.slice(0, max) : null);
+const plainIp = (ip) => (typeof ip === 'string' ? ip.replace(/^::ffff:/, '') : null);
+
+/**
+ * Who called THIS API for a save, as this server saw it — written here, never taken from the
+ * body, so a caller cannot hide or fake it. A loopback ip is the owner panel on this server;
+ * any other ip is something holding the owner key calling the site API directly.
+ */
+function callerOf(req) {
+  const ip = plainIp(req.ip);
+  return {
+    method: req.method,
+    path: req.originalUrl.split('?')[0],
+    ip,
+    local: ip === '127.0.0.1' || ip === '::1',
+    userAgent: short(req.get('user-agent'), 300),
+  };
+}
+
+const CLIENT_FIELDS = { ip: 64, forwardedFor: 300, userAgent: 300, platform: 40, browser: 200, language: 40, origin: 200, referer: 300, api: 120 };
+
+/** The browser behind the owner panel, as the panel reports it: known string fields, trimmed. */
+function cleanClient(client) {
+  if (!client || typeof client !== 'object') return null;
+  const out = {};
+  for (const [key, max] of Object.entries(CLIENT_FIELDS)) {
+    const value = short(client[key], max);
+    if (value) out[key] = value;
+  }
+  if (typeof client.mobile === 'boolean') out.mobile = client.mobile;
+  return Object.keys(out).length ? out : null;
+}
+
 const FILE = /^[0-9a-f]{64}\.(png|webp|svg)$/;
 const emptyQuery = z.preprocess((v) => v ?? {}, z.object({}).strict());
 const fileParams = z.object({ file: z.string().regex(FILE, 'not a branding image name') }).strict();
@@ -86,7 +119,8 @@ module.exports = function publicRoutes(deps) {
     validate({ body: saveBody }),
     asyncHandler(async (req, res) => {
       const { data, signature, signatureEd25519, audit, updatedBy } = req.body;
-      const current = await store().accept({ data, signature, signatureEd25519 }, { updatedBy, audit: audit?.version === data.version ? audit : null });
+      const entry = audit?.version === data.version ? { ...audit, client: cleanClient(audit.client), caller: callerOf(req) } : null;
+      const current = await store().accept({ data, signature, signatureEd25519 }, { updatedBy, audit: entry });
       return response.ok(res, { version: current.version, source: current.source });
     })
   );

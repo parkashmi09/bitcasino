@@ -4,7 +4,7 @@ import { serverConfig } from '@/configs/site'
 import { coinProblem } from '@/lib/entitlements/coins'
 import { readForEdit, saveEntitlements } from '@/lib/entitlements/store'
 import { siteMethods } from '@/lib/entitlements/siteMethods'
-import type { CoinDefinition } from '@/lib/entitlements/types'
+import type { AuditClient, CoinDefinition } from '@/lib/entitlements/types'
 import type { RegionSetting } from '@/lib/entitlements/region'
 import type { WithdrawalCap } from '@/lib/entitlements/withdrawalCap'
 import type { WithdrawalDailyLimit } from '@/lib/entitlements/withdrawalDailyLimit'
@@ -71,6 +71,30 @@ const optionMap = (value: unknown) => {
   return Object.fromEntries(Object.entries(value).map(([feature, v]) => [feature, boolMap(v, `options.${feature}`)]))
 }
 
+/**
+ * The browser that asked for this save, for the audit log. X-Real-IP is set by nginx from the
+ * connection (the client cannot choose it); X-Forwarded-For is kept as sent, for reference.
+ */
+const clientOf = (req: NextRequest): AuditClient => {
+  const h = req.headers
+  const get = (name: string) => h.get(name)?.trim() || undefined
+  const forwardedFor = get('x-forwarded-for')
+  const mobile = get('sec-ch-ua-mobile')
+
+  return {
+    ip: get('x-real-ip') ?? forwardedFor?.split(',')[0]?.trim(),
+    forwardedFor,
+    userAgent: get('user-agent'),
+    platform: get('sec-ch-ua-platform')?.replace(/"/g, ''),
+    mobile: mobile === undefined ? undefined : mobile === '?1',
+    browser: get('sec-ch-ua'),
+    language: get('accept-language')?.split(',')[0],
+    origin: get('origin'),
+    referer: get('referer'),
+    api: `${req.method} ${process.env.NEXT_PUBLIC_BASE_PATH ?? ''}/api/owner/entitlements`
+  }
+}
+
 export const PUT = handler(async (req: NextRequest) => {
   const body = (await req.json().catch(() => null)) as {
     version?: unknown
@@ -131,7 +155,8 @@ export const PUT = handler(async (req: NextRequest) => {
       // rainbet: the owner's own colour themes; validated strictly in the store (bad colour → 400).
       palettes: body.palettes === undefined ? undefined : (body.palettes as OwnerPalette[])
     },
-    serverConfig.ownerUsername
+    serverConfig.ownerUsername,
+    clientOf(req)
   )
 
   // A saved change is already live: the backend stored, applied and pushed it to open sites (contract §3).
