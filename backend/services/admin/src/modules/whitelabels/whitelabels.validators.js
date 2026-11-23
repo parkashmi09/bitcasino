@@ -1,7 +1,7 @@
 'use strict';
 
 const { z, featureCatalogue, whitelabelPlan } = require('@ibitplay/common');
-const { PALETTE_KEYS } = require('../whitelabel-link/whitelabelLink.service');
+const { paletteShape, adminThemeSchema } = require('../whitelabel-link/whitelabelLink.service');
 // The copy validates the same shape (its link PUT /plan), so the two sides cannot drift.
 const { planSchema } = require('../whitelabel-link/routes/public.routes');
 
@@ -32,7 +32,7 @@ const text = (max) => z.string().trim().max(max).refine((v) => !/[<>\u0000-\u001
 const password = z.string().min(8, 'password must be at least 8 characters').max(72, 'password must be at most 72 characters');
 
 const palette = z
-  .object(Object.fromEntries(PALETTE_KEYS.map((k) => [k, z.string().regex(/^#[0-9a-fA-F]{6}$/, 'must be #RRGGBB')])))
+  .object(paletteShape(z))
   .strict();
 
 const image = z.object({ type: z.enum(['image/png', 'image/webp', 'image/svg+xml']), data: z.string().max(360_000) }).strict();
@@ -119,6 +119,7 @@ module.exports = {
   password: { ...params, body: z.object({ password }).strict() },
   maintenance: { ...params, body: z.object({ on: z.boolean() }).strict() },
   palette: { ...params, body: z.object({ palette: palette.nullable() }).strict() },
+  adminTheme: { ...params, body: z.object({ adminTheme: adminThemeSchema(z) }).strict() },
   plan: { ...params, body: z.object({ plan: planSchema() }).strict() },
   terms: { ...params, body: z.object({ terms }).strict() },
   poster: {

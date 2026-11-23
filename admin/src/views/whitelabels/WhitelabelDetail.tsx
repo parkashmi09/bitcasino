@@ -23,13 +23,14 @@ import { api } from '@/lib/api/client'
 import { check } from '@/lib/validate'
 import { TxnPasswordLabel } from '@/views/finance/StaffFloat'
 
+import AdminColours from './AdminColours'
 import ImageField, { POSTER, type PickedImage } from './ImageField'
 import PaletteEditor, { paletteError, type ThemeValue } from './PaletteEditor'
 import PlanPicker, { EMPTY_PLAN, planError } from './PlanPicker'
 import { CsvButton, MonthPicker, PdfButton, StatementView, monthPeriod, thisMonth, type Statement } from './RevenueShare'
 import TermsEditor, { termsError } from './TermsEditor'
 import { TEMPLATE_PALETTES } from './palettes'
-import { PALETTE_KEYS, type GatewayOrder, type Palette, type Plan, type Terms, type WhitelabelDetail as Detail, type WhitelabelTransfer } from './types'
+import { ICON_KEYS, PALETTE_KEYS, type GatewayOrder, type Palette, type Plan, type Terms, type WhitelabelDetail as Detail, type WhitelabelTransfer } from './types'
 
 const BUSY = ['queued', 'creating', 'deleting']
 
@@ -219,7 +220,9 @@ const BrandImages = ({ wl, invalidate }: { wl: Detail; invalidate: string[][] })
   )
 }
 
-const samePalette = (a: Palette, b: Palette) => PALETTE_KEYS.every(k => a[k].toLowerCase() === b[k].toLowerCase())
+/** Same as a template only when no icon colour of its own is set (else it is custom). */
+const samePalette = (a: Palette, b: Palette) =>
+  !ICON_KEYS.some(k => b[k]) && PALETTE_KEYS.every(k => a[k].toLowerCase() === b[k].toLowerCase())
 
 /**
  * A copy's built-in template (`wl.template`) is fixed when it is built, so another template is
@@ -656,6 +659,7 @@ const WhitelabelDetail = ({ id }: { id: string }) => {
       {wl.status !== 'deleting' && <TermsCard key={`terms-${wl.updatedAt}`} wl={wl} invalidate={invalidate} />}
       {!['creating', 'deleting'].includes(wl.status) && <Poster wl={wl} invalidate={invalidate} />}
       {wl.status !== 'deleting' && <Colours key={wl.updatedAt} wl={wl} invalidate={invalidate} />}
+      {wl.status !== 'deleting' && <AdminColours key={`admin-${wl.updatedAt}`} wl={wl} invalidate={invalidate} />}
     </div>
   )
 }

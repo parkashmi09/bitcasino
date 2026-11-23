@@ -6,7 +6,7 @@ import { toast } from 'sonner'
 
 import Link from 'next/link'
 
-import { ArrowDownToLineIcon, ArrowUpFromLineIcon, ChartColumnIcon, DicesIcon, Loader2Icon, ReceiptTextIcon, ScaleIcon, TrophyIcon, UserPlusIcon, UsersIcon } from 'lucide-react'
+import { ArrowDownToLineIcon, ArrowUpFromLineIcon, ChartColumnIcon, DicesIcon, KeyRoundIcon, Loader2Icon, ReceiptTextIcon, ScaleIcon, TrophyIcon, UserPlusIcon, UsersIcon } from 'lucide-react'
 
 import DataTable, { type Column } from '@/components/shared/DataTable'
 import ExportButtons, { fetchAllRows } from '@/components/shared/ExportButtons'
@@ -324,6 +324,40 @@ export const CreatePlayer = ({ base }: { base: string }) => {
   )
 }
 
+/** A new password for one of the branch's players; every session the player has ends. */
+export const PlayerPassword = ({ base, player }: { base: string; player: Pick<Player, 'id' | 'name'> }) => {
+  const empty = { password: '', confirm: '' }
+  const [form, setForm] = useState(empty)
+
+  const change = useApiMutation({
+    fn: () => api.put(`${base}/players/${player.id}/password`, { password: form.password }),
+    success: 'Password changed — the player is signed out',
+    onSuccess: () => setForm(empty)
+  })
+
+  return (
+    <FormDialog
+      trigger={
+        <Button variant='outline' size='sm' title='Change password'>
+          <KeyRoundIcon /> Password
+        </Button>
+      }
+      title={`New password for ${player.name}`}
+      description='At least 8 characters. The player is signed out everywhere and signs in again with the new password.'
+      submitLabel='Change'
+      onOpenChange={o => o && setForm(empty)}
+      validate={() => ({
+        password: !form.password ? 'Password is required' : check.length(form.password, 'Password', { min: 8, max: 72 }),
+        confirm: !form.confirm ? 'Confirm the password' : check.match(form.password, form.confirm, 'Passwords do not match')
+      })}
+      onSubmit={() => change.mutateAsync()}
+    >
+      <TextField id={`bp-npw-${player.id}`} name='password' label='New password' type='password' autoComplete='new-password' required value={form.password} onChange={e => setForm({ ...form, password: e.target.value })} />
+      <TextField id={`bp-npw2-${player.id}`} name='confirm' label='Confirm password' type='password' autoComplete='new-password' required value={form.confirm} onChange={e => setForm({ ...form, confirm: e.target.value })} />
+    </FormDialog>
+  )
+}
+
 const Balances = ({ value }: { value: Record<string, string> }) => {
   const list = Object.entries(value)
 
@@ -355,9 +389,12 @@ export const BranchPlayers = ({ base, playerHref }: { base: string; playerHref: 
       header: '',
       align: 'right',
       cell: r => (
-        <Button variant='outline' size='sm' nativeButton={false} render={<Link href={playerHref(r.id)} />}>
-          View
-        </Button>
+        <div className='flex justify-end gap-2'>
+          <PlayerPassword base={base} player={r} />
+          <Button variant='outline' size='sm' nativeButton={false} render={<Link href={playerHref(r.id)} />}>
+            View
+          </Button>
+        </div>
       )
     }
   ]

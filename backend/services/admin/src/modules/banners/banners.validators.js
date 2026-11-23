@@ -81,6 +81,8 @@ module.exports = {
          * active only, because that is what the site renders.
          */
         includeInactive: z.coerce.boolean().default(false),
+        /** The player site: also name the hidden placements (no data), so built-in art stays off there. */
+        withHidden: z.coerce.boolean().default(false),
         /** One mode's placements only: `agent` (/agent) or `direct` (the site). Absent = both. */
         mode: z.enum(['direct', 'agent']).optional(),
       })
@@ -100,6 +102,10 @@ module.exports = {
         filename: z.string().trim().min(1).max(120),
       })
       .strict(),
+  },
+
+  remove: {
+    params: z.object({ type: placement }).strict(),
   },
 
   setActive: {

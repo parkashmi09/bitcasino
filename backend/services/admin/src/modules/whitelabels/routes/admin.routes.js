@@ -23,6 +23,7 @@ const { WhitelabelsService } = require('../whitelabels.service');
  *   PUT    /admin/whitelabels/:id/company-password   { password } (company signed out)
  *   PUT    /admin/whitelabels/:id/maintenance        { on }  off = maintenance on the copy
  *   PUT    /admin/whitelabels/:id/palette            { palette | null }
+ *   PUT    /admin/whitelabels/:id/admin-theme        { adminTheme | null }  (null = follow the player site)
  *   PUT    /admin/whitelabels/:id/plan               { plan } products, features, payments
  *   PUT    /admin/whitelabels/:id/terms              { terms } gateway charges + GGR revenue share (parent only)
  *   POST   /admin/whitelabels/:id/hub-key            new API key + secret for its hub link (gateway payments)
@@ -144,6 +145,7 @@ module.exports = function adminRoutes(deps) {
   );
   router.put('/:id/maintenance', canWrite, validate(v.maintenance), audited('whitelabel.maintenance'), asyncHandler(async (req, res) => response.ok(res, await service.setMaintenance(id(req), req.body.on))));
   router.put('/:id/palette', canWrite, validate(v.palette), audited('whitelabel.palette'), asyncHandler(async (req, res) => response.ok(res, await service.setPalette(id(req), req.body.palette))));
+  router.put('/:id/admin-theme', canWrite, validate(v.adminTheme), audited('whitelabel.admin-theme'), asyncHandler(async (req, res) => response.ok(res, await service.setAdminTheme(id(req), req.body.adminTheme))));
   router.put('/:id/plan', canWrite, validate(v.plan), audited('whitelabel.plan'), asyncHandler(async (req, res) => response.ok(res, await service.setPlan(id(req), req.body.plan))));
   router.put('/:id/terms', canMoveMoney, validate(v.terms), audited('whitelabel.terms'), asyncHandler(async (req, res) => response.ok(res, await service.setTerms(id(req), req.body.terms))));
   router.post('/:id/hub-key', canMoveMoney, validate(v.byId), noBody(), audited('whitelabel.hub-key'), asyncHandler(async (req, res) => response.ok(res, await service.issueHubKey(id(req)))));

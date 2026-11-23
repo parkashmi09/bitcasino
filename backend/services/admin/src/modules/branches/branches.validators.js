@@ -116,6 +116,7 @@ module.exports = {
   createPlayer: { ...withBranch, body: createPlayerBody },
   statement: { ...withBranch, query: statementQuery },
   player: { params: z.object({ branchId, userId: playerParam }).strict() },
+  playerPassword: { params: z.object({ branchId, userId: playerParam }).strict(), body: z.object({ password }).strict() },
   money: { ...withBranch, query: moneyQuery },
   bets: { ...withBranch, query: betsQuery },
 
@@ -126,6 +127,7 @@ module.exports = {
   portalCreatePlayer: { body: createPlayerBody },
   portalStatement: { query: statementQuery },
   portalPlayer: { params: z.object({ userId: playerParam }).strict() },
+  portalPlayerPassword: { params: z.object({ userId: playerParam }).strict(), body: z.object({ password }).strict() },
   portalMoney: { query: moneyQuery },
   portalBets: { query: betsQuery },
 };

@@ -295,6 +295,27 @@ class BranchesService {
     return { id: String(user.id), name: user.name, email: user.email ?? null, branchId: Number(branch.id) };
   }
 
+  /**
+   * A new password for one of the branch's players. Clears the legacy cleartext `password2` (as the
+   * players module does) and ends every session the player has, so the old password stops working
+   * everywhere at once.
+   */
+  async setPlayerPassword({ branchId, userId, password }) {
+    await this.#assertPlayer(branchId, userId);
+    const hash = await hashPassword(password, PASSWORD_ROUNDS);
+    const revoked = await this.db.transaction(async (transaction) => {
+      const [affected] = await this.models.Users.update({ password: hash, password2: null }, { where: { id: userId }, transaction });
+      if (!affected) throw errors.PLAYER_NOT_FOUND({ userId });
+      const [, count] = await this.sequelize.query(
+        `UPDATE auth_sessions SET revoked_at = NOW(), revoked_reason = 'password_reset_by_branch' WHERE user_id = :userId AND revoked_at IS NULL`,
+        { replacements: { userId }, transaction }
+      );
+      return Number(count?.rowCount ?? count ?? 0);
+    });
+    this.logger?.info({ branchId: Number(branchId), userId: String(userId), revokedSessions: revoked }, 'Branch player password changed');
+    return { id: String(userId), passwordChanged: true, revokedSessions: revoked };
+  }
+
   /** The ledger of the branch's players, newest first; `userId` narrows it to one of them. */
   async statement({ branchId, userId, category = 'ALL', fromDate, toDate, page = 1, limit = 50 }) {
     await this.#get(branchId);

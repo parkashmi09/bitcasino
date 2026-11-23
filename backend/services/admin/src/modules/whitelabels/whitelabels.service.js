@@ -64,6 +64,8 @@ function view(r) {
     apiDomain: r.api_domain,
     template: r.template,
     palette: r.palette ?? null,
+    // The admin panel's colours: null = follow the player site.
+    adminTheme: r.admin_theme ?? null,
     // null = made before plans (not limited).
     plan: whitelabelPlan.cleanPlan(r.plan),
     terms: whitelabelPlan.cleanTerms(r.terms),
@@ -589,6 +591,17 @@ class WhitelabelsService {
       palette: palette ? JSON.stringify(palette) : null,
     });
     return { palette };
+  }
+
+  /** The copy's admin panel colours; a live copy gets them at once, else the setup writes them. */
+  async setAdminTheme(id, adminTheme) {
+    const row = await this.#row(id);
+    if (row.status === 'live') await this.link(row, 'PUT', '/admin-theme', { adminTheme });
+    await this.#q('UPDATE whitelabels SET admin_theme = CAST(:adminTheme AS JSONB), updated_at = NOW() WHERE id = :id RETURNING id', {
+      id,
+      adminTheme: adminTheme ? JSON.stringify(adminTheme) : null,
+    });
+    return { adminTheme };
   }
 
   /** The products and features the copy runs; a live copy gets it at once, else the setup writes it. */

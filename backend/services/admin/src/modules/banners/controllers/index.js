@@ -34,6 +34,10 @@ function createControllers({ service }) {
       response.ok(res, await service.setActive({ staff: req.staff, ...req.params, ...req.body }))
     ),
 
+    remove: asyncHandler(async (req, res) =>
+      response.ok(res, await service.remove({ staff: req.staff, ...req.params }))
+    ),
+
     /** @legacy GET /api/banners/banner/:type */
     byType: asyncHandler(async (req, res) =>
       response.ok(res, await service.byType({ ...req.params, includeInactive: canSeeInactive(req) }))

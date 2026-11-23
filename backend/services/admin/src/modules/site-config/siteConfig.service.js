@@ -154,6 +154,11 @@ const OPERATOR_SETTINGS = Object.freeze({
   idle_logout_minutes: { env: 'IDLE_LOGOUT_MINUTES', kind: 'number', min: 1, max: 120, default: 5, label: 'Minutes with no activity before the sign-out (N)' },
   require_email_verification: { env: 'REQUIRE_EMAIL_VERIFICATION', kind: 'boolean', label: 'Verify email before transacting' },
 
+  // The coin every Recent Big Wins amount on the home page is printed in (a whitelabel copy picks
+  // its own, e.g. INR). Nothing stored = each viewer's selected currency (USDT signed out). Sent to
+  // the browser as `big_wins_currency` through `publicSettings()`.
+  big_wins_currency: { env: 'BIG_WINS_CURRENCY', kind: 'currency', label: 'Recent Big Wins currency' },
+
   // Read by user-service's PlayerBonusService (user, 2026-10-28). The lock is in force only while
   // the owner's `bonus.wagering_lock` is on too; the forfeit pair is the withdraw popup's copy.
   bonus_wagering_lock: { env: 'BONUS_WAGERING_LOCK', kind: 'boolean', default: true, label: 'Keep a granted bonus locked until it is wagered' },
@@ -1103,6 +1108,7 @@ class SiteConfigService {
       ...Object.values(AFFILIATE_CURRENCY_FIELDS),
       ...Object.values(WELCOME_FIELDS),
       'affiliate_bonus_requires_deposit',
+      'settings',
     ]);
 
     // Absent config reads as ON, matching `sportsEnabled()`: a missing row is
@@ -1132,6 +1138,8 @@ class SiteConfigService {
     const idleLogoutMinutes = entitlements.flagOnIn(planDoc, 'idle_logout') && String(ops.idle_logout) !== 'false'
       ? (Number.isInteger(idleMinutes) && idleMinutes >= 1 && idleMinutes <= 120 ? idleMinutes : 5)
       : null;
+    // The Recent Big Wins coin (bare code, e.g. INR), or null for the viewer's own currency.
+    flags.big_wins_currency = this.#bigWinsCurrency(row?.settings);
 
     const amounts = Object.fromEntries(
       PUBLIC_AMOUNTS.map((name) => [name, this.#amount(row?.[name])])
@@ -1230,6 +1238,18 @@ class SiteConfigService {
    * environment variable when there is not. The screen shows both, so nobody
    * has to guess whether a number is theirs or the deployment's.
    */
+  /** The Recent Big Wins coin: stored, else the env, else null (the viewer's selected currency). */
+  #bigWinsCurrency(stored) {
+    const own = stored?.big_wins_currency;
+    const raw = own ?? process.env.BIG_WINS_CURRENCY ?? this.config?.BIG_WINS_CURRENCY;
+    if (raw === undefined || raw === null || raw === '') return null;
+    try {
+      return coerceSetting('big_wins_currency', OPERATOR_SETTINGS.big_wins_currency, raw);
+    } catch {
+      return null;
+    }
+  }
+
   async operatorSettings() {
     const row = await this.#configRow(['id', 'settings']);
     const stored = row?.settings ?? {};
@@ -1290,6 +1310,9 @@ class SiteConfigService {
     else await this.models.Siteconfig.create({ settings: next });
 
     this.logger?.warn({ staffId, settings: Object.keys(patch ?? {}) }, 'Operator settings changed');
+    // The idle-logout pair is in the public view: open tabs pick a new value up at once.
+    // So is the Recent Big Wins currency.
+    if (Object.keys(patch ?? {}).some((key) => key.startsWith('idle_logout') || key === 'big_wins_currency')) await this.pushPublic();
     return this.operatorSettings();
   }
 
@@ -1639,6 +1662,13 @@ function coerceSetting(key, spec, raw) {
     if (/[<>\u0000-\u0008\u000b-\u001f]/.test(text)) throw errors.INVALID_SETTING({ setting: key, reason: 'no angle brackets or control characters' });
     if (spec.chat && !chatLink(spec.chat, text)) throw errors.INVALID_SETTING({ setting: key, reason: spec.chat === 'telegram' ? 'a number with country code, @username or a t.me link' : 'a number with country code or a wa.me / whatsapp.com link' });
     return text;
+  }
+
+  if (spec.kind === 'currency') {
+    // A bare coin code (INR, USDT, BTC); this build's `INRFIAT` wallet key is taken and trimmed.
+    const code = String(raw).trim().toUpperCase().replace(/FIAT$/, '');
+    if (!/^[A-Z0-9]{2,10}$/.test(code)) throw errors.INVALID_SETTING({ setting: key, reason: 'expected a coin code such as INR or USDT' });
+    return code;
   }
 
   if (spec.kind === 'timezone') {

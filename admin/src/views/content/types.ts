@@ -12,6 +12,12 @@ export type Banner = {
   contentType: string | null
   byteSize: number | null
   active: boolean
+
+  /** False on a built-in's "hidden" marker row (no image uploaded). */
+  hasImage?: boolean
+
+  /** The placement has built-in art on the player site (home, home_mobile, deposit-slide, agent-slider-1…4). */
+  builtin?: boolean
   uploadedBy: number | string | null
   title: string | null
   subtitle: string | null

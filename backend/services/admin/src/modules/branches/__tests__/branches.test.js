@@ -47,6 +47,11 @@ test('branch validators', () => {
     assert.equal(v.portalBets.query.safeParse({ fromDate, toDate: '2026-12-31', kind: 'casino' }).success, false, fromDate);
   }
   assert.equal(v.portalStatement.query.safeParse({ fromDate: '2028-02-29', toDate: '2028-03-01' }).success, true);
+  // A player's new password: 8–72 characters, nothing else in the body.
+  assert.equal(v.playerPassword.body.safeParse({ password: 'short' }).success, false);
+  assert.equal(v.playerPassword.body.safeParse({ password: 'longenough', status: 'active' }).success, false);
+  assert.equal(v.playerPassword.body.safeParse({ password: 'longenough' }).success, true);
+  assert.equal(v.portalPlayerPassword.params.safeParse({ userId: 'abc' }).success, false);
 });
 
 test('branches against a database', async (t) => {
@@ -245,6 +250,21 @@ test('branches against a database', async (t) => {
 
     assert.equal((await service.player({ branchId: a.id, userId: players.a1.id })).name, players.a1.name);
     await assert.rejects(() => service.player({ branchId: b.id, userId: players.a1.id }), (e) => e.code === 'BRANCH_PLAYER_NOT_FOUND');
+  });
+
+  await t.test("a player's password: only the own branch changes it, and it ends the player's sessions", async () => {
+    const { verifyPassword } = require('@ibitplay/auth');
+    const userId = players.a1.id;
+    await assert.rejects(
+      () => service.setPlayerPassword({ branchId: b.id, userId, password: 'stolen-pass' }),
+      (e) => e.code === 'BRANCH_PLAYER_NOT_FOUND'
+    );
+    const result = await service.setPlayerPassword({ branchId: a.id, userId, password: 'player-new-pass' });
+    assert.equal(result.passwordChanged, true);
+    const row = await models.Users.findByPk(userId, { attributes: ['password', 'password2'], raw: true });
+    assert.equal(await verifyPassword('player-new-pass', row.password), true);
+    assert.equal(await verifyPassword('player-pass', row.password), false);
+    assert.equal(row.password2, null);
   });
 
   await t.test('sign-in, and what ends a session', async () => {

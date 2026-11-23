@@ -4,7 +4,7 @@ import { useQuery } from '@tanstack/react-query'
 
 import { api } from '@/lib/api/client'
 import { TEMPLATE_PALETTES } from '@/views/whitelabels/palettes'
-import { PALETTE_KEYS, type Palette } from '@/views/whitelabels/types'
+import { PALETTE_KEYS, type AdminTheme, type Palette } from '@/views/whitelabels/types'
 
 const HEX = /^#[0-9a-fA-F]{6}$/
 
@@ -18,18 +18,23 @@ const themeCss = (p: Palette) =>
   `--foreground:${p.text};--card-foreground:${p.text};--muted-foreground:${p.muted};--accent:color-mix(in srgb,${p.primary} 15%,transparent)}`
 
 /**
- * A whitelabel copy's admin (NEXT_PUBLIC_WHITELABEL_MODE) in its player site's colours: the custom
- * palette the parent set (admin modules/whitelabel-link `theme`), else its template's. Its own
- * query key: `admin/features/public` is cached by SessionContext in another shape.
+ * A whitelabel copy's admin (NEXT_PUBLIC_WHITELABEL_MODE) in the colours the parent chose for it
+ * (admin modules/whitelabel-link `theme` → adminTheme): its own custom palette, the admin's
+ * built-in colours ('default' → nothing applied), or — when none is set — the player site's: the
+ * custom palette the parent set, else its template's. Its own query key: `admin/features/public`
+ * is cached by SessionContext in another shape.
  */
 const WhitelabelTheme = () => {
   const { data: palette } = useQuery<Palette | null>({
     queryKey: ['whitelabel-theme'],
     queryFn: async () => {
       const [theme, features] = await Promise.all([
-        api.get<{ palette: Palette | null }>('admin/whitelabel-link/theme').catch(() => null),
+        api.get<{ palette: Palette | null; adminTheme?: AdminTheme | null }>('admin/whitelabel-link/theme').catch(() => null),
         api.get<Array<{ feature: string; variant?: string }>>('admin/features/public').catch(() => null)
       ])
+
+      if (theme?.adminTheme?.mode === 'default') return null
+      if (theme?.adminTheme?.mode === 'custom') return theme.adminTheme.palette
 
       const template = Array.isArray(features) ? features.find(f => f.feature === 'theme')?.variant : undefined
 

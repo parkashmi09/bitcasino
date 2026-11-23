@@ -289,4 +289,34 @@ test('banners against a database', async (t) => {
       (err) => err.code === 'BANNERS_NOT_FOUND'
     );
   });
+
+  await t.test('a built-in placement can be hidden and shown without an upload', async () => {
+    const type = 'agent-slider-4';
+    await connection.models.Banners.destroy({ where: { type } });
+
+    await service.setActive({ staff, type, active: false });
+    // The player site learns the slot is hidden, with nothing else about it.
+    const pub = (await service.list({ withHidden: true, mode: 'agent' })).rows.find((r) => r.type === type);
+    assert.deepEqual(pub, { type, mode: 'agent', active: false });
+    // Without `withHidden` the public list is as before: active rows only.
+    assert.ok(!(await service.list({ mode: 'agent' })).rows.some((r) => r.type === type));
+    // The admin sees a marker with no image.
+    const admin = (await service.list({ includeInactive: true, mode: 'agent' })).rows.find((r) => r.type === type);
+    assert.equal(admin.hasImage, false);
+    assert.equal(admin.builtin, true);
+    // Editing the marker's copy alone is refused: it needs an image.
+    await assert.rejects(() => service.putBanner({ staff, type, title: 'x' }), (err) => err.code === 'BANNERS_NO_FILE');
+
+    // Showing it again removes the marker: the built-in art is back.
+    await service.setActive({ staff, type, active: true });
+    assert.equal(await connection.models.Banners.count({ where: { type } }), 0);
+  });
+
+  await t.test('removing an upload deletes its row', async () => {
+    const type = newType();
+    await service.putBanner({ staff, type, file: asFile(PNG) });
+    await service.remove({ staff, type });
+    await assert.rejects(() => service.byType({ type, includeInactive: true }), (err) => err.code === 'BANNERS_NOT_FOUND');
+    await assert.rejects(() => service.remove({ staff, type }), (err) => err.code === 'BANNERS_NOT_FOUND');
+  });
 });

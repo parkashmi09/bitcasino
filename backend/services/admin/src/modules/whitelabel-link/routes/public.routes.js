@@ -4,7 +4,7 @@ const crypto = require('crypto');
 const { Router } = require('express');
 const { z, validate, noBody, response, asyncHandler, createRateLimiter, UnauthorizedError, whitelabelPlan } = require('@ibitplay/common');
 
-const { WhitelabelLinkService, PALETTE_KEYS } = require('../whitelabelLink.service');
+const { WhitelabelLinkService, paletteShape, adminThemeSchema } = require('../whitelabelLink.service');
 const { brandingStore } = require('../../branding/branding.store');
 const { BannersService } = require('../../banners/banners.service');
 
@@ -94,12 +94,14 @@ const schemas = {
     body: z
       .object({
         palette: z
-          .object(Object.fromEntries(PALETTE_KEYS.map((k) => [k, z.string().regex(/^#[0-9a-fA-F]{6}$/, 'must be #RRGGBB')])))
+          .object(paletteShape(z))
           .strict()
           .nullable(),
       })
       .strict(),
   },
+  // The admin panel's colours; null = follow the player site.
+  adminTheme: { body: z.object({ adminTheme: adminThemeSchema(z) }).strict() },
 };
 
 module.exports = publicRoutes;
@@ -181,6 +183,7 @@ function publicRoutes(deps) {
   router.get('/ggr', validate(schemas.ggr), asyncHandler(async (req, res) => response.ok(res, await service.sportsGgr(req.query))));
   router.put('/hub', validate(schemas.hub), asyncHandler(async (req, res) => response.ok(res, await service.setHub(req.body))));
   router.put('/palette', validate(schemas.palette), asyncHandler(async (req, res) => response.ok(res, await service.setPalette(req.body.palette))));
+  router.put('/admin-theme', validate(schemas.adminTheme), asyncHandler(async (req, res) => response.ok(res, await service.setAdminTheme(req.body.adminTheme))));
   router.put('/maintenance', validate(schemas.maintenance), asyncHandler(async (req, res) => response.ok(res, await service.setMaintenance(req.body.on))));
   router.post('/preview', noBody(), asyncHandler(async (_req, res) => response.ok(res, await service.preview())));
 

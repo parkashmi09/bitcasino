@@ -11,12 +11,15 @@ import PageHeader from '@/components/shared/PageHeader'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
 import { useSession } from '@/contexts/SessionContext'
 import { useApi, useApiMutation } from '@/hooks/use-api'
 import { api } from '@/lib/api/client'
 import { check, cleanErrors, firstError } from '@/lib/validate'
+
+import { useCurrencyCodes } from '../finance/useCurrencyCodes'
 
 /**
  * Limits, policy and schedule — the values that used to be environment
@@ -40,7 +43,7 @@ import { check, cleanErrors, firstError } from '@/lib/validate'
 type Setting = {
   key: string
   label: string
-  kind: 'number' | 'decimal' | 'boolean' | 'timezone' | 'text'
+  kind: 'number' | 'decimal' | 'boolean' | 'timezone' | 'text' | 'currency'
   env: string
   envValue: string | null
   stored: string | number | boolean | null
@@ -51,7 +54,15 @@ type Setting = {
   maxLength?: number
 }
 
+/** The `currency` picker's "nothing stored" choice: each viewer's own selected currency. */
+const VIEWER_CURRENCY = '__viewer__'
+
 const GROUPS: { title: string; hint: string; keys: string[] }[] = [
+  {
+    title: 'Home page',
+    hint: "The coin every Recent Big Wins amount on the player site's home page is shown in, converted at the site's rates. \"Player's selected currency\" follows each visitor's wallet (USDT when signed out).",
+    keys: ['big_wins_currency']
+  },
   {
     title: 'Races',
     hint: 'When the weekly race leaderboard resets.',
@@ -96,6 +107,7 @@ const OWNER_FLAG: Record<string, string> = { idle_logout: 'idle_logout', idle_lo
 const OperatorSettings = () => {
   const { can, flagEntitled } = useSession()
   const canWrite = can('config:write')
+  const coins = useCurrencyCodes()
   const q = useApi<Setting[]>('admin/site-config/settings')
   const [draft, setDraft] = useState<Record<string, string | boolean | null>>({})
 
@@ -142,7 +154,7 @@ const OperatorSettings = () => {
       const s = byKey[key]
       const v = draft[key]
 
-      if (!s || v === null || s.kind === 'boolean') continue
+      if (!s || v === null || s.kind === 'boolean' || s.kind === 'currency') continue
 
       if (s.kind === 'timezone') {
         try {
@@ -210,6 +222,33 @@ const OperatorSettings = () => {
           disabled={!canWrite}
           onCheckedChange={v => setDraft(d => ({ ...d, [s.key]: v }))}
         />
+      )
+    }
+
+    if (s.kind === 'currency') {
+      const picked = current === null || current === undefined || current === '' ? VIEWER_CURRENCY : String(current).toUpperCase()
+
+      // A coin stored earlier and since switched off still shows, so the row never reads blank.
+      const options = picked !== VIEWER_CURRENCY && !coins.includes(picked) ? [...coins, picked] : coins
+
+      return (
+        <Select
+          value={picked}
+          disabled={!canWrite}
+          onValueChange={v => v && setDraft(d => ({ ...d, [s.key]: v === VIEWER_CURRENCY ? null : String(v) }))}
+        >
+          <SelectTrigger className='w-56'>
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value={VIEWER_CURRENCY}>Player&apos;s selected currency</SelectItem>
+            {options.map(code => (
+              <SelectItem key={code} value={code}>
+                {code}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       )
     }
 

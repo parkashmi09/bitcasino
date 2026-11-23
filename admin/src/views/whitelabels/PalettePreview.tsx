@@ -2,6 +2,7 @@
 
 import type { CSSProperties } from 'react'
 
+import { iconColours } from './palettes'
 import type { Palette } from './types'
 
 /**
@@ -11,6 +12,7 @@ import type { Palette } from './types'
  */
 const PalettePreview = ({ palette, name, logoUrl }: { palette: Palette; name: string; logoUrl?: string | null }) => {
   const p = palette
+  const icons = iconColours(p)
   const card: CSSProperties = { background: p.s2, border: `1px solid ${p.border}`, borderRadius: 8 }
 
   return (
@@ -34,7 +36,8 @@ const PalettePreview = ({ palette, name, logoUrl }: { palette: Palette; name: st
       <div className='flex'>
         <div className='hidden w-24 shrink-0 space-y-1 p-2 sm:block' style={{ background: p.s1 }}>
           {['Casino', 'Sports', 'Promotions', 'VIP Club'].map((item, i) => (
-            <div key={item} className='rounded px-2 py-1' style={i === 0 ? { background: p.s3, color: p.text } : { color: p.muted }}>
+            <div key={item} className='flex items-center gap-1.5 rounded px-2 py-1' style={i === 0 ? { background: p.s3, color: p.text } : { color: p.muted }}>
+              <span aria-hidden className='size-2.5 shrink-0 rounded-[3px]' style={{ background: i === 0 ? icons.iconact : i === 1 ? icons.iconhov : icons.icon }} />
               {item}
             </div>
           ))}

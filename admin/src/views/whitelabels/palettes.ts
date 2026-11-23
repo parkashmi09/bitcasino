@@ -1,4 +1,4 @@
-import type { Palette } from './types'
+import type { IconKey, Palette, PaletteKey } from './types'
 
 /**
  * The player site's colour templates as their 13 `--p-*` tokens — copied from
@@ -22,7 +22,7 @@ export const TEMPLATE_LABELS: Record<string, string> = {
   neon_navy: 'Neon Navy'
 }
 
-export const TOKEN_LABELS: Record<keyof Palette, string> = {
+export const TOKEN_LABELS: Record<PaletteKey, string> = {
   bg: 'Page background',
   s1: 'Header / sidebar',
   s2: 'Cards',
@@ -36,4 +36,35 @@ export const TOKEN_LABELS: Record<keyof Palette, string> = {
   live: 'Live / error',
   hi: 'Brand light',
   lo: 'Brand dark'
+}
+
+export const ICON_LABELS: Record<IconKey, string> = {
+  icon: 'Icons',
+  iconhov: 'Icons on hover',
+  iconact: 'Icons active'
+}
+
+const hex = (h: string) => [1, 3, 5].map(i => parseInt(h.slice(i, i + 2), 16))
+
+/**
+ * The icon colours the player site uses when a palette sets none — as the built-in templates'
+ * recoloured sprites (frontend tools/gen-theme-sprites.mjs, src/theme/customSprites.js): resting =
+ * 45% text over muted, hover = text, active = brand colour.
+ */
+export const iconDefaults = (p: Palette): Record<IconKey, string> => {
+  const [t, m] = [hex(p.text), hex(p.muted)]
+  const grey = t.map((v, i) => Math.round(v * 0.45 + m[i] * 0.55))
+
+  return {
+    icon: `#${grey.map(v => (Number.isFinite(v) ? v : 0).toString(16).padStart(2, '0')).join('')}`,
+    iconhov: p.text,
+    iconact: p.primary
+  }
+}
+
+/** The palette's icon colours: its own where set, else the defaults. */
+export const iconColours = (p: Palette): Record<IconKey, string> => {
+  const d = iconDefaults(p)
+
+  return { icon: p.icon ?? d.icon, iconhov: p.iconhov ?? d.iconhov, iconact: p.iconact ?? d.iconact }
 }

@@ -5,12 +5,14 @@ import { useEffect, useMemo, useState } from 'react'
 import { ImageIcon, UploadIcon } from 'lucide-react'
 
 import Can from '@/components/shared/Can'
+import ConfirmDialog from '@/components/shared/ConfirmDialog'
 import DataTable, { type Column } from '@/components/shared/DataTable'
 import DateTime from '@/components/shared/DateTime'
 import FormDialog from '@/components/shared/FormDialog'
 import { SelectField, TextField } from '@/components/shared/FormField'
 import PageHeader from '@/components/shared/PageHeader'
 import StatusBadge from '@/components/shared/StatusBadge'
+import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Switch } from '@/components/ui/switch'
 import { useApi, useApiMutation } from '@/hooks/use-api'
@@ -57,6 +59,75 @@ const PLACEMENTS: { value: string; label: string; hint: string; mode: BannerMode
   { mode: 'direct', value: 'sidebar', label: 'Sidebar · promo card', hint: 'The card at the top of the player site menu, 232×75 (upload about 464×150). A finished image: the title is only its alt text. The call-to-action link is where a click goes (default /promotions). With none uploaded the site shows its League card.' }
 ]
 
+/**
+ * What the player site draws when a placement has NO upload (frontend-next
+ * spa/hooks/useHeroSlides.js: agent mode's four game slides; Stake's direct site has none) — listed
+ * here so the operator sees it and can hide it slot by slot. The previews are copies of the site's own files (public/builtin-banners). Must match backend
+ * banners.constants.js BUILTIN_PLACEMENTS.
+ */
+type Builtin = { type: string; mode: BannerMode; label: string; image: string | null; title?: string; subtitle?: string; cta?: { label: string; href: string }; replaceable: boolean }
+
+const AGENT_BUILTIN_COPY: [string, string, string, string][] = [
+  ['Cricket, football & more', 'Live odds on every match', 'Bet now', '/sports/home'],
+  ['Crash games', 'Cash out in time', 'Play now', '/casino/home'],
+  ['Back your team', 'Back or lay, in-play', 'Bet now', '/sports/home'],
+  ['Slots & live casino', 'Thousands of games', 'Play now', '/casino/home']
+]
+
+const BUILTINS: Builtin[] = [
+  ...AGENT_BUILTIN_COPY.map(([title, subtitle, label, href], i) => ({
+    mode: 'agent' as const,
+    type: `agent-slider-${i + 1}`,
+    label: `Built-in game slide ${i + 1}`,
+    image: `/builtin-banners/agent-slide-${i + 1}.webp`,
+    title,
+    subtitle,
+    cta: { label, href },
+    replaceable: true
+  }))
+]
+
+/** One line of the list: an uploaded banner, or a built-in with nothing uploaded in its slot. */
+type Row = Banner & { source: 'uploaded' | 'builtin'; def?: Builtin }
+
+const builtinRow = (def: Builtin, marker?: Banner): Row => ({
+  id: -1,
+  type: def.type,
+  mode: def.mode,
+  contentType: null,
+  byteSize: null,
+
+  // Hidden only while a marker row says so; with no row at all it is showing.
+  active: marker ? marker.active : true,
+  uploadedBy: null,
+  title: def.title ?? null,
+  subtitle: def.subtitle ?? null,
+  cta: def.cta ?? null,
+  sortOrder: 0,
+  createdAt: null,
+  updatedAt: marker?.updatedAt ?? null,
+  source: 'builtin',
+  def
+})
+
+/** Built-ins (in their slot order) merged with the uploads; an upload in a built-in slot replaces that one only. */
+const mergeRows = (mode: BannerMode, rows: Banner[]): Row[] => {
+  const defs = BUILTINS.filter(d => d.mode === mode)
+  const uploaded = rows.filter(r => r.hasImage !== false)
+  const markers = rows.filter(r => r.hasImage === false)
+
+  const rank = (type: string) => {
+    const i = defs.findIndex(d => d.type === type)
+
+    return i < 0 ? defs.length : i
+  }
+
+  return [
+    ...defs.filter(d => !uploaded.some(r => r.type === d.type)).map(d => builtinRow(d, markers.find(m => m.type === d.type))),
+    ...uploaded.map(r => ({ ...r, source: 'uploaded' as const, def: defs.find(d => d.type === r.type) }))
+  ].sort((a, b) => rank(a.type) - rank(b.type) || a.sortOrder - b.sortOrder || a.type.localeCompare(b.type, undefined, { numeric: true }))
+}
+
 /** banners.constants.js AGENT_PREFIX: an `agent-…` placement is agent mode's. */
 const AGENT_PREFIX = 'agent-'
 
@@ -76,9 +147,10 @@ const blankForm = (b?: Banner) => ({
   sortOrder: String(b?.sortOrder ?? 0)
 })
 
-const UploadBanner = ({ existing, mode }: { existing?: Banner; mode: BannerMode }) => {
+const UploadBanner = ({ existing, mode, replaceBuiltin }: { existing?: Banner; mode: BannerMode; replaceBuiltin?: Builtin }) => {
   const [open, setOpen] = useState(false)
-  const [form, setForm] = useState(() => blankForm(existing))
+  const presetForm = () => (replaceBuiltin ? { ...blankForm(), type: replaceBuiltin.type, title: replaceBuiltin.title ?? '', subtitle: replaceBuiltin.subtitle ?? '', ctaLabel: replaceBuiltin.cta?.label ?? '', ctaHref: replaceBuiltin.cta?.href ?? '' } : blankForm(existing))
+  const [form, setForm] = useState(presetForm)
   const [file, setFile] = useState<File | null>(null)
   const placements = PLACEMENTS.filter(p => p.mode === mode)
   const preset = PLACEMENTS.find(p => p.value === form.type)
@@ -94,7 +166,7 @@ const UploadBanner = ({ existing, mode }: { existing?: Banner; mode: BannerMode 
   // Every open starts from the banner as it is now (or blank), never from the last upload.
   const onOpenChange = (next: boolean) => {
     if (next) {
-      setForm(blankForm(existing))
+      setForm(presetForm())
       setFile(null)
       setOther(!!existing && !PLACEMENTS.some(p => p.value === existing.type))
     }
@@ -122,9 +194,9 @@ const UploadBanner = ({ existing, mode }: { existing?: Banner; mode: BannerMode 
       open={open}
       onOpenChange={onOpenChange}
       trigger={
-        existing ? (
+        existing || replaceBuiltin ? (
           <Button variant='ghost' size='sm'>
-            Edit
+            {existing ? 'Edit' : 'Replace'}
           </Button>
         ) : (
           <Button>
@@ -132,8 +204,12 @@ const UploadBanner = ({ existing, mode }: { existing?: Banner; mode: BannerMode 
           </Button>
         )
       }
-      title={existing ? `Edit ${existing.type}` : 'Upload a banner'}
-      description='The placement is the address: saving the same one again replaces it. A call to action needs both its label and its link, or neither.'
+      title={existing ? `Edit ${existing.type}` : replaceBuiltin ? `Replace built-in ${replaceBuiltin.type}` : 'Upload a banner'}
+      description={
+        replaceBuiltin
+          ? 'Your image takes this slot only; every other built-in banner stays. Delete the upload later to bring the built-in back.'
+          : 'The placement is the address: saving the same one again replaces it. A call to action needs both its label and its link, or neither.'
+      }
       submitLabel={existing ? 'Save' : 'Upload'}
       onSubmit={() => upload.mutateAsync()}
       validate={() => {
@@ -141,7 +217,7 @@ const UploadBanner = ({ existing, mode }: { existing?: Banner; mode: BannerMode 
         const hasHref = !!form.ctaHref.trim()
 
         return {
-          [existing ? 'b-type' : other ? 'b-type' : 'b-place']: !form.type.trim()
+          [existing || replaceBuiltin ? 'b-type' : other ? 'b-type' : 'b-place']: !form.type.trim()
             ? 'Choose a placement'
             : !TYPE_PATTERN.test(form.type.trim())
               ? 'Placement: lowercase letters, digits, dash and underscore only (max 64)'
@@ -172,7 +248,7 @@ const UploadBanner = ({ existing, mode }: { existing?: Banner; mode: BannerMode 
         }
       }}
     >
-      {existing ? (
+      {existing || replaceBuiltin ? (
         <TextField id='b-type' label='Placement' readOnly value={form.type} hint={preset?.hint} />
       ) : (
         <>
@@ -228,39 +304,104 @@ const UploadBanner = ({ existing, mode }: { existing?: Banner; mode: BannerMode 
 
 const BannerList = ({ mode }: { mode: BannerMode }) => {
   const [showInactive, setShowInactive] = useState(true)
-  const list = useApi<Banner[]>('admin/banners', { includeInactive: showInactive, mode }, { retry: false })
+
+  // Always with the hidden ones: a hidden built-in is only known from its marker row.
+  const list = useApi<Banner[]>('admin/banners', { includeInactive: true, mode }, { retry: false })
+  const rows = useMemo(() => (list.data ? mergeRows(mode, list.data).filter(r => showInactive || r.active) : undefined), [list.data, mode, showInactive])
 
   const setActive = useApiMutation({
     fn: (v: { type: string; active: boolean }) => api.patch(`admin/banners/${v.type}/active`, { active: v.active }),
     invalidate: [['api', 'admin/banners']],
-    success: (_r, v) => `${v.type} is now ${v.active ? 'visible' : 'hidden'}`
+    success: (_r, v) => `${v.type} is now ${v.active ? 'shown on the site' : 'hidden from the site'}`
   })
 
-  const columns: Column<Banner>[] = [
+  const remove = useApiMutation({
+    fn: (type: string) => api.delete(`admin/banners/${type}`),
+    invalidate: [['api', 'admin/banners']],
+    success: (_r, type) => (BUILTINS.some(d => d.type === type) ? `${type}: upload deleted, the built-in banner is back` : `${type} deleted`)
+  })
+
+  const columns: Column<Row>[] = [
     {
       key: 'preview',
       header: 'Preview',
+      cell: b =>
+        b.source === 'builtin' ? (
+          b.def?.image ? (
+            <img src={b.def.image} alt={b.type} className='bg-muted h-10 w-24 rounded object-cover' />
+          ) : (
+            <span className='bg-muted text-muted-foreground flex h-10 w-24 items-center justify-center rounded text-center text-[10px] leading-tight'>
+              {b.type === 'deposit-slide' ? 'Deposit card' : 'Logo poster'}
+            </span>
+          )
+        ) : (
+          <img src={bannerImageUrl(b)} alt={b.type} className='bg-muted h-10 w-24 rounded object-cover' onError={e => (e.currentTarget.style.visibility = 'hidden')} />
+        )
+    },
+    {
+      key: 'type',
+      header: 'Placement',
       cell: b => (
-         
-        <img src={bannerImageUrl(b)} alt={b.type} className='bg-muted h-10 w-24 rounded object-cover' onError={e => (e.currentTarget.style.visibility = 'hidden')} />
+        <span className='flex flex-col items-start gap-1'>
+          <span className='font-mono text-xs'>{b.type}</span>
+          {b.source === 'builtin' ? (
+            <Badge variant='secondary'>Built-in</Badge>
+          ) : b.def ? (
+            <Badge variant='outline'>Uploaded · replaces built-in</Badge>
+          ) : (
+            <Badge variant='outline'>Uploaded</Badge>
+          )}
+        </span>
       )
     },
-    { key: 'type', header: 'Placement', cell: b => <span className='font-mono text-xs'>{b.type}</span> },
     {
       key: 'copy',
       header: 'Copy',
       cell: b => (
         <span className='block max-w-80'>
-          <span className='block truncate text-sm'>{b.title ?? <span className='text-muted-foreground'>no title</span>}</span>
+          <span className='block truncate text-sm'>{b.title ?? (b.source === 'builtin' ? b.def?.label : null) ?? <span className='text-muted-foreground'>no title</span>}</span>
           <span className='text-muted-foreground block truncate text-xs'>{b.subtitle ?? ''}</span>
         </span>
       )
     },
     { key: 'cta', header: 'CTA', cell: b => (b.cta ? <span className='text-xs'>{b.cta.label} → <code>{b.cta.href}</code></span> : <span className='text-muted-foreground'>—</span>) },
-    { key: 'sort', header: 'Order', align: 'right', cell: b => <span className='tabular-nums'>{b.sortOrder}</span> },
+    { key: 'sort', header: 'Order', align: 'right', cell: b => <span className='tabular-nums'>{b.source === 'builtin' ? '—' : b.sortOrder}</span> },
     { key: 'active', header: 'Visible', cell: b => <Can permission='config:write' fallback={<StatusBadge value={b.active} />}><Switch checked={b.active} disabled={setActive.isPending} onCheckedChange={active => setActive.mutate({ type: b.type, active })} /></Can> },
-    { key: 'at', header: 'Updated', cell: b => <DateTime value={b.updatedAt ?? b.createdAt} relative /> },
-    { key: 'actions', header: '', align: 'right', cell: b => <Can permission='config:write'><UploadBanner existing={b} mode={mode} /></Can> }
+    { key: 'at', header: 'Updated', cell: b => (b.updatedAt || b.createdAt ? <DateTime value={b.updatedAt ?? b.createdAt} relative /> : <span className='text-muted-foreground'>—</span>) },
+    {
+      key: 'actions',
+      header: '',
+      align: 'right',
+      cell: b => (
+        <Can permission='config:write'>
+          <span className='flex justify-end gap-1'>
+            {b.source === 'builtin' ? (
+              b.def?.replaceable && <UploadBanner mode={mode} replaceBuiltin={b.def} />
+            ) : (
+              <>
+                <UploadBanner existing={b} mode={mode} />
+                <ConfirmDialog
+                  trigger={
+                    <Button variant='ghost' size='sm' className='text-destructive'>
+                      Delete
+                    </Button>
+                  }
+                  title={`Delete ${b.type}?`}
+                  description={
+                    b.def
+                      ? 'The uploaded image and copy are removed and the site shows its built-in banner in this slot again. Use the Visible switch instead to hide the slot.'
+                      : 'The image and copy are removed from the site. Use the Visible switch instead to only hide it.'
+                  }
+                  confirmLabel='Delete'
+                  destructive
+                  onConfirm={() => remove.mutateAsync(b.type)}
+                />
+              </>
+            )}
+          </span>
+        </Can>
+      )
+    }
   ]
 
   return (
@@ -269,8 +410,8 @@ const BannerList = ({ mode }: { mode: BannerMode }) => {
         title={mode === 'agent' ? 'Banners · Agent mode' : 'Banners · Direct users'}
         description={
           mode === 'agent'
-            ? 'The game slider agent players see after sign-in on /agent. Game banners only, linked to /casino or /sports.'
-            : 'Hero slides and promo artwork for direct players. A placement name is the address — re-uploading it replaces the image everywhere it is shown.'
+            ? 'The game slider agent players see after sign-in on /agent. Game banners only, linked to /casino or /sports. Uploading slide n replaces built-in slide n only.'
+            : 'Hero slides and promo artwork for direct players. Built-in banners are the site’s own art: switch any of them off, or replace one slot with your own upload — the rest stay.'
         }
         actions={
           <>
@@ -285,7 +426,7 @@ const BannerList = ({ mode }: { mode: BannerMode }) => {
       />
       <DataTable
         columns={columns}
-        rows={list.data}
+        rows={rows}
         rowKey={b => b.type}
         loading={list.isLoading}
         fetching={list.isFetching}
@@ -294,8 +435,8 @@ const BannerList = ({ mode }: { mode: BannerMode }) => {
           <span className='flex flex-col items-center gap-1'>
             <ImageIcon className='text-muted-foreground size-5' />
             {mode === 'agent'
-              ? 'No agent banner uploaded yet. /agent shows its four built-in game banners until one exists.'
-              : 'No banner uploaded yet. The site falls back to its built-in artwork until one exists.'}
+              ? 'Nothing to show — every agent banner is hidden. Turn on “Show hidden” to bring one back.'
+              : 'Nothing to show — every banner is hidden. Turn on “Show hidden” to bring one back.'}
           </span>
         }
       />

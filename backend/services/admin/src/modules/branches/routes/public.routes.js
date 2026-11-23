@@ -24,6 +24,7 @@ const { BranchesService } = require('../branches.service');
  *   POST /admin/branches/portal/players     { username, password, email?, phone }
  *   GET  /admin/branches/portal/statement   ?fromDate&toDate&category&userId&page&limit
  *   GET  /admin/branches/portal/players/:userId
+ *   PUT  /admin/branches/portal/players/:userId/password  { password }  (player signed out)
  *   GET  /admin/branches/portal/deposits    ?fromDate&toDate&status&userId&page&limit  (every rail, method + details)
  *   GET  /admin/branches/portal/withdrawals (same)
  *   GET  /admin/branches/portal/bets        ?kind=originals|casino|sports&fromDate&toDate&userId&page&limit
@@ -100,6 +101,15 @@ module.exports = function publicRoutes(deps) {
     branchOnly,
     validate(v.portalPlayer),
     asyncHandler(async (req, res) => response.ok(res, await service.player({ userId: req.params.userId, branchId: req.branch.id })))
+  );
+
+  router.put(
+    '/portal/players/:userId/password',
+    branchOnly,
+    validate(v.portalPlayerPassword),
+    asyncHandler(async (req, res) =>
+      response.ok(res, await service.setPlayerPassword({ password: req.body.password, userId: req.params.userId, branchId: req.branch.id }))
+    )
   );
 
   for (const kind of ['deposits', 'withdrawals']) {
