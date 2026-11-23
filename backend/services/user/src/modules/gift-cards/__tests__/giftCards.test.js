@@ -476,6 +476,7 @@ test('gift cards', async (t) => {
     // string turns `total + amount` into concatenation.
     assert.equal(typeof row.giftcards.amount, 'number');
     assert.equal(typeof row.giftcards.depositAmount, 'number');
+    assert.equal(row.giftcards.currency, 'USDT', 'list rows carry the reward currency like claimed rows');
     assert.equal(row.giftcards.depositStatus, true);
     assert.equal(row.giftcards.wagerStatus, true);
 
