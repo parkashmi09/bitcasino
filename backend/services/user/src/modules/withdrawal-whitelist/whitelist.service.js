@@ -1,10 +1,21 @@
 'use strict';
 
+const { Op } = require('sequelize');
+const { verifyPassword } = require('@ibitplay/auth');
+
 const errors = require('./whitelist.errors');
+const { TwoFactorService } = require('../twofa/twofa.service');
 
 /** One account cannot fill the table. Generous — a player with real payout
  *  habits has a handful, not fifty. */
 const MAX_ADDRESSES = 50;
+
+/** A new address, and a switch-off, take effect this long after they are asked for. */
+const COOL_OFF_MS = 24 * 60 * 60 * 1000;
+
+/** Enforcement as it stands now: on, and not past a pending switch-off. */
+const enforced = (user, now = new Date()) =>
+  Boolean(user?.withdraw_whitelist_only) && !(user.withdraw_whitelist_off_at && new Date(user.withdraw_whitelist_off_at) <= now);
 
 /**
  * The addresses a player has approved, and the switch that makes them binding.
@@ -15,9 +26,38 @@ const MAX_ADDRESSES = 50;
  * write, because adding an address is how stolen funds leave.
  */
 class WhitelistService {
-  constructor({ models, logger }) {
-    this.models = models;
-    this.logger = logger;
+  constructor(deps) {
+    this.models = deps.models;
+    this.logger = deps.logger;
+    this.deps = deps;
+  }
+
+  /**
+   * Step-up for the writes that loosen the list: the account password, and the 2FA code when
+   * 2FA is on. The same checks and codes as `TwoFactorService.disable` (PASSWORD_REQUIRED,
+   * TWOFA_INVALID_CODE), so a stolen session alone cannot add an address or switch enforcement off.
+   */
+  async #reauth(userId, { password, code } = {}) {
+    const user = await this.models.Users.findByPk(userId, { attributes: ['id', 'password'], raw: true });
+    const ok = user?.password ? await verifyPassword(String(password ?? ''), user.password) : false;
+    if (!ok) throw errors.PASSWORD_REQUIRED();
+
+    const twoFa = await this.models.User2fa.findOne({ where: { uid: String(userId), is_enabled: true }, attributes: ['uid'], raw: true });
+    // Built only here: its secret box needs JWT config that other callers of this service lack.
+    if (twoFa) await new TwoFactorService(this.deps).verify(userId, { code: String(code ?? '') });
+  }
+
+  async #switch(userId) {
+    return this.models.Users.findByPk(userId, {
+      attributes: ['withdraw_whitelist_only', 'withdraw_whitelist_off_at'],
+      raw: true,
+    });
+  }
+
+  /** The switch as the pane shows it: on now, and when a pending switch-off lands (null if none). */
+  #presentSwitch(user) {
+    const on = enforced(user);
+    return { whitelistOnly: on, offAt: on && user?.withdraw_whitelist_off_at ? new Date(user.withdraw_whitelist_off_at).toISOString() : null };
   }
 
   /**
@@ -34,11 +74,11 @@ class WhitelistService {
         order: [['created_at', 'DESC']],
         raw: true,
       }),
-      this.models.Users.findByPk(userId, { attributes: ['withdraw_whitelist_only'], raw: true }),
+      this.#switch(userId),
     ]);
 
     return {
-      whitelistOnly: Boolean(user?.withdraw_whitelist_only),
+      ...this.#presentSwitch(user),
       addresses: rows.map((r) => this.#present(r)),
     };
   }
@@ -54,7 +94,8 @@ class WhitelistService {
    * `trim` but no case change: several chains are case-sensitive and one is
    * case-CHECKSUMMED, so lower-casing an address can invalidate it.
    */
-  async add(userId, { label, currency, network, address, memo }) {
+  async add(userId, { label, currency, network, address, memo, password, code }) {
+    await this.#reauth(userId, { password, code });
     const count = await this.models.UserWithdrawalWhitelist.count({ where: { user_id: userId } });
     if (count >= MAX_ADDRESSES) throw errors.TOO_MANY_ADDRESSES({ max: MAX_ADDRESSES });
 
@@ -69,6 +110,8 @@ class WhitelistService {
         memo: memo || null,
         created_at: now,
         updated_at: now,
+        // Usable only after the cool-off: a hijacked account cannot add its own address and withdraw.
+        active_at: new Date(now.getTime() + COOL_OFF_MS),
       });
       return this.#present(row.get({ plain: true }));
     } catch (error) {
@@ -118,38 +161,44 @@ class WhitelistService {
    * whitelist entry the caller believes exists and does not is worth being
    * told about — it may mean somebody else removed it.
    *
-   * REMOVING THE LAST ADDRESS ALSO TURNS THE SWITCH OFF, in the same
-   * transaction-free pair, because the alternative is the lockout state
+   * REMOVING THE LAST ADDRESS ALSO SCHEDULES THE SWITCH OFF (24 h, like
+   * asking for it), because the alternative is the lockout state
    * `EMPTY_WHITELIST` exists to prevent, arrived at from the other direction.
+   * Needs the password (and 2FA code), as every loosening write does.
    */
-  async remove(userId, id) {
+  async remove(userId, id, { password, code } = {}) {
+    await this.#reauth(userId, { password, code });
     const affected = await this.models.UserWithdrawalWhitelist.destroy({
       where: { id, user_id: userId },
     });
     if (!affected) throw errors.ADDRESS_NOT_FOUND({ id: String(id) });
 
+    /* The last address gone: enforcement goes off on the same 24 h delay as asking for it,
+       so removing every address is not a faster way to turn it off. */
     const left = await this.models.UserWithdrawalWhitelist.count({ where: { user_id: userId } });
-    if (left === 0) {
-      await this.models.Users.update({ withdraw_whitelist_only: false }, { where: { id: userId } });
-    }
+    if (left === 0) await this.#scheduleOff(userId);
 
-    return { removed: true, remaining: left, whitelistOnly: left > 0 ? undefined : false };
+    return { removed: true, remaining: left, ...this.#presentSwitch(await this.#switch(userId)) };
   }
 
   /**
    * The master switch.
    *
    * Turning it ON against an empty list is refused — see `EMPTY_WHITELIST`.
-   * Turning it OFF is always allowed: a player must never need permission to
-   * restore their own access.
+   * Turning it OFF is always allowed, but needs the password (and 2FA code)
+   * and lands 24 h later (`offAt`), so a hijacked session cannot switch it off
+   * and withdraw at once. Turning it ON again cancels a pending switch-off.
    */
-  async setEnforcement(userId, enabled) {
+  async setEnforcement(userId, enabled, { password, code } = {}) {
     if (enabled) {
       const count = await this.models.UserWithdrawalWhitelist.count({ where: { user_id: userId } });
       if (count === 0) throw errors.EMPTY_WHITELIST();
+      // On at once, and any pending switch-off is cancelled.
+      await this.models.Users.update({ withdraw_whitelist_only: true, withdraw_whitelist_off_at: null }, { where: { id: userId } });
+    } else {
+      await this.#reauth(userId, { password, code });
+      await this.#scheduleOff(userId);
     }
-
-    await this.models.Users.update({ withdraw_whitelist_only: enabled }, { where: { id: userId } });
 
     /**
      * READ BACK rather than echo the argument.
@@ -162,13 +211,18 @@ class WhitelistService {
      * `packages/db/src/models/extensions.js` now, and this reads the row so the
      * two can never disagree again.
      */
-    const row = await this.models.Users.findByPk(userId, {
-      attributes: ['withdraw_whitelist_only'],
-      raw: true,
-    });
+    const row = await this.#switch(userId);
 
     this.logger?.info({ userId: String(userId), enabled }, 'Withdrawal whitelist enforcement changed');
-    return { whitelistOnly: Boolean(row?.withdraw_whitelist_only) };
+    return this.#presentSwitch(row);
+  }
+
+  /** Off in 24 h, if it is on and no switch-off is already pending (an earlier one is kept). */
+  async #scheduleOff(userId) {
+    await this.models.Users.update(
+      { withdraw_whitelist_off_at: new Date(Date.now() + COOL_OFF_MS) },
+      { where: { id: userId, withdraw_whitelist_only: true, withdraw_whitelist_off_at: null } }
+    );
   }
 
   /**
@@ -185,15 +239,16 @@ class WhitelistService {
    */
   async isAllowed(userId, { currency, address }, { transaction } = {}) {
     const user = await this.models.Users.findByPk(userId, {
-      attributes: ['withdraw_whitelist_only'],
+      attributes: ['withdraw_whitelist_only', 'withdraw_whitelist_off_at'],
       raw: true,
       transaction,
     });
-    if (!user?.withdraw_whitelist_only) return true;
+    if (!enforced(user)) return true;
 
+    // Only an address past its 24 h cool-off counts.
     const match = await this.models.UserWithdrawalWhitelist.findOne({
       attributes: ['id'],
-      where: { user_id: userId, currency: String(currency).toUpperCase(), address },
+      where: { user_id: userId, currency: String(currency).toUpperCase(), address, active_at: { [Op.lte]: new Date() } },
       transaction,
       ...(transaction ? { lock: transaction.LOCK.SHARE } : {}),
     });
@@ -210,8 +265,9 @@ class WhitelistService {
       memo: row.memo,
       createdAt: row.created_at,
       updatedAt: row.updated_at,
+      activeAt: row.active_at,
     };
   }
 }
 
-module.exports = { WhitelistService, MAX_ADDRESSES };
+module.exports = { WhitelistService, MAX_ADDRESSES, COOL_OFF_MS };

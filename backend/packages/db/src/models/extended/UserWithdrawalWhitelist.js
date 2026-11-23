@@ -29,6 +29,8 @@ module.exports = (sequelize) => {
       /** Destination tag / memo — required by some chains, absent on most. */
       memo: { type: DataTypes.STRING(120), allowNull: true, field: 'memo' },
       created_at: { type: DataTypes.DATE, allowNull: false, field: 'created_at' },
+      /** Usable for withdrawals from here: added + 24 h (migration 194). */
+      active_at: { type: DataTypes.DATE, allowNull: false, field: 'active_at' },
       updated_at: { type: DataTypes.DATE, allowNull: false, field: 'updated_at' },
     },
     {
