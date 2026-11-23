@@ -1038,7 +1038,8 @@ class AuthService {
   /** Sessions the player is signed in on, so they can spot one they do not recognise. */
   async listSessions(userId, currentSessionId = null) {
     const rows = await this.models.AuthSession.findAll({
-      where: { user_id: userId, revoked_at: null, expires_at: { [Op.gt]: new Date() } },
+      // A refreshed row lives on with `replaced_by` set (reuse detection); only the chain's head is a device.
+      where: { user_id: userId, revoked_at: null, replaced_by: null, expires_at: { [Op.gt]: new Date() } },
       attributes: ['id', 'ip_address', 'user_agent', 'device_label', 'last_used_at', 'created_at', 'expires_at'],
       order: [['last_used_at', 'DESC NULLS LAST'], ['id', 'DESC']],
       raw: true,

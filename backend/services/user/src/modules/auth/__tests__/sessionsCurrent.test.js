@@ -23,3 +23,13 @@ test('sessions: isCurrent marks the calling session only', async () => {
   // A token without a sid marks nothing.
   assert.ok((await service.listSessions(7, null)).every((r) => r.isCurrent === false));
 });
+
+/** A refresh mints a new row and keeps the old one (`replaced_by`); the list shows one row per device. */
+test('sessions: rotated rows are not listed as devices', async () => {
+  let where;
+  const models = { AuthSession: { findAll: async (q) => ((where = q.where), []) } };
+  const service = new AuthService({ models, db: {}, config: BASE, logger: null });
+  await service.listSessions(7, 12);
+  assert.equal(where.replaced_by, null);
+  assert.equal(where.revoked_at, null);
+});
