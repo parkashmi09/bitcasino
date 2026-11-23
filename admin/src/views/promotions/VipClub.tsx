@@ -206,7 +206,8 @@ type LadderRow = VipLevel & { enabled?: boolean; custom?: boolean }
 
 const VipLadder = () => {
   const q = useApi<VipLadder>('user/vip/levels')
-  const branding = useApi<Branding>(BRANDING)
+  // `admin/vip-branding` is config:read: without it the ladder shows the player route's bands, and no badges or perks.
+  const branding = useApi<Branding>(useSession().can('config:read') ? BRANDING : null)
   const named = new Map((branding.data?.levels ?? []).map(l => [l.level, l]))
 
   // Bands are stored in USD; shown in the owner's default coin at today's rate.

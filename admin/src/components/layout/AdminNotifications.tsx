@@ -11,6 +11,7 @@ import { BellIcon, Volume2Icon, VolumeXIcon } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { navItems, type NavMarks } from '@/configs/navConfig'
+import { useSession } from '@/contexts/SessionContext'
 import { usePagedApi } from '@/hooks/use-api'
 import { useNavVisible } from '@/hooks/use-nav-visible'
 
@@ -29,13 +30,13 @@ import { useNavVisible } from '@/hooks/use-nav-visible'
 const POLL_MS = 20_000
 const MUTE_KEY = 'admin:notify-muted'
 
-type Source = { key: string; label: string; href: string; nav: string; path: string; query: Record<string, string>; id: (row: Record<string, unknown>) => number }
+type Source = { key: string; label: string; href: string; nav: string; path: string; permission: string; query: Record<string, string>; id: (row: Record<string, unknown>) => number }
 
 const SOURCES: Source[] = [
-  { key: 'dep', label: 'Deposit requests', href: '/transactions/deposit', nav: '/transactions/deposit', path: 'admin/user/deposits/fiat', query: { status: 'pending', channel: 'direct' }, id: r => Number(r.depositId) },
-  { key: 'wd', label: 'Withdrawal requests', href: '/transactions/withdraw', nav: '/transactions/withdraw', path: 'admin/user/withdrawals/fiat', query: { status: 'In Queue', channel: 'direct' }, id: r => Number(r.withdrawalId) },
-  { key: 'cwd', label: 'Crypto withdrawals', href: '/transactions/withdraw', nav: '/transactions/withdraw', path: 'admin/user/withdrawals/crypto', query: { status: 'In Queue', channel: 'direct' }, id: r => Number(r.id) },
-  { key: 'kyc', label: 'KYC applications', href: '/kyc', nav: '/kyc', path: 'admin/user/kyc/applications', query: { status: 'Pending' }, id: r => Number(r.id) }
+  { key: 'dep', label: 'Deposit requests', href: '/transactions/deposit', nav: '/transactions/deposit', path: 'admin/user/deposits/fiat', permission: 'deposits:read', query: { status: 'pending', channel: 'direct' }, id: r => Number(r.depositId) },
+  { key: 'wd', label: 'Withdrawal requests', href: '/transactions/withdraw', nav: '/transactions/withdraw', path: 'admin/user/withdrawals/fiat', permission: 'withdrawals:read', query: { status: 'In Queue', channel: 'direct' }, id: r => Number(r.withdrawalId) },
+  { key: 'cwd', label: 'Crypto withdrawals', href: '/transactions/withdraw', nav: '/transactions/withdraw', path: 'admin/user/withdrawals/crypto', permission: 'withdrawals:read', query: { status: 'In Queue', channel: 'direct' }, id: r => Number(r.id) },
+  { key: 'kyc', label: 'KYC applications', href: '/kyc', nav: '/kyc', path: 'admin/user/kyc/applications', permission: 'users:read', query: { status: 'Pending' }, id: r => Number(r.id) }
 ]
 
 /** The menu entry's marks for `href`, so a queue is gated exactly like its page link. */
@@ -80,11 +81,13 @@ const useQueue = (source: Source, enabled: boolean) => {
 
 const AdminNotifications = () => {
   const visible = useNavVisible()
+  const { can } = useSession()
 
+  // The menu entry opens on users:read too; the queue itself is the source route's own guard.
   const on = SOURCES.map(s => {
     const marks = navMarks(s.nav)
 
-    return !!marks && visible(marks)
+    return !!marks && visible(marks) && can(s.permission)
   })
 
   const queues = [useQueue(SOURCES[0], on[0]), useQueue(SOURCES[1], on[1]), useQueue(SOURCES[2], on[2]), useQueue(SOURCES[3], on[3])]

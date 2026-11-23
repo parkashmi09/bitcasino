@@ -21,8 +21,10 @@ export const PUBLIC_CURRENCIES_PATH = 'admin/currencies/public'
  * registry (403 CURRENCIES_HOUSE_ONLY), so it reads the public list, which is the same set.
  */
 function useOwnerCodes(): string[] | null {
-  const { actor } = useSession()
-  const house = actor?.promotions !== false
+  const { actor, can } = useSession()
+
+  // The registry is config:read; a house login without it (e.g. a reports-only executive) reads the public list too.
+  const house = actor?.promotions !== false && can('config:read')
   const options = { retry: false, staleTime: 60_000 }
   const registry = useApi<CurrencyRow[]>(house ? CURRENCIES_PATH : null, undefined, options)
   const open = useApi<Array<{ code: string }>>(house ? null : PUBLIC_CURRENCIES_PATH, undefined, options)
