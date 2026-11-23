@@ -8,6 +8,8 @@ const SOURCE = Object.freeze({
   MONTHLY_DEPOSIT: 'monthly_deposit',
   // A share of the player's net loss over a period, claimed by the player (../loss-bonus).
   LOSS_BONUS: 'loss_bonus',
+  // A completed Quest Hub daily quest, claimed by the player (../quests).
+  QUEST: 'quest',
 });
 
 const SOURCES = Object.freeze(Object.values(SOURCE));
@@ -27,6 +29,7 @@ const REF_TYPE = Object.freeze({
   [SOURCE.SPIN_WHEEL]: 'SPIN_WHEEL_BONUS',
   [SOURCE.MONTHLY_DEPOSIT]: 'DEPOSIT_BONUS',
   [SOURCE.LOSS_BONUS]: 'LOSS_BONUS',
+  [SOURCE.QUEST]: 'QUEST_REWARD',
 });
 const refTypeOf = (source) => REF_TYPE[source] ?? 'PLAYER_BONUS';
 
@@ -35,6 +38,7 @@ const LABEL = Object.freeze({
   [SOURCE.SPIN_WHEEL]: 'Spin wheel bonus',
   [SOURCE.MONTHLY_DEPOSIT]: 'Deposit bonus',
   [SOURCE.LOSS_BONUS]: 'Loss bonus',
+  [SOURCE.QUEST]: 'Quest reward',
 });
 const labelOf = (source) => LABEL[source] ?? 'Bonus';
 
