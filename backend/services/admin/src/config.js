@@ -38,6 +38,9 @@ const config = loadEnv(
     // The ceiling on a single direct wallet refill. Legacy had none — one
     // request could credit any amount an operator typed.
     ADMIN_MAX_REFILL: coercers.str('1000000'),
+    // The JSON body limit of this service only (the shared BODY_LIMIT stays 1 MB for the others):
+    // a whitelabel's two home posters, 2 MB each, travel as base64 in one body.
+    ADMIN_BODY_LIMIT: coercers.str('6mb'),
 
     /**
      * The owner panel — what this site is entitled to. See docs/OWNER-PANEL.md.

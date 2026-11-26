@@ -4,9 +4,10 @@ const crypto = require('crypto');
 const { Router } = require('express');
 const { z, validate, noBody, response, asyncHandler, createRateLimiter, UnauthorizedError, whitelabelPlan } = require('@ibitplay/common');
 
-const { WhitelabelLinkService, PALETTE_KEYS } = require('../whitelabelLink.service');
+const { WhitelabelLinkService, paletteShape, adminThemeSchema } = require('../whitelabelLink.service');
 const { brandingStore } = require('../../branding/branding.store');
 const { BannersService } = require('../../banners/banners.service');
+const { SiteConfigService } = require('../../site-config/siteConfig.service');
 
 /** Constant-time, like the owner key (modules/owner). Unset secret = never matches. */
 function keyMatches(given, secret) {
@@ -57,17 +58,22 @@ const schemas = {
   },
   password: { body: z.object({ password: z.string().min(8).max(200) }).strict() },
   maintenance: { body: z.object({ on: z.boolean() }).strict() },
-  // The home-page poster: banner placements `home` / `home_mobile` (the player site's hero art).
+  // The Recent Big Wins coin (operator setting `big_wins_currency`); null = each viewer's own currency.
+  bigWinsCurrency: { body: z.object({ currency: z.string().trim().regex(/^[A-Za-z0-9]{2,10}$/).nullable() }).strict() },
+  // The home-page poster: banner placements `home` / `home_mobile` (the player site's hero art),
+  // at most 2 MB (≈2.8 MB as base64, inside this service's ADMIN_BODY_LIMIT).
   poster: {
     body: z
-      .object({ placement: z.enum(['home', 'home_mobile']), type: z.enum(['image/png', 'image/jpeg', 'image/webp']), data: z.string().min(1).max(820_000) })
+      .object({ placement: z.enum(['home', 'home_mobile']), type: z.enum(['image/png', 'image/jpeg', 'image/webp']), data: z.string().min(1).max(2_800_000) })
       .strict(),
   },
   // The logo or the square mark (favicon), base64; the branding store checks the bytes.
   branding: {
     body: z
-      .object({ slot: z.enum(['logo', 'mark']), type: z.enum(['image/png', 'image/webp', 'image/svg+xml']), data: z.string().min(1).max(360_000) })
-      .strict(),
+      .object({ slot: z.enum(['logo', 'mark', 'loader']), type: z.enum(['image/png', 'image/webp', 'image/svg+xml']), data: z.string().min(1).max(1_400_000) })
+      .strict()
+      // The loading picture may be up to 1 MB; logo and icon stay at 256 KB (≈350 KB base64).
+      .refine((b) => b.slot === 'loader' || b.data.length <= 360_000, { path: ['data'], message: 'at most 256 KB' }),
   },
   // Products and features the parent sold this copy; at least one product.
   plan: { body: z.object({ plan: planSchema() }).strict() },
@@ -94,12 +100,14 @@ const schemas = {
     body: z
       .object({
         palette: z
-          .object(Object.fromEntries(PALETTE_KEYS.map((k) => [k, z.string().regex(/^#[0-9a-fA-F]{6}$/, 'must be #RRGGBB')])))
+          .object(paletteShape(z))
           .strict()
           .nullable(),
       })
       .strict(),
   },
+  // The admin panel's colours; null = follow the player site.
+  adminTheme: { body: z.object({ adminTheme: adminThemeSchema(z) }).strict() },
 };
 
 module.exports = publicRoutes;
@@ -158,6 +166,17 @@ function publicRoutes(deps) {
       return response.ok(res, await store.setSite(req.body.slot, Buffer.from(req.body.data, 'base64'), { staff: null, ownerBranding }));
     })
   );
+  // The loading picture: what the copy shows now (its public asset path, or null), and back to the default.
+  router.get('/branding/loader', asyncHandler(async (_req, res) => {
+    const store = deps.brandingStore ?? brandingStore(deps);
+    const current = deps.entitlementsStore?.current() ?? {};
+    return response.ok(res, { path: store.view(current.branding ?? null, current.version ?? 0).loaderUrl ?? null });
+  }));
+  router.delete('/branding/loader', noBody(), asyncHandler(async (_req, res) => {
+    const store = deps.brandingStore ?? brandingStore(deps);
+    await store.clearSite('loader', { ownerBranding: deps.entitlementsStore?.current()?.branding ?? null });
+    return response.ok(res, { path: null });
+  }));
   router.put(
     '/poster',
     validate(schemas.poster),
@@ -181,7 +200,22 @@ function publicRoutes(deps) {
   router.get('/ggr', validate(schemas.ggr), asyncHandler(async (req, res) => response.ok(res, await service.sportsGgr(req.query))));
   router.put('/hub', validate(schemas.hub), asyncHandler(async (req, res) => response.ok(res, await service.setHub(req.body))));
   router.put('/palette', validate(schemas.palette), asyncHandler(async (req, res) => response.ok(res, await service.setPalette(req.body.palette))));
+  router.put('/admin-theme', validate(schemas.adminTheme), asyncHandler(async (req, res) => response.ok(res, await service.setAdminTheme(req.body.adminTheme))));
   router.put('/maintenance', validate(schemas.maintenance), asyncHandler(async (req, res) => response.ok(res, await service.setMaintenance(req.body.on))));
+  const bigWinsCurrency = async () => {
+    const settings = await new SiteConfigService(deps).operatorSettings();
+    const row = settings.find((s) => s.key === 'big_wins_currency');
+    return { currency: row?.value ? String(row.value).toUpperCase() : null };
+  };
+  router.get('/big-wins-currency', asyncHandler(async (_req, res) => response.ok(res, await bigWinsCurrency())));
+  router.put(
+    '/big-wins-currency',
+    validate(schemas.bigWinsCurrency),
+    asyncHandler(async (req, res) => {
+      await new SiteConfigService(deps).updateOperatorSettings({ patch: { big_wins_currency: req.body.currency }, staffId: null });
+      return response.ok(res, await bigWinsCurrency());
+    })
+  );
   router.post('/preview', noBody(), asyncHandler(async (_req, res) => response.ok(res, await service.preview())));
 
   return router;

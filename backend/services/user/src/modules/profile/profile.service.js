@@ -5,8 +5,8 @@ const { verifyPassword } = require('@ibitplay/auth');
 
 const errors = require('./profile.errors');
 const avatarErrors = require('./avatar.errors');
-const { resolveVipLadder } = require('@ibitplay/common');
-const { resolveReferrerOwner, referralLinkFor } = require('../affiliate/referrerResolver');
+const { resolveVipLadder, operatorSettings } = require('@ibitplay/common');
+const { resolveReferrerOwner, resolveBranchByCode, referralLinkFor } = require('../affiliate/referrerResolver');
 
 /**
  * A player's own profile.
@@ -20,7 +20,7 @@ const { resolveReferrerOwner, referralLinkFor } = require('../affiliate/referrer
  * makes a duplicate a genuine authentication problem rather than a cosmetic one.
  */
 class ProfileService {
-  constructor({ models, db, config, logger, clients }) {
+  constructor({ models, db, config, logger, clients, operatorSettings: settings }) {
     this.models = models;
     this.db = db;
     this.config = config;
@@ -28,6 +28,8 @@ class ProfileService {
     /* `publicProfile` asks casino-service for the bet counts; nothing else
        here leaves this service. */
     this.clients = clients;
+    /* The site admin's avatar switch (`avatars_enabled`, Admin → Content → Avatars). */
+    this.settings = settings ?? operatorSettings({ clients, logger, config });
   }
 
   /**
@@ -149,9 +151,14 @@ class ProfileService {
   /**
    * Pick an avatar from the operator's set (Admin → Avatars, migration 115). Refused when it is
    * missing or switched off (404 `AVATAR_NOT_FOUND`) or unlocks above the player's computed VIP
-   * level (403 `AVATAR_LOCKED`). Stores the avatar's image URL in `users.avatar`.
+   * level (403 `AVATAR_LOCKED`), and while the site admin has avatars switched off (403
+   * `AVATAR_DISABLED`). Stores the avatar's image URL in `users.avatar`.
    */
   async setAvatar(userId, avatarId) {
+    // Avatars switched off site-wide (the default): nobody may pick one.
+    const on = await this.settings.read('avatars_enabled', false);
+    if (String(on) !== 'true') throw avatarErrors.DISABLED();
+
     let avatar;
     try {
       avatar = await this.clients.admin.get(`/internal/admin/avatars/${Number(avatarId)}`);
@@ -175,7 +182,8 @@ class ProfileService {
         attributes: [
           'id', 'name', 'email', 'phone', 'country', 'avatar', 'level',
           'referalcode', 'referral_link', 'status', 'two_fa_status',
-          'games_played', 'last_login_at', 'created', 'created_estimated', 'email_verified_at',
+          'games_played', 'last_login_at', 'created', 'created_estimated',
+          'must_change_password',
         ],
         raw: true,
       }),
@@ -201,6 +209,8 @@ class ProfileService {
       referralLink: referralLinkFor(this.config, user.referalcode),
       status: user.status,
       twoFactorEnabled: Boolean(user.two_fa_status),
+      /** An agent's player still on the password a staff member chose: the site opens the change-password dialog. */
+      mustChangePassword: user.must_change_password === true,
       gamesPlayed: user.games_played,
       lastLoginAt: user.last_login_at,
       /**
@@ -359,6 +369,8 @@ class ProfileService {
    * stranger map codes to accounts.
    */
   async verifyReferralCode(referralCode) {
+    // A branch's sign-up code (migration 181) is as good as a player's.
+    if (await resolveBranchByCode(this.models, referralCode)) return { valid: true };
     const owner = await resolveReferrerOwner(this.models, referralCode);
     return { valid: Boolean(owner) };
   }

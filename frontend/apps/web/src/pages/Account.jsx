@@ -11,6 +11,7 @@ import {
 import { COUNTRIES } from '@/data/countries';
 import { useProfile } from '@/hooks/useProfile';
 import { useGates } from '@/hooks/useGates';
+import { useAvatarsEnabled } from '@/queries/siteConfig';
 import { useAuth } from '@/auth/AuthProvider';
 import { useKycStatus } from '@/queries';
 import { cn } from '@/lib/cn';
@@ -89,6 +90,7 @@ export function Account() {
   // their profile (backend PROFILE_EDIT_NOT_FOR_AGENT_USERS).
   const gates = useGates();
   const { agentPlayer } = gates;
+  const avatarsOn = useAvatarsEnabled();
   const { user, refreshUser } = useAuth();
 
   const [form, setForm] = useState(null);
@@ -169,8 +171,9 @@ export function Account() {
         <div className="grid h-max gap-4 rounded-i-md bg-gohan p-4 [@media(min-width:1500px)]:order-1">
           <div className="grid gap-4">
             <div className="flex items-center gap-3">
-              {/* The avatar opens the picker; `profileEdit` off (an agent's player) leaves it a picture. */}
-              {profile && gates.can('profileEdit') ? (
+              {/* The avatar opens the picker; `profileEdit` off (an agent's player) or avatars switched
+                  off site-wide leaves it a picture. */}
+              {profile && gates.can('profileEdit') && avatarsOn ? (
                 <button
                   type="button"
                   onClick={() => setDialog('avatar')}

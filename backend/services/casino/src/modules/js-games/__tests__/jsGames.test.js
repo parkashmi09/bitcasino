@@ -189,12 +189,14 @@ test('jsGames', async (t) => {
   /** A v2 callback, signed with the provider's own scheme. */
   const v2Callback = (body, { at = Date.now(), signature } = {}) => {
     const timestamp = String(at);
+    // The provider signs `<timestamp>.<raw body>`; the raw bytes travel with the parsed body.
+    const rawBody = JSON.stringify(body);
     return {
       body,
+      rawBody,
       headers: {
-        'x-api-key': API_KEY,
         'x-timestamp': timestamp,
-        'x-signature': signature ?? v2.sign({ ...body, timestamp }),
+        'x-signature': signature ?? v2.signCallback(timestamp, rawBody),
       },
     };
   };
@@ -393,23 +395,53 @@ test('jsGames', async (t) => {
 
     const honest = v2Callback(payout(uid, newRound(), '1'));
     honest.body.win_amount = '5000';
+    honest.rawBody = JSON.stringify(honest.body);
 
     const result = await service.betCallbackV2(honest);
     assert.equal(result.success, false);
     assert.equal(balances.get(String(uid)), '100');
   });
 
-  await t.test('v2 refuses a replayed signature once its timestamp expires', async () => {
+  await t.test('v2 accepts a callback re-sent long after it was signed, and applies it once', async () => {
+    // The provider re-sends an unconfirmed win "until you confirm it", with the signature it
+    // first carried. Freshness would refuse it for ever; the serial makes the re-send harmless.
     const uid = await seedPlayer(newUid());
     const balances = new Map([[String(uid), '100']]);
     const { service } = build(balances);
 
-    const result = await service.betCallbackV2(
-      v2Callback(stake(uid, newRound(), '50'), { at: Date.now() - 3600_000 })
-    );
+    const old = v2Callback(stake(uid, newRound(), '50'), { at: Date.now() - 3 * 86_400_000 });
+    assert.equal((await service.betCallbackV2(old)).success, true);
+    const again = await service.betCallbackV2(old);
+    assert.equal(again.success, true);
+    assert.equal(again.duplicate, true);
+    assert.equal(balances.get(String(uid)), '50.00000000');
+  });
 
-    assert.equal(result.success, false);
-    assert.equal(balances.get(String(uid)), '100');
+  await t.test('v2 takes TWO stakes on one round when each has its own serial', async () => {
+    // A live table: several chips on one `game_round`, one callback each. Keyed on the round
+    // alone, the second was answered as a retry of the first and never debited.
+    const uid = await seedPlayer(newUid());
+    const balances = new Map([[String(uid), '100']]);
+    const { service } = build(balances);
+    const round = newRound();
+
+    assert.equal((await service.betCallbackV2(v2Callback(stake(uid, round, '10')))).success, true);
+    const second = await service.betCallbackV2(v2Callback(stake(uid, round, '15')));
+    assert.equal(second.success, true);
+    assert.notEqual(second.duplicate, true);
+    assert.equal(balances.get(String(uid)), '75.00000000');
+  });
+
+  await t.test('v2 answers the provider\'s test callback without touching anything', async () => {
+    const uid = await seedPlayer(newUid());
+    const balances = new Map([[String(uid), '100']]);
+    const { service } = build(balances);
+
+    const probe = v2Callback({ ...stake(uid, newRound(), '0'), currency: 'INR' });
+    probe.headers['x-test-callback'] = '1';
+    const result = await service.betCallbackV2(probe);
+    assert.equal(result.success, true);
+    assert.equal(await models.GameTransaction.count({ where: { user_id: uid } }), 0);
   });
 
   await t.test("v2 refuses the literal round id 'unknown'", async () => {
@@ -493,7 +525,8 @@ test('jsGames', async (t) => {
     const round = newRound();
 
     const first = await service.betCallbackV2(v2Callback(stake(a, round, '10')));
-    const second = await service.betCallbackV2(v2Callback(stake(b, round, '10')));
+    const bStake = stake(b, round, '10');
+    const second = await service.betCallbackV2(v2Callback(bStake));
 
     assert.equal(first.success, true);
     assert.equal(second.success, true);
@@ -501,8 +534,8 @@ test('jsGames', async (t) => {
     assert.equal(balances.get(String(a)), '90.00000000');
     assert.equal(balances.get(String(b)), '90.00000000', 'and B was actually debited');
 
-    // The same player's retry is still a duplicate.
-    const retry = await service.betCallbackV2(v2Callback(stake(b, round, '10')));
+    // The same player's retry (same serial) is still a duplicate.
+    const retry = await service.betCallbackV2(v2Callback(bStake));
     assert.equal(retry.duplicate, true);
     assert.equal(balances.get(String(b)), '90.00000000');
   });
@@ -629,10 +662,12 @@ test('jsGames', async (t) => {
     const { service, clients } = build(balances);
     const round = newRound();
 
-    await service.betCallbackV2(v2Callback(stake(uid, round, '10')));
+    const once = stake(uid, round, '10');
+    await service.betCallbackV2(v2Callback(once));
     assert.equal(records(clients).length, 1);
 
-    await service.betCallbackV2(v2Callback(stake(uid, round, '10')));
+    // A replay repeats the serial (a new serial is a second stake, migration 196).
+    await service.betCallbackV2(v2Callback(once));
     await service.betCallbackV2(v2Callback(payout(uid, round, '30')));
 
     assert.equal(records(clients).length, 1, 'one stake, one record');
@@ -975,7 +1010,7 @@ test('jsGames', async (t) => {
 
   await t.test('an unconfigured v2 client verifies nothing', async () => {
     const blank = new XGamesApiClient({ baseUrl: '', apiKey: '', apiSecret: '' });
-    assert.equal(blank.verify({ body: {}, headers: {} }), 'not configured');
+    assert.equal(blank.verify({ rawBody: '{}', headers: {} }), 'not configured');
   });
 
   // Referenced so the import is not merely decorative — the digest below is the

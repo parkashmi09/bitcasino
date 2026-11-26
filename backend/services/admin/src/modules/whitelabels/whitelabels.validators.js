@@ -1,7 +1,7 @@
 'use strict';
 
 const { z, featureCatalogue, whitelabelPlan } = require('@ibitplay/common');
-const { PALETTE_KEYS } = require('../whitelabel-link/whitelabelLink.service');
+const { paletteShape, adminThemeSchema } = require('../whitelabel-link/whitelabelLink.service');
 // The copy validates the same shape (its link PUT /plan), so the two sides cannot drift.
 const { planSchema } = require('../whitelabel-link/routes/public.routes');
 
@@ -32,12 +32,13 @@ const text = (max) => z.string().trim().max(max).refine((v) => !/[<>\u0000-\u001
 const password = z.string().min(8, 'password must be at least 8 characters').max(72, 'password must be at most 72 characters');
 
 const palette = z
-  .object(Object.fromEntries(PALETTE_KEYS.map((k) => [k, z.string().regex(/^#[0-9a-fA-F]{6}$/, 'must be #RRGGBB')])))
+  .object(paletteShape(z))
   .strict();
 
 const image = z.object({ type: z.enum(['image/png', 'image/webp', 'image/svg+xml']), data: z.string().max(360_000) }).strict();
-// A poster is a photo: PNG, JPEG or WebP, at most 600 KB (as base64 it stays inside the 1 MB body).
-const poster = z.object({ type: z.enum(['image/png', 'image/jpeg', 'image/webp']), data: z.string().max(820_000) }).strict();
+// A poster is a photo: PNG, JPEG or WebP, at most 2 MB (≈2.8 MB as base64; two of them stay inside
+// the admin service's 6 MB body, ADMIN_BODY_LIMIT).
+const poster = z.object({ type: z.enum(['image/png', 'image/jpeg', 'image/webp']), data: z.string().max(2_800_000) }).strict();
 
 /** A percentage: 0–100, at most 2 decimals, as a string (no float rounding on the way). */
 const percent = z
@@ -118,7 +119,11 @@ module.exports = {
   },
   password: { ...params, body: z.object({ password }).strict() },
   maintenance: { ...params, body: z.object({ on: z.boolean() }).strict() },
+  // The loading picture: up to 1 MB (≈1.4 MB as base64); the service checks the bytes.
+  loader: { ...params, body: z.object({ type: z.enum(['image/png', 'image/webp', 'image/svg+xml']), data: z.string().min(1).max(1_400_000) }).strict() },
+  bigWinsCurrency: { ...params, body: z.object({ currency: z.string().trim().regex(/^[A-Za-z0-9]{2,10}$/).nullable() }).strict() },
   palette: { ...params, body: z.object({ palette: palette.nullable() }).strict() },
+  adminTheme: { ...params, body: z.object({ adminTheme: adminThemeSchema(z) }).strict() },
   plan: { ...params, body: z.object({ plan: planSchema() }).strict() },
   terms: { ...params, body: z.object({ terms }).strict() },
   poster: {

@@ -77,8 +77,10 @@ const ExposureTab = () => {
 }
 
 const RiskReview = () => {
-  // Net exposure is the exchange's open book: no tab while the owner runs the sportsbook.
-  const exchange = useSession().flagEntitled('sportsexchange')
+  // Net exposure is the exchange's open book: no tab while the owner runs the sportsbook, nor
+  // without users:read (the guard of `admin/accounts/exposure/sports`).
+  const { flagEntitled, can } = useSession()
+  const exchange = flagEntitled('sportsexchange') && can('users:read')
 
   return (
     <div>

@@ -150,4 +150,86 @@ async function forwardOg(deps, { whitelabelId, playerId, action, body }, error) 
   return answer ?? error('INTERNAL_ERROR', { currency });
 }
 
-module.exports = { whitelabelPlayer, forwardGis, forwardOg, recordRounds, gisRounds };
+/**
+ * JSGames V2 takes a player id of digits only, 11 at most — `wl<id>_<player>` does not fit, and a
+ * copy's own ids (10 digits) fill the space. So the parent issues each copy player a numeric ALIAS
+ * (`whitelabel_js_players`, migration 197) and that is who the provider knows. Aliases start at
+ * 11 digits: above every 10-digit player id of the parent's own, so a callback's id says which.
+ */
+const JS_ALIAS_FROM = 10_000_000_000;
+const JS_ALIAS_TO = 99_999_999_999;
+
+/** The alias of a copy's player, issued on first use. Always the same for the same player. */
+async function jsAlias(deps, { whitelabelId, playerId }) {
+  const [row] = await deps.db.sequelize.query(
+    `INSERT INTO whitelabel_js_players (whitelabel_id, player_id) VALUES (:whitelabelId, :playerId)
+     ON CONFLICT (whitelabel_id, player_id) DO UPDATE SET player_id = EXCLUDED.player_id
+     RETURNING alias`,
+    { replacements: { whitelabelId, playerId: String(playerId) }, type: QueryTypes.SELECT }
+  );
+  const alias = Number(row?.alias);
+  if (!Number.isSafeInteger(alias) || alias < JS_ALIAS_FROM || alias > JS_ALIAS_TO) throw new Error('no JSGames player id could be issued for this whitelabel player');
+  return alias;
+}
+
+/** `{ whitelabelId, playerId }` behind an alias, else null. */
+async function jsPlayerByAlias(deps, alias) {
+  const [row] = await deps.db.sequelize.query(
+    `SELECT whitelabel_id, player_id FROM whitelabel_js_players WHERE alias = :alias`,
+    { replacements: { alias: String(alias) }, type: QueryTypes.SELECT }
+  );
+  return row ? { whitelabelId: Number(row.whitelabel_id), playerId: String(row.player_id) } : null;
+}
+
+/**
+ * JSGames V2's rounds in one callback: the stake and the payout it carries, either of which may be
+ * negative (the provider correcting a round). `game_round` is per player and one round arrives in
+ * several callbacks, so the row's id is whitelabel, player, round and the callback's serial.
+ */
+function jsRounds({ whitelabelId, playerId, body }) {
+  const id = `${whitelabelId}:${playerId}:${body.game_round}:${body.serial_number ?? ''}`;
+  const nonZero = (v) => {
+    try {
+      return money.toMinorQuantised(String(v ?? '0')) !== 0n;
+    } catch {
+      return false;
+    }
+  };
+  const rows = [];
+  if (nonZero(body.bet_amount)) rows.push({ kind: 'bet', transactionId: id, amount: body.bet_amount });
+  if (nonZero(body.win_amount)) rows.push({ kind: 'win', transactionId: id, amount: body.win_amount });
+  return rows;
+}
+
+/**
+ * Pass a verified JSGames V2 bet callback to the copy and answer with the copy's answer (JSGames'
+ * own envelope: `{ success, new_balance }` or `{ success: false, error }`). A copy that does not
+ * answer = the callback failed; JSGames retries and the copy applies each round once.
+ * `hub` is replaceable in tests.
+ */
+async function forwardJs(deps, { whitelabelId, playerId, body }, hub = { whitelabelById, callCopy }) {
+  const wl = await hub.whitelabelById(deps, whitelabelId);
+  if (!wl || wl.status !== 'live' || !wl.secret) return { success: false, error: 'Invalid payload' };
+  let answer;
+  try {
+    answer = await hub.callCopy(wl, 'POST', '/in/js', { ...body, user_id: playerId }, { timeoutMs: 8_000 });
+  } catch (error) {
+    deps.logger?.error({ err: error.message, whitelabelId, round: body?.game_round }, 'Whitelabel did not settle a JSGames callback');
+    return { success: false, error: 'Server error' };
+  }
+  if (answer?.success === true && !answer.duplicate) {
+    try {
+      await recordRounds(
+        deps.db,
+        { whitelabelId, product: 'casino', provider: 'js', playerId, game: body.game_uid, currency: body.currency },
+        jsRounds({ whitelabelId, playerId, body })
+      );
+    } catch (error) {
+      // The round stands on the copy; only the report row is missing — loud, never a failed callback.
+      deps.logger?.error({ err: error.message, whitelabelId, round: body?.game_round }, 'Could not record a whitelabel casino round');
+    }
+  }
+  return answer ?? { success: false, error: 'Server error' };
+}
+
+module.exports = { whitelabelPlayer, forwardGis, forwardOg, forwardJs, recordRounds, gisRounds, jsRounds, jsAlias, jsPlayerByAlias, JS_ALIAS_FROM };

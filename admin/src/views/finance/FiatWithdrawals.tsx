@@ -25,6 +25,7 @@ import { check } from '@/lib/validate'
 import FinanceStatsPanel from './FinanceStatsPanel'
 import ListStatsTabs from './ListStatsTabs'
 import { Details, ViewDialog, stop } from './shared'
+import WithdrawLimits from './WithdrawLimits'
 import { FIAT_WITHDRAW_STATUSES, type FiatWithdrawalRow } from './types'
 
 const LIST = 'admin/user/withdrawals/fiat'
@@ -140,7 +141,7 @@ const FiatWithdrawals = () => {
 
   return (
     <div>
-      <PageHeader title='Manual withdrawals' description='Manual bank payout requests. Funds are held when the user asks; a rejection releases them back.' />
+      <PageHeader title='Manual withdrawals' description='Manual bank payout requests. Funds are held when the user asks; a rejection releases them back.' actions={<WithdrawLimits rail='fiat' />} />
       <FilterBar filters={filters} className='mb-4' />
       <ListStatsTabs stats={can('reports:read') ? <FinanceStatsPanel kind='withdrawals' rail='fiat' filters={filters} statusLabels={{ success: 'Paid', pending: 'In queue / approved', failed: 'Rejected' }} /> : null}>
         <DataTable

@@ -1,7 +1,7 @@
 'use strict';
 
 const { Router } = require('express');
-const { validate, createActivityRecorder } = require('@ibitplay/common');
+const { validate, noBody, createActivityRecorder } = require('@ibitplay/common');
 const { PERMISSIONS } = require('@ibitplay/auth');
 
 const v = require('../banners.validators');
@@ -81,6 +81,19 @@ module.exports = function adminRoutes(deps) {
       }),
     }),
     ctrl.setActive
+  );
+
+  /** Delete a placement's row. On a built-in slot the site's own art comes back. */
+  router.delete(
+    '/:type',
+    canWrite,
+    noBody(),
+    validate(v.remove),
+    withActivity({
+      action: 'banner.remove',
+      describe: (req) => ({ targetType: 'BANNER', targetId: req.params.type }),
+    }),
+    ctrl.remove
   );
 
   return router;

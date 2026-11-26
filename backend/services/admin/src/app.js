@@ -48,7 +48,7 @@ function buildApp(container) {
     })
   );
 
-  const app = createApp({ serviceName: config.SERVICE_NAME, config, logger, routes });
+  const app = createApp({ serviceName: config.SERVICE_NAME, config: { ...config, BODY_LIMIT: config.ADMIN_BODY_LIMIT }, logger, routes });
   app.locals.modules = modules;
   return app;
 }

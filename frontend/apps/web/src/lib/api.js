@@ -112,15 +112,17 @@ let refreshInFlight = null;
 
 function refreshSession() {
   refreshInFlight ??= (async () => {
-    const refreshToken = tokenStore.getRefresh();
-    if (!refreshToken) return null;
+    if (!tokenStore.hasSession()) return null;
+    // The cookie carries the token; a pre-cookie one still in storage goes once in the body.
+    const legacy = tokenStore.getRefresh();
 
     let response;
     try {
       response = await fetch(ENDPOINTS.refresh, {
         method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ refreshToken }),
+        headers: { 'content-type': 'application/json', 'x-refresh-cookie': '1' },
+        credentials: 'include',
+        body: JSON.stringify(legacy ? { refreshToken: legacy } : {}),
       });
     } catch {
       // A network blip is not proof the session died — leave the stored token
@@ -221,7 +223,8 @@ export async function api(path, options = {}) {
 }
 
 async function send(url, { method, body, raw, auth, signal }, mayRefresh) {
-  const headers = {};
+  // Session answers put the refresh token in an httpOnly cookie, not the body (backend `auth/refreshCookie.js`).
+  const headers = { 'x-refresh-cookie': '1' };
 
   /**
    * `FormData` is passed through untouched, and — critically — WITHOUT a
@@ -259,6 +262,7 @@ async function send(url, { method, body, raw, auth, signal }, mayRefresh) {
       headers,
       body: body === undefined ? undefined : multipart ? body : JSON.stringify(body),
       signal,
+      credentials: 'include',
     });
   } catch (cause) {
     if (cause?.name === 'AbortError') throw cause;
@@ -289,7 +293,7 @@ async function send(url, { method, body, raw, auth, signal }, mayRefresh) {
    * So: if the access token has changed since this request was SENT, somebody
    * else's refresh already landed. Retry with it rather than rotating again.
    */
-  if (response.status === 401 && mayRefresh && auth && tokenStore.getRefresh()) {
+  if (response.status === 401 && mayRefresh && auth && tokenStore.hasSession()) {
     if (tokenStore.getAccess() !== token) {
       return send(url, { method, body, raw, auth, signal }, false);
     }

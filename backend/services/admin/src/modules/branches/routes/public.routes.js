@@ -14,7 +14,8 @@ const { BranchesService } = require('../branches.service');
  * refuse it, and the gateway sets no identity for it. Every route but the sign-in runs behind
  * `branchOnly` below, which verifies the branch token (its own key, `TOKEN_TYPES.BRANCH`) and
  * the owner's switch on every request. A branch reaches its own players only — the id comes
- * from the token, never from the request.
+ * from the token, never from the request. A player's password is changed by the Super Admin only
+ * (`PUT /admin/branches/:branchId/players/:userId/password`), never from here.
  *
  *   POST /admin/branches/portal/login       { username, password } → { token, branch }
  *   GET  /admin/branches/portal/me

@@ -122,6 +122,13 @@ test('the activity trail', async (t) => {
     assert.equal(rows[0].action, 'user.lock');
   });
 
+  await t.test("an executive reads only its own actions, not its parent account's", async () => {
+    const { rows, count } = await service.list({ actor: { id: boss, executiveId: 987654321 }, limit: 50, offset: 0 });
+
+    assert.equal(count, 0, 'none of these rows were written by that executive');
+    assert.equal(rows.length, 0);
+  });
+
   await t.test('a row carries every column the screen renders', async () => {
     const { rows } = await service.list({ actor: asBoss, limit: 50, offset: 0 });
     const login = rows.find((r) => r.action === 'login');

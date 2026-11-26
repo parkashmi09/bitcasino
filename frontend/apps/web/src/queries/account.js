@@ -180,12 +180,14 @@ export function useKycStatus() {
   const { status } = useAuth();
   const client = useQueryClient();
 
-  // An admin's KYC review arrives as a `notificationsUnread` push ({ notification: { kind } }): re-read then.
+  // An admin's KYC review (identity or a level) arrives as a `notificationsUnread` push ({ notification: { kind } }):
+  // re-read the status and the levels, so the next level unlocks without a reload.
   useEffect(() => {
     if (status !== 'authenticated') return undefined;
     return subscribe('notificationsUnread', (frame) => {
       if (String(frame?.notification?.kind ?? '').startsWith('kyc_')) {
         client.invalidateQueries({ queryKey: queryKeys.account.kyc() });
+        client.invalidateQueries({ queryKey: queryKeys.account.kycLevels() });
       }
     });
   }, [client, status]);

@@ -462,6 +462,22 @@ test('site-config', async (t) => {
     assert.deepEqual(pub.gameRates, { originals: '35', slots: '60', live: '60', sports: '100' });
   });
 
+  await t.test('the Recent Big Wins currency is the operator\'s pick, null until set', async () => {
+    await seedConfig({});
+    assert.equal((await service.publicSettings()).big_wins_currency, null);
+    await service.updateOperatorSettings({ patch: { big_wins_currency: 'inrfiat' }, staffId: 1 });
+    assert.equal((await service.publicSettings()).big_wins_currency, 'INR');
+    const row = (await service.operatorSettings()).find((s) => s.key === 'big_wins_currency');
+    assert.equal(row.kind, 'currency');
+    assert.equal(row.value, 'INR');
+    await assert.rejects(
+      () => service.updateOperatorSettings({ patch: { big_wins_currency: 'not a coin' }, staffId: 1 }),
+      (err) => err.code === 'SITE_CONFIG_INVALID_SETTING' || /INVALID_SETTING/.test(err.code ?? '')
+    );
+    await service.updateOperatorSettings({ patch: { big_wins_currency: null }, staffId: 1 });
+    assert.equal((await service.publicSettings()).big_wins_currency, null);
+  });
+
   await t.test('welcome bonus validation', async () => {
     const parseWelcome = (body) => v.updateWelcomeBonusSettings.body.safeParse(body);
     const tier = { minDeposit: '10', percent: '100', maxBonus: '100' };

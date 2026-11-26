@@ -166,7 +166,32 @@ export type ThemesChange = { kind: 'themes'; key: 'themes'; from: string[]; to: 
 export type { BrandingChange }
 export type Change = ToggleChange | TemplateChange | VariantChange | CoinsChange | CoinChange | OptionChange | RegionChange | WithdrawalCapChange | WithdrawalDailyLimitChange | PaymentMethodsChange | WithdrawalsEnabledChange | BrandingChange | ThemesChange
 
-export type AuditEntry = { at: string; user: string; version: number; changes: Change[]; seededFrom?: Exclude<VariantsSeed, null> }
+/** The browser behind the owner panel at save time, from the request the panel received (nginx's X-Real-IP, the UA and client hints). */
+export type AuditClient = {
+  ip?: string
+  forwardedFor?: string
+  userAgent?: string
+  platform?: string
+  mobile?: boolean
+  browser?: string
+  language?: string
+  origin?: string
+  referer?: string
+  api?: string
+}
+
+/** Who called the site API for the save, as the site's backend saw it (never taken from the request body). */
+export type AuditCaller = { method?: string; path?: string; ip?: string | null; local?: boolean; userAgent?: string | null }
+
+export type AuditEntry = {
+  at: string
+  user: string
+  version: number
+  changes: Change[]
+  seededFrom?: Exclude<VariantsSeed, null>
+  client?: AuditClient | null
+  caller?: AuditCaller
+}
 
 export type Probe = { url: string; ok: boolean; status: number | null; ms: number | null; error?: string }
 

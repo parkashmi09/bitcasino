@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { applyBranding, cleanBranding, pageNameFor, withBrand } from './branding';
+import { LOADER_STORAGE_KEY, applyBranding, cleanBranding, pageNameFor, rememberLoader, withBrand } from './branding';
 
 const ASSET = `/api/v1/admin/branding/asset/${'a'.repeat(64)}.png`;
 
@@ -56,5 +56,17 @@ describe('title template', () => {
     expect(document.title).toBe('Bitcasino — Crypto Casino');
     applyBranding({ ...branding, titleTemplate: null }, 'Promotions');
     expect(document.title).toBe('Bitcasino — Crypto Casino');
+  });
+});
+
+describe('rememberLoader', () => {
+  it('keeps an asset-route loading picture for the boot script and forgets anything else', () => {
+    expect(rememberLoader({ loaderUrl: ASSET })).toBe(ASSET);
+    expect(localStorage.getItem(LOADER_STORAGE_KEY)).toBe(ASSET);
+    expect(rememberLoader({ loaderUrl: 'javascript:alert(1)' })).toBeNull();
+    expect(localStorage.getItem(LOADER_STORAGE_KEY)).toBeNull();
+    rememberLoader({ loaderUrl: ASSET });
+    expect(rememberLoader({ loaderUrl: null })).toBeNull();
+    expect(localStorage.getItem(LOADER_STORAGE_KEY)).toBeNull();
   });
 });

@@ -3,7 +3,7 @@ import { Button } from '@/components/ui/Button';
 import { Dialog } from '@/components/ui/Dialog';
 import { Skeleton } from '@/components/ui/Skeleton';
 import { CodeField, PasswordField } from '@/components/ui/PasswordField';
-import { useAvatars } from '@/queries/siteConfig';
+import { useAvatars, useAvatarsEnabled } from '@/queries/siteConfig';
 import {
   useChangeEmail,
   useProfileStats,
@@ -24,9 +24,10 @@ const dateOf = (value) => {
   return date && !Number.isNaN(date.getTime()) ? date.toLocaleDateString() : '—';
 };
 
-/** The picture in `users.avatar`, else the name's initial on `goku`. */
+/** The picture in `users.avatar`, else (or with avatars switched off) the name's initial on `goku`. */
 export function Avatar({ src, name, className }) {
-  return src ? (
+  const avatarsOn = useAvatarsEnabled();
+  return src && avatarsOn ? (
     <img src={src} alt="" className={cn('shrink-0 rounded-full bg-goku object-cover', className)} />
   ) : (
     <span

@@ -15,7 +15,7 @@ const create = {
 
       // How long after activation the conditions stay open.
       periodDays: z.coerce.number().int().min(1).max(3650).optional(),
-      endDate: z.string().trim().min(8).max(35).optional(),
+      endDate: z.string().trim().min(8).max(35).refine((v) => !Number.isNaN(Date.parse(v)), 'not a valid date').optional(),
 
       depositRequired: z.coerce.boolean().default(false),
       depositAmount: moneyAmount.optional(),
@@ -35,6 +35,11 @@ const create = {
     .refine((v) => !v.wagerRequired || v.wagerTimes != null, {
       message: 'wagerTimes is required when wagerRequired is true',
       path: ['wagerTimes'],
+    })
+    // A code-only card (not visible to all) is claimed by whoever has the code, so the code must not be guessable.
+    .refine((v) => v.allUsers || v.uniqueKey.length >= 10, {
+      message: 'a code-only card needs a code of at least 10 characters',
+      path: ['uniqueKey'],
     }),
 };
 

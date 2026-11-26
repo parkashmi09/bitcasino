@@ -3,7 +3,14 @@
 export const PALETTE_KEYS = ['bg', 's1', 's2', 's3', 'border', 'text', 'muted', 'primary', 'ink', 'accent', 'live', 'hi', 'lo'] as const
 
 export type PaletteKey = (typeof PALETTE_KEYS)[number]
-export type Palette = Record<PaletteKey, string>
+
+/** Optional icon colours — resting, hover, active. Absent → the template's own (see iconDefaults). */
+export const ICON_KEYS = ['icon', 'iconhov', 'iconact'] as const
+export type IconKey = (typeof ICON_KEYS)[number]
+export type Palette = Record<PaletteKey, string> & Partial<Record<IconKey, string>>
+
+/** A copy's admin panel colours; null (on the whitelabel) = follow the player site. */
+export type AdminTheme = { mode: 'default' } | { mode: 'custom'; palette: Palette }
 
 /** B2C = direct players only, B2B = agent network only, hybrid = both (plans from before the choice). */
 export type BusinessModel = 'b2c' | 'b2b' | 'hybrid'
@@ -41,6 +48,9 @@ export type Whitelabel = {
   apiDomain: string
   template: string
   palette: Palette | null
+
+  /** The admin panel's colours; null = follow the player site. */
+  adminTheme: AdminTheme | null
 
   /** null = made before plans: not limited. */
   plan: Plan | null

@@ -6,7 +6,8 @@ const { currency } = require('../exchange-rate/exchangeRate.validators');
 const { SOURCES } = require('./depositReports.constants');
 
 /** ISO date, or an ISO datetime. Both are accepted; both mean a whole day. */
-const date = z.string().trim().min(8).max(35);
+// A real date (2026-11-26 or an ISO time): free text reached the SQL and answered 500 (ZAP, 2026-11-26).
+const date = z.string().trim().min(8).max(35).refine((v) => !Number.isNaN(Date.parse(v)), 'not a valid date');
 
 const listing = z.object({
   status: z.enum(['success', 'pending', 'failed']).optional(),

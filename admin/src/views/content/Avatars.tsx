@@ -268,6 +268,46 @@ const AvatarCard = ({ avatar, levels }: { avatar: Avatar; levels: ReturnType<typ
   )
 }
 
+type SettingRow = { key: string; value: string | boolean | null; stored: string | boolean | null }
+
+/**
+ * The site-wide switch: `avatars_enabled`, an operator setting (siteconfig.settings), off by
+ * default. Off: every avatar slot on the player site shows the first letter of the player's name,
+ * the Edit avatar picker is gone, and choosing one is refused. The per-avatar switches below only
+ * decide which pictures are offered while this is on.
+ */
+const AvatarsSiteSwitch = () => {
+  const q = useApi<SettingRow[]>('admin/site-config/settings')
+  const row = Array.isArray(q.data) ? q.data.find(s => s.key === 'avatars_enabled') : undefined
+  const on = String(row?.value ?? false) === 'true'
+
+  const save = useApiMutation({
+    fn: (enabled: boolean) => api.put('admin/site-config/settings', { avatars_enabled: enabled }),
+    invalidate: [['api', 'admin/site-config/settings']],
+    success: (_r, enabled) => (enabled ? 'Avatars switched on for players' : 'Avatars switched off — players see the first letter of their name')
+  })
+
+  return (
+    <div className='bg-card mb-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border p-4'>
+      <div className='min-w-56'>
+        <span className='block text-sm font-medium'>Avatars on site</span>
+        <span className='text-muted-foreground block text-xs'>
+          {on
+            ? 'On: players see their avatar and can pick one from the enabled pictures below.'
+            : 'Off: players see the first letter of their name (e.g. "ashu" → A) instead of a picture, and cannot pick one.'}
+        </span>
+      </div>
+      {q.isLoading ? (
+        <Skeleton className='h-5 w-9 rounded-full' />
+      ) : (
+        <Can permission='config:write' fallback={<StatusBadge value={on} />}>
+          <Switch aria-label='Avatars on site' checked={on} disabled={save.isPending || !row} onCheckedChange={v => save.mutate(v)} />
+        </Can>
+      )}
+    </div>
+  )
+}
+
 const Avatars = () => {
   const list = useApi<Avatar[]>('admin/avatars', undefined, { retry: false })
   const levels = useLevelOptions()
@@ -284,6 +324,7 @@ const Avatars = () => {
           </Can>
         }
       />
+      <AvatarsSiteSwitch />
       {list.error && !list.data ? (
         <ErrorState error={list.error} title='Could not load the avatars' />
       ) : list.isLoading ? (

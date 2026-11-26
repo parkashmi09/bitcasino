@@ -30,13 +30,14 @@ module.exports = function publicRoutes(deps) {
     validate({ query: v.emptyQuery }),
     asyncHandler(async (req, res) => {
       const current = deps.entitlementsStore?.current() ?? {};
-      // Revalidate every read: a cached copy would swallow the owner's live push. The ETag is the owner
-      // document's version plus the admin's chat settings (createApp turns Express's own ETags off).
-      const settings = await store.chatSettings();
-      const etag = `"branding-${current.version ?? 0}-${require('crypto').createHash('sha1').update(JSON.stringify(settings)).digest('hex').slice(0, 8)}"`;
+      // Revalidate every read: a cached copy would swallow the owner's live push. The ETag hashes the whole
+      // answer, so a site-admin image or meta change (no owner version bump) is never answered 304
+      // (createApp turns Express's own ETags off).
+      const body = store.view(current.branding ?? null, current.version ?? 0, await store.chatSettings());
+      const etag = `"branding-${current.version ?? 0}-${require('crypto').createHash('sha1').update(JSON.stringify(body)).digest('hex').slice(0, 8)}"`;
       res.set({ 'Cache-Control': 'no-cache', ETag: etag });
       if (req.headers['if-none-match'] === etag) return res.status(304).end();
-      return response.ok(res, store.view(current.branding ?? null, current.version ?? 0, settings));
+      return response.ok(res, body);
     })
   );
 

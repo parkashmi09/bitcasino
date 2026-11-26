@@ -430,9 +430,8 @@ const MIN_LENGTH = 10;
  * PASSWORD_CHANGE_REQUIRED until it is changed. Shown over every page, not closable.
  */
 export function ForcedPasswordChange() {
-  const { user, status } = useAuth();
-  const forced = status === 'password-change' && Boolean(user?.mustChangePassword);
-  return <ChangePasswordDialog open={forced} onClose={() => {}} forced />;
+  const { status } = useAuth();
+  return <ChangePasswordDialog open={status === 'password-change'} onClose={() => {}} forced />;
 }
 
 function ChangePasswordDialog({ open, onClose, forced = false }) {

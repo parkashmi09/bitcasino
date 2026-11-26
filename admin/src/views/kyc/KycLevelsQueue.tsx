@@ -36,10 +36,13 @@ export type LevelRow = {
   reviewedAt: string | null
 }
 
+/** New KYC submissions and reviews show without a reload: the queues re-read this often while the tab is open. */
+export const KYC_POLL_MS = 10_000
+
 /** The Level 3–4 submissions with `status` (all when none). At most 200: the queue is small. */
 export const useLevelRows = (status?: string) =>
   // rainbet: a Level 3-4 submission is never Unverified, and the route refuses that filter.
-  useApi<LevelRow[]>(BASE, { limit: 200, status }, { enabled: status !== 'Unverified' })
+  useApi<LevelRow[]>(BASE, { limit: 200, status }, { enabled: status !== 'Unverified', refetchInterval: KYC_POLL_MS })
 
 const documentUrl = (row: LevelRow) => api.url(`${BASE}/${row.id}/document`)
 

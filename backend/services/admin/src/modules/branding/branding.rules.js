@@ -20,8 +20,9 @@ const TEXT_LIMITS = Object.freeze({
   ogDescription: 300,
 });
 
-const SLOTS = Object.freeze(['logo', 'mark', 'ogImage']);
-const MAX_IMAGE_BYTES = Object.freeze({ logo: 256 * 1024, mark: 256 * 1024, ogImage: 1024 * 1024 });
+// `loader`: the pre-boot loading picture (the pulsing art before the app paints); site admin only.
+const SLOTS = Object.freeze(['logo', 'mark', 'ogImage', 'loader']);
+const MAX_IMAGE_BYTES = Object.freeze({ logo: 256 * 1024, mark: 256 * 1024, ogImage: 1024 * 1024, loader: 1024 * 1024 });
 const MIN_IMAGE_BYTES = 64;
 const MAX_KEYWORDS = 20;
 const MAX_KEYWORD_LENGTH = 40;

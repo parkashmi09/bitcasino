@@ -20,6 +20,23 @@ const NOT_BALANCE = ['credit_limit', 'credit', 'all_point', 'upper_point', 'down
 
 /** The player site's palette tokens (frontend/src/theme/palettes.css `--p-*`), all required. */
 const PALETTE_KEYS = Object.freeze(['bg', 's1', 's2', 's3', 'border', 'text', 'muted', 'primary', 'ink', 'accent', 'live', 'hi', 'lo']);
+/** Optional icon colours — resting, hover, active (frontend/src/theme/customSprites.js); absent → template defaults. */
+const ICON_KEYS = Object.freeze(['icon', 'iconhov', 'iconact']);
+const HEX_COLOUR = /^#[0-9a-fA-F]{6}$/;
+/** The admin panel's colours (whitelabel_settings.admin_theme): null = follow the player site. */
+const adminThemeSchema = (z) =>
+  z
+    .discriminatedUnion('mode', [
+      z.object({ mode: z.literal('default') }).strict(),
+      z.object({ mode: z.literal('custom'), palette: z.object(paletteShape(z)).strict() }).strict(),
+    ])
+    .nullable();
+/** The palette's object schema for zod: the 13 required tokens plus the optional icon colours. */
+const paletteShape = (z) =>
+  Object.fromEntries([
+    ...PALETTE_KEYS.map((k) => [k, z.string().regex(HEX_COLOUR, 'must be #RRGGBB')]),
+    ...ICON_KEYS.map((k) => [k, z.string().regex(HEX_COLOUR, 'must be #RRGGBB').optional()]),
+  ]);
 
 const noCompany = () => new AppError('This site has no company account', 409, 'WHITELABEL_NO_COMPANY');
 const transferMismatch = () =>
@@ -70,8 +87,20 @@ class WhitelabelLinkService {
 
   /** The parent's custom colours for the player site, or null (the owner's template stands). */
   async theme() {
-    const [row] = await this.#query('SELECT palette FROM whitelabel_settings WHERE id = 1');
-    return { palette: row?.palette ?? null };
+    const [row] = await this.#query('SELECT palette, admin_theme FROM whitelabel_settings WHERE id = 1');
+    // adminTheme: null = the admin panel follows the player site's colours.
+    return { palette: row?.palette ?? null, adminTheme: row?.admin_theme ?? null };
+  }
+
+  /** The admin panel's own colours (see migration 195), or null to follow the player site. */
+  async setAdminTheme(adminTheme) {
+    await this.#query(
+      `INSERT INTO whitelabel_settings (id, admin_theme, updated_at) VALUES (1, CAST(:adminTheme AS JSONB), NOW())
+       ON CONFLICT (id) DO UPDATE SET admin_theme = EXCLUDED.admin_theme, updated_at = NOW()
+       RETURNING id`,
+      { adminTheme: adminTheme ? JSON.stringify(adminTheme) : null }
+    );
+    return this.theme();
   }
 
   async setPalette(palette) {
@@ -311,4 +340,4 @@ class WhitelabelLinkService {
   }
 }
 
-module.exports = { WhitelabelLinkService, PREVIEW_TTL_MS, PALETTE_KEYS };
+module.exports = { WhitelabelLinkService, PREVIEW_TTL_MS, PALETTE_KEYS, ICON_KEYS, paletteShape, adminThemeSchema };

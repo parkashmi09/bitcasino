@@ -21,7 +21,7 @@ import { useApiMutation, useListState, usePagedApi } from '@/hooks/use-api'
 import { api } from '@/lib/api/client'
 import { formatDate } from '@/lib/format'
 import { check } from '@/lib/validate'
-import { DocumentPreview, LevelDetail, useLevelRows, type LevelRow } from './KycLevelsQueue'
+import { DocumentPreview, KYC_POLL_MS, LevelDetail, useLevelRows, type LevelRow } from './KycLevelsQueue'
 import { DOCUMENT_FIELDS, KYC_STATUSES, type KycApplication, type KycStatus } from './types'
 
 const LIST = 'admin/user/kyc/applications'
@@ -182,7 +182,7 @@ const KycDetail = ({ app, onClose }: { app: KycApplication | null; onClose: () =
 }
 
 const StatusChip = ({ status, active, onClick }: { status: string; active: boolean; onClick: () => void }) => {
-  const count = usePagedApi<KycApplication>(LIST, { limit: 1, page: 1, status: status || undefined })
+  const count = usePagedApi<KycApplication>(LIST, { limit: 1, page: 1, status: status || undefined }, { refetchInterval: KYC_POLL_MS })
 
   // rainbet: Levels 3–4 submissions count in the same tab.
   const levels = useLevelRows(status || undefined).data?.length
@@ -203,7 +203,7 @@ const KycList = () => {
   // Defaults to the Pending queue; 'all' is the sentinel for no filter (a blank would fall back to the default).
   const { state, set, query } = useListState(['status'], { status: 'Pending' })
   const status = state.status === 'all' ? undefined : query.status
-  const list = usePagedApi<KycApplication>(LIST, { limit: query.limit, page: query.page, search: query.search, status })
+  const list = usePagedApi<KycApplication>(LIST, { limit: query.limit, page: query.page, search: query.search, status }, { refetchInterval: KYC_POLL_MS })
   const [selected, setSelected] = useState<KycApplication | null>(null)
   const [level, setLevel] = useState<LevelRow | null>(null)
 

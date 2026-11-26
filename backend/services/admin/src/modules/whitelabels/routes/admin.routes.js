@@ -22,7 +22,13 @@ const { WhitelabelsService } = require('../whitelabels.service');
  *   POST   /admin/whitelabels/:id/transfers/retry    send every pending transfer again
  *   PUT    /admin/whitelabels/:id/company-password   { password } (company signed out)
  *   PUT    /admin/whitelabels/:id/maintenance        { on }  off = maintenance on the copy
+ *   GET    /admin/whitelabels/:id/big-wins-currency  the copy's Recent Big Wins coin
+ *   GET    /admin/whitelabels/:id/loader             the copy's loading picture { url }
+ *   PUT    /admin/whitelabels/:id/loader             { type, data } (base64, ≤ 1 MB)
+ *   DELETE /admin/whitelabels/:id/loader             back to the default picture
+ *   PUT    /admin/whitelabels/:id/big-wins-currency  { currency }  null = each viewer's own currency
  *   PUT    /admin/whitelabels/:id/palette            { palette | null }
+ *   PUT    /admin/whitelabels/:id/admin-theme        { adminTheme | null }  (null = follow the player site)
  *   PUT    /admin/whitelabels/:id/plan               { plan } products, features, payments
  *   PUT    /admin/whitelabels/:id/terms              { terms } gateway charges + GGR revenue share (parent only)
  *   POST   /admin/whitelabels/:id/hub-key            new API key + secret for its hub link (gateway payments)
@@ -142,8 +148,20 @@ module.exports = function adminRoutes(deps) {
     audited('whitelabel.company-password'),
     asyncHandler(async (req, res) => response.ok(res, await service.setCompanyPassword(id(req), req.body.password)))
   );
+  router.get('/:id/big-wins-currency', canRead, validate(v.byId), asyncHandler(async (req, res) => response.ok(res, await service.bigWinsCurrency(id(req)))));
+  router.put(
+    '/:id/big-wins-currency',
+    canWrite,
+    validate(v.bigWinsCurrency),
+    audited('whitelabel.big-wins-currency'),
+    asyncHandler(async (req, res) => response.ok(res, await service.setBigWinsCurrency(id(req), req.body.currency)))
+  );
+  router.get('/:id/loader', canRead, validate(v.byId), asyncHandler(async (req, res) => response.ok(res, await service.loader(id(req)))));
+  router.put('/:id/loader', canWrite, validate(v.loader), audited('whitelabel.loader'), asyncHandler(async (req, res) => response.ok(res, await service.setLoader(id(req), req.body))));
+  router.delete('/:id/loader', canWrite, validate(v.byId), noBody(), audited('whitelabel.loader-reset'), asyncHandler(async (req, res) => response.ok(res, await service.clearLoader(id(req)))));
   router.put('/:id/maintenance', canWrite, validate(v.maintenance), audited('whitelabel.maintenance'), asyncHandler(async (req, res) => response.ok(res, await service.setMaintenance(id(req), req.body.on))));
   router.put('/:id/palette', canWrite, validate(v.palette), audited('whitelabel.palette'), asyncHandler(async (req, res) => response.ok(res, await service.setPalette(id(req), req.body.palette))));
+  router.put('/:id/admin-theme', canWrite, validate(v.adminTheme), audited('whitelabel.admin-theme'), asyncHandler(async (req, res) => response.ok(res, await service.setAdminTheme(id(req), req.body.adminTheme))));
   router.put('/:id/plan', canWrite, validate(v.plan), audited('whitelabel.plan'), asyncHandler(async (req, res) => response.ok(res, await service.setPlan(id(req), req.body.plan))));
   router.put('/:id/terms', canMoveMoney, validate(v.terms), audited('whitelabel.terms'), asyncHandler(async (req, res) => response.ok(res, await service.setTerms(id(req), req.body.terms))));
   router.post('/:id/hub-key', canMoveMoney, validate(v.byId), noBody(), audited('whitelabel.hub-key'), asyncHandler(async (req, res) => response.ok(res, await service.issueHubKey(id(req)))));

@@ -50,6 +50,8 @@ function attachSockets({ server, container }) {
     // The same token service the HTTP middleware uses, and the same one
     // user-service's socket transport uses — one notion of a session.
     const payload = tokens.verify(token, TOKEN_TYPES.ACCESS);
+    // `mcp`: the player must set their own password first (users.must_change_password) — signed-out here, so no game bet.
+    if (payload?.mcp === true) return null;
     // `expiresAt` lets the transport drop the identity when the token would stop working on HTTP.
     return payload?.sub ? { userId: String(payload.sub), expiresAt: payload.exp * 1000 } : null;
   };

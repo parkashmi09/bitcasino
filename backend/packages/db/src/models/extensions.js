@@ -279,6 +279,8 @@ const EXTENSIONS = {
     gateway: { type: DataTypes.STRING(20), allowNull: true, field: 'gateway' },
     gateway_order_id: { type: DataTypes.STRING(64), allowNull: true, field: 'gateway_order_id' },
     gateway_record_id: { type: DataTypes.STRING(64), allowNull: true, field: 'gateway_record_id' },
+    // migration 202: handed to CCPayment by the auto limit, not by staff.
+    auto_sent: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: false, field: 'auto_sent' },
   },
 
   // ── migration 018-otp-integrity ──────────────────────────────────────

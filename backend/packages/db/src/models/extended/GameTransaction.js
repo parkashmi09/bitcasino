@@ -44,7 +44,7 @@ module.exports = (sequelize) => {
         allowNull: false,
         field: 'external_transaction_id',
       },
-      /** The provider's per-MESSAGE id. Kept for support; never the key. */
+      /** The provider's per-MESSAGE id: one callback, applied once (part of the unique key, migration 196). */
       serial_number: { type: DataTypes.STRING(190), allowNull: true, field: 'serial_number' },
       /** Copied from `js_games` at settlement so history needs no join. */
       game_type: { type: DataTypes.STRING(100), allowNull: true, field: 'game_type' },

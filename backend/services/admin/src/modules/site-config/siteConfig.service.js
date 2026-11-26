@@ -154,6 +154,17 @@ const OPERATOR_SETTINGS = Object.freeze({
   idle_logout_minutes: { env: 'IDLE_LOGOUT_MINUTES', kind: 'number', min: 1, max: 120, default: 5, label: 'Minutes with no activity before the sign-out (N)' },
   require_email_verification: { env: 'REQUIRE_EMAIL_VERIFICATION', kind: 'boolean', label: 'Verify email before transacting' },
 
+  // The coin every Recent Big Wins amount on the home page is printed in (a whitelabel copy picks
+  // its own, e.g. INR). Nothing stored = each viewer's selected currency (USDT signed out). Sent to
+  // the browser as `big_wins_currency` through `publicSettings()`.
+  big_wins_currency: { env: 'BIG_WINS_CURRENCY', kind: 'currency', label: 'Recent Big Wins currency' },
+
+  // The site-wide avatar switch (Admin → Content → Avatars, user 2026-11-24). Off: the player site
+  // draws the first letter of the player's name in every avatar slot, hides the Edit Avatar
+  // picker, and user-service refuses `POST /user/profile/avatar`. Sent to the browser as
+  // `avatars_enabled` through `publicSettings()`.
+  avatars_enabled: { env: 'AVATARS_ENABLED', kind: 'boolean', default: false, label: 'Avatars on the player site' },
+
   // Read by user-service's PlayerBonusService (user, 2026-10-28). The lock is in force only while
   // the owner's `bonus.wagering_lock` is on too; the forfeit pair is the withdraw popup's copy.
   bonus_wagering_lock: { env: 'BONUS_WAGERING_LOCK', kind: 'boolean', default: true, label: 'Keep a granted bonus locked until it is wagered' },
@@ -184,6 +195,14 @@ const OPERATOR_SETTINGS = Object.freeze({
   loss_bonus_max_bet: { env: 'LOSS_BONUS_MAX_BET', kind: 'decimal', min: 0, default: '0', label: 'Max bet per bet (a bigger bet\'s loss does not count; 0 = no limit)' },
   loss_bonus_claim_hours: { env: 'LOSS_BONUS_CLAIM_HOURS', kind: 'number', min: 0, max: 720, default: 48, label: 'Hours to claim after settlement (0 = no expiry)' },
   loss_bonus_wager_multiplier: { env: 'LOSS_BONUS_WAGER_MULTIPLIER', kind: 'decimal', min: 0, max: 100, default: '0', label: 'Wager before the bonus becomes cash (× bonus; 0 = cash at once)' },
+  // user, 2026-11-24 (docs/plans/2026-11-24-deposit-and-loss-bonus-rules.md): all OFF by default.
+  loss_bonus_auto_credit: { env: 'LOSS_BONUS_AUTO_CREDIT', kind: 'boolean', default: false, label: 'Add it automatically when the window ends (off = the player claims it)' },
+  loss_bonus_requires_deposit: { env: 'LOSS_BONUS_REQUIRES_DEPOSIT', kind: 'boolean', default: false, label: 'Usable only after the player\'s next deposit' },
+  loss_bonus_stake_share_percent: { env: 'LOSS_BONUS_STAKE_SHARE_PERCENT', kind: 'decimal', min: 0, max: 100, default: '0', label: 'Bonus share of each bet (%; 10 = 90% cash + 10% bonus; 0 = off, the wager rule applies)' },
+
+  // Deposit bonus 24h rule, read by user-service's FirstDepositBonusService (user, 2026-11-24).
+  deposit_bonus_cooldown_hours: { env: 'DEPOSIT_BONUS_COOLDOWN_HOURS', kind: 'number', min: 0, max: 720, default: 0, label: 'No deposit bonus within this many hours (0 = off)' },
+  deposit_bonus_cooldown_from_first: { env: 'DEPOSIT_BONUS_COOLDOWN_FROM_FIRST', kind: 'boolean', default: false, label: 'Count from the first deposit (on = only deposits within those hours of the first deposit get a bonus; off = hours since the last deposit bonus)' },
 
   // Quest Hub daily quests (user-service modules/quests): what each completed quest pays, in USD,
   // credited once per day in the reward currency. 0 = the quest shows progress but pays nothing.
@@ -1103,6 +1122,7 @@ class SiteConfigService {
       ...Object.values(AFFILIATE_CURRENCY_FIELDS),
       ...Object.values(WELCOME_FIELDS),
       'affiliate_bonus_requires_deposit',
+      'settings',
     ]);
 
     // Absent config reads as ON, matching `sportsEnabled()`: a missing row is
@@ -1132,6 +1152,10 @@ class SiteConfigService {
     const idleLogoutMinutes = entitlements.flagOnIn(planDoc, 'idle_logout') && String(ops.idle_logout) !== 'false'
       ? (Number.isInteger(idleMinutes) && idleMinutes >= 1 && idleMinutes <= 120 ? idleMinutes : 5)
       : null;
+    // The Recent Big Wins coin (bare code, e.g. INR), or null for the viewer's own currency.
+    flags.big_wins_currency = this.#bigWinsCurrency(row?.settings);
+    // Whether players see avatars at all; off = the first letter of their name.
+    flags.avatars_enabled = this.#avatarsEnabled(row?.settings);
 
     const amounts = Object.fromEntries(
       PUBLIC_AMOUNTS.map((name) => [name, this.#amount(row?.[name])])
@@ -1230,6 +1254,25 @@ class SiteConfigService {
    * environment variable when there is not. The screen shows both, so nobody
    * has to guess whether a number is theirs or the deployment's.
    */
+  /** The avatar switch: stored, else the env, else off. */
+  #avatarsEnabled(stored) {
+    const own = stored?.avatars_enabled;
+    const raw = own ?? process.env.AVATARS_ENABLED ?? this.config?.AVATARS_ENABLED;
+    return String(raw ?? OPERATOR_SETTINGS.avatars_enabled.default) === 'true';
+  }
+
+  /** The Recent Big Wins coin: stored, else the env, else null (the viewer's selected currency). */
+  #bigWinsCurrency(stored) {
+    const own = stored?.big_wins_currency;
+    const raw = own ?? process.env.BIG_WINS_CURRENCY ?? this.config?.BIG_WINS_CURRENCY;
+    if (raw === undefined || raw === null || raw === '') return null;
+    try {
+      return coerceSetting('big_wins_currency', OPERATOR_SETTINGS.big_wins_currency, raw);
+    } catch {
+      return null;
+    }
+  }
+
   async operatorSettings() {
     const row = await this.#configRow(['id', 'settings']);
     const stored = row?.settings ?? {};
@@ -1290,6 +1333,9 @@ class SiteConfigService {
     else await this.models.Siteconfig.create({ settings: next });
 
     this.logger?.warn({ staffId, settings: Object.keys(patch ?? {}) }, 'Operator settings changed');
+    // The idle-logout pair is in the public view: open tabs pick a new value up at once.
+    // So are the Recent Big Wins currency and the avatar switch.
+    if (Object.keys(patch ?? {}).some((key) => key.startsWith('idle_logout') || key === 'big_wins_currency' || key === 'avatars_enabled')) await this.pushPublic();
     return this.operatorSettings();
   }
 
@@ -1639,6 +1685,13 @@ function coerceSetting(key, spec, raw) {
     if (/[<>\u0000-\u0008\u000b-\u001f]/.test(text)) throw errors.INVALID_SETTING({ setting: key, reason: 'no angle brackets or control characters' });
     if (spec.chat && !chatLink(spec.chat, text)) throw errors.INVALID_SETTING({ setting: key, reason: spec.chat === 'telegram' ? 'a number with country code, @username or a t.me link' : 'a number with country code or a wa.me / whatsapp.com link' });
     return text;
+  }
+
+  if (spec.kind === 'currency') {
+    // A bare coin code (INR, USDT, BTC); this build's `INRFIAT` wallet key is taken and trimmed.
+    const code = String(raw).trim().toUpperCase().replace(/FIAT$/, '');
+    if (!/^[A-Z0-9]{2,10}$/.test(code)) throw errors.INVALID_SETTING({ setting: key, reason: 'expected a coin code such as INR or USDT' });
+    return code;
   }
 
   if (spec.kind === 'timezone') {

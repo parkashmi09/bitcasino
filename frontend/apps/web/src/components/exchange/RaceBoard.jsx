@@ -28,7 +28,7 @@ export default function RaceBoard({ sport, icon, linkFor }) {
         return (
           <div key={country.cid} className="overflow-hidden rounded-xl bg-layer3">
             <div className="flex items-center gap-2 bg-layer4 px-3 py-2 sm:px-4">
-              {icon && <SportIcon sport={icon} className="size-4 flex-none [&_svg]:size-full [&_svg]:fill-secondary" />}
+              {icon && <SportIcon sport={icon} color className="size-4 flex-none [&_svg]:size-full [&_svg]:fill-secondary" />}
               <span className="truncate text-xs font-semibold text-secondary">{country.name}</span>
             </div>
             {venues.map((venue) => (

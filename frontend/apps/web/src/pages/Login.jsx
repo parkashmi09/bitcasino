@@ -73,6 +73,9 @@ export function Login() {
   const [params] = useSearchParams();
   const { login, demoLogin } = useAuth();
   const gates = useGates();
+  /* A B2B site (owner policy `business_model: b2b`) has agent players only: their agent issues and resets
+     their logins, so it signs in as /agent does: username only, no password reset (hash 32cd2997). */
+  const usernameOnly = AGENT_SITE || gates.policy('business_model') === 'b2b';
 
   const [identifier, setIdentifier] = useState('');
   const [password, setPassword] = useState('');
@@ -180,9 +183,11 @@ export function Login() {
       // /agent: no password recovery and no sign-up, by any path.
       footer={AGENT_SITE ? undefined : (
         <div className="grid gap-2">
-          <Link to="/forgot-password" className="text-base leading-6 text-bulma hover:underline">
-            Forgot password?
-          </Link>
+          {!usernameOnly && (
+            <Link to="/forgot-password" className="text-base leading-6 text-bulma hover:underline">
+              Forgot password?
+            </Link>
+          )}
 
           {/* A B2B site has no self-registration — sign-in only. */}
           {gates.canSignUp() && (
@@ -201,7 +206,7 @@ export function Login() {
       <form className="grid gap-2" onSubmit={onSubmit} noValidate>
         <AuthField
           id="identifier"
-          label={AGENT_SITE ? 'Username' : 'Username or Email'}
+          label={usernameOnly ? 'Username' : 'Username or Email'}
           value={identifier}
           onChange={setIdentifier}
           autoComplete="username"
@@ -241,7 +246,7 @@ export function Login() {
                 disabled={busy}
                 ref={codeRef}
               />
-              {!AGENT_SITE && (
+              {!usernameOnly && (
                 <button
                   type="button"
                   onClick={() => setLostOpen(true)}

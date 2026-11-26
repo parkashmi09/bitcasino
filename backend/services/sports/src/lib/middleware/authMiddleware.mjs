@@ -20,6 +20,10 @@ var authMiddleware = async (req, res, next) => {
     }
     // A write (bet placement) re-reads the player's live state — see verifyPlatformToken.
     const decoded = await verifyPlatformToken(token, { refresh: !["GET", "HEAD", "OPTIONS"].includes(req.method) });
+    // An agent's player still on the password a staff member chose: no bet until they set their own.
+    if (decoded.mcp && !["GET", "HEAD", "OPTIONS"].includes(req.method)) {
+      return res.status(403).json({ error: "Set your own password before continuing.", code: "PASSWORD_CHANGE_REQUIRED" });
+    }
     // An executive works only on the admin routes, where the platform's staff auth ran first (req.staff)
     // and each route checks the executive's granted permission. Elsewhere it would act with its parent's
     // full powers, so it is refused.

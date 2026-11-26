@@ -70,7 +70,7 @@ export default function SportTabs({ sports = [], active, onChange, className = '
               on ? 'bg-layer5 text-primary' : 'bg-layer3 text-secondary hover:bg-layer4',
             )}
           >
-            <SportIcon sport={s.icon ?? s.id} fallback={Boolean(s.fallback)} className="size-[1.125rem] flex-none [&_svg]:size-full [&_svg]:fill-current" />
+            <SportIcon sport={s.icon ?? s.id} fallback={Boolean(s.fallback)} color className="size-[1.125rem] flex-none [&_svg]:size-full [&_svg]:fill-current" />
             <span>{s.label}</span>
             {s.count != null && (
               <span

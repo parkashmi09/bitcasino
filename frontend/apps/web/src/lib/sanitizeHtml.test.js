@@ -15,6 +15,11 @@ describe('sanitizeHtml', () => {
     expect(out).toBe('<a href="https://x.com" rel="noopener noreferrer nofollow" target="_blank">x</a>');
   });
 
+  it('strips styling, forms and inputs', () => {
+    const out = sanitizeHtml('<p style="position:fixed" class="fixed inset-0" id="x">t</p><form><input name="pw"></form><style>p{}</style>');
+    expect(out).toBe('<p>t</p>');
+  });
+
   it('turns plain text into escaped paragraphs', () => {
     expect(sanitizeHtml('a < b\n\nc')).toBe('<p>a &lt; b</p><p>c</p>');
     expect(sanitizeHtml('')).toBe('');

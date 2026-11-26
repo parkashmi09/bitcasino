@@ -39,7 +39,7 @@ function decodeImage(input, slot) {
   return bytes;
 }
 
-const POSTER_MAX_BYTES = 600 * 1024;
+const POSTER_MAX_BYTES = 2 * 1024 * 1024;
 const PLACEMENT = { poster: 'home', poster_mobile: 'home_mobile' };
 
 /** A poster's bytes, checked by signature (PNG / JPEG / WebP) and size; null when absent. */
@@ -64,6 +64,8 @@ function view(r) {
     apiDomain: r.api_domain,
     template: r.template,
     palette: r.palette ?? null,
+    // The admin panel's colours: null = follow the player site.
+    adminTheme: r.admin_theme ?? null,
     // null = made before plans (not limited).
     plan: whitelabelPlan.cleanPlan(r.plan),
     terms: whitelabelPlan.cleanTerms(r.terms),
@@ -433,6 +435,29 @@ class WhitelabelsService {
     return view(await this.#row(id));
   }
 
+  /** The copy's loading picture: an https URL on its API domain, or null (the default art). */
+  async loader(id) {
+    const row = await this.#live(id);
+    const result = await this.link(row, 'GET', '/branding/loader');
+    return { url: result?.path ? `https://${row.api_domain}${result.path}` : null };
+  }
+
+  /** A new loading picture, put straight on the live copy (its branding store checks the bytes). */
+  async setLoader(id, image) {
+    const row = await this.#live(id);
+    const bytes = Buffer.from(image.data, 'base64');
+    if (imageProblem(bytes, `loader.${EXT[image.type]}`, 'loader')) throw errors.BAD_LOADER();
+    await this.link(row, 'PUT', '/branding', { slot: 'loader', type: image.type, data: image.data });
+    return this.loader(id);
+  }
+
+  /** Back to the copy's default loading picture. */
+  async clearLoader(id) {
+    const row = await this.#live(id);
+    await this.link(row, 'DELETE', '/branding/loader');
+    return { url: null };
+  }
+
   // ══════════════════════════════════════════════════════════════════════
   //  Money: the Super Admin's Direct balance → the company's Direct balance
   // ══════════════════════════════════════════════════════════════════════
@@ -581,6 +606,19 @@ class WhitelabelsService {
     return { maintenance: result?.maintenance === true };
   }
 
+  /** The copy's Recent Big Wins coin, read from the copy itself (null = each viewer's own currency). */
+  async bigWinsCurrency(id) {
+    const row = await this.#live(id);
+    const result = await this.link(row, 'GET', '/big-wins-currency');
+    return { currency: result?.currency ?? null };
+  }
+
+  async setBigWinsCurrency(id, currency) {
+    const row = await this.#live(id);
+    const result = await this.link(row, 'PUT', '/big-wins-currency', { currency: currency ? currency.toUpperCase() : null });
+    return { currency: result?.currency ?? null };
+  }
+
   async setPalette(id, palette) {
     const row = await this.#row(id);
     if (row.status === 'live') await this.link(row, 'PUT', '/palette', { palette });
@@ -589,6 +627,17 @@ class WhitelabelsService {
       palette: palette ? JSON.stringify(palette) : null,
     });
     return { palette };
+  }
+
+  /** The copy's admin panel colours; a live copy gets them at once, else the setup writes them. */
+  async setAdminTheme(id, adminTheme) {
+    const row = await this.#row(id);
+    if (row.status === 'live') await this.link(row, 'PUT', '/admin-theme', { adminTheme });
+    await this.#q('UPDATE whitelabels SET admin_theme = CAST(:adminTheme AS JSONB), updated_at = NOW() WHERE id = :id RETURNING id', {
+      id,
+      adminTheme: adminTheme ? JSON.stringify(adminTheme) : null,
+    });
+    return { adminTheme };
   }
 
   /** The products and features the copy runs; a live copy gets it at once, else the setup writes it. */

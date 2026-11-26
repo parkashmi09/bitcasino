@@ -5,8 +5,10 @@ const crypto = require('crypto');
 /**
  * jsGames v2 — the games.ibitplay.com integration.
  *
- * This one has a proper signature scheme: HMAC-SHA256 over the sorted
- * parameters, sent as `x-api-key` / `x-timestamp` / `x-signature`.
+ * Outbound calls carry signature VERSION 2 (`signV2`): method, path, query, body hash, timestamp
+ * and nonce. Inbound wallet callbacks carry `X-Timestamp` and `X-Signature` =
+ * HMAC-SHA256(`<timestamp>.<raw body>`) (`verify`). `sign` is the old sorted-parameter scheme,
+ * kept for reference; nothing on the wire uses it now.
  *
  * ── LEGACY SIGNED ONLY WHAT IT SENT ──────────────────────────────────────
  * `addAuthHeaders` was used on every OUTBOUND call. The INBOUND bet callback —
@@ -86,14 +88,41 @@ class XGamesApiClient {
     return crypto.createHmac('sha256', this.apiSecret).update(canonical).digest('hex');
   }
 
-  headers(body = {}) {
+  /**
+   * OUTBOUND — signature version 2 (the provider's integration guide, required for this account).
+   *
+   * One line each: METHOD, path, sorted query, SHA-256 of the exact body bytes, timestamp, nonce;
+   * HMAC-SHA256 with the API secret, hex. `bodyText` is the string that goes on the wire — the
+   * hash is of those bytes, so the caller sends exactly it and never re-serialises.
+   */
+  signV2({ method, path, query = '', bodyText = '', timestamp, nonce }) {
+    const bodyHash = crypto.createHash('sha256').update(bodyText).digest('hex');
+    const canonical = [String(method).toUpperCase(), path, query, bodyHash, timestamp, nonce].join('\n');
+    return crypto.createHmac('sha256', this.apiSecret).update(canonical).digest('hex');
+  }
+
+  /** The headers of one outbound call. `url` is the full URL being called. */
+  headers({ method = 'GET', url, bodyText = '' } = {}) {
+    const target = new URL(url);
+    const query = [...target.searchParams.entries()]
+      .sort(([a, av], [b, bv]) => (a === b ? (av < bv ? -1 : av > bv ? 1 : 0) : a < b ? -1 : 1))
+      .map(([key, value]) => `${encodeURIComponent(key)}=${encodeURIComponent(value)}`)
+      .join('&');
     const timestamp = Date.now().toString();
+    const nonce = crypto.randomBytes(12).toString('hex');
     return {
+      'Content-Type': 'application/json',
       'x-api-key': this.apiKey,
       'x-timestamp': timestamp,
-      'x-signature': this.sign({ ...body, timestamp }),
-      'Content-Type': 'application/json',
+      'x-signature': this.signV2({ method, path: target.pathname, query, bodyText, timestamp, nonce }),
+      'x-signature-version': '2',
+      'x-nonce': nonce,
     };
+  }
+
+  /** INBOUND — the signature the provider puts on a wallet callback: HMAC of `<timestamp>.<raw body>`. */
+  signCallback(timestamp, rawBody) {
+    return crypto.createHmac('sha256', this.apiSecret).update(`${timestamp}.${rawBody}`).digest('hex');
   }
 
   /**
@@ -102,27 +131,26 @@ class XGamesApiClient {
    * Returns a reason string when it is not, or null when it is. A reason rather
    * than a boolean so the refusal can be logged with something useful.
    */
-  verify({ body, headers }) {
+  verify({ rawBody, headers }) {
     if (!this.configured) return 'not configured';
 
-    const key = headers['x-api-key'];
-    const timestamp = headers['x-timestamp'];
-    const signature = headers['x-signature'];
+    const timestamp = headers?.['x-timestamp'];
+    const signature = headers?.['x-signature'];
+    if (!timestamp || !signature) return 'missing auth headers';
+    if (!Number.isFinite(Number(timestamp))) return 'unparseable timestamp';
 
-    if (!key || !timestamp || !signature) return 'missing auth headers';
-    if (!this.#safeEqual(key, this.apiKey)) return 'unknown api key';
-
-    // Milliseconds, as `Date.now().toString()` produces on the way out.
-    const at = Number(timestamp);
-    // Unparseable fails closed: it is what a replay carries once the original
-    // timestamp has expired.
-    if (!Number.isFinite(at)) return 'unparseable timestamp';
-    if (this.maxSkewSeconds > 0 && Math.abs(Date.now() - at) > this.maxSkewSeconds * 1000) return 'stale timestamp';
-
-    // The timestamp is inside the signature, so it cannot be edited to defeat
-    // the freshness check without breaking the signature.
-    const expected = this.sign({ ...body, timestamp });
-    if (!this.#safeEqual(signature, expected)) return 'signature mismatch';
+    /*
+     * The RAW bytes, never the parsed body re-serialised: the provider signs what it sent
+     * (`createApp` keeps `req.rawBody`). No bytes = nothing to check = refused.
+     *
+     * No freshness window here, on purpose: the provider re-sends a win it could not confirm
+     * "until you confirm it", and a re-send carrying its original signature must still be
+     * accepted days later. A replay is harmless — every callback is applied once per
+     * `serial_number` (the settlement row's unique key) and answered with the current balance.
+     */
+    const raw = Buffer.isBuffer(rawBody) ? rawBody.toString('utf8') : typeof rawBody === 'string' ? rawBody : null;
+    if (raw === null) return 'no raw body';
+    if (!this.#safeEqual(signature, this.signCallback(timestamp, raw))) return 'signature mismatch';
 
     return null;
   }
@@ -159,11 +187,13 @@ class XGamesApiClient {
     const timer = setTimeout(() => controller.abort(), this.timeoutMs);
 
     try {
+      // Serialised ONCE: the signature covers these exact bytes.
+      const bodyText = body ? JSON.stringify(body) : '';
       const response = await this.fetch(url.toString(), {
         method,
-        headers: this.headers(body ?? {}),
+        headers: this.headers({ method, url: url.toString(), bodyText }),
         signal: controller.signal,
-        ...(body ? { body: JSON.stringify(body) } : {}),
+        ...(body ? { body: bodyText } : {}),
       });
 
       const payload = await response.json().catch(() => null);

@@ -2,7 +2,7 @@ import { useQuery } from '@tanstack/react-query';
 import { api } from '@/lib/api';
 import { ENDPOINTS } from '@/lib/endpoints';
 import { toSiteConfig } from '@/data/adapters';
-import { brandName, cleanBranding, readCachedBranding, writeCachedBranding } from '@/lib/branding';
+import { brandName, cleanBranding, readCachedBranding, rememberLoader, writeCachedBranding } from '@/lib/branding';
 import { queryKeys } from './keys';
 
 /**
@@ -70,7 +70,9 @@ export function useBranding() {
   const query = useQuery({
     queryKey: queryKeys.site.branding(),
     queryFn: async ({ signal }) => {
-      const branding = cleanBranding(await api(ENDPOINTS.branding, { auth: false, signal }));
+      const data = await api(ENDPOINTS.branding, { auth: false, signal });
+      rememberLoader(data);
+      const branding = cleanBranding(data);
       writeCachedBranding(branding);
       return branding;
     },
@@ -129,6 +131,9 @@ export function useRegion() {
     retry: false,
   });
 }
+
+/** The owner's site-wide avatar switch (`avatars_enabled`); off, or not answered yet, means initials only. */
+export const useAvatarsEnabled = () => useSiteConfig().config.raw.avatars_enabled === true;
 
 /** The Edit Avatar grid: `[{id, url, minLevel, sort}]`, already in the admin's order. */
 export function useAvatars({ enabled = true } = {}) {

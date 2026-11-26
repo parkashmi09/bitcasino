@@ -231,6 +231,22 @@ test('the Super Admin logo: the newer of the owner\'s and the Super Admin\'s sho
   await assert.rejects(() => store.setSite('ogImage', PNG, { ownerBranding: null }));
 });
 
+test('public read: a Super Admin image change (no owner version bump) is not answered 304', async (t) => {
+  const config = { RATE_LIMIT_ENABLED: false };
+  const store = createBrandingStore({ logger, models: assetTable() });
+  const app = express();
+  app.use('/b', publicRoutes({ entitlementsStore: { current: () => ({ version: 1 }) }, brandingStore: store, config, logger }));
+  const server = app.listen(0);
+  t.after(() => server.close());
+  const url = `http://127.0.0.1:${server.address().port}/b/public`;
+  const etag = (await fetch(url)).headers.get('etag');
+  assert.equal((await fetch(url, { headers: { 'if-none-match': etag } })).status, 304);
+  await store.setSite('loader', PNG, { staff: { id: 1 }, ownerBranding: null });
+  const res = await fetch(url, { headers: { 'if-none-match': etag } });
+  assert.equal(res.status, 200);
+  assert.match((await res.json()).data.loaderUrl, new RegExp(sha(PNG)));
+});
+
 test("the Super Admin's name and metadata: the newer of the owner's and the Super Admin's shows", async () => {
   const table = assetTable();
   const store = createBrandingStore({ logger, models: table });

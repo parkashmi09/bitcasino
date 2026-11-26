@@ -114,7 +114,7 @@ type Section = 'direct' | 'agent' | 'financial'
 const UsersPage = () => {
   // The tab lives in the URL through nuqs, like the table's search/page, so the two never overwrite each other.
   const [url, setUrl] = useQueryStates({ tab: parseAsString, search: parseAsString, page: parseAsString }, { history: 'replace', scroll: false })
-  const { actor, modelAllows } = useSession()
+  const { actor, can, modelAllows } = useSession()
 
   // Direct Users and Financial are B2C's, Agent System B2B's (all three on a hybrid site).
   const house = actor?.direct === true && modelAllows('b2c')
@@ -123,7 +123,8 @@ const UsersPage = () => {
   const sections: { value: Section; label: string; icon: React.ReactNode }[] = [
     ...(house ? [{ value: 'direct' as const, label: 'Direct Users', icon: <UserIcon /> }] : []),
     ...(modelAllows('b2b') ? [{ value: 'agent' as const, label: 'Agent System', icon: <NetworkIcon /> }] : []),
-    ...(house ? [{ value: 'financial' as const, label: 'Financial', icon: <LandmarkIcon /> }] : [])
+    // Financial reads `admin/withdrawal-control` (wallet:adjust).
+    ...(house && can('wallet:adjust') ? [{ value: 'financial' as const, label: 'Financial', icon: <LandmarkIcon /> }] : [])
   ]
 
   const section: Section = sections.find(s => s.value === url.tab)?.value ?? sections[0]?.value ?? 'agent'

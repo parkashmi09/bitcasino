@@ -6,7 +6,7 @@ import { toast } from 'sonner'
 
 import Link from 'next/link'
 
-import { ArrowDownToLineIcon, ArrowUpFromLineIcon, ChartColumnIcon, DicesIcon, Loader2Icon, ReceiptTextIcon, ScaleIcon, TrophyIcon, UserPlusIcon, UsersIcon } from 'lucide-react'
+import { ArrowDownToLineIcon, ArrowUpFromLineIcon, ChartColumnIcon, CopyIcon, DicesIcon, KeyRoundIcon, Loader2Icon, ReceiptTextIcon, ScaleIcon, TrophyIcon, UserPlusIcon, UsersIcon } from 'lucide-react'
 
 import DataTable, { type Column } from '@/components/shared/DataTable'
 import ExportButtons, { fetchAllRows } from '@/components/shared/ExportButtons'
@@ -46,6 +46,10 @@ export type Branch = {
   createdAt: string
   lastLoginAt: string | null
   players?: number
+
+  /** A visitor who signs up on the site with this code or link becomes this branch's player. */
+  referralCode?: string | null
+  referralLink?: string | null
 }
 
 export type BranchTotals = {
@@ -222,6 +226,46 @@ const BranchSummary = ({ data, loading }: { data?: Summary; loading: boolean }) 
   )
 }
 
+/** The branch's sign-up link and code, to share: whoever signs up with either is this branch's player. */
+const BranchReferral = ({ branch }: { branch?: Branch }) => {
+  if (!branch?.referralCode) return null
+
+  const copy = async (text: string, what: string) => {
+    try {
+      await navigator.clipboard.writeText(text)
+      toast.success(`${what} copied`)
+    } catch {
+      toast.error('Could not copy — select the text and copy it')
+    }
+  }
+
+  return (
+    <Card className='mb-4'>
+      <CardContent className='flex flex-col gap-3'>
+        <div>
+          <p className='font-medium'>Referral link</p>
+          <p className='text-muted-foreground text-sm'>Share it. A player who signs up with this link or code is added to this branch.</p>
+        </div>
+        {branch.referralLink && (
+          <div className='flex flex-wrap items-center gap-2'>
+            <Input readOnly value={branch.referralLink} className='min-w-0 flex-1 font-mono text-sm' onFocus={e => e.currentTarget.select()} />
+            <Button variant='outline' size='sm' onClick={() => copy(branch.referralLink as string, 'Link')}>
+              <CopyIcon /> Copy link
+            </Button>
+          </div>
+        )}
+        <div className='flex flex-wrap items-center gap-2'>
+          <span className='text-muted-foreground text-sm'>Code</span>
+          <span className='font-mono font-medium'>{branch.referralCode}</span>
+          <Button variant='ghost' size='sm' onClick={() => copy(branch.referralCode as string, 'Code')}>
+            <CopyIcon /> Copy code
+          </Button>
+        </div>
+      </CardContent>
+    </Card>
+  )
+}
+
 /** The branch's name, then its totals over a date range. */
 export const BranchDashboard = ({ base, actions }: { base: string; actions?: ReactNode }) => {
   const [range, setRange] = useState(defaultRange())
@@ -235,6 +279,7 @@ export const BranchDashboard = ({ base, actions }: { base: string; actions?: Rea
         description={branch && <>Login <span className='font-mono'>{branch.username}</span> <StatusBadge value={branch.status} /></>}
         actions={actions}
       />
+      <BranchReferral branch={branch} />
       <div className='mb-4 flex flex-wrap items-center justify-between gap-2'>
         <p className='text-muted-foreground text-sm'>Totals for the period. Amounts in other coins are converted at today&apos;s rate.</p>
         <div className='flex flex-wrap items-center gap-2'>
@@ -324,6 +369,40 @@ export const CreatePlayer = ({ base }: { base: string }) => {
   )
 }
 
+/** A new password for one of the branch's players; every session the player has ends. */
+export const PlayerPassword = ({ base, player }: { base: string; player: Pick<Player, 'id' | 'name'> }) => {
+  const empty = { password: '', confirm: '' }
+  const [form, setForm] = useState(empty)
+
+  const change = useApiMutation({
+    fn: () => api.put(`${base}/players/${player.id}/password`, { password: form.password }),
+    success: 'Password changed — the player is signed out',
+    onSuccess: () => setForm(empty)
+  })
+
+  return (
+    <FormDialog
+      trigger={
+        <Button variant='outline' size='sm' title='Change password'>
+          <KeyRoundIcon /> Password
+        </Button>
+      }
+      title={`New password for ${player.name}`}
+      description='At least 8 characters. The player is signed out everywhere and signs in again with the new password.'
+      submitLabel='Change'
+      onOpenChange={o => o && setForm(empty)}
+      validate={() => ({
+        password: !form.password ? 'Password is required' : check.length(form.password, 'Password', { min: 8, max: 72 }),
+        confirm: !form.confirm ? 'Confirm the password' : check.match(form.password, form.confirm, 'Passwords do not match')
+      })}
+      onSubmit={() => change.mutateAsync()}
+    >
+      <TextField id={`bp-npw-${player.id}`} name='password' label='New password' type='password' autoComplete='new-password' required value={form.password} onChange={e => setForm({ ...form, password: e.target.value })} />
+      <TextField id={`bp-npw2-${player.id}`} name='confirm' label='Confirm password' type='password' autoComplete='new-password' required value={form.confirm} onChange={e => setForm({ ...form, confirm: e.target.value })} />
+    </FormDialog>
+  )
+}
+
 const Balances = ({ value }: { value: Record<string, string> }) => {
   const list = Object.entries(value)
 
@@ -338,8 +417,8 @@ const Balances = ({ value }: { value: Record<string, string> }) => {
   )
 }
 
-/** The branch's players; a row opens the player's page (`playerHref`). */
-export const BranchPlayers = ({ base, playerHref }: { base: string; playerHref: (id: string) => string }) => {
+/** The branch's players; a row opens the player's page (`playerHref`). The password change is the Super Admin's only. */
+export const BranchPlayers = ({ base, playerHref, canChangePassword = false }: { base: string; playerHref: (id: string) => string; canChangePassword?: boolean }) => {
   const { state, set, query } = useListState()
   const list = usePagedApi<Player>(`${base}/players`, { limit: query.limit, page: query.page, search: query.search })
 
@@ -355,9 +434,12 @@ export const BranchPlayers = ({ base, playerHref }: { base: string; playerHref: 
       header: '',
       align: 'right',
       cell: r => (
-        <Button variant='outline' size='sm' nativeButton={false} render={<Link href={playerHref(r.id)} />}>
-          View
-        </Button>
+        <div className='flex justify-end gap-2'>
+          {canChangePassword && <PlayerPassword base={base} player={r} />}
+          <Button variant='outline' size='sm' nativeButton={false} render={<Link href={playerHref(r.id)} />}>
+            View
+          </Button>
+        </div>
       )
     }
   ]
@@ -674,7 +756,7 @@ const ReportTabs = ({ base, userId, players }: { base: string; userId?: string; 
 export const BranchDetail = ({ base, actions, playerHref }: { base: string; actions?: ReactNode; playerHref: (id: string) => string }) => (
   <div className='grid gap-6'>
     <BranchDashboard base={base} actions={actions} />
-    <ReportTabs base={base} players={<BranchPlayers base={base} playerHref={playerHref} />} />
+    <ReportTabs base={base} players={<BranchPlayers base={base} playerHref={playerHref} canChangePassword />} />
   </div>
 )
 

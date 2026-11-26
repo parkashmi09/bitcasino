@@ -8,6 +8,7 @@ const errors = require('./kycLevels.errors');
 const { MAGIC_BYTES, MAX_FILE_BYTES } = require('../kyc/kyc.constants');
 const { entitlements } = require('@ibitplay/common');
 const { ownerWhere, assertPlayerVisible } = require('../directory/playerScope');
+const { notifyPlayer } = require('../notifications/notifyPlayer');
 
 const STATUS = Object.freeze({ PENDING: 'Pending', VERIFIED: 'Verified', REJECTED: 'Rejected' });
 const LABEL = Object.freeze({ 3: 'Proof of Address', 4: 'Source of Income' });
@@ -134,6 +135,12 @@ class KycLevelService {
       reviewed_at: new Date(),
     });
     this.logger?.info({ id: String(id), status, staffId: staff?.id }, 'KYC level reviewed');
+    // The player's page unlocks the next level on this push (kind kyc_*), without a reload.
+    const level = row.level;
+    const key = `kyc-level:${status}:${id}:${new Date(row.reviewed_at).getTime()}`;
+    void notifyPlayer(row.user_id, status === STATUS.VERIFIED
+      ? { kind: 'kyc_level_approved', key, title: `Verification level ${level} approved`, body: 'Your document was accepted.', link: '/settings', meta: { level } }
+      : { kind: 'kyc_level_rejected', key, title: `Verification level ${level} rejected`, body: `Your document was not accepted. Reason: ${rejectionReason}. Please upload it again.`, link: '/settings', meta: { level, reason: rejectionReason } });
     return { id: String(id), status };
   }
 

@@ -14,6 +14,7 @@ const { notifyPlayer } = require('../notifications/notifyPlayer');
 const { withdrawalNotice } = require('../notifications/notices');
 const { PlayerBonusService } = require('../player-bonuses/playerBonus.service');
 const { createWithdrawRequirements } = require('../withdraw-requirements/withdrawRequirements');
+const { createWithdrawControls } = require('../withdraw-controls/withdrawControls');
 const { withChannel, assertPlayerVisible } = require('../directory/playerScope');
 
 /** Thrown inside the request transaction to roll back a double submit's row. */
@@ -57,6 +58,8 @@ class FiatWithdrawService {
     this.minimum = config.WITHDRAW_MINIMUM ?? '1';
     // The owner's `withdrawal_requirements` policy (KYC / wagering), with WITHDRAW_REQUIRE_KYC.
     this.requirements = deps.withdrawRequirements ?? createWithdrawRequirements({ ...deps, playerBonuses: this.playerBonuses });
+    // The owner's per-player caps (withdraw-controls, migration 202).
+    this.controls = deps.withdrawControls ?? createWithdrawControls(deps);
   }
 
   /**
@@ -146,6 +149,8 @@ class FiatWithdrawService {
         await this.requirements.assertCapInTransaction(userId, {
           amount: details.amount, currency: details.currency, transaction, applied,
         });
+        // The owner's caps (largest single, count and amount per 24 hours), under the same lock.
+        await this.controls.assertInTransaction(userId, { amount: details.amount, currency: details.currency, transaction });
 
         // Confirmed: the active bonuses are forfeited in this transaction, before the debit (lock
         // order bonuses → wallet, as in the wagering path); a failed debit rolls the forfeit back.

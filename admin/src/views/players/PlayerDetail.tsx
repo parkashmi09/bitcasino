@@ -430,6 +430,18 @@ const TABS = ['wallet', 'bets', 'stats', 'logins', 'balances', 'bonuses', 'prefs
 
 type Tab = (typeof TABS)[number]
 
+const TAB_LABELS: Record<Tab, string> = {
+  wallet: 'Ledger', bets: 'Bets', stats: 'Stats', logins: 'Logins', balances: 'Balances', bonuses: 'Bonuses', prefs: 'Preferences',
+  risk: 'Risk', responsible: 'Responsible gambling', sheet: 'Balance sheet', transfers: 'Transfers', notifications: 'Notifications'
+}
+
+/**
+ * The backend guard of each tab's read where it is not reports:read (which this screen already
+ * needs): wallet history / balances are wallet:read, preferences config:read, responsible gambling
+ * and notification history users:read. A tab the session cannot read is not offered at all.
+ */
+const TAB_PERMISSION: Partial<Record<Tab, string>> = { wallet: 'wallet:read', balances: 'wallet:read', prefs: 'config:read', responsible: 'users:read', notifications: 'users:read' }
+
 /** `GET admin/user/directory/:id` — the allow-listed columns of one player in the caller's tree (users:read). */
 type DirectoryPlayer = {
   id: number | string
@@ -507,14 +519,10 @@ const ReportDetail = ({ id }: { id: string }) => {
   const { actor, can } = useSession()
   const promotions = actor?.promotions === true
 
-  // `admin/site-config/user/:id` is guarded by config:read (writes by config:write): without it the
-  // tab would only ever show a 403, so it is not offered at all.
-  const canPrefs = can('config:read')
-
-  // An agent's player has no bonus, transfers or notifications (user, 2026-10-17): those tabs are not offered.
+  // An agent's player has no bonus, responsible gambling, transfers or notifications (user, 2026-10-17): those tabs are not offered.
   const agentPlayer = report.data?.channel === 'agent'
-  const hidden = (t: Tab) => (t === 'prefs' && !canPrefs) || (agentPlayer && ['bonuses', 'transfers', 'notifications'].includes(t))
-  const tab: Tab = hidden(tabParam) ? 'wallet' : tabParam
+  const hidden = (t: Tab) => !can(TAB_PERMISSION[t]) || (agentPlayer && ['bonuses', 'responsible', 'transfers', 'notifications'].includes(t))
+  const tab: Tab = hidden(tabParam) ? (TABS.find(t => !hidden(t)) ?? 'bets') : tabParam
 
   // An agent's player is shown in points (INR, no symbol): total, sports, casino (third-party games).
   const points = useApi<{ points?: { total: string; sports: string; casino: string; original?: string; balance: string; credit: string } }>(agentPlayer ? `admin/reports/client-balance-sheet/${id}` : null, { limit: 1 })
@@ -650,18 +658,11 @@ const ReportDetail = ({ id }: { id: string }) => {
 
       <Tabs value={tab} onValueChange={value => void setTab(value as Tab)} className='mt-6'>
         <TabsList className='mb-4 flex-wrap'>
-          <TabsTrigger value='wallet'>Ledger</TabsTrigger>
-          <TabsTrigger value='bets'>Bets</TabsTrigger>
-          <TabsTrigger value='stats'>Stats</TabsTrigger>
-          <TabsTrigger value='logins'>Logins</TabsTrigger>
-          <TabsTrigger value='balances'>Balances</TabsTrigger>
-          {!agentPlayer && <TabsTrigger value='bonuses'>Bonuses</TabsTrigger>}
-          {canPrefs && <TabsTrigger value='prefs'>Preferences</TabsTrigger>}
-          <TabsTrigger value='risk'>Risk</TabsTrigger>
-          {!agentPlayer && <TabsTrigger value='responsible'>Responsible gambling</TabsTrigger>}
-          <TabsTrigger value='sheet'>Balance sheet</TabsTrigger>
-          {!agentPlayer && <TabsTrigger value='transfers'>Transfers</TabsTrigger>}
-          {!agentPlayer && <TabsTrigger value='notifications'>Notifications</TabsTrigger>}
+          {TABS.filter(t => !hidden(t)).map(t => (
+            <TabsTrigger key={t} value={t}>
+              {TAB_LABELS[t]}
+            </TabsTrigger>
+          ))}
         </TabsList>
         <TabsContent value='wallet'>
           <WalletTab userId={id} />
@@ -681,11 +682,9 @@ const ReportDetail = ({ id }: { id: string }) => {
         <TabsContent value='balances'>
           <BalancesTab userId={id} />
         </TabsContent>
-        {canPrefs && (
-          <TabsContent value='prefs'>
-            <PrefsTab userId={id} />
-          </TabsContent>
-        )}
+        <TabsContent value='prefs'>
+          <PrefsTab userId={id} />
+        </TabsContent>
         <TabsContent value='risk'>
           <RiskManagementPanel userId={id} />
         </TabsContent>

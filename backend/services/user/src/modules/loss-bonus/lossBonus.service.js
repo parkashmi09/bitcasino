@@ -5,7 +5,8 @@ const { promotionsBlocked } = require('@ibitplay/auth');
 
 const { createRewardMoney } = require('../../lib/rewardMoney');
 const { PlayerBonusService } = require('../player-bonuses/playerBonus.service');
-const { SOURCE } = require('../player-bonuses/playerBonus.constants');
+const { SOURCE, UNLOCK_MODE } = require('../player-bonuses/playerBonus.constants');
+const { notifyBonus } = require('../notifications/notifyPlayer');
 const errors = require('./lossBonus.errors');
 
 /**
@@ -32,6 +33,16 @@ const errors = require('./lossBonus.errors');
  * OFF by default. The claim goes through PlayerBonusService.grant: locked until bonus × the wager
  * multiplier is staked (0 = straight to cash), exactly once per player and period (`grant_key`),
  * never for an agent-tree player.
+ *
+ * Added 2026-11-24 (user; plan docs/plans/2026-11-24-deposit-and-loss-bonus-rules.md), each a
+ * Limits and policy switch, all OFF by default:
+ *   auto credit        the `loss-bonus:auto-credit` job grants it when the window ends (no claim);
+ *                      the manual claim stays for anything the job has not reached yet
+ *   requires deposit   granted waiting (`activated_at` NULL) — usable only after the player's next
+ *                      deposit credited after the grant
+ *   stake share %      each bet is paid that share from the bonus (10 = 90 cash + 10 bonus), see
+ *                      PlayerBonusService UNLOCK_MODE.STAKE_SHARE; the wager multiplier then
+ *                      does not apply
  */
 
 const HOUR_MS = 3_600_000;
@@ -39,6 +50,10 @@ const DAY_MS = 24 * HOUR_MS;
 // Periods are counted from a Monday (UTC), so a 7-day period runs Monday to Monday.
 const EPOCH_MS = Date.UTC(1970, 0, 5);
 const ZERO = '0.00000000';
+// Auto credit with no claim expiry: how far back the job looks for a window that ended.
+const AUTO_LOOKBACK_HOURS = 7 * 24;
+// Error codes `claim` throws for "nothing to pay for this player now" — quiet in the job.
+const QUIET = new Set(['LOSS_BONUS_NOTHING_TO_CLAIM', 'LOSS_BONUS_ALREADY_CLAIMED', 'LOSS_BONUS_NOT_SETTLED', 'LOSS_BONUS_EXPIRED', 'LOSS_BONUS_NO_DEPOSIT', 'LOSS_BONUS_NOT_ELIGIBLE']);
 const PLAY_REASONS = ['BET_STAKE', 'BET_PAYOUT', 'BET_REFUND', 'BET_ROLLBACK'];
 // The sports settlement ledger's P/L rows (admin dashboardStats SPORTS_LEDGER_REASONS).
 const SPORTS_REASONS = ['settlement', 'settlement_void', 'commission', 'commission_void'];
@@ -76,7 +91,7 @@ class LossBonusService {
   /** The Super Admin's terms; unreadable = off. */
   async terms() {
     const read = (key, fallback) => this.settings.read(key, fallback);
-    const [enabled, welcome, hours, days, percent, maxBonus, minLoss, maxBet, claimHours, multiplier] = await Promise.all([
+    const [enabled, welcome, hours, days, percent, maxBonus, minLoss, maxBet, claimHours, multiplier, auto, requiresDeposit, share] = await Promise.all([
       read('loss_bonus_enabled', false),
       read('loss_bonus_welcome', true),
       read('loss_bonus_protection_hours', 24),
@@ -87,6 +102,9 @@ class LossBonusService {
       read('loss_bonus_max_bet', '0'),
       read('loss_bonus_claim_hours', 48),
       read('loss_bonus_wager_multiplier', '0'),
+      read('loss_bonus_auto_credit', false),
+      read('loss_bonus_requires_deposit', false),
+      read('loss_bonus_stake_share_percent', '0'),
     ]);
     const whole = (v, min, max, fallback) => Math.min(max, Math.max(min, Number.isFinite(Number(v)) ? Math.trunc(Number(v)) : fallback));
     return {
@@ -100,6 +118,9 @@ class LossBonusService {
       maxBet: D(maxBet),
       claimHours: whole(claimHours, 0, 720, 48),
       wagerMultiplier: Number(multiplier) > 0 ? Number(multiplier) : 0,
+      autoCredit: String(auto) === 'true',
+      requiresDeposit: String(requiresDeposit) === 'true',
+      stakeSharePercent: Math.min(100, Math.max(0, Number.isFinite(Number(share)) ? Number(share) : 0)),
     };
   }
 
@@ -211,9 +232,10 @@ class LossBonusService {
 
     const { netLoss } = await this.netLoss(userId, window.from, window.to, terms.maxBet);
     const bonus = bonusFor(netLoss, terms);
-    const claimed = Boolean(
-      await this.models.PlayerBonus.findOne({ where: { grant_key: window.grantKey }, attributes: ['id'], raw: true })
-    );
+    const granted = await this.models.PlayerBonus.findOne({
+      where: { grant_key: window.grantKey }, attributes: ['id', 'activated_at', 'status'], raw: true,
+    });
+    const claimed = Boolean(granted);
     const state = claimed
       ? 'claimed'
       : !window.ended
@@ -230,6 +252,8 @@ class LossBonusService {
       claimed,
       claimable: state === 'claimable',
       state,
+      // Granted but usable only after the player's next deposit ("Requires a new deposit").
+      waitingForDeposit: Boolean(granted && granted.status === 'active' && granted.activated_at == null),
       period: { from: window.from.toISOString(), to: window.to.toISOString() },
       claimExpiresAt: window.expiresAt?.toISOString() ?? null,
     };
@@ -258,14 +282,92 @@ class LossBonusService {
       currency,
       amount: bonus,
       wagerMultiplier: terms.wagerMultiplier,
-      description: `Loss bonus ${terms.percent}% of ${netLoss} ${currency}`,
+      ...(terms.stakeSharePercent > 0
+        ? { unlockMode: UNLOCK_MODE.STAKE_SHARE, unlockRate: String(terms.stakeSharePercent / 100) }
+        : {}),
+      activated: !terms.requiresDeposit,
+      description:
+        `Loss bonus ${terms.percent}% of ${netLoss} ${currency}` +
+        (terms.stakeSharePercent > 0 ? `, ${terms.stakeSharePercent}% of each bet` : '') +
+        (terms.requiresDeposit ? ', usable after your next deposit' : ''),
     });
     if (!result.paid) {
       if (result.reason === 'ALREADY_PAID') throw errors.ALREADY_CLAIMED();
       throw errors.NOT_ELIGIBLE({ reason: result.reason });
     }
     this.logger?.info({ userId: String(userId), netLoss, bonus, currency, locked: result.locked }, 'Loss bonus claimed');
-    return { ...result, netLoss, percent: terms.percent, period: { from: window.from.toISOString(), to: window.to.toISOString() } };
+    return {
+      ...result, netLoss, percent: terms.percent, waitingForDeposit: result.locked === true && result.activated === false,
+      period: { from: window.from.toISOString(), to: window.to.toISOString() },
+    };
+  }
+
+  /**
+   * The `loss-bonus:auto-credit` job: with auto credit on, grant every ended window's bonus that is
+   * not granted yet — the same `claim` (same checks, same `grant_key`, so exactly once, and a
+   * player's manual claim racing it pays once). Candidates are the players who played in the window
+   * (period mode) or whose protection hours ended recently (Welcome Shield).
+   */
+  async autoGrantDue() {
+    const terms = await this.terms();
+    if (!terms.enabled || !terms.autoCredit) return { checked: 0, granted: 0 };
+    const users = await this.#candidates(terms);
+    let granted = 0;
+    for (const userId of users) {
+      try {
+        const result = await this.claim(userId);
+        granted += 1;
+        void notifyBonus(userId, {
+          key: `bonus:loss:${result.period.from.slice(0, 10)}`,
+          title: result.waitingForDeposit ? 'Loss bonus — deposit to use it' : 'Loss bonus added',
+          amount: result.amount,
+          currency: result.currency,
+        });
+      } catch (error) {
+        if (QUIET.has(error?.code)) continue;
+        this.logger?.warn({ err: error, userId: String(userId) }, 'Loss bonus auto credit failed for a player');
+      }
+    }
+    if (granted) this.logger?.info({ checked: users.length, granted }, 'Loss bonus auto credit');
+    return { checked: users.length, granted };
+  }
+
+  /** Players with a window that has ended and no grant under its key yet. */
+  async #candidates(terms) {
+    const { sequelize } = this.db;
+    const now = this.now();
+    let ids;
+    let keyOf;
+    if (terms.welcome) {
+      const lookback = (terms.claimHours > 0 ? terms.claimHours : AUTO_LOOKBACK_HOURS) * HOUR_MS;
+      const endedBefore = new Date(now.getTime() - terms.protectionHours * HOUR_MS);
+      const rows = await sequelize.query(
+        `SELECT user_id::text AS user_id FROM public.credits_ledger WHERE reason = 'DEPOSIT'
+          GROUP BY user_id HAVING MIN(created_at) <= :endedBefore AND MIN(created_at) > :since`,
+        { replacements: { endedBefore, since: new Date(endedBefore.getTime() - lookback) }, type: sequelize.QueryTypes.SELECT }
+      );
+      ids = rows.map((r) => r.user_id);
+      keyOf = (u) => `loss-bonus:${u}:welcome`;
+    } else {
+      const { from, to } = lastPeriod(now, terms.periodDays);
+      const rows = await sequelize.query(
+        `SELECT DISTINCT user_id::text AS user_id FROM public.credits_ledger
+          WHERE created_at >= :from AND created_at < :to AND reason IN (:play) AND source_service = 'casino-service'
+         UNION
+         SELECT DISTINCT user_id::text FROM mssports.credits_ledger
+          WHERE created_at >= :from AND created_at < :to AND reason IN (:sports)`,
+        { replacements: { from, to, play: PLAY_REASONS, sports: SPORTS_REASONS }, type: sequelize.QueryTypes.SELECT }
+      );
+      ids = rows.map((r) => r.user_id);
+      const day = from.toISOString().slice(0, 10);
+      keyOf = (u) => `loss-bonus:${u}:${day}:${terms.periodDays}d`;
+    }
+    if (!ids.length) return [];
+    const done = await this.models.PlayerBonus.findAll({
+      where: { grant_key: ids.map(keyOf) }, attributes: ['grant_key'], raw: true,
+    });
+    const paid = new Set(done.map((r) => r.grant_key));
+    return ids.filter((u) => !paid.has(keyOf(u)));
   }
 }
 

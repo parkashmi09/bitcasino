@@ -13,6 +13,7 @@
  */
 import { SportIcon as SportArt } from './site';
 import { hasSportIcon } from './site';
+import { SPORT_COLOR_ART } from './sportColorArt';
 
 export { BetbyIcon } from './site';
 export { IconArrow, IconClose, IconCheck, IconInform } from './site';
@@ -129,7 +130,15 @@ const DRAWN_SPORT_GLYPHS = {
  * that must never show a blank row (the sidebar's Sports group) can say so. Without `fallback`
  * an unknown key renders nothing, as it always has.
  */
-export function SportIcon({ sport, fallback = false, className = '', ...rest }) {
+export function SportIcon({ sport, fallback = false, color = false, className = '', ...rest }) {
+  /* `color`: the full-colour PNG (sportColorArt.js) where one exists — lobby pills and league headers. */
+  if (color && SPORT_COLOR_ART[sport]) {
+    return (
+      <span className={`inline-flex ${className}`} {...rest}>
+        <img src={SPORT_COLOR_ART[sport]} alt="" className="size-full object-contain" />
+      </span>
+    );
+  }
   if (sport && hasSportIcon(sport)) return <SportArt sport={sport} className={className} {...rest} />;
   const glyph = DRAWN_SPORT_GLYPHS[sport] ?? (fallback ? DRAWN_SPORT_GLYPHS.generic : null);
   if (!glyph) return null;

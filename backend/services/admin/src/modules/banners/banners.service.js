@@ -4,7 +4,7 @@ const { Op } = require('sequelize');
 
 const errors = require('./banners.errors');
 const { inspect } = require('./upload');
-const { AGENT_PREFIX, modeOf } = require('./banners.constants');
+const { AGENT_PREFIX, BUILTIN_PLACEMENTS, modeOf } = require('./banners.constants');
 
 /**
  * The banners on the front of the site.
@@ -45,8 +45,9 @@ class BannersService {
      * an image, so that case falls through to `inspect` and its NO_FILE.
      */
     if (!file?.buffer?.length) {
-      const existing = await this.models.Banners.findOne({ where: { type }, attributes: ['id'], raw: true });
-      if (existing) return this.#putCopy({ staff, type, label, title, subtitle, ctaLabel, ctaHref, sortOrder });
+      const existing = await this.models.Banners.findOne({ where: { type }, attributes: ['id', 'byte_size'], raw: true });
+      // A built-in's "hidden" marker has no image: editing it still needs one.
+      if (existing?.byte_size != null) return this.#putCopy({ staff, type, label, title, subtitle, ctaLabel, ctaHref, sortOrder });
     }
 
     const image = inspect(file);
@@ -142,14 +143,45 @@ class BannersService {
    * upload a blank picture.
    */
   async setActive({ staff, type, active }) {
-    const [affected] = await this.models.Banners.update(
-      { is_active: active, updated_at: new Date() },
-      { where: { type } }
-    );
-    if (!affected) throw errors.NOT_FOUND({ type });
+    const row = await this.models.Banners.findOne({ where: { type }, attributes: ['id', 'byte_size'], raw: true });
+
+    if (!row) {
+      /* A built-in placement with nothing uploaded has no row: hiding it writes a marker
+         (no image, inactive). Showing it needs nothing — it is already showing. */
+      if (!BUILTIN_PLACEMENTS.includes(type)) throw errors.NOT_FOUND({ type });
+      if (!active) {
+        await this.models.Banners.create({
+          type,
+          image: `${type}.builtin`,
+          image_data: null,
+          is_active: false,
+          uploaded_by: staff?.id ?? null,
+          sort_order: 0,
+          created_at: new Date(),
+          updated_at: new Date(),
+        });
+      }
+    } else if (row.byte_size == null && active) {
+      // Showing a hidden built-in again: drop the marker, the site's own art is back.
+      await this.models.Banners.destroy({ where: { type } });
+    } else {
+      await this.models.Banners.update({ is_active: active, updated_at: new Date() }, { where: { type } });
+    }
 
     this.logger?.info({ type, active, staffId: staff?.id }, 'Banner visibility changed');
     return { type, active };
+  }
+
+  /**
+   * Remove a placement's row outright. On a built-in placement that puts the site's own art
+   * back in that slot (and only that slot); on any other it is simply gone.
+   */
+  async remove({ staff, type }) {
+    const affected = await this.models.Banners.destroy({ where: { type } });
+    if (!affected) throw errors.NOT_FOUND({ type });
+
+    this.logger?.info({ type, staffId: staff?.id }, 'Banner removed');
+    return { type, removed: true };
   }
 
   // ══════════════════════════════════════════════════════════════════════
@@ -168,19 +200,27 @@ class BannersService {
   }
 
   /** @legacy GET /api/banners/getBannerAll */
-  async list({ includeInactive = false, mode }) {
+  async list({ includeInactive = false, withHidden = false, mode }) {
     const byMode = mode
       ? { type: mode === 'agent' ? { [Op.startsWith]: AGENT_PREFIX } : { [Op.notLike]: `${AGENT_PREFIX}%` } }
       : {};
     const rows = await this.models.Banners.findAll({
-      where: { ...(includeInactive ? {} : { is_active: true }), ...byMode },
+      where: { ...(includeInactive || withHidden ? {} : { is_active: true }), ...byMode },
       attributes: this.#metaColumns(),
       /* Slide order, then placement — see migration 037. Ordering on `type`
          alone puts hero-10 before hero-2. */
       order: [['sort_order', 'ASC'], ['type', 'ASC']],
       raw: true,
     });
-    return { total: rows.length, rows: rows.map((r) => this.#describe(r, { includeUrl: true })) };
+    /* `withHidden` (the player site): a hidden placement comes back as its NAME only, so the site
+       knows not to draw its built-in art there either. No copy, no image url — a banner taken
+       down stays unreadable to the public. */
+    const out = rows.map((r) =>
+      includeInactive || r.is_active !== false
+        ? this.#describe(r, { includeUrl: true })
+        : { type: r.type, mode: modeOf(r.type), active: false }
+    );
+    return { total: out.length, rows: out };
   }
 
   /**
@@ -275,6 +315,9 @@ class BannersService {
       contentType: row.content_type ?? null,
       byteSize: row.byte_size ?? null,
       active: row.is_active !== false,
+      /** False on a built-in's "hidden" marker: the placement has no uploaded image. */
+      hasImage: row.byte_size != null,
+      builtin: BUILTIN_PLACEMENTS.includes(row.type),
       uploadedBy: row.uploaded_by ?? null,
 
       /**

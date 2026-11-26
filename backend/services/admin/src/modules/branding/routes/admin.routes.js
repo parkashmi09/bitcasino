@@ -24,7 +24,7 @@ module.exports = function adminRoutes(deps) {
   const houseOnly = denyAgentTree({ code: 'BRANDING_HOUSE_ONLY', message: 'The logo is set by the Super Admin, not agent accounts' });
   const withActivity = createActivityRecorder({ client: deps.clients?.admin, logger: deps.logger, serviceName: deps.config.SERVICE_NAME });
   const ownerBranding = () => deps.entitlementsStore?.current()?.branding ?? null;
-  const maxBytes = Math.max(MAX_IMAGE_BYTES.logo, MAX_IMAGE_BYTES.mark);
+  const maxBytes = Math.max(MAX_IMAGE_BYTES.logo, MAX_IMAGE_BYTES.mark, MAX_IMAGE_BYTES.loader);
 
   router.get(
     '/',

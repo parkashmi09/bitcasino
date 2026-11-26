@@ -10,8 +10,8 @@ export type PickedImage = { type: string; data: string; url: string }
 
 const LOGO_TYPES = ['image/png', 'image/webp', 'image/svg+xml']
 
-/** A poster is a photo: PNG, JPEG or WebP up to 600 KB (the backend's limit). */
-export const POSTER = { types: ['image/png', 'image/jpeg', 'image/webp'], maxBytes: 600 * 1024 }
+/** A poster is a photo: PNG, JPEG or WebP up to 2 MB (the backend's limit). */
+export const POSTER = { types: ['image/png', 'image/jpeg', 'image/webp'], maxBytes: 2 * 1024 * 1024 }
 
 /**
  * One image (logo or square icon) as base64 for admin/whitelabels — the backend checks the bytes
@@ -49,7 +49,7 @@ const ImageField = ({
   const pick = (file: File | undefined) => {
     if (!file) return
     if (!types.includes(file.type)) return onError(`${types.map(t => t.split('/')[1].replace('svg+xml', 'SVG').toUpperCase()).join(', ')} only`)
-    if (file.size > maxBytes) return onError(`At most ${Math.round(maxBytes / 1024)} KB`)
+    if (file.size > maxBytes) return onError(maxBytes >= 1024 * 1024 ? `At most ${+(maxBytes / (1024 * 1024)).toFixed(1)} MB` : `At most ${Math.round(maxBytes / 1024)} KB`)
     const reader = new FileReader()
 
     reader.onload = () => onChange({ type: file.type, data: String(reader.result).split(',')[1] ?? '', url: URL.createObjectURL(file) })

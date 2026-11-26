@@ -13,6 +13,7 @@ import FiatDeposits from '@/views/finance/FiatDeposits'
 import FiatWithdrawals from '@/views/finance/FiatWithdrawals'
 import PageHeader from '@/components/shared/PageHeader'
 import PaymentOrders, { AllRails } from '@/views/finance/PaymentOrders'
+import WithdrawLimits from '@/views/finance/WithdrawLimits'
 import AgentLedger from './AgentLedger'
 import ManualSwitch from './ManualSwitch'
 
@@ -73,7 +74,7 @@ const WITHDRAW_PARTS: Part[] = [
     label: 'Fiat',
     view: () => (
       <>
-        <PageHeader title='Fiat withdrawals' description='Gateway (PSP) payouts across every fiat rail.' />
+        <PageHeader title='Fiat withdrawals' description='Gateway (PSP) payouts across every fiat rail.' actions={<WithdrawLimits rail='fiat' />} />
         <AllRails kind='withdrawals' />
       </>
     )

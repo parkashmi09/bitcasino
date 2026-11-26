@@ -36,6 +36,24 @@ export function cleanBranding(data) {
   return out;
 }
 
+export const LOADER_STORAGE_KEY = 'bc.loaderUrl';
+
+/**
+ * The site admin's loading picture (Site config → Branding, `loaderUrl`): kept for index.html's boot
+ * script, which paints it on the next load before the bundle. Readable unbranded, so not in
+ * cleanBranding. Asset-route paths only; anything else (or null) forgets it.
+ */
+export function rememberLoader(data) {
+  const url = typeof data?.loaderUrl === 'string' && ASSET_PATH_RE.test(data.loaderUrl) ? data.loaderUrl : null;
+  try {
+    if (url) localStorage.setItem(LOADER_STORAGE_KEY, url);
+    else localStorage.removeItem(LOADER_STORAGE_KEY);
+  } catch {
+    /* no storage: no loader picture */
+  }
+  return url;
+}
+
 /** The last answer, so a returning visitor sees the owner's logo before the read lands. */
 export function readCachedBranding() {
   try {

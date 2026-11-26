@@ -116,6 +116,7 @@ module.exports = {
   createPlayer: { ...withBranch, body: createPlayerBody },
   statement: { ...withBranch, query: statementQuery },
   player: { params: z.object({ branchId, userId: playerParam }).strict() },
+  playerPassword: { params: z.object({ branchId, userId: playerParam }).strict(), body: z.object({ password }).strict() },
   money: { ...withBranch, query: moneyQuery },
   bets: { ...withBranch, query: betsQuery },
 

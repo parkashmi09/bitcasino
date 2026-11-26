@@ -3,7 +3,7 @@ import { renderHook, waitFor } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 
 import { makeGates } from '@/lib/gates';
-import { promotionOn, raceOn, toPromotionCard, toSlides, toTournament, useBonusEvents } from './promotions';
+import { promotionOn, raceOn, toAgentSlides, toPromotionCard, toSlides, toTournament, useBonusEvents } from './promotions';
 
 /**
  * `GET /user/bonus/events`, and the shape it does not have.
@@ -181,5 +181,13 @@ describe('the race, promotion and slide adapters', () => {
     expect(slides[1]).toMatchObject({ href: '/sports', art: '/b', title: 'B' });
     expect(slides[0].href).toBeNull();
     expect(toSlides([{ type: 'slider-1', url: '/a', updatedAt: 'T1' }])[0].art).toBe('/a?v=T1');
+  });
+
+  it('/agent: built-ins slot by slot; a hidden slot drops its built-in, an upload takes its own slot', () => {
+    const ids = (rows) => toAgentSlides(rows).map((slide) => slide.id);
+    expect(ids([])).toEqual(['agent-slider-1', 'agent-slider-2', 'agent-slider-3', 'agent-slider-4']);
+    expect(ids([{ type: 'agent-slider-2', mode: 'agent', active: false }])).toEqual(['agent-slider-1', 'agent-slider-3', 'agent-slider-4']);
+    const up = toAgentSlides([{ type: 'agent-slider-3', url: '/up/3', active: true }]);
+    expect(up.map((slide) => slide.art)).toEqual(['/brand/agent/slide-1.webp', '/brand/agent/slide-2.webp', '/up/3', '/brand/agent/slide-4.webp']);
   });
 });

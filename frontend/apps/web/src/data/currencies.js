@@ -131,28 +131,28 @@ export const currencyMeta = (code) =>
  */
 const NETWORKS = {
   USDT: [
-    { id: 'TRX', label: 'Tron Network', short: 'TRX' },
-    { id: 'ETH', label: 'Ethereum Network', short: 'ERC20' },
-    { id: 'BSC', label: 'BNB Smart Chain', short: 'BEP20' },
+    { id: 'TRC20', label: 'Tron Network', short: 'TRX' },
+    { id: 'ERC20', label: 'Ethereum Network', short: 'ERC20' },
+    { id: 'BEP20', label: 'BNB Smart Chain', short: 'BEP20' },
   ],
   USDC: [
-    { id: 'ETH', label: 'Ethereum Network', short: 'ERC20' },
-    { id: 'TRX', label: 'Tron Network', short: 'TRX' },
-    { id: 'MATIC', label: 'Polygon Network', short: 'MATIC' },
+    { id: 'ERC20', label: 'Ethereum Network', short: 'ERC20' },
+    { id: 'TRC20', label: 'Tron Network', short: 'TRX' },
+    { id: 'POLYGON', label: 'Polygon Network', short: 'MATIC' },
   ],
   BUSD: [
-    { id: 'BSC', label: 'BNB Smart Chain', short: 'BEP20' },
-    { id: 'ETH', label: 'Ethereum Network', short: 'ERC20' },
+    { id: 'BEP20', label: 'BNB Smart Chain', short: 'BEP20' },
+    { id: 'ERC20', label: 'Ethereum Network', short: 'ERC20' },
   ],
-  TUSD: [{ id: 'ETH', label: 'Ethereum Network', short: 'ERC20' }],
-  USDP: [{ id: 'ETH', label: 'Ethereum Network', short: 'ERC20' }],
-  NEXO: [{ id: 'ETH', label: 'Ethereum Network', short: 'ERC20' }],
-  MKR: [{ id: 'ETH', label: 'Ethereum Network', short: 'ERC20' }],
-  SHIB: [{ id: 'ETH', label: 'Ethereum Network', short: 'ERC20' }],
-  BNB: [{ id: 'BSC', label: 'BNB Smart Chain', short: 'BEP20' }],
+  TUSD: [{ id: 'ERC20', label: 'Ethereum Network', short: 'ERC20' }],
+  USDP: [{ id: 'ERC20', label: 'Ethereum Network', short: 'ERC20' }],
+  NEXO: [{ id: 'ERC20', label: 'Ethereum Network', short: 'ERC20' }],
+  MKR: [{ id: 'ERC20', label: 'Ethereum Network', short: 'ERC20' }],
+  SHIB: [{ id: 'ERC20', label: 'Ethereum Network', short: 'ERC20' }],
+  BNB: [{ id: 'BEP20', label: 'BNB Smart Chain', short: 'BEP20' }],
   MATIC: [
-    { id: 'MATIC', label: 'Polygon Network', short: 'MATIC' },
-    { id: 'ETH', label: 'Ethereum Network', short: 'ERC20' },
+    { id: 'POLYGON', label: 'Polygon Network', short: 'MATIC' },
+    { id: 'ERC20', label: 'Ethereum Network', short: 'ERC20' },
   ],
 };
 
@@ -160,10 +160,16 @@ const NETWORKS = {
  * `[{ id, label, short }]` for a coin, never empty. A fiat balance has no
  * chain at all, which is why this can answer `[]` — the drawer hides the row
  * rather than inventing a network for a rupee.
+ *
+ * `id` is the backend's network key (`COIN_NETWORKS`: TRC20, ERC20, BEP20…), the
+ * only value `chain` may carry. `live` is this coin's `[{ key, name }]` from
+ * `GET /user/crypto/networks` (switched-off networks left out); without it the
+ * list above is the fallback.
  */
-export function currencyNetworks(code) {
-  if (NETWORKS[code]) return NETWORKS[code];
+export function currencyNetworks(code, live) {
   const meta = CURRENCIES[code];
-  if (!meta || meta.decimals === FIAT) return [];
-  return [{ id: code, label: `${meta.name} Network`, short: code }];
+  if (!NETWORKS[code] && (!meta || meta.decimals === FIAT)) return [];
+  const fallback = NETWORKS[code] ?? [{ id: code, label: `${meta.name} Network`, short: code }];
+  if (!live) return fallback;
+  return live.map(({ key, name }) => fallback.find((entry) => entry.id === key) ?? { id: key, label: name || key, short: key });
 }

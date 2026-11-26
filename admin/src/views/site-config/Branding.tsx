@@ -33,6 +33,9 @@ type SiteBranding = {
   logoUrl: string | null
   markUrl: string | null
   ogImageUrl: string | null
+
+  /** The pre-boot loading picture; null = the site's own art. */
+  loaderUrl?: string | null
   managedBy: 'owner' | null
 
   /** Whose name and metadata players get: the Super Admin's (set here, after the owner's) or the platform's. */
@@ -151,9 +154,9 @@ const Picture = ({ label, url, className, dark = true }: { label: string; url: s
  * The Super Admin's upload / reset for the logo or the icon (`PUT|DELETE admin/branding/:slot`).
  * The newer of the Super Admin's and the owner's image is what players get.
  */
-const SiteImage = ({ slot }: { slot: 'logo' | 'mark' }) => {
+const SiteImage = ({ slot }: { slot: 'logo' | 'mark' | 'loader' }) => {
   const input = useRef<HTMLInputElement>(null)
-  const name = slot === 'logo' ? 'Logo' : 'Icon'
+  const name = slot === 'logo' ? 'Logo' : slot === 'mark' ? 'Icon' : 'Loading picture'
   const invalidate = [['api', 'admin/branding']]
 
   const upload = useApiMutation({
@@ -332,6 +335,17 @@ const Branding = () => {
               </div>
               {canEdit && <SiteImage slot='mark' />}
               {canEdit && <p className='text-muted-foreground text-xs'>PNG, WebP or SVG, up to 256 KB. Logo: wide, transparent (576×128 is sharp). Icon: square.</p>}
+            </CardContent>
+          </Card>
+          <Card className='shadow-none'>
+            <CardHeader>
+              <CardTitle className='text-base'>Loading picture</CardTitle>
+              <CardDescription>The pulsing picture players see while the site starts. Reset goes back to the site&apos;s own.</CardDescription>
+            </CardHeader>
+            <CardContent className='grid gap-4'>
+              <Picture label='Loading picture' url={src(b.loaderUrl ?? null)} className='size-14 object-contain' />
+              {canEdit && <SiteImage slot='loader' />}
+              {canEdit && <p className='text-muted-foreground text-xs'>PNG, WebP or SVG, up to 1 MB. Square with a transparent background (512×512 is sharp).</p>}
             </CardContent>
           </Card>
           <ChatButtons b={b} canEdit={can('config:write')} />

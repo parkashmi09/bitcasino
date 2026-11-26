@@ -23,7 +23,7 @@ const { assertNotPlatformExcluded } = require('../responsible-gambling/responsib
 /* Registration is where a referral becomes a team. Safe to require here —
    the affiliate module does not reach back into auth. */
 const { AffiliateService } = require('../affiliate/affiliate.service');
-const { resolveReferrerOwner } = require('../affiliate/referrerResolver');
+const { resolveReferrerOwner, resolveBranchByCode } = require('../affiliate/referrerResolver');
 /**
  * The player role id and the empty wallet blob, shared with `admin/players`
  * so an operator-created account and a self-registered one are the same shape.
@@ -378,6 +378,8 @@ class AuthService {
         'is_demo', 'demo_expires_at',
         // migration 180: sent as `emailVerified`
         'email_verified_at',
+        // migration 198-users-must-change-password: sent as `mustChangePassword`
+        'must_change_password',
       ],
       raw: true,
     });
@@ -392,6 +394,9 @@ class AuthService {
     user.demoExpiresAt = user.demo ? user.demo_expires_at : null;
     delete user.is_demo;
     delete user.demo_expires_at;
+    // True while the password is one a staff member chose: the site opens the change-password dialog.
+    user.mustChangePassword = user.must_change_password === true;
+    delete user.must_change_password;
 
     /*
      * What the player site may show: `{ promotions, vault, deposit, swap, withdraw }`, false for
@@ -473,8 +478,6 @@ class AuthService {
   async changePassword({ currentPassword, newPassword }, user) {
     const record = await this.models.Users.findByPk(user.id);
     if (!record) throw errors.SESSION_NOT_FOUND();
-    // An agent's player never sets or changes their own password: their upline does.
-    if (record.parent_staff_id != null) throw errors.OWN_PASSWORD_LOCKED();
 
     const ok = record.password ? await verifyPassword(currentPassword, record.password) : false;
     if (!ok) throw errors.CURRENT_PASSWORD_INCORRECT();
@@ -494,13 +497,20 @@ class AuthService {
      * genuine owner a day's delay on a withdrawal they were probably not
      * making at that exact moment.
      */
-    const lockedUntil = new Date(Date.now() + WITHDRAW_COOLDOWN_MS);
+    /* A FORCED change (`must_change_password`, an agent's player replacing the password a staff
+       member chose) is the platform's own demand, not a sign of a takeover, so it carries no freeze. */
+    const forced = record.must_change_password === true;
+    const lockedUntil = forced ? null : new Date(Date.now() + WITHDRAW_COOLDOWN_MS);
 
     return this.db.transaction(async (transaction) => {
       /* One update, so a password that changed always carries its freeze — two
          writes could leave the password changed and the window unset. */
       await record.update(
-        { password: await hashPassword(newPassword), withdraw_locked_until: lockedUntil, must_change_password: false },
+        {
+          password: await hashPassword(newPassword),
+          must_change_password: false,
+          ...(lockedUntil ? { withdraw_locked_until: lockedUntil } : {}),
+        },
         { transaction }
       );
 
@@ -587,7 +597,11 @@ class AuthService {
      */
     const typedReferral = String(referredBy ?? '').trim();
     let referrer = null;
-    if (typedReferral) {
+    /* A BRANCH's code (`branches.referral_code`, migration 200) is asked first: the new player is
+       that branch's (`users.branch_id`), a direct user like one the branch creates itself, and
+       nobody is their referrer. Anything else is a player's code, as before. */
+    const branch = typedReferral ? await resolveBranchByCode(this.models, typedReferral) : null;
+    if (typedReferral && !branch) {
       referrer = await resolveReferrerOwner(this.models, typedReferral);
       if (!referrer) throw errors.REFERRAL_CODE_INVALID({ referredBy: typedReferral });
     }
@@ -601,6 +615,7 @@ class AuthService {
       country,
       refree: referrer?.referalcode ?? null,
       ip: context.ip,
+      branchId: branch?.id ?? null,
     });
 
     /*
@@ -618,7 +633,7 @@ class AuthService {
 
     this.logger?.info(
       // No password, and no email — the id is enough to find the row.
-      { userId: String(created.id), referredBy: referrer?.referalcode ?? null },
+      { userId: String(created.id), referredBy: referrer?.referalcode ?? null, branchId: branch?.id ?? null },
       'Player registered'
     );
     this.#trackLogin(created.id, context, 'register');
@@ -683,7 +698,7 @@ class AuthService {
   }
 
   /** The user row and its wallet, in one transaction — shared by password and Google sign-up. */
-  async #insertPlayer({ username, email, passwordHash, phone, country, refree, ip, googleSub = null, demoExpiresAt = null }) {
+  async #insertPlayer({ username, email, passwordHash, phone, country, refree, ip, googleSub = null, demoExpiresAt = null, branchId = null }) {
     return this.db.transaction(async (transaction) => {
       const id = await this.#allocateUserId(transaction);
       const referralCode = await this.#uniqueReferralCode(username, transaction);
@@ -709,6 +724,13 @@ class AuthService {
         },
         { transaction }
       );
+      // Signed up with a branch's code: its player. Not in the generated model (migration 159), so set beside it.
+      if (branchId) {
+        await this.models.Users.sequelize.query('UPDATE users SET branch_id = :branchId WHERE id = :id', {
+          replacements: { branchId, id: user.id },
+          transaction,
+        });
+      }
       await this.models.Credits.create({ uid: user.id, inr: demoExpiresAt ? DEMO_BALANCE : '0' }, { transaction });
       return user;
     });
@@ -1334,12 +1356,18 @@ class AuthService {
       { transaction }
     );
 
+    /* An agent's player still on the password a staff member chose (migration 198). Signed into
+       the token as `mcp`, so every service refuses its writes until the player sets their own
+       (`authenticate` in packages/auth); the sign-in after the change carries no mark. */
+    const mustChangePassword = user.must_change_password === true;
+
     const accessToken = this.tokens.signAccessToken({
       userId: user.id,
       sessionId: session.id,
       role: 'player',
       status: user.status || 'active',
       notAfter: user.is_demo ? expiresAt : null,
+      extra: mustChangePassword ? { mcp: true } : {},
     });
 
     return {
@@ -1355,6 +1383,7 @@ class AuthService {
           email: user.email,
           status: user.status,
           twoFactorEnabled: Boolean(user.two_fa_status),
+          mustChangePassword,
         },
       },
     };
