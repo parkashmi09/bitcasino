@@ -557,7 +557,8 @@ class GisService {
           amount,
           reason,
           ref: { type: 'GIS', id: storageId },
-          description: `${action} ${storageId}`,
+          // What the player reads in their transactions: the game, never the provider or our ref.
+          description: await this.#gameName(body.game_uuid),
           gameType: body.game_uuid ?? undefined,
         });
 
@@ -1044,6 +1045,18 @@ class GisService {
         validUntil: row.valid_until,
       })),
     };
+  }
+
+  /** A game's catalogue name for the player's transaction line; never throws, never blocks a settlement. */
+  async #gameName(uuid) {
+    if (!uuid) return 'Casino game';
+    try {
+      const row = await this.models.Gisgamesnew.findOne({ where: { uuid: String(uuid) }, attributes: ['name'], raw: true });
+      return row?.name || 'Casino game';
+    } catch (error) {
+      this.logger?.warn({ err: error.message, uuid }, 'Slotegrator game name lookup failed — settling without it');
+      return 'Casino game';
+    }
   }
 
   /**

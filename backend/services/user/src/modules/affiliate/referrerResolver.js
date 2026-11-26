@@ -2,6 +2,7 @@
 
 const { fn, col, where } = require('sequelize');
 const { promotionsBlocked } = require('@ibitplay/auth');
+const { sitePolicy } = require('@ibitplay/common');
 
 /**
  * THE ONE ANSWER TO "WHOSE REFERRAL CODE IS THIS?"
@@ -73,10 +74,30 @@ async function findReferrerCandidate(models, rawInput) {
   return null;
 }
 
+/**
+ * A BRANCH's sign-up code (`branches.referral_code`, migration 200) — asked BEFORE the player
+ * lookup above by signup and by the form's "is this code valid?" check. A visitor who signs up
+ * with it becomes that branch's player (`users.branch_id`); nobody is their referrer. Only an
+ * active branch, and only while the owner's `branch_management` policy is on.
+ *
+ * @returns {Promise<{id: number} | null>}
+ */
+async function resolveBranchByCode(models, rawInput) {
+  const code = String(rawInput ?? '').trim().toUpperCase();
+  if (!code) return null;
+  const [rows] = await models.Users.sequelize.query(
+    `SELECT id FROM branches WHERE UPPER(referral_code) = :code AND status = 'active' LIMIT 1`,
+    { replacements: { code } }
+  );
+  if (!rows.length) return null;
+  if ((await sitePolicy.readPolicy(models, 'branch_management')) !== 'on') return null;
+  return { id: Number(rows[0].id) };
+}
+
 /** `${PUBLIC_SITE_URL}/referal/${code}` — the link `/user/affiliate` has always built. */
 function referralLinkFor(config, referralCode) {
   if (!referralCode) return null;
   return `${String(config?.PUBLIC_SITE_URL || '').replace(/\/+$/, '')}/referal/${referralCode}`;
 }
 
-module.exports = { resolveReferrerOwner, referralLinkFor };
+module.exports = { resolveReferrerOwner, resolveBranchByCode, referralLinkFor };

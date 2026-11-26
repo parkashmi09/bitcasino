@@ -16,6 +16,7 @@ const { withdrawalNotice } = require('../notifications/notices');
 const { networksFor } = require('../crypto/crypto.networks');
 const { PlayerBonusService } = require('../player-bonuses/playerBonus.service');
 const { createWithdrawRequirements } = require('../withdraw-requirements/withdrawRequirements');
+const { createWithdrawControls, isUnderAutoLimit } = require('../withdraw-controls/withdrawControls');
 const { withChannel } = require('../directory/playerScope');
 const { WhitelistService } = require('../withdrawal-whitelist/whitelist.service');
 const { ccpaymentCall, plainAmount, withdrawalOutcome } = require('../crypto/ccpaymentApi');
@@ -51,6 +52,8 @@ class CryptoWithdrawService {
     // The owner's `withdrawal_requirements` policy (KYC / wagering), with WITHDRAW_REQUIRE_KYC.
     this.requirements = deps.withdrawRequirements ?? createWithdrawRequirements({ ...deps, playerBonuses: this.playerBonuses });
     this.whitelist = new WhitelistService(deps);
+    // The owner's per-player caps and the auto-send limit (withdraw-controls, migration 202).
+    this.controls = deps.withdrawControls ?? createWithdrawControls(deps);
     this.deps = deps;
     this.http = deps.http ?? createHttpClient({ logger, timeoutMs: Number(config?.PSP_TIMEOUT_MS ?? 10_000) });
   }
@@ -146,8 +149,10 @@ class CryptoWithdrawService {
       .slice(0, 32);
     const idempotencyKey = `crypto-withdraw:${userId}:${fingerprint}:${Math.floor(Date.now() / 60_000)}`;
 
+    let rule = null;
+    let created;
     try {
-      return await this.db.transaction(async (transaction) => {
+      created = await this.db.transaction(async (transaction) => {
         /* TWO SUBMITS AT ONCE: the same lock as the fiat rail. The wallet's replay check reads
            the ledger before it locks the balance, so two concurrent requests could both miss it.
            Keyed on the request and released at commit, it makes the second wait and then see the
@@ -164,6 +169,8 @@ class CryptoWithdrawService {
 
         // The deposit cap again, under a per-player lock: two requests at once cannot both fit.
         await this.requirements.assertCapInTransaction(userId, { amount: decimal, currency, transaction, applied });
+        // The owner's caps (largest single, count and amount per 24 hours), under the same lock.
+        rule = await this.controls.assertInTransaction(userId, { amount: decimal, currency, transaction });
 
         // Confirmed: forfeit the active bonuses first (bonuses → wallet lock order).
         await this.playerBonuses.beforeWithdrawal(userId, { forfeitBonus, transaction });
@@ -226,6 +233,22 @@ class CryptoWithdrawService {
       if (!(error instanceof ReplayedRequest)) throw error;
       return this.#replayedRequest(idempotencyKey, userId);
     }
+
+    // Under the auto limit (and with a network to send on): CCPayment sends it now, no staff step.
+    // After commit and not awaited, so the player is not kept waiting on CCPayment; a refusal puts
+    // it back In Queue for staff (sendViaGateway → #unsend), and no answer leaves it Sending.
+    const autoSend = Boolean(network) && isUnderAutoLimit(rule, decimal);
+    if (autoSend) {
+      const withdrawalId = created.id;
+      this.logger?.warn({ withdrawalId, userId: String(userId), amount: decimal, coin: currency, autoLimit: rule.autoLimit }, 'Crypto withdrawal under the auto limit — sending through CCPayment');
+      const run = () =>
+        this.sendViaGateway({ withdrawalId, auto: true }, null).catch((error) => {
+          this.logger?.warn({ withdrawalId, err: error.message, code: error.code }, 'Auto-send refused — left in the queue for staff');
+        });
+      if (this.deps.autoSendNow) await run();
+      else setImmediate(run);
+    }
+    return { ...created, autoSend };
   }
 
   // ══════════════════════════════════════════════════════════════════════
@@ -492,7 +515,7 @@ class CryptoWithdrawService {
    * company pays the amount (in INR) plus the parent's withdrawal charge now — refused with
    * COMPANY_BALANCE_LOW if it cannot.
    */
-  async sendViaGateway({ withdrawalId }, staff) {
+  async sendViaGateway({ withdrawalId, auto = false }, staff) {
     const copy = Boolean(this.config.WHITELABEL_MODE);
     const chargePct = copy ? await withdrawalChargePct(this.deps, 'ccpayment') : null;
     const orderId = `CW${withdrawalId}_${crypto.randomBytes(6).toString('hex')}`;
@@ -502,6 +525,8 @@ class CryptoWithdrawService {
       if (!row) throw errors.NOT_FOUND({ withdrawalId });
       const current = row.status ?? STATUS.IN_QUEUE;
       if (!SENDABLE.includes(current)) throw errors.INVALID_TRANSITION({ withdrawalId, from: current, to: STATUS.SENDING, allowed: [] });
+      // The auto limit only sends a fresh request — never one staff already approved by hand.
+      if (auto && current !== STATUS.IN_QUEUE) throw errors.INVALID_TRANSITION({ withdrawalId, from: current, to: STATUS.SENDING, allowed: [] });
       if (!row.chain) throw errors.NEEDS_NETWORK({ withdrawalId });
       const coin = normaliseCoin(row.coin);
       const amount = money.toDecimalString(money.toMinorQuantised(row.amount ?? '0'));
@@ -509,7 +534,7 @@ class CryptoWithdrawService {
         await companyWallet.onWithdrawal(this.db, { provider: 'ccpayment', reference: orderId, currency: coin, amount, chargePct }, transaction);
       }
       await row.update(
-        { status: STATUS.SENDING, gateway: 'ccpayment', gateway_order_id: orderId, decided_by: staff?.id ?? null, decided_at: new Date() },
+        { status: STATUS.SENDING, gateway: 'ccpayment', gateway_order_id: orderId, decided_by: staff?.id ?? null, decided_at: new Date(), auto_sent: Boolean(auto) },
         { transaction }
       );
       return { previous: current, userId: row.uid, coin, amount, chain: row.chain, address: row.wallet };
@@ -572,7 +597,7 @@ class CryptoWithdrawService {
   async #unsend(withdrawalId, orderId, previous) {
     await this.db.transaction(async (transaction) => {
       const [count] = await this.models.Withdrawals.update(
-        { status: previous, gateway: null, gateway_order_id: null, gateway_record_id: null },
+        { status: previous, gateway: null, gateway_order_id: null, gateway_record_id: null, auto_sent: false },
         { where: { id: withdrawalId, status: STATUS.SENDING, gateway_order_id: orderId }, transaction }
       );
       if (count && this.config.WHITELABEL_MODE) {
@@ -762,7 +787,7 @@ class CryptoWithdrawService {
        */
       note: row.note ?? null,
       ...(forStaff
-        ? { decidedBy: row.decided_by ?? null, decidedAt: row.decided_at ?? null }
+        ? { decidedBy: row.decided_by ?? null, decidedAt: row.decided_at ?? null, autoSent: row.auto_sent === true }
         : {}),
     };
   }

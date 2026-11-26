@@ -3,6 +3,7 @@
 const { JsGamesService } = require('./jsGames.service');
 const { HuiduClient } = require('./providers/huidu');
 const { XGamesApiClient } = require('./providers/xgamesApi');
+const { JsHubProvider } = require('../wl-hub/jsHubProvider');
 
 /**
  * Assemble the jsGames service.
@@ -30,8 +31,10 @@ function buildJsGamesService(deps) {
         logger: deps.logger,
         fetchImpl: deps.fetchImpl,
       }),
+    // A whitelabel copy: JSGames runs on the parent's account (modules/wl-hub), like Slotegrator.
     v2:
       deps.v2 ??
+      (deps.config.WHITELABEL_MODE ? new JsHubProvider(deps) : null) ??
       new XGamesApiClient({
         baseUrl: deps.config.JSGAMES_V2_BASE_URL,
         userBaseUrl: deps.config.JSGAMES_V2_USER_BASE_URL,

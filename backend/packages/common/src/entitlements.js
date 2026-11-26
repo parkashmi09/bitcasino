@@ -153,11 +153,12 @@ async function isFeatureEntitled(key) {
 }
 
 /* Flags that read OFF when the owner never set them (owner-panel DEFAULT_OFF_FLAGS): the
-   sportsbook adds a third-party book, so it is never on by default; idle logout signs players out.
+   sportsbook adds a third-party book, so it is never on by default. Idle logout is ON by default on
+   every site, whitelabels included (user, 2026-11-25; hash 7cca21fe).
    roobet: the languages added after the first nine start off, so no site offers one until its
    owner switches it on. */
 const LATER_LANGUAGE_FLAGS = ['en-IN', 'hi', 'sr', 'cs', 'fil', 'fa', 'id', 'fi', 'vi', 'th', 'ko'].map((c) => `lang_${c}`);
-const DEFAULT_OFF_FLAGS = new Set(['sportsbook', 'idle_logout', ...LATER_LANGUAGE_FLAGS]);
+const DEFAULT_OFF_FLAGS = new Set(['sportsbook', ...LATER_LANGUAGE_FLAGS]);
 
 /**
  * Sync flag read for code that holds the document. The sportsbook and the exchange are

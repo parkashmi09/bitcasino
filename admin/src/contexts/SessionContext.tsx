@@ -105,7 +105,7 @@ export const directBalanceLabel = (whitelabel: boolean, model: 'b2c' | 'b2b' | '
 const ENTITLEMENTS_POLL_MS = 4_000
 
 /** Owner flags that read OFF until the owner sets them (backend entitlements.js DEFAULT_OFF_FLAGS). */
-const DEFAULT_OFF_FLAGS = new Set(['sportsbook', 'idle_logout'])
+const DEFAULT_OFF_FLAGS = new Set(['sportsbook'])
 
 /** How often the operator's own feature flags are re-read for the sidebar. */
 const FLAGS_POLL_MS = 15_000

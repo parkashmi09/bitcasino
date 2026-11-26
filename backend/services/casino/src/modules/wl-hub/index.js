@@ -9,8 +9,12 @@
  *   Slotegrator's callbacks for a copy's player (`wl<id>_<player>`) are passed on to the copy by
  *   gis.service (forward.js) and recorded in whitelabel_casino_rounds.
  *
+ *   public  POST /api/v1/casino/wl-hub/js/provider    a JSGames V2 launch on the parent's account;
+ *   its bet callbacks for a copy's player are passed on by jsGames.service (forward.js `forwardJs`).
+ *
  * On a COPY (the parent calls in):
  *   public  POST /api/v1/casino/wl-hub/in/gis          a verified Slotegrator callback to settle
+ *   public  POST /api/v1/casino/wl-hub/in/js           a verified JSGames V2 bet callback to settle
  */
 module.exports = {
   name: 'wl-hub',

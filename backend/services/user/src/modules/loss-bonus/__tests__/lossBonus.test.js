@@ -22,12 +22,20 @@ const SETTINGS = {
   loss_bonus_wager_multiplier: '1',
 };
 
-function service({ settings = SETTINGS, rows = [], over = [], firstDeposit = null, now = '2026-10-28T10:00:00Z', granted = [], claimedKeys = new Set() } = {}) {
+function service({ settings = SETTINGS, rows = [], over = [], firstDeposit = null, now = '2026-10-28T10:00:00Z', granted = [], claimedKeys = new Set(), candidates = [] } = {}) {
   return new LossBonusService({
-    models: { PlayerBonus: { findOne: async ({ where }) => (claimedKeys.has(where.grant_key) ? { id: 1 } : null) } },
+    models: {
+      PlayerBonus: {
+        findOne: async ({ where }) => (claimedKeys.has(where.grant_key) ? { id: 1, status: 'active', activated_at: null } : null),
+        findAll: async ({ where }) => where.grant_key.filter((k) => claimedKeys.has(k)).map((k) => ({ grant_key: k })),
+      },
+    },
     db: {
       sequelize: {
-        query: async (sql) => (sql.includes("reason = 'DEPOSIT'") ? [{ at: firstDeposit }] : sql.includes('jsonb_each_text') ? over : rows),
+        query: async (sql) =>
+          sql.includes('DISTINCT user_id') || sql.includes('HAVING MIN')
+            ? candidates.map((u) => ({ user_id: String(u) }))
+            : sql.includes("reason = 'DEPOSIT'") ? [{ at: firstDeposit }] : sql.includes('jsonb_each_text') ? over : rows,
         QueryTypes: { SELECT: 'SELECT' },
       },
     },
@@ -44,7 +52,7 @@ function service({ settings = SETTINGS, rows = [], over = [], firstDeposit = nul
         if (claimedKeys.has(input.grantKey)) return { paid: false, reason: 'ALREADY_PAID' };
         claimedKeys.add(input.grantKey);
         granted.push(input);
-        return { paid: true, locked: true, bonusId: '9', amount: input.amount, currency: input.currency };
+        return { paid: true, locked: true, activated: input.activated !== false, bonusId: '9', amount: input.amount, currency: input.currency };
       },
     },
     now: () => new Date(now), // 2026-10-28 is a Wednesday
@@ -138,4 +146,65 @@ test('max bet per bet: an over-limit stake is taken out of the loss', async () =
   // Lost 1,500 INR in all, 1,000 of it on one bet over the 500 limit -> 500 counts.
   const s = service({ settings: { ...SHIELD, loss_bonus_max_bet: '500' }, firstDeposit: '2026-10-27T12:00:00Z', rows: [{ currency: 'INR', pnl: '-1500' }], over: [{ currency: 'INR', pnl: '-1000' }] });
   assert.equal((await s.summary(1)).netLoss, '500.00000000');
+});
+
+// ── 2026-11-24: auto credit, requires a new deposit, stake share (Limits and policy → Loss bonus) ──
+
+const DAILY_3 = { ...SETTINGS, loss_bonus_percent: '3', loss_bonus_period_days: 1, loss_bonus_min_loss: '0', loss_bonus_max: '0' };
+
+test('new switches default off: a claim grants as before (rollover, usable at once)', async () => {
+  const granted = [];
+  const svc = service({ settings: DAILY_3, rows: [{ currency: 'INR', pnl: '-1000' }], granted });
+  const terms = await svc.terms();
+  assert.equal(terms.autoCredit, false);
+  assert.equal(terms.requiresDeposit, false);
+  assert.equal(terms.stakeSharePercent, 0);
+  const out = await svc.claim(1);
+  assert.equal(out.amount, '30.00000000');
+  assert.equal(granted[0].activated, true);
+  assert.equal(granted[0].unlockMode, undefined);
+  assert.equal(out.waitingForDeposit, false);
+});
+
+test('stake share 10% + requires deposit: the grant waits and pays 10% of each bet', async () => {
+  const granted = [];
+  const settings = { ...DAILY_3, loss_bonus_stake_share_percent: '10', loss_bonus_requires_deposit: true };
+  const svc = service({ settings, rows: [{ currency: 'INR', pnl: '-1000' }], granted });
+  const out = await svc.claim(1);
+  assert.equal(granted[0].unlockMode, 'stake_share');
+  assert.equal(granted[0].unlockRate, '0.1');
+  assert.equal(granted[0].activated, false);
+  assert.match(granted[0].description, /10% of each bet, usable after your next deposit/);
+  assert.equal(out.waitingForDeposit, true);
+  const summary = await svc.summary(1);
+  assert.equal(summary.state, 'claimed');
+  assert.equal(summary.waitingForDeposit, true);
+});
+
+test('auto credit off: the job grants nothing', async () => {
+  const granted = [];
+  const svc = service({ settings: DAILY_3, rows: [{ currency: 'INR', pnl: '-1000' }], granted, candidates: [1, 2] });
+  assert.deepEqual(await svc.autoGrantDue(), { checked: 0, granted: 0 });
+  assert.equal(granted.length, 0);
+});
+
+test('auto credit on: yesterday\'s losers are granted once; winners and already-granted are skipped', async () => {
+  const granted = [];
+  const claimedKeys = new Set(['loss-bonus:3:2026-10-27:1d']);
+  const settings = { ...DAILY_3, loss_bonus_auto_credit: true };
+  const svc = service({ settings, rows: [{ currency: 'INR', pnl: '-1000' }], granted, claimedKeys, candidates: [1, 3] });
+  assert.deepEqual(await svc.autoGrantDue(), { checked: 1, granted: 1 });
+  assert.equal(granted[0].grantKey, 'loss-bonus:1:2026-10-27:1d');
+  assert.deepEqual(await svc.autoGrantDue(), { checked: 0, granted: 0 }, 'second run: nothing left');
+
+  const winners = service({ settings, rows: [{ currency: 'INR', pnl: '500' }], granted: [], candidates: [7] });
+  assert.deepEqual(await winners.autoGrantDue(), { checked: 1, granted: 0 });
+});
+
+test('auto credit, Welcome Shield: granted after the protection hours end', async () => {
+  const granted = [];
+  const settings = { ...DAILY_3, loss_bonus_welcome: true, loss_bonus_protection_hours: 24, loss_bonus_auto_credit: true };
+  const svc = service({ settings, rows: [{ currency: 'INR', pnl: '-1000' }], granted, candidates: [4], firstDeposit: '2026-10-27T08:00:00Z' });
+  assert.deepEqual(await svc.autoGrantDue(), { checked: 1, granted: 1 });
+  assert.equal(granted[0].grantKey, 'loss-bonus:4:welcome');
 });

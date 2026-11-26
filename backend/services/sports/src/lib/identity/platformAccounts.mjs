@@ -61,7 +61,9 @@ export function decodePlatformToken(token) {
   let accessError;
   try {
     const p = tokenService().verify(token, TOKEN_TYPES.ACCESS);
-    return { user_id: Number(p.sub), role: 'USER', session_id: p.sid ?? null, password_change_due: p.pcr === true };
+    return { user_id: Number(p.sub), role: 'USER', session_id: p.sid ?? null, password_change_due: p.pcr === true,
+      // `mcp`: the player must set their own password first (users.must_change_password) — the auth middleware refuses its writes.
+      mcp: p.mcp === true };
   } catch (error) {
     accessError = error;
   }

@@ -79,19 +79,6 @@ const PASSWORD_CHANGE_ALLOWED = Object.freeze([
   { method: 'POST', path: /\/admin\/auth\/logout\/?$/ },
 ]);
 
-/** rainbet: all a player's session may do until an upline-chosen password is replaced. */
-const PLAYER_PASSWORD_CHANGE_ALLOWED = Object.freeze([
-  { method: 'GET', path: /\/user\/auth\/me\/?$/ },
-  { method: 'POST', path: /\/user\/auth\/change-password\/?$/ },
-  { method: 'POST', path: /\/user\/auth\/logout\/?$/ },
-]);
-
-function playerPasswordChangeAllows(req) {
-  const path = String(req.originalUrl || req.url || '').split('?')[0];
-  const method = String(req.method || 'GET').toUpperCase();
-  return PLAYER_PASSWORD_CHANGE_ALLOWED.some((r) => r.method === method && r.path.test(path));
-}
-
 /** The code every write answers on a read-only (whitelabel preview) session. */
 const READ_ONLY_PREVIEW = 'READ_ONLY_PREVIEW';
 const READ_METHODS = new Set(['GET', 'HEAD', 'OPTIONS']);
@@ -100,6 +87,22 @@ function passwordChangeAllows(req) {
   const path = String(req.originalUrl || req.url || '').split('?')[0];
   const method = String(req.method || 'GET').toUpperCase();
   return PASSWORD_CHANGE_ALLOWED.some((r) => r.method === method && r.path.test(path));
+}
+
+/**
+ * The PLAYER twin: an agent's player still on the password a staff member chose (`mcp` in the
+ * access token, `users.must_change_password`). Reads go through, so the site can load and show
+ * the change-password dialog; every write is refused except setting the password and signing out.
+ */
+const PLAYER_PASSWORD_CHANGE_ALLOWED = Object.freeze([
+  /\/user\/auth\/change-password\/?$/,
+  /\/user\/auth\/logout\/?$/,
+]);
+
+function playerPasswordChangeAllows(req) {
+  if (READ_METHODS.has(String(req.method || 'GET').toUpperCase())) return true;
+  const path = String(req.originalUrl || req.url || '').split('?')[0];
+  return PLAYER_PASSWORD_CHANGE_ALLOWED.some((allowed) => allowed.test(path));
 }
 
 /**
@@ -203,6 +206,12 @@ function createAuthMiddleware({ config, loadUser, loadStaff, loadSession, cache 
         };
         req.token = { raw: token, payload };
         if (req.context) req.context.userId = req.user.id;
+
+        if (payload.mcp === true && !playerPasswordChangeAllows(req)) {
+          const error = new ForbiddenError('Set your own password before continuing.');
+          error.code = PASSWORD_CHANGE_REQUIRED;
+          throw error;
+        }
 
         return next();
       } catch (error) {
@@ -477,6 +486,7 @@ module.exports = {
   PASSWORD_CHANGE_REQUIRED,
   PASSWORD_CHANGE_ALLOWED,
   passwordChangeAllows,
+  playerPasswordChangeAllows,
   denyAgentTree,
   PROMOTIONS_NOT_FOR_AGENTS,
   VAULT_NOT_FOR_AGENTS,

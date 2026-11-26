@@ -125,6 +125,8 @@ class PlayersService {
           referalcode: referralCode,
           referral_link: referralCode ? this.#referralLink(referralCode) : null,
           status: 'active',
+          // The creator knows this password: the player's first sign-in must replace it.
+          must_change_password: true,
         },
         { transaction }
       );
@@ -178,6 +180,8 @@ class PlayersService {
        * means a player who changes their password stops having one stored.
        */
       changes.password2 = null;
+      // A staff member chose it: an agent's player replaces it at the next sign-in (migration 198).
+      changes.must_change_password = literal('parent_staff_id IS NOT NULL');
     }
 
     if (!Object.keys(changes).length) throw errors.NOTHING_TO_UPDATE();

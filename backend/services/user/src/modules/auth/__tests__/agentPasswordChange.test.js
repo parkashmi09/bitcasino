@@ -13,8 +13,9 @@ const changeAs = (stored) =>
     { id: 1 }
   );
 
-test("an agent's player cannot change their own password", async () => {
-  await assert.rejects(changeAs({ id: 1, parent_staff_id: 7, password: null }), (error) => /OWN_PASSWORD_LOCKED/.test(error.code));
+// Agent players set their own password again (hash b5db2358, user 2026-11-26): no upline-only lock.
+test("an agent's player reaches the current-password check", async () => {
+  await assert.rejects(changeAs({ id: 1, parent_staff_id: 7, password: null }), (error) => /CURRENT_PASSWORD_INCORRECT/.test(error.code));
 });
 
 test('a direct player reaches the current-password check', async () => {

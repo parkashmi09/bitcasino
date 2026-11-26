@@ -106,8 +106,10 @@ class LordsService {
         password: await hashPassword(newPassword, PASSWORD_ROUNDS),
         // A reset ends the staff account's open sessions, like the other password paths, and the
         // next sign-in must replace the password (that change issues a new transaction password).
-        ...(accountType === ACCOUNT_TYPE.STAFF ? { token_version: literal('token_version + 1') } : {}),
-        must_change_password: true,
+        ...(accountType === ACCOUNT_TYPE.STAFF
+          ? { token_version: literal('token_version + 1'), must_change_password: true }
+          // An agent's player replaces it at the next sign-in too; a direct player is left alone.
+          : { must_change_password: literal('parent_staff_id IS NOT NULL') }),
       },
       { where: { id: accountId } }
     );

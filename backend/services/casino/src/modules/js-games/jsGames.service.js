@@ -86,8 +86,16 @@ const {
  * settlement has been accepted — a rakeback that cannot be recorded must never
  * be a reason a player's payout fails.
  */
+/** A balance as the provider's launch takes it: at most two decimals, cut not rounded ("925.5" → "925.50", "7" → "7"). */
+function displayAmount(value) {
+  const m = /^(-?\d+)(?:\.(\d+))?$/.exec(String(value ?? '0').trim());
+  if (!m) return '0';
+  const cents = (m[2] ?? '').slice(0, 2).padEnd(2, '0');
+  return cents === '00' ? m[1] : `${m[1]}.${cents}`;
+}
+
 class JsGamesService {
-  constructor({ models, db, config, logger, wallet, clients, v1, v2 }) {
+  constructor({ models, db, config, logger, wallet, clients, v1, v2, hub }) {
     this.models = models;
     this.db = db;
     this.config = config;
@@ -97,6 +105,8 @@ class JsGamesService {
     this.clients = clients ?? {};
     this.v1 = v1;
     this.v2 = v2;
+    /** Parent → copy pass-on of a copy player's callback (wl-hub/forward); replaceable in tests. */
+    this.hub = hub ?? hubForward;
     /* Same service, same models — a plain collaborator, not an HTTP hop. */
     this.games = new GamesService({ models, db, config, logger, clients: this.clients });
     /** rainbet: casino challenges, checked as a winning round settles. */
@@ -568,7 +578,8 @@ class JsGamesService {
           body: {
             game_uid: gameUid,
             user_id: String(providerUserId),
-            credit_amount: inPkr ? money.toDecimalString(money.multiply(String(balance), fx)) : String(balance),
+            // Shown in the game only (the wallet stays here): the guide's form, "100" or "100.50".
+            credit_amount: displayAmount(inPkr ? money.toDecimalString(money.multiply(String(balance), fx)) : balance),
             currency_code: inPkr ? 'PKR' : String(currencyCode).toUpperCase(),
             language: language || 'en',
             name: user.name,
@@ -635,7 +646,7 @@ class JsGamesService {
    * settled wrongly, and it is why the movement is one signed delta rather
    * than a debit branch and a credit branch.
    */
-  async betCallbackV2({ body, headers }) {
+  async betCallbackV2({ body, rawBody, headers, trusted = false }) {
     try {
       /**
        * `verify` returns NULL on success and a reason string on failure, so
@@ -643,14 +654,44 @@ class JsGamesService {
        * is wrong: `??` treats the null success as nullish and substitutes the
        * fallback, which refuses every genuine callback.
        */
-      const refusal = this.v2 ? this.v2.verify({ body, headers }) : 'not configured';
+      /**
+       * `trusted`: a whitelabel copy settling a callback its parent verified and passed on (casino
+       * modules/wl-hub checks the parent's hub signature first). Honoured on a copy only.
+       */
+      const viaParent = trusted && this.config?.WHITELABEL_MODE;
+      const refusal = viaParent ? null : this.v2 ? this.v2.verify({ rawBody, headers }) : 'not configured';
       if (refusal) {
         this.logger?.warn({ refusal, userId: body?.user_id }, 'REJECTED jsGames v2 callback');
         return { success: false, error: 'Unauthorised' };
       }
 
-      const providerUserId = Number(body.user_id);
+      const providerUserId = Number(body?.user_id);
       if (!Number.isSafeInteger(providerUserId) || providerUserId <= 0) return { success: false, error: 'Invalid payload' };
+
+      /**
+       * The provider's "Send test callback" (`X-Test-Callback: 1`, amounts 0, any player id): it
+       * passes on HTTP 200 with a `new_balance`. Signed like any other, moves nothing, writes
+       * nothing — answered before any player is looked up, so an invented test id passes too.
+       */
+      if (!viaParent && String(headers?.['x-test-callback'] ?? '') === '1') {
+        const settlementForTest = V2_CURRENCIES[String(body.currency ?? '').toUpperCase()];
+        const known = this.#isHubAlias(providerUserId) || !settlementForTest ? null : await this.#balanceOf(v2PlayerOf(providerUserId), settlementForTest);
+        return { success: true, test: true, new_balance: String(known ?? '0') };
+      }
+
+      /**
+       * On the parent, a copy's player is known to the provider by a numeric alias the parent
+       * issued at launch (wl-hub `jsAlias`: the provider takes digits only, 11 at most, so the
+       * `wl<id>_<player>` form the other providers carry does not fit). That copy settles it on
+       * its own wallet; its answer goes back to the provider unchanged.
+       */
+      if (!this.config?.WHITELABEL_MODE && this.#isHubAlias(providerUserId)) {
+        const deps = { db: this.db, config: this.config, logger: this.logger };
+        const wlPlayer = await this.hub.jsPlayerByAlias(deps, providerUserId);
+        if (!wlPlayer) return { success: false, error: 'Invalid payload' };
+        return await this.hub.forwardJs(deps, { ...wlPlayer, body });
+      }
+
       const userId = v2PlayerOf(providerUserId);
 
       /* PKR is only ever an INR game the owner's jsgames_inr_as_pkr opened in PKR: its amounts are
@@ -695,6 +736,16 @@ class JsGamesService {
       const delta = win - bet;
 
       /**
+       * ONE CALLBACK = ONE `serial_number`, applied once (the provider's rule; it is also its
+       * `X-Idempotency-Key`). A round is not the unit: a live table sends several stakes on one
+       * `game_round`, each with its own serial, and keyed on round + type alone the second stake
+       * was answered as a duplicate of the first — accepted in the game, never debited here.
+       * Migration 196 put the serial in the row's unique key. A callback without one falls back
+       * to the round (serial ''), as before.
+       */
+      const serial = body.serial_number === undefined || body.serial_number === null ? '' : String(body.serial_number).trim();
+
+      /**
        * A payout must belong to a round that was staked.
        *
        * Without this, `bet_amount: 0` plus any `win_amount` mints credit from
@@ -722,7 +773,7 @@ class JsGamesService {
 
       const outcome = await this.#applyMovement({
         model: this.models.GameTransaction,
-        where: { user_id: userId, external_transaction_id: round, transaction_type: type },
+        where: { user_id: userId, external_transaction_id: round, transaction_type: type, serial_number: serial },
         record: {
           user_id: userId,
           game_uid: body.game_uid ?? null,
@@ -730,7 +781,7 @@ class JsGamesService {
           amount: money.toDecimalString(delta),
           currency: settlement,
           external_transaction_id: round,
-          serial_number: body.serial_number ? String(body.serial_number) : null,
+          serial_number: serial,
           game_type: catalogue.gameType,
           game_name: catalogue.gameName,
           transaction_status: 'completed',
@@ -741,7 +792,8 @@ class JsGamesService {
         delta,
         // Per player, like the row's unique key (migration 095): another
         // player's same round id is a different movement, not a replay.
-        refId: `v2:${userId}:${round}:${type}`,
+        // The wallet applies a ref once too, so the serial is in it: a second stake on the round is a second movement.
+        refId: serial ? `v2:${userId}:${round}:${type}:${serial}` : `v2:${userId}:${round}:${type}`,
       });
 
       if (outcome.duplicate) {
@@ -752,7 +804,7 @@ class JsGamesService {
 
       if (outcome.insufficient) {
         const balance = (await this.#balanceOf(userId, settlement)) ?? '0';
-        return { success: false, error: 'Insufficient balance', new_balance: quote(balance) };
+        return { success: false, error: 'Insufficient balance', code: 'INSUFFICIENT_USER_BALANCE', new_balance: quote(balance) };
       }
 
       if (outcome.error) return { success: false, error: 'Server error' };
@@ -888,7 +940,8 @@ class JsGamesService {
           amount: magnitude,
           reason: isCredit ? 'BET_PAYOUT' : 'BET_STAKE',
           ref: { type: 'JSGAMES', id: refId },
-          description: `jsGames ${record.transaction_type} ${refId}`,
+          // What the player reads in their transactions: the game, never the provider or our ref.
+          description: record.game_name || 'Casino game',
           gameType: record.game_type ?? record.game_uid ?? undefined,
         });
 
@@ -931,6 +984,15 @@ class JsGamesService {
    * writing, `JSGAMES_REQUIRE_BET_FOR_WIN=false` turns it off. Until then,
    * leaving it on is what stops a signed message from minting credit.
    */
+  /**
+   * Is this provider player id one the parent issued for a whitelabel copy's player?
+   * This site's own player ids are 10 digits; the aliases start at 11 (wl-hub `JS_ALIAS_FROM`).
+   */
+  #isHubAlias(userId) {
+    // Below the INR-only account range (v2InrAccount), which is this site's own players too.
+    return userId >= hubForward.JS_ALIAS_FROM && userId < V2_INR_ACCOUNT_OFFSET;
+  }
+
   #requireBetForWin() {
     return this.config?.JSGAMES_REQUIRE_BET_FOR_WIN !== false;
   }
@@ -951,7 +1013,10 @@ class JsGamesService {
         attributes: ['game_type', 'game_name'],
         raw: true,
       });
-      return { gameType: row?.game_type ?? null, gameName: row?.game_name ?? null };
+      if (row?.game_name) return { gameType: row.game_type ?? null, gameName: row.game_name };
+      // The lobby's catalogue holds JSGames rows too (`gisgamesnew`, aggregator js_games): the name of a game `js_games` lacks.
+      const lobby = await this.models.Gisgamesnew?.findOne({ where: { uuid: String(gameUid) }, attributes: ['name', 'type'], raw: true });
+      return { gameType: row?.game_type ?? lobby?.type ?? null, gameName: lobby?.name ?? null };
     } catch (error) {
       this.logger?.warn({ err: error, gameUid }, 'jsGames catalogue lookup failed — settling without it');
       return { gameType: null, gameName: null };
@@ -1062,4 +1127,7 @@ const v2InrAccount = (userId) => V2_INR_ACCOUNT_OFFSET + Number(userId);
 const v2PlayerOf = (providerUserId) =>
   providerUserId > V2_INR_ACCOUNT_OFFSET ? providerUserId - V2_INR_ACCOUNT_OFFSET : providerUserId;
 
-module.exports = { JsGamesService, RAKEBACK_RATE, v2InrAccount, v2PlayerOf };
+module.exports = { JsGamesService, RAKEBACK_RATE, v2InrAccount, v2PlayerOf, displayAmount };
+
+// Required last, like gis.service: wl-hub/forward requires hubCredentials only.
+const hubForward = require('../wl-hub/forward');

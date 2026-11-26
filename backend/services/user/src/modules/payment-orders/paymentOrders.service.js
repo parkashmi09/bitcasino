@@ -20,6 +20,7 @@ const { ExchangeRateService } = require('../exchange-rate/exchangeRate.service')
 const { REASON } = require('../wallet/wallet.constants');
 const { PlayerBonusService } = require('../player-bonuses/playerBonus.service');
 const { createWithdrawRequirements } = require('../withdraw-requirements/withdrawRequirements');
+const { createWithdrawControls } = require('../withdraw-controls/withdrawControls');
 const { hubGateway, withdrawalChargePct } = require('../wl-hub/hubGateway');
 const companyWallet = require('../wl-hub/companyWallet');
 const hubOrders = require('../wl-hub/hubOrders');
@@ -279,6 +280,8 @@ class PaymentOrdersService {
     try {
       movement = await this.db.transaction(async (transaction) => {
         await this.#requirements().assertCapInTransaction(userId, { amount, currency, transaction, applied });
+        // The owner's caps (largest single, count and amount per 24 hours), under the same lock.
+        await this.#controls().assertInTransaction(userId, { amount, currency, transaction });
         const held = await this.wallet.debit(
           {
             userId,
@@ -836,6 +839,11 @@ class PaymentOrdersService {
    * KYC: a payout to an unverified identity is what AML rules exist to prevent; legacy checked
    * nothing here. Also gated by `WITHDRAW_REQUIRE_KYC`, which defaults on.
    */
+  #controls() {
+    if (!this.withdrawControls) this.withdrawControls = this.deps.withdrawControls ?? createWithdrawControls(this.deps);
+    return this.withdrawControls;
+  }
+
   #requirements() {
     if (!this.withdrawRequirements) {
       this.withdrawRequirements = this.deps.withdrawRequirements ?? createWithdrawRequirements({ ...this.deps, playerBonuses: this.#playerBonuses() });

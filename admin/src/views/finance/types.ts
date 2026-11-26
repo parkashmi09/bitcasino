@@ -117,6 +117,8 @@ export type CryptoWithdrawalRow = {
   note?: string | null
   decidedBy?: number | string | null
   decidedAt?: string | null
+  /** Sent through CCPayment by the auto-send limit, not by staff (migration 202). */
+  autoSent?: boolean
 }
 
 // `Sending` = handed to CCPayment; its webhook moves it to Sent or Rejected (refunded).

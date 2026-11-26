@@ -138,14 +138,20 @@ test('jsGames launch', async (t) => {
     assert.deepStrictEqual(call.body, {
       game_uid: '0ff664578bfb50141faf64a66c348c7e',
       user_id: String(uid),
-      credit_amount: money.toDecimalString(money.toMinor('925.5')),
+      credit_amount: '925.50',
       currency_code: 'INR',
       language: 'en',
       name: `launch-${uid}`,
     });
     const h = call.init.headers;
     assert.strictEqual(h['x-api-key'], API_KEY);
-    assert.strictEqual(h['x-signature'], v2.sign({ ...call.body, timestamp: h['x-timestamp'] }));
+    // Signature version 2 over the exact bytes sent (the provider's integration guide).
+    assert.strictEqual(h['x-signature-version'], '2');
+    assert.match(h['x-nonce'], /^[0-9a-f]{8,64}$/);
+    assert.strictEqual(
+      h['x-signature'],
+      v2.signV2({ method: 'POST', path: new URL(call.url).pathname, bodyText: call.init.body, timestamp: h['x-timestamp'], nonce: h['x-nonce'] })
+    );
 
     const row = await models.GameSession.findOne({ where: { user_id: uid, session_token: `sess-${uid}` }, raw: true });
     assert.ok(row, 'the launch is recorded');

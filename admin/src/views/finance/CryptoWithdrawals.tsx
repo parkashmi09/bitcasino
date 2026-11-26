@@ -17,6 +17,7 @@ import ErrorState from '@/components/shared/ErrorState'
 import PageHeader from '@/components/shared/PageHeader'
 import StatCard from '@/components/shared/StatCard'
 import StatusBadge from '@/components/shared/StatusBadge'
+import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
@@ -29,6 +30,7 @@ import FinanceStatsPanel from './FinanceStatsPanel'
 import ListStatsTabs from './ListStatsTabs'
 import { Details, ViewDialog, stop } from './shared'
 import { TxnPasswordLabel } from './StaffFloat'
+import WithdrawLimits from './WithdrawLimits'
 import { CRYPTO_WITHDRAW_STATUSES, type CryptoWithdrawSummary, type CryptoWithdrawalRow } from './types'
 
 const LIST = 'admin/user/withdrawals/crypto'
@@ -171,7 +173,7 @@ const Detail = ({ row }: { row: CryptoWithdrawalRow }) => (
         ['Wallet', <span key='w' className='font-mono text-xs'>{row.wallet}</span>],
         ['Tx hash', <span key='t' className='font-mono text-xs'>{row.txid}</span>],
         ['Note', row.note],
-        ['Decided by', row.decidedBy ? `#${row.decidedBy}` : null],
+        ['Decided by', row.decidedBy ? `#${row.decidedBy}` : row.autoSent ? 'Auto-send (under the limit)' : null],
         ['Decided at', row.decidedAt ? <DateTime key='d' value={row.decidedAt} /> : null]
       ]}
     />
@@ -184,7 +186,16 @@ const columns: Column<CryptoWithdrawalRow>[] = [
   { key: 'coin', header: 'Coin', cell: r => <span className='text-sm'>{r.coin}{r.chain ? <span className='text-muted-foreground'> · {r.chain}</span> : null}</span> },
   { key: 'amount', header: 'Amount', align: 'right', cell: r => <Money value={r.amount} currency={r.coin} /> },
   { key: 'wallet', header: 'Address', cell: r => <span className='font-mono text-xs' title={r.wallet}>{truncateId(r.wallet, 8)}</span> },
-  { key: 'status', header: 'Status', cell: r => <StatusBadge value={r.status} /> },
+  {
+    key: 'status',
+    header: 'Status',
+    cell: r => (
+      <span className='inline-flex items-center gap-1'>
+        <StatusBadge value={r.status} />
+        {r.autoSent ? <Badge variant='secondary' title='Sent by the auto-send limit, no staff step'>Auto</Badge> : null}
+      </span>
+    )
+  },
   { key: 'txid', header: 'Tx hash', cell: r => <span className='font-mono text-xs' title={r.txid ?? ''}>{truncateId(r.txid, 6)}</span> },
   { key: 'at', header: 'Requested', cell: r => <DateTime value={r.date} /> },
   {
@@ -242,7 +253,11 @@ const CryptoWithdrawals = () => {
 
   return (
     <div>
-      <PageHeader title='Crypto withdrawals' description='On-chain payout requests. Send via CCPayment (it marks Sent itself), or approve → send coin by hand → mark Sent with the hash. Rejecting returns the held balance.' />
+      <PageHeader
+        title='Crypto withdrawals'
+        description='On-chain payout requests. Under the auto-send limit they go out through CCPayment at once. Above it: send via CCPayment, or approve → send coin by hand → mark Sent with the hash. Rejecting returns the held balance.'
+        actions={<WithdrawLimits rail='crypto' />}
+      />
       <FilterBar filters={filters} className='mb-4' />
       <ListStatsTabs stats={<>
           {can('reports:read') && (

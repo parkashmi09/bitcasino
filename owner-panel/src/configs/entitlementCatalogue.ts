@@ -728,11 +728,11 @@ export const FLAG_GROUPS: FlagGroup[] = [
 ]
 
 /* Flags that read OFF when the stored document has no value: switching one on changes what the
-   site IS (the sportsbook adds a third-party book, idle logout signs players out), so it never happens
-   by default or by "Allow all". Same set in backend/packages/common/src/entitlements.js. */
+   site IS (the sportsbook adds a third-party book), so it never happens by default or by "Allow all".
+   Idle logout is ON by default (user, 2026-11-25; hash 7cca21fe). Same set in backend/packages/common/src/entitlements.js. */
 /** roobet: the languages added after the first nine; same list as backend entitlements.js. */
 const LATER_LANGUAGE_FLAGS = ['en-IN', 'hi', 'sr', 'cs', 'fil', 'fa', 'id', 'fi', 'vi', 'th', 'ko'].map(c => `lang_${c}`)
-export const DEFAULT_OFF_FLAGS = new Set(['sportsbook', 'idle_logout', ...LATER_LANGUAGE_FLAGS])
+export const DEFAULT_OFF_FLAGS = new Set(['sportsbook', ...LATER_LANGUAGE_FLAGS])
 
 export const FEATURE_KEYS = FEATURE_CATALOGUE.map(f => f.key)
 export const FLAG_KEYS = [...new Set(FLAG_GROUPS.flatMap(g => g.keys))]

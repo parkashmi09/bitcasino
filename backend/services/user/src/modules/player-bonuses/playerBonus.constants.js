@@ -62,11 +62,20 @@ const DEFAULT_EXPIRY_DAYS = 30;
  * at once. `gradual` (hash.game): every bet unlocks `wager × contribution × house edge × rate`,
  * claimable any time.
  */
-const UNLOCK_MODE = Object.freeze({ ROLLOVER: 'rollover', GRADUAL: 'gradual' });
+const UNLOCK_MODE = Object.freeze({
+  ROLLOVER: 'rollover',
+  GRADUAL: 'gradual',
+  /* Stake share (user, 2026-11-24, loss bonus): each bet is paid `unlock_rate` from the bonus —
+     the share goes to cash right after the stake (a 100 bet = 90 cash + 10 bonus at 0.10).
+     `wagered` / `claimed_amount` are what has been paid out so far. */
+  STAKE_SHARE: 'stake_share',
+});
+/** Modes whose locked part never blocks a withdrawal (nothing to wager off, the rest stays locked). */
+const NON_BLOCKING_MODES = Object.freeze([UNLOCK_MODE.GRADUAL, UNLOCK_MODE.STAKE_SHARE]);
 /** hash.game Deposit Rakeback: "Wagered * house edge * 1%". A fraction. */
 const DEFAULT_UNLOCK_RATE = '0.01';
 
 module.exports = {
   SOURCE, SOURCES, STATUS, STATUSES, REF_TYPE, refTypeOf, labelOf, releaseKey, END_REASON, DEFAULT_EXPIRY_DAYS,
-  UNLOCK_MODE, DEFAULT_UNLOCK_RATE,
+  UNLOCK_MODE, NON_BLOCKING_MODES, DEFAULT_UNLOCK_RATE,
 };

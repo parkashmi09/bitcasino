@@ -11,9 +11,10 @@ const v = require('../profile.validators');
  * The ladder is the platform one (no SiteFeature model): level 0 at no wager.
  */
 
-function serviceWith({ avatar, adminError, wager = '0' } = {}) {
+function serviceWith({ avatar, adminError, wager = '0', avatarsEnabled = true } = {}) {
   const writes = [];
   const service = new ProfileService({
+    operatorSettings: { read: async (key, fallback) => (key === 'avatars_enabled' ? avatarsEnabled : fallback) },
     models: {
       Userwager: { findOne: async () => ({ wager }) },
       Users: {
@@ -69,4 +70,10 @@ test('the body is one positive avatar id', () => {
   assert.strictEqual(v.setAvatar.body.parse({ avatarId: '4' }).avatarId, 4);
   assert.throws(() => v.setAvatar.body.parse({ avatarId: 0 }));
   assert.throws(() => v.setAvatar.body.parse({ avatarId: 1, url: '/evil' }));
+});
+
+test('with avatars switched off site-wide it is AVATAR_DISABLED and writes nothing', async () => {
+  const { service, writes } = serviceWith({ avatar: { id: 1, url: '/x', minLevel: 0, enabled: true }, avatarsEnabled: false });
+  await assert.rejects(service.setAvatar(5, 1), (e) => e.code === 'AVATAR_DISABLED' && e.status === 403);
+  assert.deepStrictEqual(writes, []);
 });

@@ -79,8 +79,8 @@ const LENIENT = {
     reason: 'GIS wallet callback, HMAC-signed: the provider defines the payload',
   },
   'casino/wl-hub:public': {
-    paths: ['/in/gis'],
-    reason: 'a Slotegrator wallet callback the parent verified and passed on (hub-signed): the provider defines the payload',
+    paths: ['/in/gis', '/in/js'],
+    reason: 'a Slotegrator or JSGames V2 wallet callback the parent verified and passed on (hub-signed): the provider defines the payload',
   },
   'casino/x-casino:public': {
     paths: ['/authenticate', '/balance', '/changebalance', '/status', '/cancel'],

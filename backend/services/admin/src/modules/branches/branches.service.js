@@ -15,6 +15,9 @@ const { PLAYER_ROLE_ID, PASSWORD_ROUNDS, WALLET_SEED } = require('../players/pla
 const MONEY_KEYS = ['deposits', 'withdrawals', 'net', 'casinoWagered', 'casinoWon', 'casinoGgr', 'sportsStaked', 'sportsGgr'];
 const COUNT_KEYS = ['registrations', 'depositCount', 'withdrawalCount', 'casinoBets', 'sportsBets'];
 
+/** `${PUBLIC_SITE_URL}/referal/<code>` — the player site's own referral path (user-service `referralLinkFor`). */
+const siteUrl = () => String(process.env.PUBLIC_SITE_URL || '').replace(/\/+$/, '');
+
 const publicBranch = (b) => ({
   id: Number(b.id),
   name: b.name,
@@ -22,6 +25,9 @@ const publicBranch = (b) => ({
   status: b.status,
   createdAt: b.created_at,
   lastLoginAt: b.last_login_at ?? null,
+  /* Migration 200: a visitor who signs up with this code or link becomes this branch's player. */
+  referralCode: b.referral_code ?? null,
+  referralLink: b.referral_code && siteUrl() ? `${siteUrl()}/referal/${b.referral_code}` : null,
 });
 
 /**
@@ -112,8 +118,8 @@ class BranchesService {
     if (taken) throw errors.USERNAME_TAKEN();
     try {
       const [branch] = await this.#query(
-        `INSERT INTO branches (name, username, password, created_by) VALUES (:name, :username, :hash, :by) RETURNING *`,
-        { name, username, hash: await hashPassword(password, PASSWORD_ROUNDS), by: actor.id }
+        `INSERT INTO branches (name, username, password, created_by, referral_code) VALUES (:name, :username, :hash, :by, :code) RETURNING *`,
+        { name, username, hash: await hashPassword(password, PASSWORD_ROUNDS), by: actor.id, code: await this.#freeBranchCode(username) }
       );
       this.logger?.info({ branchId: branch.id, by: actor.id }, 'Branch created');
       return { ...publicBranch(branch), players: 0 };
@@ -508,6 +514,21 @@ class BranchesService {
       if (!taken) return candidate;
     }
     throw new Error('could not allocate an account id');
+  }
+
+  /** A branch's own sign-up code (migration 200): its login in capitals plus four digits, never a player's code or username. */
+  async #freeBranchCode(username) {
+    const base = String(username).replace(/[^A-Za-z0-9]/g, '').slice(0, 12).toUpperCase() || 'BRANCH';
+    for (let attempt = 0; attempt < 20; attempt += 1) {
+      const code = `${base}${crypto.randomInt(1000, 10000)}`;
+      const taken = await this.#query(
+        `SELECT 1 FROM branches WHERE UPPER(referral_code) = :code
+         UNION ALL SELECT 1 FROM users WHERE UPPER(referalcode) = :code OR UPPER(name) = :code LIMIT 1`,
+        { code }
+      );
+      if (!taken.length) return code;
+    }
+    throw new Error('could not allocate a branch referral code');
   }
 
   async #freeReferralCode(username, transaction) {

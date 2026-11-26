@@ -1,7 +1,7 @@
 'use strict';
 
 const { Op } = require('sequelize');
-const { money } = require('@ibitplay/common');
+const { money, operatorSettings } = require('@ibitplay/common');
 const { promotionsBlocked } = require('@ibitplay/auth');
 
 const { WalletService } = require('../wallet/wallet.service');
@@ -17,6 +17,7 @@ const REF_TYPE = 'FIRST_DEPOSIT_BONUS';
 const keyFor = (userId) => `first-deposit-bonus:${userId}`;
 /** One monthly deposit bonus per (player, UTC month, deposit number). */
 const monthlyKeyFor = (userId, { month, n }) => `monthly-deposit-bonus:${userId}:${month}:${n}`;
+const HOUR_MS = 3_600_000;
 
 /**
  * ── REWARD CURRENCY (supersedes the USD wording below) ──────────────────
@@ -76,6 +77,16 @@ const monthlyKeyFor = (userId, { month, n }) => `monthly-deposit-bonus:${userId}
  * unique `player_bonuses.grant_key`.
  *
  * Agent-tree players are funded by their agent only and get nothing.
+ *
+ * ── 24H RULE (user, 2026-11-24 — Limits and policy → Deposit bonus) ─────
+ *
+ * `deposit_bonus_cooldown_hours` (0 = off): with `deposit_bonus_cooldown_from_first` OFF, no
+ * deposit bonus is paid within that many hours of the player's last one (deposit → bonus →
+ * withdraw → deposit again gets nothing); ON, only deposits within that many hours of the
+ * player's FIRST deposit can get one. Reasons `COOLDOWN` / `WINDOW_CLOSED`. Both modes.
+ *
+ * Every deposit also activates the player's bonuses waiting for one (loss bonus "Requires a new
+ * deposit" — `PlayerBonusService.activateOnDeposit`), whether or not any deposit bonus is on.
  */
 class FirstDepositBonusService {
   constructor(deps) {
@@ -85,6 +96,8 @@ class FirstDepositBonusService {
     this.wallet = deps.walletService ?? new WalletService(deps);
     this.settings = deps.welcomeBonusSettings ?? createWelcomeBonusResolver(deps);
     this.rewardMoney = deps.rewardMoney ?? createRewardMoney(deps);
+    this.operator = deps.operatorSettings ?? operatorSettings(deps);
+    this.now = deps.now ?? (() => new Date());
     this.playerBonuses = deps.playerBonuses ?? new PlayerBonusService({ ...deps, walletService: this.wallet, rewardMoney: this.rewardMoney });
     this.spinBonus = deps.spinWheelBonus ?? new SpinWheelBonusService({
       ...deps, walletService: this.wallet, rewardMoney: this.rewardMoney, playerBonuses: this.playerBonuses,
@@ -129,6 +142,46 @@ class FirstDepositBonusService {
     );
   }
 
+  /** The Super Admin's 24h rule; unreadable = off. */
+  async #cooldownTerms() {
+    try {
+      const [hours, fromFirst] = await Promise.all([
+        this.operator.read('deposit_bonus_cooldown_hours', 0),
+        this.operator.read('deposit_bonus_cooldown_from_first', false),
+      ]);
+      return { hours: Number(hours) > 0 ? Number(hours) : 0, fromFirst: String(fromFirst) === 'true' };
+    } catch (error) {
+      this.logger?.warn({ err: error }, 'Deposit bonus cooldown settings unreadable — treated as off');
+      return { hours: 0, fromFirst: false };
+    }
+  }
+
+  /**
+   * Null when a deposit now may get a bonus, else `{ reason, until? }`: `COOLDOWN` (the last deposit
+   * bonus is under `hours` old; `until` = when the next can be paid) or `WINDOW_CLOSED` (from-first:
+   * more than `hours` since the first deposit).
+   */
+  async #cooldown(userId) {
+    const { hours, fromFirst } = await this.#cooldownTerms();
+    if (!hours) return null;
+    const now = this.now().getTime();
+    const span = hours * HOUR_MS;
+    if (fromFirst) {
+      const first = await this.models.CreditsLedger.min('created_at', { where: { user_id: String(userId), reason: REASON.DEPOSIT } });
+      if (!first || now < new Date(first).getTime() + span) return null;
+      return { reason: 'WINDOW_CLOSED', closedAt: new Date(new Date(first).getTime() + span).toISOString() };
+    }
+    const last = await this.models.PlayerBonus?.findOne({
+      where: { user_id: userId, source: [BONUS_SOURCE.FIRST_DEPOSIT, BONUS_SOURCE.MONTHLY_DEPOSIT] },
+      order: [['granted_at', 'DESC']],
+      attributes: ['granted_at'],
+      raw: true,
+    });
+    if (!last) return null;
+    const until = new Date(last.granted_at).getTime() + span;
+    return now < until ? { reason: 'COOLDOWN', until: new Date(until).toISOString() } : null;
+  }
+
   /**
    * What the player UI shows — `GET /user/bonus/first-deposit`.
    * Anonymous callers get the terms with `eligible: false`.
@@ -152,6 +205,8 @@ class FirstDepositBonusService {
       expiryDays: terms.expiryDays,
       wageringLock: await this.playerBonuses.lockOn(),
       claimed: null,
+      // The 24h rule blocking a bonus right now: null, or { reason: 'COOLDOWN', until } / { reason: 'WINDOW_CLOSED', closedAt }.
+      cooldown: null,
       // hash.game's program (migration 136): 'monthly' = the Nth deposit of the month gets schedule[N-1].
       program: {
         mode: terms.program.mode,
@@ -171,7 +226,8 @@ class FirstDepositBonusService {
       } catch {
         agent = true;
       }
-      base.eligible = base.enabled && !agent && base.program.usedThisMonth < terms.program.schedule.length;
+      base.cooldown = await this.#cooldown(userId);
+      base.eligible = base.enabled && !agent && !base.cooldown && base.program.usedThisMonth < terms.program.schedule.length;
       return base;
     }
     if (!userId) return base;
@@ -211,7 +267,8 @@ class FirstDepositBonusService {
     } catch (error) {
       this.logger?.warn({ err: error, userId: String(userId) }, 'First deposit bonus: agent-tree check failed — reporting not eligible');
     }
-    base.eligible = !agent && !(await this.#hasDeposited(userId));
+    base.cooldown = await this.#cooldown(userId);
+    base.eligible = !agent && !base.cooldown && !(await this.#hasDeposited(userId));
     return base;
   }
 
@@ -235,6 +292,16 @@ class FirstDepositBonusService {
         await this.#affiliate().onRefereeDeposit({ userId: deposit.userId });
       } catch (error) {
         this.logger?.warn({ err: error, userId: String(deposit.userId) }, 'Affiliate joining bonus hook failed');
+      }
+
+      // Bonuses waiting for "the next deposit" (loss bonus, migration 201) become usable.
+      try {
+        const row = deposit.ledgerId
+          ? await this.models.CreditsLedger.findOne({ where: { id: deposit.ledgerId }, attributes: ['created_at'], raw: true })
+          : null;
+        await this.playerBonuses.activateOnDeposit(deposit.userId, row?.created_at ?? this.now());
+      } catch (error) {
+        this.logger?.warn({ err: error, userId: String(deposit.userId) }, 'Activating bonuses on deposit failed');
       }
     }
 
@@ -352,6 +419,9 @@ class FirstDepositBonusService {
       }));
     if (already) return { paid: false, reason: 'ALREADY_PAID' };
 
+    const blocked = await this.#cooldown(userId);
+    if (blocked) return { paid: false, ...blocked };
+
     if (!(await this.#isFirstDeposit({ userId, ledgerId, source, refId }))) {
       return { paid: false, reason: 'NOT_FIRST_DEPOSIT' };
     }
@@ -390,6 +460,9 @@ class FirstDepositBonusService {
     if (!terms.enabled || !schedule.length) return { paid: false, reason: 'DISABLED' };
     if (!userId || !ledgerId || !currency || !money.gt(amount ?? '0', '0')) return { paid: false, reason: 'NO_DEPOSIT' };
     if (await promotionsBlocked(userId)) return { paid: false, reason: 'AGENT_TREE_PLAYER' };
+
+    const blocked = await this.#cooldown(userId);
+    if (blocked) return { paid: false, ...blocked };
 
     const used = await this.#monthlyUsed(userId);
     if (used >= schedule.length) return { paid: false, reason: 'MONTHLY_LIMIT_REACHED', used };

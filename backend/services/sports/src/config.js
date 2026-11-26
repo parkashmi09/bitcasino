@@ -63,6 +63,13 @@ const config = loadEnv(
 
     // Where the results and settlement workers write their own log files (default below).
     MSSPORTS_LOG_DIR: coercers.optionalStr(),
+
+    // Team logos / flags by name (modules/team-logos): the in-house Flashscore and Cricbuzz feeds.
+    // Each key only answers from its Allowed IPs. Missing → the endpoint answers logo: null.
+    FLASH_SCORE_FLAG_API_URL: coercers.optionalStr(),
+    FLASH_SCORE_FLAG_API_KEY: coercers.optionalStr(),
+    CRICBUZZ_API_URL: coercers.optionalStr(),
+    CRICBUZZ_API_KEY: coercers.optionalStr(),
   },
   { serviceDir: path.resolve(__dirname, '..') }
 );

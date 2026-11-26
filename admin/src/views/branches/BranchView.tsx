@@ -6,7 +6,7 @@ import { toast } from 'sonner'
 
 import Link from 'next/link'
 
-import { ArrowDownToLineIcon, ArrowUpFromLineIcon, ChartColumnIcon, DicesIcon, KeyRoundIcon, Loader2Icon, ReceiptTextIcon, ScaleIcon, TrophyIcon, UserPlusIcon, UsersIcon } from 'lucide-react'
+import { ArrowDownToLineIcon, ArrowUpFromLineIcon, ChartColumnIcon, CopyIcon, DicesIcon, KeyRoundIcon, Loader2Icon, ReceiptTextIcon, ScaleIcon, TrophyIcon, UserPlusIcon, UsersIcon } from 'lucide-react'
 
 import DataTable, { type Column } from '@/components/shared/DataTable'
 import ExportButtons, { fetchAllRows } from '@/components/shared/ExportButtons'
@@ -46,6 +46,10 @@ export type Branch = {
   createdAt: string
   lastLoginAt: string | null
   players?: number
+
+  /** A visitor who signs up on the site with this code or link becomes this branch's player. */
+  referralCode?: string | null
+  referralLink?: string | null
 }
 
 export type BranchTotals = {
@@ -222,6 +226,46 @@ const BranchSummary = ({ data, loading }: { data?: Summary; loading: boolean }) 
   )
 }
 
+/** The branch's sign-up link and code, to share: whoever signs up with either is this branch's player. */
+const BranchReferral = ({ branch }: { branch?: Branch }) => {
+  if (!branch?.referralCode) return null
+
+  const copy = async (text: string, what: string) => {
+    try {
+      await navigator.clipboard.writeText(text)
+      toast.success(`${what} copied`)
+    } catch {
+      toast.error('Could not copy — select the text and copy it')
+    }
+  }
+
+  return (
+    <Card className='mb-4'>
+      <CardContent className='flex flex-col gap-3'>
+        <div>
+          <p className='font-medium'>Referral link</p>
+          <p className='text-muted-foreground text-sm'>Share it. A player who signs up with this link or code is added to this branch.</p>
+        </div>
+        {branch.referralLink && (
+          <div className='flex flex-wrap items-center gap-2'>
+            <Input readOnly value={branch.referralLink} className='min-w-0 flex-1 font-mono text-sm' onFocus={e => e.currentTarget.select()} />
+            <Button variant='outline' size='sm' onClick={() => copy(branch.referralLink as string, 'Link')}>
+              <CopyIcon /> Copy link
+            </Button>
+          </div>
+        )}
+        <div className='flex flex-wrap items-center gap-2'>
+          <span className='text-muted-foreground text-sm'>Code</span>
+          <span className='font-mono font-medium'>{branch.referralCode}</span>
+          <Button variant='ghost' size='sm' onClick={() => copy(branch.referralCode as string, 'Code')}>
+            <CopyIcon /> Copy code
+          </Button>
+        </div>
+      </CardContent>
+    </Card>
+  )
+}
+
 /** The branch's name, then its totals over a date range. */
 export const BranchDashboard = ({ base, actions }: { base: string; actions?: ReactNode }) => {
   const [range, setRange] = useState(defaultRange())
@@ -235,6 +279,7 @@ export const BranchDashboard = ({ base, actions }: { base: string; actions?: Rea
         description={branch && <>Login <span className='font-mono'>{branch.username}</span> <StatusBadge value={branch.status} /></>}
         actions={actions}
       />
+      <BranchReferral branch={branch} />
       <div className='mb-4 flex flex-wrap items-center justify-between gap-2'>
         <p className='text-muted-foreground text-sm'>Totals for the period. Amounts in other coins are converted at today&apos;s rate.</p>
         <div className='flex flex-wrap items-center gap-2'>

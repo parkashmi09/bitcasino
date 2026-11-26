@@ -80,7 +80,7 @@ const GROUPS: { title: string; hint: string; keys: string[] }[] = [
   },
   {
     title: 'Loss bonus',
-    hint: "Lossback (Welcome Shield): a share of a player's net loss (casino + sports, bets minus wins) in the hours after their first deposit — or, with Welcome Shield off, over every completed period. Settled automatically when the window ends; the player claims it on the Bonus page after a confirmation, within the claim hours. Amounts are in the site's reward currency.",
+    hint: "Lossback (Welcome Shield): a share of a player's net loss (casino + sports, bets minus wins) in the hours after their first deposit — or, with Welcome Shield off, over every completed period. Settled automatically when the window ends; the player claims it on the Bonus page after a confirmation, within the claim hours — or, with auto credit on, it is added for them. It can wait for the player's next deposit, and can pay a share of each bet (10% = every bet is 90% cash, 10% bonus). Amounts are in the site's reward currency.",
     keys: [
       'loss_bonus_enabled',
       'loss_bonus_welcome',
@@ -91,13 +91,21 @@ const GROUPS: { title: string; hint: string; keys: string[] }[] = [
       'loss_bonus_min_loss',
       'loss_bonus_max_bet',
       'loss_bonus_claim_hours',
-      'loss_bonus_wager_multiplier'
+      'loss_bonus_wager_multiplier',
+      'loss_bonus_auto_credit',
+      'loss_bonus_requires_deposit',
+      'loss_bonus_stake_share_percent'
     ]
   },
   {
     title: 'Quests',
     hint: 'What each completed daily quest pays, in USD, credited once per day as cash in the reward currency. 0 = the quest shows progress but pays nothing.',
     keys: ['quest_daily_wager_reward', 'quest_daily_bets_reward']
+  },
+  {
+    title: 'Deposit bonus',
+    hint: 'A 24h rule for the deposit bonus (both the first-deposit and the monthly program). With "count from the first deposit" off, a player gets no deposit bonus within the hours after their last one — deposit, bonus, withdraw, deposit again gets nothing. On, only deposits within those hours of their first deposit can get one. 0 hours = off.',
+    keys: ['deposit_bonus_cooldown_hours', 'deposit_bonus_cooldown_from_first']
   }
 ]
 

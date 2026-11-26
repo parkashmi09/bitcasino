@@ -32,6 +32,8 @@ module.exports = (sequelize) => {
       unlock_mode: { type: DataTypes.TEXT, allowNull: false, defaultValue: 'rollover', field: 'unlock_mode' },
       unlock_rate: { type: DataTypes.DECIMAL(10, 6), allowNull: true, field: 'unlock_rate' },
       claimed_amount: { type: DataTypes.DECIMAL(30, 8), allowNull: false, defaultValue: 0, field: 'claimed_amount' },
+      /** Migration 201: when it became usable; NULL = waiting for the player's next deposit. */
+      activated_at: { type: DataTypes.DATE, allowNull: true, field: 'activated_at' },
       /** active | completed | expired | forfeited */
       status: { type: DataTypes.STRING(20), allowNull: false, defaultValue: 'active', field: 'status' },
       expires_at: { type: DataTypes.DATE, allowNull: true, field: 'expires_at' },
