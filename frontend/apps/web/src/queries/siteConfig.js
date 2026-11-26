@@ -132,6 +132,9 @@ export function useRegion() {
   });
 }
 
+/** The owner's site-wide avatar switch (`avatars_enabled`); off, or not answered yet, means initials only. */
+export const useAvatarsEnabled = () => useSiteConfig().config.raw.avatars_enabled === true;
+
 /** The Edit Avatar grid: `[{id, url, minLevel, sort}]`, already in the admin's order. */
 export function useAvatars({ enabled = true } = {}) {
   return useQuery({

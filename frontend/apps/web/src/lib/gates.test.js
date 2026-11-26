@@ -56,11 +56,12 @@ describe('gates', () => {
     }
     expect(visitor.on('deposit')).toBe(false);
     expect(visitor.routeOn('/help-center')).toBe(true);
-    // Password changes, money and reward help are closed; ordinary help stays open.
-    for (const path of ['/profile/security', '/help-center/help-payment-options', '/help-center/help-your-account/how-do-i-reset-my-password', '/help-center/help-getting-started/bitcasino-verification-kyc-faq', '/help-center/help-terms-and-conditions/affiliate-terms']) {
+    // Password-reset, money and reward help are closed; ordinary help and Profile > Security stay open.
+    for (const path of ['/help-center/help-payment-options', '/help-center/help-your-account/how-do-i-reset-my-password', '/help-center/help-getting-started/bitcasino-verification-kyc-faq', '/help-center/help-terms-and-conditions/affiliate-terms']) {
       expect(visitor.routeOn(path), path).toBe(false);
     }
     expect(visitor.routeOn('/help-center/help-about-bitcoin')).toBe(true);
+    expect(visitor.routeOn('/profile/security')).toBe(true);
     expect(makeGates().routeOn('/profile/security')).toBe(true);
     expect(makeGates({ agentSite: true, capabilities: { vault: true, deposit: true } }).agentPlayer).toBe(false);
     expect(makeGates().agentPlayer).toBe(false);

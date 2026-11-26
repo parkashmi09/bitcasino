@@ -33,7 +33,18 @@ import { AGENT_SITE } from '@/lib/agentBase';
 
 const AuthContext = createContext(null);
 
-const sessionStatus = (user) => (user?.mustChangePassword ? 'password-change' : 'authenticated');
+/** The access token's `mcp` claim: set alongside `mustChangePassword`, so either one forces the change. */
+function tokenDemandsPasswordChange() {
+  try {
+    const part = tokenStore.getAccess().split('.')[1].replace(/-/g, '+').replace(/_/g, '/');
+    return JSON.parse(atob(part.padEnd(part.length + ((4 - (part.length % 4)) % 4), '='))).mcp === true;
+  } catch {
+    return false;
+  }
+}
+
+const sessionStatus = (user) =>
+  user?.mustChangePassword || tokenDemandsPasswordChange() ? 'password-change' : 'authenticated';
 
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);

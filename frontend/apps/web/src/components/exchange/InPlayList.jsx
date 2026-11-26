@@ -60,7 +60,7 @@ export default function InPlayList({
               <div className="flex items-center gap-3 bg-layer4 px-3 py-2 sm:px-4">
                 <span className="flex min-w-0 flex-1 items-center gap-2">
                   {g.sport && (
-                    <SportIcon sport={g.sport} className="size-4 flex-none [&_svg]:size-full [&_svg]:fill-secondary" />
+                    <SportIcon sport={g.sport} color className="size-4 flex-none [&_svg]:size-full [&_svg]:fill-secondary" />
                   )}
                   <span className="truncate text-xs font-semibold text-secondary">{g.key}</span>
                 </span>
