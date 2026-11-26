@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { api, ApiError } from './api';
+import { api, ApiError, refreshSession } from './api';
 import { tokenStore } from '@/auth/tokenStore';
 
 /**
@@ -44,7 +44,7 @@ afterEach(() => {
 
 describe('single-flight refresh', () => {
   it('exchanges the refresh token exactly once for ten concurrent 401s', async () => {
-    tokenStore.set({ accessToken: 'expired-token', refreshToken: 'refresh-1' });
+    tokenStore.set({ accessToken: 'expired-token' });
 
     const urls = [];
     let refreshed = false;
@@ -54,7 +54,7 @@ describe('single-flight refresh', () => {
 
       if (String(url).includes('/auth/refresh')) {
         refreshed = true;
-        return envelope({ accessToken: 'fresh-token', refreshToken: 'refresh-2' });
+        return envelope({ accessToken: 'fresh-token' });
       }
 
       // The protected read: 401 until the refresh lands, 200 after.
@@ -79,12 +79,12 @@ describe('single-flight refresh', () => {
   it('retries with the new token rather than refreshing again', async () => {
     // A request whose 401 comes back AFTER somebody else's refresh landed must
     // notice the token changed and just retry. Refreshing again is the bug.
-    tokenStore.set({ accessToken: 'expired-token', refreshToken: 'refresh-1' });
+    tokenStore.set({ accessToken: 'expired-token' });
 
     const sent = [];
     vi.spyOn(globalThis, 'fetch').mockImplementation(async (url, init) => {
       if (String(url).includes('/auth/refresh')) {
-        return envelope({ accessToken: 'fresh-token', refreshToken: 'refresh-2' });
+        return envelope({ accessToken: 'fresh-token' });
       }
       sent.push(init?.headers?.authorization);
       return sent.length === 1
@@ -98,9 +98,7 @@ describe('single-flight refresh', () => {
     expect(sent[1]).toBe('Bearer fresh-token');
   });
 
-  it('does not retry when there is no refresh token to spend', async () => {
-    tokenStore.set({ accessToken: 'expired-token', refreshToken: null });
-
+  it('does not retry when there is no session to refresh', async () => {
     const fetchMock = vi
       .spyOn(globalThis, 'fetch')
       .mockImplementation(async () => refusal('AUTH_TOKEN_EXPIRED', 401));
@@ -110,10 +108,45 @@ describe('single-flight refresh', () => {
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
+  it('refreshes from the cookie and never stores a refresh token', async () => {
+    tokenStore.set({ accessToken: 'expired-token' });
+    const calls = [];
+    vi.spyOn(globalThis, 'fetch').mockImplementation(async (url, init) => {
+      calls.push({ url: String(url), init });
+      if (String(url).includes('/auth/refresh')) return envelope({ accessToken: 'fresh-token' });
+      return calls.length === 1 ? refusal('AUTH_TOKEN_EXPIRED', 401) : envelope({ INR: '1' });
+    });
+
+    await api('/api/v1/user/wallet/balances');
+
+    const refresh = calls.find((c) => c.url.includes('/auth/refresh')).init;
+    expect(refresh.headers['x-refresh-cookie']).toBe('1');
+    expect(refresh.credentials).toBe('include');
+    expect(JSON.parse(refresh.body)).toEqual({});
+    expect(calls[0].init.headers['x-refresh-cookie']).toBe('1');
+    expect(Object.values(localStorage).join()).not.toContain('token');
+  });
+
+  it('sends a pre-cookie stored refresh token once, then drops it', async () => {
+    localStorage.setItem('bc.auth.refresh', 'legacy-refresh-token');
+    const bodies = [];
+    vi.spyOn(globalThis, 'fetch').mockImplementation(async (url, init) => {
+      bodies.push(JSON.parse(init.body));
+      return envelope({ accessToken: 'fresh-token' });
+    });
+
+    await refreshSession();
+    expect(bodies[0]).toEqual({ refreshToken: 'legacy-refresh-token' });
+    expect(tokenStore.getRefresh()).toBeNull();
+
+    await refreshSession();
+    expect(bodies[1]).toEqual({});
+  });
+
   it('clears the session when the refresh itself is refused', async () => {
     // A rotated-token replay, a revoked session, or an expired chain. Anything
     // else we tried would 401 again.
-    tokenStore.set({ accessToken: 'expired-token', refreshToken: 'refresh-1' });
+    tokenStore.set({ accessToken: 'expired-token' });
 
     vi.spyOn(globalThis, 'fetch').mockImplementation(async (url) =>
       String(url).includes('/auth/refresh')
@@ -128,7 +161,7 @@ describe('single-flight refresh', () => {
   it('leaves a stored session alone when the refresh cannot reach the server', async () => {
     // A network blip is not proof the session died — clearing it here would
     // sign a player out because their wifi dropped for a second.
-    tokenStore.set({ accessToken: 'expired-token', refreshToken: 'refresh-1' });
+    tokenStore.set({ accessToken: 'expired-token' });
 
     vi.spyOn(globalThis, 'fetch').mockImplementation(async (url) => {
       if (String(url).includes('/auth/refresh')) throw new TypeError('Failed to fetch');
@@ -136,7 +169,7 @@ describe('single-flight refresh', () => {
     });
 
     await expect(api('/api/v1/user/wallet/balances')).rejects.toThrow(ApiError);
-    expect(tokenStore.getRefresh()).toBe('refresh-1');
+    expect(localStorage.getItem('bc.auth.session')).toBe('1');
   });
 });
 

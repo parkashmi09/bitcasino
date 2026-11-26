@@ -120,7 +120,7 @@ const CreateCard = () => {
         </div>
       </div>
       <div className='grid gap-3 sm:grid-cols-2'>
-        <SwitchField id='gc-all' label='Visible to all users' hint='Off: only users the platform targets explicitly.' checked={f.allUsers} onChange={allUsers => setF({ ...f, allUsers })} />
+        <SwitchField id='gc-all' label='Visible to all users' hint='Off: hidden from the gift card list; anyone with the code redeems it under Redeem Gift Card, so use a long random code (10+ characters).' checked={f.allUsers} onChange={allUsers => setF({ ...f, allUsers })} />
         <SwitchField id='gc-active' label='Active' checked={f.isActive} onChange={isActive => setF({ ...f, isActive })} />
       </div>
     </FormDialog>
@@ -159,7 +159,7 @@ const Cards = () => {
     { key: 'end', header: 'Ends', cell: r => <DateTime value={r.endDate} /> },
     { key: 'dep', header: 'Deposit cond.', cell: r => (r.depositRequired ? <Money value={r.depositAmount} currency={r.currency} /> : <span className='text-muted-foreground'>none</span>) },
     { key: 'wag', header: 'Wager cond.', cell: r => (r.wagerRequired ? `${r.wagerTimes ?? 0}×` : <span className='text-muted-foreground'>none</span>) },
-    { key: 'users', header: 'Audience', cell: r => <Badge variant='outline'>{r.allUsers ? 'All users' : 'Targeted'}</Badge> },
+    { key: 'users', header: 'Audience', cell: r => <Badge variant='outline'>{r.allUsers ? 'All users' : 'Code only'}</Badge> },
     { key: 'status', header: 'Status', cell: r => <StatusBadge value={r.isActive ? 'active' : 'inactive'} /> },
     {
       key: 'actions',

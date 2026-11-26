@@ -26,5 +26,5 @@ export const SPIN_WHEEL = {
    */
   art: '/images/promos/spin-the-wheel.svg',
   blurb:
-    'Your first spin is free, and every qualifying deposit earns another. Each segment is a bonus percentage off your next deposit.',
+    'Your first spin is free, and every qualifying deposit earns another. Each segment is a bonus percentage added automatically to your next deposit.',
 };

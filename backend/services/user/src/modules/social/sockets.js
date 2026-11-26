@@ -2,6 +2,7 @@
 
 const { EVENTS, LITERAL_EVENTS, AUDIENCE, encode } = require('@ibitplay/socket');
 const { entitlements } = require('@ibitplay/common');
+const { assertPlayerCapability } = require('@ibitplay/auth');
 
 const { SocialService } = require('./social.service');
 const { MAX_MESSAGE_LENGTH } = require('./social.constants');
@@ -37,6 +38,7 @@ function register({ on, deps }) {
       try {
         // Chat out of the owner's plan: nothing is stored or broadcast (docs/OWNER-PANEL.md §4).
         await entitlements.assertFeatureEntitled('chat');
+        await assertPlayerCapability(context.userId, 'chat');
         const posted = await service.postChat({
           userId: context.userId,
           room: room ?? country,
@@ -54,7 +56,7 @@ function register({ on, deps }) {
 
         return ok(posted);
       } catch (error) {
-        if (error.code?.startsWith('SOCIAL_') || error.code === 'NOT_ENTITLED') return refuse(error);
+        if (error.code?.startsWith('SOCIAL_') || error.code === 'NOT_ENTITLED' || error.code === 'CHAT_NOT_FOR_AGENT_USERS') return refuse(error);
         throw error;
       }
     },
@@ -130,6 +132,7 @@ function register({ on, deps }) {
       const { to, name, message } = payload ?? {};
       try {
         await entitlements.assertFeatureEntitled('chat');
+        await assertPlayerCapability(context.userId, 'chat');
         const sent = await service.sendMessage({
           userId: context.userId,
           toName: to ?? name,
@@ -145,7 +148,7 @@ function register({ on, deps }) {
 
         return ok(sent);
       } catch (error) {
-        if (error.code?.startsWith('SOCIAL_') || error.code === 'NOT_ENTITLED') return refuse(error);
+        if (error.code?.startsWith('SOCIAL_') || error.code === 'NOT_ENTITLED' || error.code === 'CHAT_NOT_FOR_AGENT_USERS') return refuse(error);
         throw error;
       }
     },

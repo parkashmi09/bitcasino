@@ -55,8 +55,8 @@ const transferV1 = {
 const transactionsV1 = {
   body: z
     .object({
-      fromDate: z.string().trim().min(8).max(35),
-      toDate: z.string().trim().min(8).max(35),
+      fromDate: z.string().trim().min(8).max(35).refine((v) => !Number.isNaN(Date.parse(v)), 'not a valid date'),
+      toDate: z.string().trim().min(8).max(35).refine((v) => !Number.isNaN(Date.parse(v)), 'not a valid date'),
       pageNo: z.coerce.number().int().min(1).default(1),
       pageSize: z.coerce.number().int().min(1).max(500).default(30),
     })
