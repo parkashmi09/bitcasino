@@ -44,7 +44,12 @@ module.exports = function publicRoutes() {
   router.post('/cricket/get-match-private-data', Cricket('GetMatchPrivateData'));
   router.get('/v1/sports-get_latest_events', Cricket('getLatestEvents'));
   router.get('/v1/sports-gamedetailPrivate', Cricket('getGameDetailPrivate'));
-  router.post('/cricket/market-list', Cricket('GetMarketList')); // admin More Market: stored + live markets
+  // Security (F12): the admin "More Market" list is for staff, never a visitor or a player.
+  const staffOnly = (req, res, next) =>
+    req.user?.account?.type && req.user.account.type !== 'USER'
+      ? next()
+      : res.status(403).json({ success: false, error: 'Staff only' });
+  router.post('/cricket/market-list', authMiddleware, staffOnly, Cricket('GetMarketList')); // admin More Market: stored + live markets
 
   // ── score + virtual media ───────────────────────────────────────────
   router.post('/cricket/score-card', Cricket('fetchScoreCard'));

@@ -55,7 +55,7 @@ export function SpinWheel() {
 
       <PromoSection
         heading="Take your spin"
-        blurb="Eight segments, and what you land on is a bonus percentage off your next deposit."
+        blurb="Eight segments, and what you land on is a bonus percentage on your next deposit."
       >
         <Wheel />
       </PromoSection>
@@ -63,9 +63,10 @@ export function SpinWheel() {
       <MySpins />
 
       <PromoSection heading="What you win">
-        <PromoParagraph lead="A redeem code, not a balance." block>
-          A spin issues a code carrying a percentage. Apply it to your next
-          deposit and the percentage is added to that deposit. Nothing is
+        <PromoParagraph lead="A deposit bonus, not a balance." block>
+          A spin issues a code carrying a percentage. It is applied
+          automatically to your next deposit, with nothing to type, and the
+          percentage is added to that deposit. Nothing is
           credited to your wallet at the moment you spin, and the wheel never
           takes anything from it either.
         </PromoParagraph>
@@ -269,7 +270,7 @@ function SpinResult({ result, onAgain }) {
           <p className="text-xs leading-relaxed text-trunks">
             {/* The code is the prize. Saying what it does is the difference
                 between this and a screen that implies a payout. */}
-            Use this code on your next deposit to add {result.rewardPct}% to it.
+            {result.rewardPct}% is added automatically to your next deposit. There is nothing to enter.
           </p>
           <code className="rounded-i-sm bg-goku px-3 py-2 font-mono text-sm break-all text-bulma">
             {result.redeemCode}

@@ -1,5 +1,28 @@
 import type { NextConfig } from 'next'
 
+const dev = process.env.NODE_ENV !== 'production'
+const base = process.env.BASEPATH ?? ''
+
+/* Security step 3.1: the full policy, REPORT-ONLY. The browser blocks nothing; it reports what this list would
+   block to /api/csp-report, which logs each new origin once. Add the real origins it reports, then rename the
+   header to Content-Security-Policy to enforce. The admin talks to the gateway through its own /api/gw proxy, so
+   connect-src is 'self'. */
+const cspReportOnly = [
+  "default-src 'self'",
+  `script-src 'self' 'unsafe-inline'${dev ? " 'unsafe-eval'" : ''}`,
+  "style-src 'self' 'unsafe-inline'",
+  "font-src 'self' data:",
+  "img-src 'self' data: blob: https:",
+  `connect-src 'self'${dev ? ' ws: wss:' : ''}`,
+  "frame-src 'self' https:",
+  "media-src 'self' blob: https:",
+  "worker-src 'self' blob:",
+  "object-src 'none'",
+  "base-uri 'self'",
+  "form-action 'self'",
+  `report-uri ${base}/api/csp-report`
+].join('; ')
+
 const nextConfig: NextConfig = {
   // No `X-Powered-By: Next.js`: the framework and its version are not advertised (docs/SECURITY-CHECKLIST.md #10).
   poweredByHeader: false,
@@ -15,6 +38,7 @@ const nextConfig: NextConfig = {
       headers: [
         { key: 'X-Frame-Options', value: 'DENY' },
         { key: 'Content-Security-Policy', value: "frame-ancestors 'none'" },
+        { key: 'Content-Security-Policy-Report-Only', value: cspReportOnly },
         { key: 'X-Content-Type-Options', value: 'nosniff' },
         { key: 'Referrer-Policy', value: 'strict-origin-when-cross-origin' }
       ]

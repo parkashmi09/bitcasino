@@ -12,7 +12,8 @@ const clickUrl = z
   .string()
   .trim()
   .max(2000)
-  .refine((s) => /^https?:\/\//i.test(s) || s.startsWith('/') || s.startsWith('#'), 'must be https://… or a site path like /vip');
+  // `//host` and `/\host` are other sites to a browser (open redirect), so a site path is one `/` then not `/` or `\`.
+  .refine((s) => /^https?:\/\//i.test(s) || /^\/(?![/\\])/.test(s) || s.startsWith('#'), 'must be https://… or a site path like /vip');
 
 const mediaUrl = z.string().trim().url().max(2000);
 

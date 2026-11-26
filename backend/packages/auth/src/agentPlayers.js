@@ -32,6 +32,8 @@ const { isAgentTree } = require('./permissions');
  *   kyc         no KYC submission (POST /user/kyc/submit). KYC is for direct users only:
  *               an agent's player has no withdrawal rail, so nothing of theirs waits on
  *               it, and the admin KYC queue lists direct users only. See docs/KYC.md.
+ *   chat        no posting to the public chat or sending private messages (the
+ *               C.ADD_CHAT and C.ADD_MESSAGES sockets). Reading the chat stays open.
  *
  * With all four money capabilities gone the player site shows no wallet
  * actions at all — only the read-only balance and the transaction history.
@@ -81,12 +83,17 @@ const AGENT_PLAYER_RESTRICTIONS = Object.freeze({
     code: 'PROFILE_EDIT_NOT_FOR_AGENT_USERS',
     message: 'Your profile is managed by your agent',
   }),
+  // Chat is for direct players only (user, 2026-11-25); the player site hides it for agent players too.
+  chat: Object.freeze({
+    code: 'CHAT_NOT_FOR_AGENT_USERS',
+    message: 'Chat is not available for your account',
+  }),
 });
 
 /** The capability names the player site is told about, in a stable order. */
 const PLAYER_CAPABILITIES = Object.freeze(Object.keys(AGENT_PLAYER_RESTRICTIONS));
 
-/** `{ promotions, vault, deposit, swap, withdraw, tips, kyc, profileEdit }` — true = the player has it. */
+/** `{ promotions, vault, deposit, swap, withdraw, tips, kyc, profileEdit, chat }` — true = the player has it. */
 function capabilitiesFor(agentTree) {
   const out = {};
   for (const name of PLAYER_CAPABILITIES) out[name] = !agentTree;

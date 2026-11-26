@@ -490,11 +490,15 @@ function register({ on, deps }) {
  * `money.js` names this exact case on `toMinorQuantised` itself: reads quantise,
  * writes reject.
  */
+/** Columns of a `credits` row that are not coin balances (migration 099 added `user_type`, 'USER'/'STAFF'). */
+const NOT_BALANCES = new Set(['uid', 'user_type']);
+
 function describeBalances(credits) {
   if (!credits) return {};
   const out = {};
   for (const [key, value] of Object.entries(credits)) {
-    if (key === 'uid') continue;
+    // `user_type` read as an amount threw BAD_REQUEST, so USER_INFO (and the VIP card) failed for every player.
+    if (NOT_BALANCES.has(key)) continue;
     out[key] = money.toDecimalString(money.toMinorQuantised(value ?? '0', { field: key }));
   }
   return out;
@@ -502,4 +506,4 @@ function describeBalances(credits) {
 
 
 
-module.exports = { register };
+module.exports = { register, describeBalances };

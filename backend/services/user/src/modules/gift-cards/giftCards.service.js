@@ -360,13 +360,13 @@ class GiftCardsService {
    *
    * Taking the card starts its clock. Nothing is paid here.
    */
-  async activate({ userId, giftCardId }) {
+  async activate({ userId, giftCardId, byCode = false }) {
     const card = await this.models.GiftCards.findByPk(giftCardId, { raw: true });
     if (!card) throw errors.NOT_FOUND({ giftCardId });
     if (!card.is_active) throw errors.INACTIVE({ giftCardId });
     if (card.end_date && new Date(card.end_date) < new Date()) throw errors.EXPIRED({ giftCardId });
-    if (!card.all_user_status) {
-      // A targeted card has to have been assigned to this player already.
+    if (!card.all_user_status && !byCode) {
+      // A code-only card is hidden from the list: it is taken by typing its code (`redeem`), not by id.
       const assigned = await this.models.UserGiftCards.findOne({
         where: { user_id: userId, gift_card_id: giftCardId }, raw: true,
       });
@@ -397,20 +397,13 @@ class GiftCardsService {
 
   /**
    * Activate by code: the player types the card's key instead of picking it
-   * from the list. An unknown key and a targeted card meant for someone else
-   * answer the same NOT_FOUND, so the box can't be used to probe which keys
-   * exist.
+   * from the list. This is the only way into a card with "Visible to all
+   * users" off (code-only, user 2026-11-26): whoever has the code can take it.
    */
   async redeem({ userId, code }) {
     const card = await this.models.GiftCards.findOne({ where: { unique_key: code }, raw: true });
     if (!card) throw errors.NOT_FOUND({});
-    if (!card.all_user_status) {
-      const assigned = await this.models.UserGiftCards.findOne({
-        where: { user_id: userId, gift_card_id: card.id }, raw: true,
-      });
-      if (!assigned) throw errors.NOT_FOUND({});
-    }
-    const result = await this.activate({ userId, giftCardId: card.id });
+    const result = await this.activate({ userId, giftCardId: card.id, byCode: true });
     await this.#primeCurrency();
     return { ...result, card: this.#shape(card) };
   }

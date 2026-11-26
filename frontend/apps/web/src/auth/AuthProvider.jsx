@@ -13,13 +13,13 @@ import { AGENT_SITE } from '@/lib/agentBase';
  *
  * `status` is the thing to render off, and it has three values rather than a
  * boolean because the difference matters on first paint: after a reload the
- * access token is gone (it never left memory) and only the refresh token
+ * access token is gone (it never left memory) and only the refresh cookie
  * survives, so the app genuinely does not know yet whether anyone is signed
  * in. Treating that moment as "signed out" flashes the Login/Sign Up buttons
  * at a player who is signed in, which is the flicker the reference does not
  * have.
  *
- *   loading        — a stored refresh token is being exchanged
+ *   loading        — the refresh cookie is being exchanged
  *   authenticated  — `user` is populated
  *   password-change — signed in on a temporary password (`user.mustChangePassword`): the backend
  *                    refuses everything but /auth/me, change-password and logout, so nothing that
@@ -202,6 +202,7 @@ export function AuthProvider({ children }) {
   );
 
   const logout = useCallback(async (allSessions = false, message = 'You have been signed out.') => {
+    // The cookie carries the token; only a pre-cookie one still in storage goes in the body.
     const refreshToken = tokenStore.getRefresh();
     // While the token still works: the open sportsbook session is closed upstream too.
     await closeSportsbookSession();

@@ -1,6 +1,15 @@
 'use strict';
 
+const crypto = require('crypto');
 const express = require('express');
+
+/** Constant-time compare, so the key cannot be guessed a byte at a time. */
+const sameKey = (given, expected) => {
+  if (!given || !expected) return false;
+  const a = Buffer.from(String(given));
+  const b = Buffer.from(String(expected));
+  return a.length === b.length && crypto.timingSafeEqual(a, b);
+};
 
 /**
  * Platform health, aggregated.
@@ -10,7 +19,10 @@ const express = require('express');
  * `/health/ready` — can the gateway serve traffic? 503 if every upstream is
  *                   down; a partial outage still returns 200, because routing
  *                   to the services that ARE up is exactly what should happen.
- * `/health`       — per-service detail, for a human or a dashboard.
+ * `/health`       — per-service detail, for a human or a dashboard. In production the
+ *                   public answer is `{status}` only (security F11: no env, service
+ *                   names or DB pool to strangers); the detail needs `x-internal-key`.
+ *                   Same status code either way, so uptime probes are unaffected.
  */
 function createHealthAggregator({ targets, config, logger }) {
   const router = express.Router();
@@ -47,19 +59,25 @@ function createHealthAggregator({ targets, config, logger }) {
     res.json({ status: 'ok', service: config.SERVICE_NAME, uptime: process.uptime() });
   });
 
-  router.get('/health/ready', async (_req, res) => {
+  const showDetail = (req) =>
+    config.NODE_ENV !== 'production' || sameKey(req.get('x-internal-key'), config.HEALTH_DETAIL_KEY);
+
+  router.get('/health/ready', async (req, res) => {
     const results = await Promise.all(names.map(probe));
     const anyUp = results.some((r) => r.status === 'ok');
-    res.status(anyUp ? 200 : 503).json({ status: anyUp ? 'ok' : 'down', services: results });
+    const status = anyUp ? 'ok' : 'down';
+    res.status(anyUp ? 200 : 503).json(showDetail(req) ? { status, services: results } : { status });
   });
 
-  router.get('/health', async (_req, res) => {
+  router.get('/health', async (req, res) => {
     const results = await Promise.all(names.map(probe));
     const healthy = results.every((r) => r.status === 'ok');
 
     if (!healthy) {
       logger?.warn({ down: results.filter((r) => r.status !== 'ok').map((r) => r.service) }, 'Upstream health degraded');
     }
+
+    if (!showDetail(req)) return res.status(healthy ? 200 : 503).json({ status: healthy ? 'ok' : 'degraded' });
 
     res.status(healthy ? 200 : 503).json({
       status: healthy ? 'ok' : 'degraded',

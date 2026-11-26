@@ -401,18 +401,21 @@ test('gift cards', async (t) => {
     assert.strictEqual(out.card.uniqueKey, card.uniqueKey);
   });
 
-  await t.test('an unknown code and someone else\'s targeted card answer the same', async () => {
+  await t.test('an unknown code is not found; a code-only card redeems by its code', async () => {
     const service = build();
     const uid = newUid();
     await seed(uid);
-    const targeted = await makeCard(service, { allUsers: false });
+    const codeOnly = await makeCard(service, { allUsers: false });
 
-    for (const code of [`${newKey()}-nope`, targeted.uniqueKey]) {
-      await assert.rejects(
-        () => service.redeem({ userId: uid, code }),
-        (err) => err.code === 'GIFTCARD_NOT_FOUND'
-      );
-    }
+    await assert.rejects(
+      () => service.redeem({ userId: uid, code: `${newKey()}-nope` }),
+      (err) => err.code === 'GIFTCARD_NOT_FOUND'
+    );
+    const out = await service.redeem({ userId: uid, code: codeOnly.uniqueKey });
+    assert.strictEqual(out.status, 'Activated');
+    // Now it is in this player's list.
+    const mine = await service.listForUser({ userId: uid });
+    assert.ok(mine.some((c) => c.giftcards.id === codeOnly.id));
   });
 
   await t.test('a card with activations cannot be deleted and stays claimable', async () => {

@@ -46,6 +46,8 @@ const config = loadEnv(
     GATEWAY_BODY_LIMIT: coercers.str('10mb'),
     // 32 bytes, base64: the owner's api_encryption key, shared with the player site (NEXT_PUBLIC_API_ENC_KEY).
     API_ENCRYPTION_KEY: coercers.str(''),
+    // Shown the full `/health` detail in production when sent as `x-internal-key` (security F11). Empty = never.
+    HEALTH_DETAIL_KEY: coercers.str(''),
   },
   { serviceDir: path.resolve(__dirname, '..') }
 );
