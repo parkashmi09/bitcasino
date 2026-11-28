@@ -14,6 +14,7 @@ import { RouteGate, useGates } from '@/hooks/useGates';
 import { useAuth } from '@/auth/AuthProvider';
 import { toast } from '@/lib/toast';
 import { ForcedPasswordChange } from '@/pages/Security';
+import { RequirePhone } from '@/components/account/PhoneDialog';
 import { useVipRankUps } from '@/queries/rewards';
 
 export function Layout() {
@@ -169,6 +170,7 @@ export function Layout() {
             <Footer />
           </main>
           <ForcedPasswordChange />
+          <RequirePhone />
         </div>
       </div>
     </div>

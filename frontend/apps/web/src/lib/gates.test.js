@@ -110,4 +110,10 @@ describe('owner theme_mode', () => {
     expect(makeGates({ features: [] }).themeMode()).toBe('dark_only');
     expect(makeGates({ features: [{ feature: 'theme_mode', variant: 'switch' }] }).themeMode()).toBe('switch');
   });
+
+  it('reads the mobile-number policy, off by default', () => {
+    expect(ALL_ON.phoneRequired()).toBe(false);
+    expect(makeGates({ features: [{ feature: 'phone_required', variant: 'none' }] }).phoneRequired()).toBe(false);
+    expect(makeGates({ features: [{ feature: 'phone_required', variant: 'required' }] }).phoneRequired()).toBe(true);
+  });
 });
