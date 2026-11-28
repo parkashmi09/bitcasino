@@ -62,6 +62,8 @@ const POLICY_DEFAULTS = Object.freeze({
   deposit_email_verification: 'none',
   // Not a channel switch: whether players may sign in / sign up with Google (user auth google.js).
   google_signin: 'on',
+  // Not a channel switch: `required` = no sign-up without a mobile number (user auth register).
+  phone_required: 'none',
 });
 
 /** For each policy, which stored variants allow each channel. */

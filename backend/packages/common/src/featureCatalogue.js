@@ -1068,7 +1068,26 @@ const GOOGLE_SIGNIN_POLICY = {
   ],
 };
 
-const FEATURES = Object.freeze([...POLICIES, REWARD_CURRENCY_POLICY, DEFAULT_CURRENCY_POLICY, REGION_RESTRICTION_POLICY, WITHDRAWAL_REQUIREMENTS_POLICY, CASINO_AGGREGATOR_POLICY, THEME_MODE_POLICY, ADMIN_THEME_POLICY, SLOTEGRATOR_INR_AS_PKR_POLICY, JSGAMES_INR_AS_PKR_POLICY, API_ENCRYPTION_POLICY, RATE_LIMIT_POLICY, BRANCH_MANAGEMENT_POLICY, WHITELABEL_POLICY, DEPOSIT_EMAIL_VERIFICATION_POLICY, GOOGLE_SIGNIN_POLICY, ...GENERATED, TIPS, P2P, PUSH_NOTIFICATIONS, ANALYTICS, LIVE_TV, BONUS_CENTRE]);
+/**
+ * Mobile number required — a policy (owner-only, hash f3a287c6 made it always on). `required`: sign-up
+ * refuses an account without a mobile number (user auth PHONE_REQUIRED) and the player site asks a
+ * signed-in direct player with no number to add one (PUT /user/profile/phone). `none` (the default):
+ * the number stays optional, as before.
+ */
+const PHONE_REQUIRED_POLICY = {
+  key: 'phone_required',
+  label: 'Mobile number required',
+  category: 'business',
+  kind: 'policy',
+  flag: null,
+  defaultVariant: 'none',
+  variants: [
+    { key: 'none', label: 'Off', description: 'The mobile number is optional at sign-up. The default.' },
+    { key: 'required', label: 'Required', description: 'Sign-up needs a mobile number, and a signed-in direct player without one is asked to add it before playing.' },
+  ],
+};
+
+const FEATURES = Object.freeze([...POLICIES, REWARD_CURRENCY_POLICY, DEFAULT_CURRENCY_POLICY, REGION_RESTRICTION_POLICY, WITHDRAWAL_REQUIREMENTS_POLICY, CASINO_AGGREGATOR_POLICY, THEME_MODE_POLICY, ADMIN_THEME_POLICY, SLOTEGRATOR_INR_AS_PKR_POLICY, JSGAMES_INR_AS_PKR_POLICY, API_ENCRYPTION_POLICY, RATE_LIMIT_POLICY, BRANCH_MANAGEMENT_POLICY, WHITELABEL_POLICY, DEPOSIT_EMAIL_VERIFICATION_POLICY, GOOGLE_SIGNIN_POLICY, PHONE_REQUIRED_POLICY, ...GENERATED, TIPS, P2P, PUSH_NOTIFICATIONS, ANALYTICS, LIVE_TV, BONUS_CENTRE]);
 
 /**
  * Site templates — the bundles the OWNER picks for a site (docs/OWNER-PANEL.md

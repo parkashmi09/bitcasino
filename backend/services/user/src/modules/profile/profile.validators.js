@@ -14,6 +14,23 @@ const username = z
   .max(30, 'username must be at most 30 characters')
   .regex(/^[A-Za-z0-9_.-]+$/, 'username may contain letters, digits and _ . - only');
 
+/**
+ * A mobile number (hash f3a287c6, 2026-11-27). Spaces, dashes, dots and brackets are dropped, so
+ * `+91 98765-43210` is stored as `+919876543210`; what is left must be an optional `+` and 10 to 15
+ * digits. Login matches `users.phone` exactly, so the stored form is the one a player signs in with.
+ * Mandatory at sign-up only while the owner's `phone_required` policy says `required`.
+ */
+const phone = z
+  .string({ error: (iss) => (iss.code === 'invalid_type' && iss.input === undefined ? 'mobile number is required' : undefined) })
+  .trim()
+  .transform((value) => value.replace(/[\s\-().]/g, ''))
+  .refine((value) => /^\+?\d{10,15}$/.test(value), 'enter a valid mobile number (10 to 15 digits)');
+
+/** `PUT /profile/phone` — the mobile number, once, on an account that has none. */
+const setPhone = {
+  body: z.object({ phone }).strict(),
+};
+
 /** `POST /profile/avatar` — an id from `GET /admin/avatars/public`. */
 const setAvatar = {
   body: z.object({ avatarId: z.coerce.number().int().positive() }).strict(),
@@ -70,4 +87,4 @@ const turnoverQuery = {
     .strict(),
 };
 
-module.exports = { setAvatar, updateProfile, changeEmail, referralCodeParam, userIdParam, username, turnoverQuery };
+module.exports = { setAvatar, updateProfile, changeEmail, referralCodeParam, userIdParam, username, phone, setPhone, turnoverQuery };

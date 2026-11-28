@@ -362,6 +362,20 @@ const CATALOGUE: FeatureEntry[] = [
     ]
   },
   {
+    // Mobile number required: a policy (owner-only, hash f3a287c6). Mirrors backend featureCatalogue.js.
+    key: 'phone_required',
+    label: 'Mobile number required',
+    category: 'business',
+    flag: null,
+    policy: true,
+    defaultVariant: 'none',
+    note: 'Required: sign-up refuses an account without a mobile number (10 to 15 digits), and a signed-in direct player with no number (Google sign-ups, older accounts) is asked to add one; closing the box signs them out. Agent players and demo accounts are never asked. Off: the number stays optional.',
+    variants: [
+      { key: 'none', label: 'Off', description: 'The mobile number is optional at sign-up. The default.' },
+      { key: 'required', label: 'Required', description: 'Sign-up needs a mobile number, and a signed-in direct player without one is asked to add it before playing.' }
+    ]
+  },
+  {
     key: 'vip',
     label: 'VIP club',
     category: 'engagement',

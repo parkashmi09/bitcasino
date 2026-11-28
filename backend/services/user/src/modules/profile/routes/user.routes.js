@@ -62,6 +62,13 @@ module.exports = function userRoutes(deps) {
    * key there — the operation needs a second factor and the others do not.
    */
   router.post('/change-email', validate(v.changeEmail), ctrl.changeEmail);
+  // The mobile number, once, on an account that has none (ProfileService.setPhone, hash f3a287c6).
+  router.put(
+    '/phone',
+    denyAgentPlayer('profileEdit'),
+    validate(v.setPhone),
+    asyncHandler(async (req, res) => response.ok(res, await service.setPhone(req.user.id, req.body.phone)))
+  );
 
   return router;
 };

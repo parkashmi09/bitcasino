@@ -559,6 +559,8 @@ class AuthService {
     await sitePolicy.assertAllowed(this.models, 'business_model', 'public_signup', this.logger);
     context = withClientIp(context);
     await this.region.assertAllowed(context.ip);
+    // The owner's `phone_required` policy (hash f3a287c6 made it always on; here it is the owner's switch).
+    if (!phone && (await this.phoneRequired())) throw errors.PHONE_REQUIRED();
 
     // Case-blind on the name (no lookalike 'Bob' beside 'bob'), and phone too: it is a login identifier.
     const clash = await this.models.Users.findOne({
@@ -750,6 +752,12 @@ class AuthService {
    */
   async googleAllowed() {
     return (await sitePolicy.readPolicy(this.models, 'google_signin')) === 'on';
+  }
+
+  /** The owner's `phone_required` policy (owner panel → Features & plan): `required` = no sign-up without a mobile number. */
+  async phoneRequired() {
+    if (!(await this.entitlements.isFeatureEntitled('phone_required'))) return false;
+    return (await sitePolicy.readPolicy(this.models, 'phone_required')) === 'required';
   }
 
   /** Keys present and the owner's switch on — off hides the button, sign-in and sign-up alike. */
