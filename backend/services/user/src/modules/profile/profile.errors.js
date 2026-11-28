@@ -44,6 +44,16 @@ module.exports = defineErrors('PROFILE', {
     message: 'Verify the new email address with a code before changing it',
   },
 
+  PHONE_TAKEN: {
+    status: 409,
+    message: 'That mobile number is already registered to another account',
+  },
+
+  PHONE_ALREADY_SET: {
+    status: 409,
+    message: 'This account already has a mobile number. Contact support to change it.',
+  },
+
   EMAIL_UNCHANGED: {
     status: 400,
     message: 'That is already the email address on this account',

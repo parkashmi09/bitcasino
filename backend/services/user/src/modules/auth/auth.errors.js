@@ -128,6 +128,9 @@ module.exports = defineErrors('AUTH', {
     message: 'That reset link is not valid or has expired',
   },
 
+  /** The owner's `phone_required` policy is `required` and the sign-up carried no mobile number. */
+  PHONE_REQUIRED: { status: 422, message: 'A mobile number is required to sign up' },
+
   /** Google sign-in is switched off: its keys are not set. */
   GOOGLE_NOT_CONFIGURED: { status: 503, message: 'Sign in with Google is not available' },
   /** The owner's `google_signin` policy is off (owner panel → Features & plan). */

@@ -225,6 +225,29 @@ class ProfileService {
   }
 
   /**
+   * Add the mobile number to an account that has none (hash f3a287c6: Google sign-ups and accounts
+   * made before the owner's `phone_required` policy are asked on their next visit). Only an EMPTY
+   * number is filled: the number is a login identifier, so changing an existing one is support's
+   * job, not a session's. Unique across accounts for the same reason.
+   */
+  async setPhone(userId, phone) {
+    const user = await this.models.Users.findByPk(userId);
+    if (!user) throw errors.USER_NOT_FOUND({ userId });
+    if (String(user.phone ?? '').trim()) throw errors.PHONE_ALREADY_SET();
+
+    const taken = await this.models.Users.findOne({
+      where: { phone, id: { [Op.ne]: userId } },
+      attributes: ['id'],
+      raw: true,
+    });
+    if (taken) throw errors.PHONE_TAKEN();
+
+    await user.update({ phone });
+    this.logger?.info({ userId }, 'Mobile number added');
+    return this.get(userId);
+  }
+
+  /**
    * @legacy PUT /editProfile
    *
    * Legacy updated only `name`, and did so unconditionally. Here the username

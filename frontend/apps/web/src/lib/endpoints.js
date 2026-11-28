@@ -128,6 +128,8 @@ export const ENDPOINTS = {
   profileAvatar: `${USER}/profile/avatar`,
   // `{email, code, password}`: the code is a `change-email` OTP sent to the NEW address (`emailOtp`).
   profileChangeEmail: `${USER}/profile/change-email`,
+  // PUT `{phone}` → the profile; once, on an account with none (409 PROFILE_PHONE_TAKEN / _ALREADY_SET, 403 agent player).
+  profilePhone: `${USER}/profile/phone`,
   // Public: `{userId, username, avatar, joinedAt, level, levelName, badgeUrl, bets, wins, statisticsHidden}`.
   publicProfile: `${USER}/profile/:userId/public`,
   // Public: the Edit Avatar grid `[{id, url, minLevel, sort}]`.

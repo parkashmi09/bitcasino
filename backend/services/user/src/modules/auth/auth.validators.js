@@ -4,7 +4,7 @@ const { z } = require('@ibitplay/common');
 
 // The display-name rules already live with the profile module; a name
 // chosen at signup and a name chosen later must not be able to disagree.
-const { username } = require('../profile/profile.validators');
+const { username, phone } = require('../profile/profile.validators');
 
 /**
  * Auth request schemas.
@@ -58,7 +58,9 @@ const register = {
       // Optional because the platform allows phone-only accounts, and the
       // uniqueness constraint covers whichever is supplied.
       email: z.string().trim().toLowerCase().email('that is not a valid email address').max(160).optional(),
-      phone: z.string().trim().max(30).optional(),
+      // The shared mobile rule (hash f3a287c6). Optional here: the owner's `phone_required` policy
+      // makes it mandatory in AuthService.register. An empty box is "not given".
+      phone: z.preprocess((value) => (typeof value === 'string' && !value.trim() ? undefined : value), phone.optional()),
       country: z.string().trim().max(80).optional(),
       referredBy: z.string().trim().max(64).optional(),
     })

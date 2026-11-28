@@ -21,6 +21,7 @@ import { ApiError, api } from '@/lib/api';
 import { ENDPOINTS, path } from '@/lib/endpoints';
 import { cn } from '@/lib/cn';
 import { DIAL_CODES } from '@/data/countries';
+import { PHONE_MESSAGE, isValidPhone } from '@/lib/phone';
 
 /** Same shape the backend's email rule accepts; the server still has the last word. */
 const EMAIL_SHAPE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -147,6 +148,8 @@ export function SignUp() {
 function SignUpForm() {
   const navigate = useNavigate();
   const { register } = useAuth();
+  // Owner policy `phone_required`: `required` makes the number mandatory (backend PHONE_REQUIRED).
+  const phoneRequired = useGates().phoneRequired();
   const [searchParams] = useSearchParams();
   const referredBy = searchParams.get('ref')?.trim() || '';
 
@@ -235,8 +238,14 @@ function SignUpForm() {
     if (form.password.length < MIN_PASSWORD) {
       found.password = `Use at least ${MIN_PASSWORD} characters.`;
     }
-    if (form.phone.trim() && !form.dialCode) {
+    const phone = form.phone.trim();
+    const dial = DIAL_CODES.find((entry) => entry.id === form.dialCode);
+    if (!phone) {
+      if (phoneRequired) found.phone = 'Enter your mobile number.';
+    } else if (!dial) {
       found.dialCode = 'Choose a country code for that number.';
+    } else if (!isValidPhone(`${dial.code}${phone}`)) {
+      found.phone = PHONE_MESSAGE;
     }
     return found;
   }
@@ -302,6 +311,8 @@ function SignUpForm() {
           break;
 
         default:
+          // The owner switched the number on after this form loaded.
+          if (failure.code?.endsWith('PHONE_REQUIRED')) setFieldErrors({ phone: failure.message });
           // TOO_MANY_REQUESTS, AUTH_REGISTRATION_FAILED and the network failure.
           setError(failure.message);
       }
@@ -371,7 +382,7 @@ function SignUpForm() {
             Country Code
           </AuthLabel>
           <AuthLabel htmlFor="phone" inGrid>
-            Phone nr (optional)
+            {phoneRequired ? 'Phone nr' : 'Phone nr (optional)'}
           </AuthLabel>
           <Select
             id="dialCode"

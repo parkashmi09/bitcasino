@@ -1,5 +1,6 @@
 import { useEffect, useId, useState } from 'react';
 import { KycDialog } from '@/components/account/KycDialog';
+import { AddPhoneDialog } from '@/components/account/PhoneDialog';
 import { EmailVerifyCard, KycLevelsCard } from '@/components/account/VerificationCards';
 import {
   Avatar,
@@ -95,7 +96,7 @@ export function Account() {
 
   const [form, setForm] = useState(null);
   const [result, setResult] = useState(null);
-  // 'avatar' | 'email' | 'card' | null — one dialog at a time.
+  // 'avatar' | 'email' | 'card' | 'phone' | null — one dialog at a time.
   const [dialog, setDialog] = useState(null);
   const closeDialog = () => setDialog(null);
   const changed = () => {
@@ -232,9 +233,24 @@ export function Account() {
           ) : (
             <form onSubmit={onSubmit}>
               <fieldset disabled={!form || saving} className="grid gap-4 border-0 p-0">
-                {/* Only what the platform stores: the phone from signup (read-only,
-                    `PUT /user/profile` has no phone) and the country, which it does save. */}
-                {profile?.phone && <Fact label="Phone number" value={profile.phone} />}
+                {/* Only what the platform stores: the phone (read-only once set; an account without
+                    one adds it through `PUT /user/profile/phone`) and the country, which it does save. */}
+                {profile?.phone ? (
+                  <Fact label="Phone number" value={profile.phone} />
+                ) : (
+                  profile && (
+                    <div className="grid justify-items-start">
+                      <span className="text-xs leading-4 text-trunks">Phone number</span>
+                      <button
+                        type="button"
+                        onClick={() => setDialog('phone')}
+                        className="cursor-pointer text-base leading-6 font-medium text-piccolo hover:underline"
+                      >
+                        Add mobile number
+                      </button>
+                    </div>
+                  )
+                )}
 
                 {/* Two equal columns at every width on the reference — no
                     responsive variant on its own `grid-cols-2`. */}
@@ -287,6 +303,7 @@ export function Account() {
       {dialog === 'avatar' && <AvatarDialog open onClose={closeDialog} profile={profile} onChanged={changed} />}
       {dialog === 'email' && <ChangeEmailDialog open onClose={closeDialog} onChanged={changed} />}
       {dialog === 'card' && <PlayerCardDialog open onClose={closeDialog} userId={profile?.id} />}
+      {dialog === 'phone' && <AddPhoneDialog open onClose={closeDialog} onSaved={changed} />}
     </div>
   );
 }

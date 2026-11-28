@@ -70,6 +70,10 @@ const config = loadEnv(
     FLASH_SCORE_FLAG_API_KEY: coercers.optionalStr(),
     CRICBUZZ_API_URL: coercers.optionalStr(),
     CRICBUZZ_API_KEY: coercers.optionalStr(),
+    // The IANA zone our exchange feed prints match start times in ("11/26/2026 1:40:00 PM").
+    SPORTS_FEED_TIMEZONE: coercers.str('Asia/Kolkata'),
+    // Where team-logos keeps the matches it has seen, across restarts (default: the OS temp dir).
+    TEAM_LOGOS_CACHE_FILE: coercers.optionalStr(),
   },
   { serviceDir: path.resolve(__dirname, '..') }
 );

@@ -127,7 +127,7 @@ const AGENT_CLOSED =
 const DEMO_CLOSED = /^\/(?:profile|sports\/statement)(?:\/|$)/;
 
 /* The owner's policies when the site never chose one — backend sitePolicy.js POLICY_DEFAULTS. */
-const POLICY_DEFAULTS = { business_model: 'hybrid', deposit_mode: 'both', withdrawal_mode: 'both', theme_mode: 'dark_only' };
+const POLICY_DEFAULTS = { business_model: 'hybrid', deposit_mode: 'both', withdrawal_mode: 'both', theme_mode: 'dark_only', phone_required: 'none' };
 
 const railOpen = (mode, channel) => mode === 'both' || mode === channel;
 
@@ -198,6 +198,8 @@ export function makeGates({ flags, features, capabilities, ready = true, agentSi
     flag: (key) => flagMap?.[key] !== false,
     agentPlayer,
     demo,
+    /** The owner's `phone_required` policy: sign-up needs a mobile number, and a direct player without one adds it. */
+    phoneRequired: () => policy('phone_required') === 'required',
     /** Public self-registration: off on a B2B (agent-only) site and on /agent. */
     canSignUp: () => !agentSite && policy('business_model') !== 'b2b',
   };
